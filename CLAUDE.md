@@ -140,3 +140,17 @@ This is a small personal app. Don't add features, abstractions, or
 defensive machinery beyond what a task requires — no speculative concurrency
 control, rate limiting, or idempotency layers for load that won't exist. If
 you find yourself reaching for that kind of complexity, stop and ask first.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as local markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles use their default strings. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
