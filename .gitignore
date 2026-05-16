@@ -3,3 +3,19 @@
 
 # ralph loop runtime state (regenerated every loop)
 .ralph/loop_state.json
+
+# dependencies
+/node_modules
+
+# next.js build output
+/.next
+/out
+
+# local environment — only .env.example is committed
+.env
+.env.local
+.env*.local
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
