@@ -1,6 +1,6 @@
 # 02 — Catalog: Options CRUD
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -35,17 +35,17 @@ rules.
 
 ## Acceptance criteria
 
-- [ ] Home meals and Restaurants can be added via an inline-expand form, listed
+- [x] Home meals and Restaurants can be added via an inline-expand form, listed
       in two sections, and edited inline
-- [ ] Archive sets `active = false`; archived Options drop out of the default
+- [x] Archive sets `active = false`; archived Options drop out of the default
       Catalog list
-- [ ] Hard-delete works for an Option with zero Log entries
-- [ ] Deleting an Option with Log history shows the friendly inline "archive
+- [x] Hard-delete works for an Option with zero Log entries
+- [x] Deleting an Option with Log history shows the friendly inline "archive
       instead" message — no error page
-- [ ] Destructive actions require an inline "Delete/Archive · Cancel" confirm
+- [x] Destructive actions require an inline "Delete/Archive · Cancel" confirm
       step
-- [ ] Loading / empty / error / success states match PRD §17 for Catalog
-- [ ] Server actions have tests: archive sets `active = false`; hard-delete is
+- [x] Loading / empty / error / success states match PRD §17 for Catalog
+- [x] Server actions have tests: archive sets `active = false`; hard-delete is
       blocked for a logged Option and allowed for an unlogged one; blank name is
       rejected
 
