@@ -56,7 +56,7 @@ export function TonightScreen({
   }
 
   return (
-    <main className="column flex min-h-screen flex-col gap-5.5 py-5.5">
+    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5">
       <h1 className="text-h1 font-h1 text-ink">Tonight</h1>
       {rows.length === 0 ? (
         <p className="text-body text-muted">

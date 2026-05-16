@@ -89,7 +89,7 @@ export function LogScreen({
   const hiddenUpcoming = upcoming.length - shownUpcoming.length;
 
   return (
-    <main className="column flex min-h-screen flex-col gap-5.5 py-5.5">
+    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5">
       <h1 className="text-h1 font-h1 text-ink">Log</h1>
 
       {entries.length === 0 && (
