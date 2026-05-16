@@ -16,6 +16,27 @@
  *
  * where the JSON is `{ meals: PriorMeal[], restaurants: PriorRestaurant[],
  * dinners: PriorDinner[] }`. `DATABASE_URL` and `APP_TZ` are read from `.env`.
+ *
+ * Producing that JSON is a manual one-off: dump the prior Prisma DB's three
+ * tables, with the JSON keys matching the Prior* types below. The prior
+ * table/column names are case-sensitive, so they stay double-quoted. psql's
+ * `\copy` writes the file client-side — run this against the prior DB (escape
+ * the inner `"` if you pass the query through `psql -c "..."`):
+ *
+ *   \copy (SELECT json_build_object(
+ *     'meals',       (SELECT json_agg(json_build_object(
+ *       'id',id,'name',name,'notes',notes,'createdAt',"createdAt",
+ *       'hidden',hidden,'tags',tags)) FROM "Meal"),
+ *     'restaurants', (SELECT json_agg(json_build_object(
+ *       'id',id,'name',name,'notes',notes,'createdAt',"createdAt",
+ *       'hidden',hidden,'tags',tags,'phoneNumber',"phoneNumber",
+ *       'orderUrl',"orderUrl",'menuUrl',"menuUrl")) FROM "Restaurant"),
+ *     'dinners',     (SELECT json_agg(json_build_object(
+ *       'id',id,'date',date,'notes',notes,'type',type,
+ *       'mealId',"mealId",'restaurantId',"restaurantId")) FROM "Dinner"))
+ *   ) TO 'prior-data.json'
+ *
+ * prior-data.json holds real personal data — delete it after the import.
  */
 import "dotenv/config";
 import { readFileSync } from "node:fs";
