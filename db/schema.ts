@@ -3,6 +3,7 @@ import {
   boolean,
   date,
   doublePrecision,
+  index,
   pgEnum,
   pgTable,
   primaryKey,
@@ -60,7 +61,12 @@ export const tags = pgTable(
   (t) => [uniqueIndex("tags_lower_name_unique").on(sql`lower(${t.name})`)],
 );
 
-/** Option-to-Tag M2M. Both FKs cascade so cleanup never leaves dangling rows. */
+/**
+ * Option-to-Tag M2M. Both FKs cascade so cleanup never leaves dangling rows.
+ * The composite PK covers `option_id`-leading lookups; `tag_id` gets its own
+ * index because Postgres does not auto-index FK columns and the per-Tag
+ * recency join filters by `tag_id` (review fix F9).
+ */
 export const optionTags = pgTable(
   "option_tags",
   {
@@ -71,7 +77,10 @@ export const optionTags = pgTable(
       .notNull()
       .references(() => tags.id, { onDelete: "cascade" }),
   },
-  (t) => [primaryKey({ columns: [t.optionId, t.tagId] })],
+  (t) => [
+    primaryKey({ columns: [t.optionId, t.tagId] }),
+    index("option_tags_tag_id_idx").on(t.tagId),
+  ],
 );
 
 /**

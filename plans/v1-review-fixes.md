@@ -1,8 +1,8 @@
 # v1 Review Fixes — plan
 
-Status: **agreed** — fix set triaged with the user during `/review` of branch
-`ralph-1` (2026-05-16). Not yet implemented. This is the work to do before
-`ralph-1` merges to `main`.
+Status: **implemented** (2026-05-16) — fix set triaged with the user during
+`/review` of branch `ralph-1`. F1–F9 are now landed on `ralph-1` (uncommitted
+working tree). This was the work to do before `ralph-1` merges to `main`.
 
 ## Context
 

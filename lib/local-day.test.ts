@@ -1,9 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
   epochDayFromSqlDate,
+  isValidSqlDate,
   todayEpochDay,
   todaySqlDate,
 } from "./local-day";
+
+describe("isValidSqlDate", () => {
+  it("accepts a well-formed real calendar date", () => {
+    expect(isValidSqlDate("2026-05-16")).toBe(true);
+    expect(isValidSqlDate("2024-02-29")).toBe(true);
+  });
+
+  it("rejects an empty string — a cleared date input", () => {
+    expect(isValidSqlDate("")).toBe(false);
+  });
+
+  it("rejects a malformed shape", () => {
+    expect(isValidSqlDate("2026-5-1")).toBe(false);
+    expect(isValidSqlDate("16/05/2026")).toBe(false);
+    expect(isValidSqlDate("not-a-date")).toBe(false);
+  });
+
+  it("rejects a right-shaped but impossible day", () => {
+    expect(isValidSqlDate("2026-02-30")).toBe(false);
+    expect(isValidSqlDate("2026-13-01")).toBe(false);
+    expect(isValidSqlDate("2025-02-29")).toBe(false);
+  });
+});
 
 describe("epochDayFromSqlDate", () => {
   it("anchors the Unix epoch at day 0", () => {

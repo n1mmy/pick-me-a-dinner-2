@@ -58,12 +58,18 @@ async function isAuthenticated(request: NextRequest): Promise<boolean> {
 
 /**
  * The shared-password route gate (ADR-0002, plan §4). Every route except
- * `/login` — and the static assets excluded by `config.matcher` — requires a
- * valid session; an unauthenticated or expired request is redirected to
- * `/login`. The §4 security headers ride on every response either way.
+ * `/login` and `/api/ready` — and the static assets excluded by
+ * `config.matcher` — requires a valid session; an unauthenticated or expired
+ * request is redirected to `/login`. The §4 security headers ride on every
+ * response either way.
+ *
+ * `/api/ready` is exempt so the k8s readiness probe can reach it without a
+ * session. Unlike `/login`, exempting it is safe: it is a GET-only route
+ * handler with no server-action dispatch surface (review fix F1/F7).
  */
 export async function middleware(request: NextRequest): Promise<NextResponse> {
-  if (request.nextUrl.pathname === "/login") {
+  const { pathname } = request.nextUrl;
+  if (pathname === "/login" || pathname === "/api/ready") {
     return withSecurityHeaders(NextResponse.next());
   }
   if (await isAuthenticated(request)) {

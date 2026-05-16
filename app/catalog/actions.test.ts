@@ -15,6 +15,12 @@ import {
 // revalidatePath needs a Next request scope; tests exercise the DB writes only.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+// The actions are authedAction-wrapped (F1); stub the session check so the
+// tests drive the action bodies directly.
+vi.mock("../../lib/require-session", () => ({
+  requireSession: vi.fn(async () => {}),
+}));
+
 const emptyValues: OptionFormValues = {
   name: "",
   url: "",

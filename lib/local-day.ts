@@ -22,6 +22,24 @@ export function epochDayFromSqlDate(sqlDate: string): number {
 }
 
 /**
+ * Whether `value` is a well-formed SQL `date` — `"YYYY-MM-DD"` shape *and* a
+ * real calendar day. Server actions check this before a write so a cleared
+ * `<input type="date">` (`""`) or a malformed string becomes an inline error
+ * instead of an uncaught 500 (review fix F3). `2026-02-30` is rejected: it has
+ * the right shape but `Date` rolls it over to March, so the round-trip differs.
+ */
+export function isValidSqlDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+/**
  * The Household's calendar day for the instant `now`, as a `"YYYY-MM-DD"`
  * string read in `timeZone`. `en-CA` formats as ISO `YYYY-MM-DD`.
  */

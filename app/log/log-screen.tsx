@@ -324,6 +324,10 @@ function EntryEditForm({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    if (!eatenOn) {
+      setError("Pick a valid date");
+      return;
+    }
     startTransition(async () => {
       const result = await updateLogEntry(entry.id, {
         optionId,
@@ -460,6 +464,10 @@ function AddEntryForm({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    if (!eatenOn) {
+      setError("Pick a valid date");
+      return;
+    }
     startTransition(async () => {
       const result = await logForDate(optionId, eatenOn, note);
       if (result.ok) {

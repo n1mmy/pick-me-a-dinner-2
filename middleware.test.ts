@@ -44,6 +44,12 @@ describe("middleware route gate", () => {
     expect(response.headers.get("location")).toBeNull();
   });
 
+  it("leaves /api/ready ungated for the k8s readiness probe", async () => {
+    const response = await middleware(requestFor("/api/ready"));
+
+    expect(response.headers.get("location")).toBeNull();
+  });
+
   it("lets an authenticated request through", async () => {
     const response = await middleware(
       requestFor("/", await sessionCookie(true)),

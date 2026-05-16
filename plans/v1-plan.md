@@ -60,11 +60,23 @@ into recipes / grocery lists / nutrition / weekly planning.
   `drizzle-kit migrate` run by hand against the DB before/around a deploy). The
   repo still generates and version-controls migration files; applying them is
   an operator step, not an app-startup step.
+- **Startup config check.** On boot, before anything else, the app verifies the
+  required env vars (`DATABASE_URL`, `APP_SECRET`, `APP_PASSWORD`, `APP_TZ`) are
+  set and that `APP_TZ` is a valid IANA zone. A misconfiguration logs a loud,
+  specific error and exits non-zero. (The build itself needs no env vars — see
+  §3 "Image build"; only the running server does.)
 - **Startup schema check.** On boot the app compares the migration files
   bundled in the image against the `__drizzle_migrations` table in the DB. If
   the DB is behind, it logs a loud, specific error ("DB schema N migrations
   behind — run drizzle-kit migrate") and exits non-zero, so the pod crash-loops
-  visibly instead of serving pages that 500 on missing columns.
+  visibly instead of serving pages that 500 on missing columns. A DB that is
+  merely *unreachable* at boot (transient outage) is the exception: the app
+  logs a warning and continues rather than crash-looping the fleet against a
+  recovering database.
+- **Readiness probe.** The app serves `GET /api/ready` — 200 when the DB is
+  reachable, 503 when it is not. The k8s `readinessProbe` must target this
+  path; an unreachable DB then marks the pod not-ready (traffic held off) until
+  the DB recovers.
 - **Postgres connection:** plain (no `sslmode=require`) — the DB sits behind
   shared trusted infrastructure.
 - **Env vars:** `DATABASE_URL`, `APP_PASSWORD`, `APP_SECRET`, `APP_TZ`,
@@ -92,11 +104,22 @@ trusted; this app is not a high-value target.
 - **No lockout, no rate limit.** Wrong password → inline error, nothing else.
   Personal app, trusted infra.
 - **Route gating:** Next.js middleware validates the cookie on every route
-  except `/login` and static assets.
+  except `/login`, `/api/ready`, and static assets. Route gating is
+  defense-in-depth only — it cannot protect Server Actions, which are
+  dispatched by their `Next-Action` id regardless of the route the POST hits;
+  every Server Action enforces auth itself (see §4 "Server Action auth").
 - **Security headers** (via `next.config` / middleware): `Strict-Transport-
   Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`
   (+ CSP `frame-ancestors 'none'`), `Referrer-Policy: no-referrer`, a baseline
   CSP.
+- **Server Action auth.** Authentication is enforced *inside* every Server
+  Action, not just at the route. Next.js dispatches a Server Action by its
+  `Next-Action` id no matter which route the POST hits — including the
+  unauthenticated `/login` — so middleware route gating alone leaves actions
+  reachable by anonymous callers. Auth is the default: each action is wrapped
+  with `authedAction` (which redirects to `/login` when there is no valid
+  session); `login` is the single, explicitly-commented exception, since it is
+  how a session starts.
 - **CSRF:** `SameSite=Lax` + same-origin checks on mutations. Next.js Server
   Actions carry CSRF protection by default.
 - No logout UI in v1 — clearing the cookie is sufficient.
@@ -146,10 +169,13 @@ dinner_log
                                       -- is fine — that's a real dinner
 ```
 
-`dinner_log` is the single source of truth for all recency. Per-option recency =
-most recent **non-future** `eaten_on` for that option. Per-tag recency = most
-recent **non-future** `eaten_on` across all options carrying that tag (via the
-`option_tags` join). See §7 for why future rows are excluded.
+`dinner_log` is the single source of truth for all recency. Recency is computed
+from **active** options' Log rows only — an archived option's history neither
+ranks (it is not in the Tonight set) nor shifts a tag's recency; archiving is
+rare and must not move the ranking. Per-option recency = most recent
+**non-future** `eaten_on` for that (active) option. Per-tag recency = most
+recent **non-future** `eaten_on` across all **active** options carrying that
+tag (via the `option_tags` join). See §7 for why future rows are excluded.
 
 ### Lifecycle rules
 
@@ -213,8 +239,9 @@ inline error rather than silently merged.
 
 The Tonight list is the full active catalog (after filters), sorted **descending**
 by a score combining two signals — **per-option recency** (how long since this
-exact option was eaten) and **per-tag recency** (how long since any option
-carrying that tag was eaten). Higher score = more "due", floats to the top.
+exact option was eaten) and **per-tag recency** (how long since any *active*
+option carrying that tag was eaten). Higher score = more "due", floats to the
+top.
 
 **Future rows are excluded.** All recency in this section is computed only from
 `dinner_log` rows with `eaten_on <= today` (local). Planned/future dinners do
@@ -222,8 +249,9 @@ not influence the ranking until their date arrives.
 
 **Where it runs.** Computed in TypeScript, not SQL. For a personal catalog (tens
 of options, hundreds of log rows) the dataset is tiny. The Tonight server
-component fetches `options` (active), `option_tags`, and the non-future `dinner_log`
-rows, and computes scores in a pure, unit-testable function.
+component fetches `options` (active), `option_tags`, and the non-future
+`dinner_log` rows **for those active options**, and computes scores in a pure,
+unit-testable function.
 
 **Core helper, with explicit null handling:**
 

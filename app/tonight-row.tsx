@@ -25,18 +25,25 @@ export function TonightRowItem({
 }) {
   const { option } = row;
   const [justLogged, setJustLogged] = useState(false);
+  const [pickError, setPickError] = useState<string | null>(null);
   const [loggingDate, setLoggingDate] = useState(false);
   const [dateValue, setDateValue] = useState(today);
   const [dateError, setDateError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function pick() {
-    setJustLogged(true);
+    setPickError(null);
     startTransition(async () => {
-      await pickTonight(option.id);
+      const result = await pickTonight(option.id);
+      if (!result.ok) {
+        // Never flash a false "Logged ✓" — show the failure on the row instead.
+        setPickError(result.error);
+        return;
+      }
+      // Hold "Logged ✓" briefly; the revalidation re-sorts the list under it.
+      setJustLogged(true);
+      window.setTimeout(() => setJustLogged(false), 1600);
     });
-    // Hold "Logged ✓" briefly; the revalidation re-sorts the list under it.
-    window.setTimeout(() => setJustLogged(false), 1600);
   }
 
   function submitDate() {
@@ -101,6 +108,11 @@ export function TonightRowItem({
           </button>
         )}
       </div>
+      {pickError && (
+        <p className="text-chip text-danger" aria-live="polite">
+          {pickError}
+        </p>
+      )}
       {loggingDate && (
         <div className="mt-1 flex flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">

@@ -78,16 +78,32 @@ async function liveCounts(): Promise<{ bundled: number; applied: number }> {
 }
 
 /**
- * The startup schema check (plan §3). `instrumentation.ts` runs this once when
- * a server boots: if the DB is behind the migrations bundled in the image, it
- * logs a loud, specific error and exits non-zero so the pod crash-loops
- * visibly instead of serving 500s on missing columns. `counts` is injectable
- * only so tests can drive the behind case without a real lagging DB.
+ * The startup schema check (plan §3, review fix F7). `instrumentation.ts` runs
+ * this once when a server boots:
+ *  - DB *behind* the bundled migrations → log a loud, specific error and exit
+ *    non-zero. That is a deploy-ordering mistake; crash-looping surfaces it.
+ *  - DB *unreachable* → log a warning and continue. A transient outage must not
+ *    crash-loop the whole fleet against a recovering database; the `/api/ready`
+ *    probe holds traffic off each pod until the DB is back.
+ *
+ * `counts` is injectable only so tests can drive the behind case without a
+ * real lagging DB.
  */
 export async function checkSchemaOnBoot(
   counts: () => Promise<{ bundled: number; applied: number }> = liveCounts,
 ): Promise<void> {
-  const { bundled, applied } = await counts();
+  let bundled: number;
+  let applied: number;
+  try {
+    ({ bundled, applied } = await counts());
+  } catch (error) {
+    console.warn(
+      "[schema-check] could not reach the database at boot — continuing; " +
+        "/api/ready will hold traffic off this pod until the DB recovers:",
+      error,
+    );
+    return;
+  }
   const result = schemaCheckResult(bundled, applied);
   if (result.ok) return;
 

@@ -1,4 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+// The actions are authedAction-wrapped (F1); stub the session check so the
+// tests drive the action bodies directly.
+vi.mock("../../lib/require-session", () => ({
+  requireSession: vi.fn(async () => {}),
+}));
+
 import { fetchPlaceDetails, searchGooglePlaces } from "./places-actions";
 
 afterEach(() => {

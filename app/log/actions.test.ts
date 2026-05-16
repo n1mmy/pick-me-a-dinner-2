@@ -15,6 +15,13 @@ import {
 // revalidatePath needs a Next request scope; tests exercise the DB writes only.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+// The actions are authedAction-wrapped (F1); stub the session check so the
+// tests drive the action bodies directly. requireSession itself is covered by
+// the auth-by-default tests.
+vi.mock("../../lib/require-session", () => ({
+  requireSession: vi.fn(async () => {}),
+}));
+
 /** The Household's calendar day — `pickTonight` logs against exactly this. */
 const TODAY = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
 
@@ -80,6 +87,15 @@ describe("pickTonight", () => {
     expect(rows).toHaveLength(2);
     expect(rows.every((row) => row.eatenOn === TODAY)).toBe(true);
   });
+
+  it("reports a failure instead of flashing success when the Option is gone", async () => {
+    // A well-formed but non-existent Option id — the FK insert fails. The
+    // caller must see ok:false so the row never flashes a false "Logged ✓".
+    const result = await pickTonight("00000000-0000-0000-0000-000000000000");
+
+    expect(result.ok).toBe(false);
+    expect(await db.select().from(dinnerLog)).toHaveLength(0);
+  });
 });
 
 describe("logForDate", () => {
@@ -129,6 +145,20 @@ describe("logForDate", () => {
     });
     // The collision is reported, not silently swallowed — still one row.
     expect(await db.select().from(dinnerLog)).toHaveLength(1);
+  });
+
+  it("rejects a blank or malformed date with an inline error", async () => {
+    const pizza = await makeOption("Pizza");
+
+    expect(await logForDate(pizza, "")).toEqual({
+      ok: false,
+      error: "Pick a valid date",
+    });
+    expect(await logForDate(pizza, "2026-02-30")).toEqual({
+      ok: false,
+      error: "Pick a valid date",
+    });
+    expect(await db.select().from(dinnerLog)).toHaveLength(0);
   });
 });
 
@@ -199,6 +229,24 @@ describe("updateLogEntry", () => {
     expect(withoutNote.note).toBeNull();
   });
 
+  it("rejects a blank date with an inline error, leaving the entry untouched", async () => {
+    const pizza = await makeOption("Pizza");
+    const id = await makeEntry(pizza, "2026-05-01");
+
+    const result = await updateLogEntry(id, {
+      optionId: pizza,
+      eatenOn: "",
+      note: "",
+    });
+
+    expect(result).toEqual({ ok: false, error: "Pick a valid date" });
+    const [row] = await db
+      .select()
+      .from(dinnerLog)
+      .where(eq(dinnerLog.id, id));
+    expect(row.eatenOn).toBe("2026-05-01");
+  });
+
   it("rejects an edit that collides with an existing (option_id, eaten_on)", async () => {
     const pizza = await makeOption("Pizza");
     await makeEntry(pizza, "2026-05-01");
@@ -232,6 +280,26 @@ describe("deleteLogEntry", () => {
     await deleteLogEntry(id);
 
     expect(await db.select().from(dinnerLog)).toHaveLength(0);
+  });
+});
+
+describe("getTonightData", () => {
+  it("excludes an archived Option's Log rows from the ranking data", async () => {
+    const active = await makeOption("Pizza");
+    const archived = await makeOption("Old Diner", "restaurant");
+    await makeEntry(active, "2026-05-01");
+    await makeEntry(archived, "2026-05-02");
+    await db
+      .update(options)
+      .set({ active: false })
+      .where(eq(options.id, archived));
+
+    const { logEntries } = await getTonightData(TODAY);
+
+    // Archiving is rare and must not move the ranking — only the active
+    // Option's Log row feeds recency (review fix F5).
+    expect(logEntries).toHaveLength(1);
+    expect(logEntries[0].optionId).toBe(active);
   });
 });
 

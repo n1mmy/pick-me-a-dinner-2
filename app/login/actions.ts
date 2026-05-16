@@ -15,6 +15,11 @@ export type LoginState = { error?: string };
  * sealed iron-session cookie and send the Household to Tonight. A wrong password
  * returns an inline error — no lockout, no rate limit — and React 19 resets the
  * uncontrolled form, clearing the field.
+ *
+ * This is the **one** Server Action deliberately *not* `authedAction`-wrapped
+ * (review fix F1): it cannot require a session, because it is how a session
+ * starts. It is safe to leave public — it only ever sets a session for a
+ * caller who already knows `APP_PASSWORD`.
  */
 export async function login(
   _prev: LoginState,

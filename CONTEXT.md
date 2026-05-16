@@ -67,9 +67,10 @@ screen). Sorted descending by Score.
 
 **Recency**:
 How long since something was last eaten, measured only from non-future Log
-entries. **Per-Option recency** is days since that exact Option was last
-eaten; **per-Tag recency** is days since any Option carrying that Tag was last
-eaten.
+entries of **active** Options — an Archived Option's history does not count
+(archiving is rare and must not move the ranking). **Per-Option recency** is
+days since that exact Option was last eaten; **per-Tag recency** is days since
+any active Option carrying that Tag was last eaten.
 
 **Score**:
 The number that ranks an Option on Tonight, combining its per-Option recency

@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { optionTags, options, tags } from "../../db/schema";
+import { authedAction } from "../../lib/authed-action";
 import { normalizeTag } from "../../lib/normalize-tag";
+import { pgErrorCode } from "../../lib/pg-error";
 
 /** Which kind of Option a form is editing. */
 export type OptionKind = "home" | "restaurant";
@@ -75,20 +77,28 @@ function columnsFor(kind: OptionKind, values: OptionFormValues) {
  * exists conflicts and inserts nothing, so "Pasta" reuses the existing "pasta"
  * row rather than duplicating it. Names are pre-normalized, so an exact-name
  * lookup finds the existing row.
+ *
+ * Under a concurrent same-Tag insert, the loser's `onConflictDoNothing` returns
+ * nothing and its first SELECT can miss the winner's not-yet-committed row, so
+ * the lookup is retried once — by the second pass the winner has committed and
+ * the row is visible (review fix F6 / review B5).
  */
 async function resolveTagId(tx: Tx, name: string): Promise<string> {
-  const [created] = await tx
-    .insert(tags)
-    .values({ name })
-    .onConflictDoNothing()
-    .returning({ id: tags.id });
-  if (created) return created.id;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const [created] = await tx
+      .insert(tags)
+      .values({ name })
+      .onConflictDoNothing()
+      .returning({ id: tags.id });
+    if (created) return created.id;
 
-  const [existing] = await tx
-    .select({ id: tags.id })
-    .from(tags)
-    .where(eq(tags.name, name));
-  return existing.id;
+    const [existing] = await tx
+      .select({ id: tags.id })
+      .from(tags)
+      .where(eq(tags.name, name));
+    if (existing) return existing.id;
+  }
+  throw new Error(`could not resolve tag "${name}"`);
 }
 
 /**
@@ -113,86 +123,103 @@ async function syncOptionTags(
 }
 
 /**
- * A `dinner_log` row referencing the Option triggers `ON DELETE RESTRICT`,
- * which Postgres reports as a foreign-key violation (SQLSTATE 23503).
- */
-function isForeignKeyViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: unknown }).code === "23503"
-  );
-}
-
-/**
  * Add a Home meal or Restaurant to the Catalog. The Option insert and its Tag
  * sync run in one transaction, so a mid-write failure rolls back rather than
  * leaving an Option with missing Tags.
  */
-export async function createOption(
-  kind: OptionKind,
-  values: OptionFormValues,
-): Promise<ActionResult> {
-  if (values.name.trim().length === 0) {
-    return { ok: false, error: "Enter a name" };
-  }
-  await db.transaction(async (tx) => {
-    const [created] = await tx
-      .insert(options)
-      .values({ kind, ...columnsFor(kind, values) })
-      .returning({ id: options.id });
-    await syncOptionTags(tx, created.id, values.tags);
-  });
-  revalidatePath("/catalog");
-  return { ok: true };
-}
+export const createOption = authedAction(
+  async (kind: OptionKind, values: OptionFormValues): Promise<ActionResult> => {
+    if (values.name.trim().length === 0) {
+      return { ok: false, error: "Enter a name" };
+    }
+    await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(options)
+        .values({ kind, ...columnsFor(kind, values) })
+        .returning({ id: options.id });
+      await syncOptionTags(tx, created.id, values.tags);
+    });
+    revalidatePath("/catalog");
+    return { ok: true };
+  },
+);
 
 /**
  * Edit an existing Option in place. The Option update and its Tag sync run in
  * one transaction — `syncOptionTags` deletes every Tag link before re-inserting,
  * so a partial failure outside a transaction could strip an Option's Tags.
  */
-export async function updateOption(
-  id: string,
-  kind: OptionKind,
-  values: OptionFormValues,
-): Promise<ActionResult> {
-  if (values.name.trim().length === 0) {
-    return { ok: false, error: "Enter a name" };
-  }
-  await db.transaction(async (tx) => {
-    await tx.update(options).set(columnsFor(kind, values)).where(eq(options.id, id));
-    await syncOptionTags(tx, id, values.tags);
-  });
-  revalidatePath("/catalog");
-  return { ok: true };
-}
+export const updateOption = authedAction(
+  async (
+    id: string,
+    kind: OptionKind,
+    values: OptionFormValues,
+  ): Promise<ActionResult> => {
+    if (values.name.trim().length === 0) {
+      return { ok: false, error: "Enter a name" };
+    }
+    try {
+      await db.transaction(async (tx) => {
+        await tx
+          .update(options)
+          .set(columnsFor(kind, values))
+          .where(eq(options.id, id));
+        await syncOptionTags(tx, id, values.tags);
+      });
+    } catch (error) {
+      // 22P02 invalid uuid — a malformed/stale Option id; report, don't 500.
+      if (pgErrorCode(error) === "22P02") {
+        return { ok: false, error: "That option is no longer available" };
+      }
+      throw error;
+    }
+    revalidatePath("/catalog");
+    return { ok: true };
+  },
+);
 
 /**
  * Archive an Option: `active = false`. It leaves the default Catalog list and
  * Tonight, but its Log history is untouched.
  */
-export async function archiveOption(id: string): Promise<ActionResult> {
-  await db.update(options).set({ active: false }).where(eq(options.id, id));
-  revalidatePath("/catalog");
-  return { ok: true };
-}
+export const archiveOption = authedAction(
+  async (id: string): Promise<ActionResult> => {
+    try {
+      await db.update(options).set({ active: false }).where(eq(options.id, id));
+    } catch (error) {
+      // 22P02 invalid uuid — a malformed/stale Option id; report, don't 500.
+      if (pgErrorCode(error) === "22P02") {
+        return { ok: false, error: "That option is no longer available" };
+      }
+      throw error;
+    }
+    revalidatePath("/catalog");
+    return { ok: true };
+  },
+);
 
 /**
  * Hard-delete an Option. Allowed only for an Option with zero Log entries; the
  * `ON DELETE RESTRICT` violation for a logged Option is caught and translated
  * into a friendly inline message rather than surfacing as a 500.
  */
-export async function deleteOption(id: string): Promise<ActionResult> {
-  try {
-    await db.delete(options).where(eq(options.id, id));
-  } catch (error) {
-    if (isForeignKeyViolation(error)) {
-      return { ok: false, error: "In your log — archive instead" };
+export const deleteOption = authedAction(
+  async (id: string): Promise<ActionResult> => {
+    try {
+      await db.delete(options).where(eq(options.id, id));
+    } catch (error) {
+      const code = pgErrorCode(error);
+      // 23503 FK violation — the Option has Log history; archive it instead.
+      if (code === "23503") {
+        return { ok: false, error: "In your log — archive instead" };
+      }
+      // 22P02 invalid uuid — a malformed/stale Option id; report, don't 500.
+      if (code === "22P02") {
+        return { ok: false, error: "That option is no longer available" };
+      }
+      throw error;
     }
-    throw error;
-  }
-  revalidatePath("/catalog");
-  return { ok: true };
-}
+    revalidatePath("/catalog");
+    return { ok: true };
+  },
+);

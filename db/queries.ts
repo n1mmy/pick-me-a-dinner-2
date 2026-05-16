@@ -1,4 +1,4 @@
-import { asc, desc, eq, lte } from "drizzle-orm";
+import { and, asc, desc, eq, lte } from "drizzle-orm";
 import { db } from "./index";
 import { dinnerLog, optionTags, options, tags, type Option } from "./schema";
 import type { RankOption } from "../lib/ranking";
@@ -86,10 +86,15 @@ export async function getTonightData(todaySqlDate: string): Promise<{
     tagsByOption.set(link.optionId, list);
   }
 
+  // Only active Options' Log rows feed the ranking. Archiving an Option is rare
+  // and must not move the ranking — its history neither counts as per-Option
+  // recency (it is not in the ranked set) nor as per-Tag recency (review fix
+  // F5 / review B3). The join makes that exclusion explicit at the query.
   const logEntries = await db
     .select({ optionId: dinnerLog.optionId, eatenOn: dinnerLog.eatenOn })
     .from(dinnerLog)
-    .where(lte(dinnerLog.eatenOn, todaySqlDate));
+    .innerJoin(options, eq(dinnerLog.optionId, options.id))
+    .where(and(lte(dinnerLog.eatenOn, todaySqlDate), eq(options.active, true)));
 
   return {
     options: active.map((option) => ({
