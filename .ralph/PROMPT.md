@@ -66,10 +66,11 @@ the user's call.
 
    The first issue (walking skeleton) is what *creates* these scripts;
    it is done only once they exist and pass.
-5. Commit with a descriptive message focused on the *why*.
-6. In the issue file: tick every acceptance-criteria checkbox
+5. In the issue file: tick every acceptance-criteria checkbox
    (`[ ]` → `[x]`) and change the `Status:` line from `ready-for-agent`
-   to `done`. Commit that edit.
+   to `done`.
+6. Make ONE commit containing both the code and the issue-file edit,
+   with a descriptive message focused on the *why*.
 7. Stop. Do NOT pull the next issue into the same loop.
 
 ## When you're stuck

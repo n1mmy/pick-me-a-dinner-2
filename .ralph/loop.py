@@ -161,10 +161,11 @@ first this loop, along with `CLAUDE.md`, `CONTEXT.md`, and any ADRs in
    typecheck`, `pnpm lint`, `pnpm test`, and for UI / route / env work
    also `pnpm build`. (Issue 01 scaffolds these scripts; that issue is
    done only once they exist and pass.)
-3. Commit with a descriptive message focused on the *why*.
-4. In the issue file `{rel}`: tick every acceptance-criteria checkbox
+3. In the issue file `{rel}`: tick every acceptance-criteria checkbox
    (`[ ]` → `[x]`) and change the `Status:` line from `ready-for-agent`
-   to `done`. Commit that edit too.
+   to `done`.
+4. Make ONE commit containing both the code changes and the issue-file
+   edit, with a descriptive message focused on the *why*.
 5. Stop. Do NOT pull the next issue into the same loop.
 
 If the issue is genuinely blocked or unsafe to complete, change its
