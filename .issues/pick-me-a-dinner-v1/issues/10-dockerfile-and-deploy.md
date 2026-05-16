@@ -1,6 +1,6 @@
 # 10 — Dockerfile, GHCR workflow, startup schema check
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -27,13 +27,13 @@ of serving pages that 500 on missing columns.
 
 ## Acceptance criteria
 
-- [ ] The Dockerfile builds the app; the entrypoint runs the app only — no
+- [x] The Dockerfile builds the app; the entrypoint runs the app only — no
       migration step
-- [ ] `.github/workflows/build.yml` builds and pushes the image to GHCR on push
+- [x] `.github/workflows/build.yml` builds and pushes the image to GHCR on push
       to `main` and on tags
-- [ ] On boot, a DB behind the bundled migrations produces a loud specific log
+- [x] On boot, a DB behind the bundled migrations produces a loud specific log
       message and a non-zero exit
-- [ ] A DB at the current migration boots normally
+- [x] A DB at the current migration boots normally
 
 ## Blocked by
 
