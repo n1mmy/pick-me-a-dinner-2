@@ -1,6 +1,6 @@
 # 04 — Tonight: ranked list
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -43,14 +43,14 @@ first meals →" linking to Catalog. The list is an `<ol>` (PRD §18).
 
 ## Acceptance criteria
 
-- [ ] Tonight renders the active Catalog as a flat uniform list ranked
+- [x] Tonight renders the active Catalog as a flat uniform list ranked
       descending by Score, with badges, Explanation chips, and tag-recency chips
-- [ ] Ranking engine and local-day module are pure modules with no DB/React
+- [x] Ranking engine and local-day module are pure modules with no DB/React
       dependency
-- [ ] Cold start falls back to alphabetical order; empty Catalog shows the
+- [x] Cold start falls back to alphabetical order; empty Catalog shows the
       "Add your first meals →" prompt
-- [ ] Overdue tag chips render in the accent color at `daysSince >= 14`
-- [ ] Unit tests cover: `daysSince` (null→CAP, normal, capped, future guard);
+- [x] Overdue tag chips render in the accent color at `daysSince >= 14`
+- [x] Unit tests cover: `daysSince` (null→CAP, normal, capped, future guard);
       epoch-day conversion across a DST boundary; `lastEaten`/`lastTagUse`
       (most-recent non-future, future excluded, null on no history);
       `optionScore` (tagged, tagless, cold start); `explanationChip` (tag
