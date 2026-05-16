@@ -1,2 +1,5 @@
 .handoff.md
 .gstack/
+
+# ralph loop runtime state (regenerated every loop)
+.ralph/loop_state.json
