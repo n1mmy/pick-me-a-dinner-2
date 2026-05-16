@@ -27,6 +27,7 @@ export function TonightRowItem({
   const [justLogged, setJustLogged] = useState(false);
   const [loggingDate, setLoggingDate] = useState(false);
   const [dateValue, setDateValue] = useState(today);
+  const [dateError, setDateError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function pick() {
@@ -40,11 +41,16 @@ export function TonightRowItem({
 
   function submitDate() {
     if (!dateValue) return;
+    setDateError(null);
     startTransition(async () => {
-      await logForDate(option.id, dateValue);
+      const result = await logForDate(option.id, dateValue);
+      if (result.ok) {
+        setLoggingDate(false);
+        setDateValue(today);
+      } else {
+        setDateError(result.error);
+      }
     });
-    setLoggingDate(false);
-    setDateValue(today);
   }
 
   return (
@@ -86,6 +92,7 @@ export function TonightRowItem({
             type="button"
             onClick={() => {
               setDateValue(today);
+              setDateError(null);
               setLoggingDate(true);
             }}
             className={`${actionButton} text-muted`}
@@ -95,35 +102,42 @@ export function TonightRowItem({
         )}
       </div>
       {loggingDate && (
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <input
-            type="date"
-            aria-label={`Date to log ${option.name}`}
-            value={dateValue}
-            onChange={(event) => setDateValue(event.target.value)}
-            className="min-h-11 rounded-input border border-line bg-surface px-3
-              text-body text-ink focus-visible:outline focus-visible:outline-2
-              focus-visible:outline-offset-2 focus-visible:outline-accent"
-          />
-          <button
-            type="button"
-            onClick={submitDate}
-            disabled={pending}
-            className="min-h-11 rounded-control bg-accent px-4 text-body
-              font-emphasis text-surface focus-visible:outline
-              focus-visible:outline-2 focus-visible:outline-offset-2
-              focus-visible:outline-accent disabled:opacity-60"
-          >
-            Log
-          </button>
-          <button
-            type="button"
-            onClick={() => setLoggingDate(false)}
-            disabled={pending}
-            className={`${actionButton} text-muted`}
-          >
-            Cancel
-          </button>
+        <div className="mt-1 flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              aria-label={`Date to log ${option.name}`}
+              value={dateValue}
+              onChange={(event) => setDateValue(event.target.value)}
+              aria-invalid={dateError !== null}
+              className="min-h-11 rounded-input border border-line bg-surface px-3
+                text-body text-ink focus-visible:outline focus-visible:outline-2
+                focus-visible:outline-offset-2 focus-visible:outline-accent"
+            />
+            <button
+              type="button"
+              onClick={submitDate}
+              disabled={pending}
+              className="min-h-11 rounded-control bg-accent px-4 text-body
+                font-emphasis text-surface focus-visible:outline
+                focus-visible:outline-2 focus-visible:outline-offset-2
+                focus-visible:outline-accent disabled:opacity-60"
+            >
+              Log
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setLoggingDate(false);
+                setDateError(null);
+              }}
+              disabled={pending}
+              className={`${actionButton} text-muted`}
+            >
+              Cancel
+            </button>
+          </div>
+          {dateError && <p className="text-chip text-danger">{dateError}</p>}
         </div>
       )}
     </li>

@@ -9,6 +9,9 @@ import { normalizeTag } from "../../lib/normalize-tag";
 /** Which kind of Option a form is editing. */
 export type OptionKind = "home" | "restaurant";
 
+/** A Drizzle transaction handle — the query client inside `db.transaction`. */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /**
  * Raw form values for adding or editing an Option. The restaurant-only fields
  * are ignored when `kind` is `"home"` — a Home meal has no address or phone.
@@ -73,15 +76,15 @@ function columnsFor(kind: OptionKind, values: OptionFormValues) {
  * row rather than duplicating it. Names are pre-normalized, so an exact-name
  * lookup finds the existing row.
  */
-async function resolveTagId(name: string): Promise<string> {
-  const [created] = await db
+async function resolveTagId(tx: Tx, name: string): Promise<string> {
+  const [created] = await tx
     .insert(tags)
     .values({ name })
     .onConflictDoNothing()
     .returning({ id: tags.id });
   if (created) return created.id;
 
-  const [existing] = await db
+  const [existing] = await tx
     .select({ id: tags.id })
     .from(tags)
     .where(eq(tags.name, name));
@@ -95,17 +98,18 @@ async function resolveTagId(name: string): Promise<string> {
  * and needs no cleanup).
  */
 async function syncOptionTags(
+  tx: Tx,
   optionId: string,
   rawTags: string[],
 ): Promise<void> {
   const names = [
     ...new Set(rawTags.map(normalizeTag).filter((name) => name.length > 0)),
   ];
-  await db.delete(optionTags).where(eq(optionTags.optionId, optionId));
+  await tx.delete(optionTags).where(eq(optionTags.optionId, optionId));
   if (names.length === 0) return;
 
-  const tagIds = await Promise.all(names.map(resolveTagId));
-  await db.insert(optionTags).values(tagIds.map((tagId) => ({ optionId, tagId })));
+  const tagIds = await Promise.all(names.map((name) => resolveTagId(tx, name)));
+  await tx.insert(optionTags).values(tagIds.map((tagId) => ({ optionId, tagId })));
 }
 
 /**
@@ -121,7 +125,11 @@ function isForeignKeyViolation(error: unknown): boolean {
   );
 }
 
-/** Add a Home meal or Restaurant to the Catalog. */
+/**
+ * Add a Home meal or Restaurant to the Catalog. The Option insert and its Tag
+ * sync run in one transaction, so a mid-write failure rolls back rather than
+ * leaving an Option with missing Tags.
+ */
 export async function createOption(
   kind: OptionKind,
   values: OptionFormValues,
@@ -129,16 +137,22 @@ export async function createOption(
   if (values.name.trim().length === 0) {
     return { ok: false, error: "Enter a name" };
   }
-  const [created] = await db
-    .insert(options)
-    .values({ kind, ...columnsFor(kind, values) })
-    .returning({ id: options.id });
-  await syncOptionTags(created.id, values.tags);
+  await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(options)
+      .values({ kind, ...columnsFor(kind, values) })
+      .returning({ id: options.id });
+    await syncOptionTags(tx, created.id, values.tags);
+  });
   revalidatePath("/catalog");
   return { ok: true };
 }
 
-/** Edit an existing Option in place. */
+/**
+ * Edit an existing Option in place. The Option update and its Tag sync run in
+ * one transaction — `syncOptionTags` deletes every Tag link before re-inserting,
+ * so a partial failure outside a transaction could strip an Option's Tags.
+ */
 export async function updateOption(
   id: string,
   kind: OptionKind,
@@ -147,8 +161,10 @@ export async function updateOption(
   if (values.name.trim().length === 0) {
     return { ok: false, error: "Enter a name" };
   }
-  await db.update(options).set(columnsFor(kind, values)).where(eq(options.id, id));
-  await syncOptionTags(id, values.tags);
+  await db.transaction(async (tx) => {
+    await tx.update(options).set(columnsFor(kind, values)).where(eq(options.id, id));
+    await syncOptionTags(tx, id, values.tags);
+  });
   revalidatePath("/catalog");
   return { ok: true };
 }

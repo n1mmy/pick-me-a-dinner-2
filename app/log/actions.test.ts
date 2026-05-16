@@ -106,6 +106,30 @@ describe("logForDate", () => {
     const { logEntries } = await getTonightData(TODAY);
     expect(logEntries).toHaveLength(0);
   });
+
+  it("stores a note when one is given", async () => {
+    const pizza = await makeOption("Pizza");
+
+    const result = await logForDate(pizza, "2026-01-10", "  family night  ");
+
+    expect(result).toEqual({ ok: true });
+    const [row] = await db.select().from(dinnerLog);
+    expect(row.note).toBe("family night");
+  });
+
+  it("rejects a date the Option is already logged for, inline", async () => {
+    const pizza = await makeOption("Pizza");
+    await makeEntry(pizza, "2026-01-10");
+
+    const result = await logForDate(pizza, "2026-01-10");
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Already logged for that date",
+    });
+    // The collision is reported, not silently swallowed — still one row.
+    expect(await db.select().from(dinnerLog)).toHaveLength(1);
+  });
 });
 
 describe("updateLogEntry", () => {

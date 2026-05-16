@@ -54,20 +54,30 @@ export async function pickTonight(optionId: string): Promise<void> {
 }
 
 /**
- * Log an Option for an arbitrary date — a past date backfills a forgotten
- * dinner, a future date plans one (a Planned dinner, excluded from the Tonight
- * ranking until its date arrives). Like `pickTonight`, a repeat of an existing
- * `(option_id, eaten_on)` is a no-op.
+ * Log an Option for a deliberately chosen date — a past date backfills a
+ * forgotten dinner, a future date plans one (a Planned dinner, excluded from the
+ * Tonight ranking until its date arrives). Unlike the one-tap `pickTonight`, a
+ * date the Option is already logged for is a real mistake here — the user typed
+ * it — so the `(option_id, eaten_on)` collision is reported inline rather than
+ * silently swallowed.
  */
 export async function logForDate(
   optionId: string,
   eatenOn: string,
-): Promise<void> {
-  await db
-    .insert(dinnerLog)
-    .values({ optionId, eatenOn })
-    .onConflictDoNothing();
+  note?: string,
+): Promise<LogActionResult> {
+  try {
+    await db
+      .insert(dinnerLog)
+      .values({ optionId, eatenOn, note: trimToNull(note ?? "") });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return { ok: false, error: "Already logged for that date" };
+    }
+    throw error;
+  }
   revalidateLogViews();
+  return { ok: true };
 }
 
 /**

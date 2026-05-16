@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { unsealData } from "iron-session";
 import {
   SESSION_COOKIE_NAME,
-  SESSION_TTL_SECONDS,
   sessionOptions,
   type AppSession,
 } from "./lib/session";

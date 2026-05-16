@@ -75,7 +75,7 @@ into recipes / grocery lists / nutrition / weekly planning.
 - **Backup:** rely on the infrastructure's Postgres backups; optionally a
   periodic `pg_dump` for peace of mind.
 
-## 4. Authentication & security  *(HMAC-signed cookie, no lockout)*
+## 4. Authentication & security  *(iron-session sealed cookie, no lockout)*
 
 Threat model: keep anonymous people on the internet out. Infrastructure is
 trusted; this app is not a high-value target.
