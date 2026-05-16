@@ -1,6 +1,6 @@
 # 08 — Shared-password auth gate
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -31,15 +31,15 @@ proxy.
 
 ## Acceptance criteria
 
-- [ ] The Login screen renders a centered single password field with the
+- [x] The Login screen renders a centered single password field with the
       "Pick Me a Dinner" wordmark and no tagline
-- [ ] A correct password establishes an `iron-session` sealed cookie
+- [x] A correct password establishes an `iron-session` sealed cookie
       (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, ~180-day TTL)
-- [ ] A wrong password shows an inline error with the field cleared — no lockout
-- [ ] Middleware redirects an unauthenticated or expired request to `/login`;
+- [x] A wrong password shows an inline error with the field cleared — no lockout
+- [x] Middleware redirects an unauthenticated or expired request to `/login`;
       `/login` and static assets are not gated
-- [ ] The §4 security headers are present on responses
-- [ ] Tests: correct password establishes the session; wrong password → inline
+- [x] The §4 security headers are present on responses
+- [x] Tests: correct password establishes the session; wrong password → inline
       error; middleware redirects an unauthenticated / expired request
 
 ## Blocked by
