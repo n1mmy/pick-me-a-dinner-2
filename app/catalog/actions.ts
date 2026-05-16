@@ -12,8 +12,10 @@ export type OptionKind = "home" | "restaurant";
 /**
  * Raw form values for adding or editing an Option. The restaurant-only fields
  * are ignored when `kind` is `"home"` — a Home meal has no address or phone.
- * `tags` is the full set of Tag strings the form's token input currently
- * holds; `normalizeTag` canonicalizes each before it touches the DB.
+ * `lat`/`lng` are carried as strings (the form's text inputs) and parsed to a
+ * number, or `null`, on save. `tags` is the full set of Tag strings the form's
+ * token input currently holds; `normalizeTag` canonicalizes each before it
+ * touches the DB.
  */
 export type OptionFormValues = {
   name: string;
@@ -22,6 +24,9 @@ export type OptionFormValues = {
   address: string;
   phone: string;
   mapsUrl: string;
+  lat: string;
+  lng: string;
+  googlePlaceId: string;
   tags: string[];
 };
 
@@ -32,6 +37,14 @@ export type ActionResult = { ok: true } | { ok: false; error: string };
 function trimToNull(value: string): string | null {
   const trimmed = value.trim();
   return trimmed.length === 0 ? null : trimmed;
+}
+
+/** Parse a latitude/longitude form field to a number, or `null` when blank or non-numeric. */
+function parseCoord(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  const num = Number(trimmed);
+  return Number.isFinite(num) ? num : null;
 }
 
 /** Column values for an insert/update — restaurant-only fields dropped for Home meals. */
@@ -47,6 +60,9 @@ function columnsFor(kind: OptionKind, values: OptionFormValues) {
     address: trimToNull(values.address),
     phone: trimToNull(values.phone),
     mapsUrl: trimToNull(values.mapsUrl),
+    lat: parseCoord(values.lat),
+    lng: parseCoord(values.lng),
+    googlePlaceId: trimToNull(values.googlePlaceId),
   };
 }
 

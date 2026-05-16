@@ -8,6 +8,8 @@ import {
   type OptionFormValues,
   type OptionKind,
 } from "./actions";
+import type { PlaceAutofill } from "./places-box";
+import { PlacesSearchBox } from "./places-search-box";
 import { TagInput } from "./tag-input";
 
 const labelClass = "text-meta font-emphasis uppercase tracking-wide text-muted";
@@ -19,19 +21,23 @@ const inputClass =
 /**
  * The inline add/edit form for one Option — identical on phone and desktop. An
  * `initial` Option means edit; its absence means add. The Restaurant form
- * exposes the restaurant-only fields for manual entry (Places autofill is a
- * later issue). `allTags` is the Tag vocabulary the token input suggests from.
+ * exposes the restaurant-only fields for manual entry, and — when `placesEnabled`
+ * — a "Search Google" box whose selection autofills those fields (every one
+ * stays editable afterward). `allTags` is the Tag vocabulary the token input
+ * suggests from.
  */
 export function OptionForm({
   kind,
   initial,
   allTags,
+  placesEnabled,
   onCancel,
   onSaved,
 }: {
   kind: OptionKind;
   initial?: OptionWithTags;
   allTags: string[];
+  placesEnabled: boolean;
   onCancel: () => void;
   onSaved: () => void;
 }) {
@@ -42,11 +48,28 @@ export function OptionForm({
   const [address, setAddress] = useState(initial?.address ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
   const [mapsUrl, setMapsUrl] = useState(initial?.mapsUrl ?? "");
+  const [lat, setLat] = useState(initial?.lat != null ? String(initial.lat) : "");
+  const [lng, setLng] = useState(initial?.lng != null ? String(initial.lng) : "");
+  const [googlePlaceId, setGooglePlaceId] = useState(
+    initial?.googlePlaceId ?? "",
+  );
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const isRestaurant = kind === "restaurant";
+
+  /** Apply a Google place's detail to every field — all stay editable after. */
+  function applyAutofill(autofill: PlaceAutofill) {
+    setName(autofill.name);
+    setAddress(autofill.address);
+    setPhone(autofill.phone);
+    setLat(autofill.lat);
+    setLng(autofill.lng);
+    setUrl(autofill.url);
+    setMapsUrl(autofill.mapsUrl);
+    setGooglePlaceId(autofill.googlePlaceId);
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,6 +81,9 @@ export function OptionForm({
       address,
       phone,
       mapsUrl,
+      lat,
+      lng,
+      googlePlaceId,
       tags,
     };
     startTransition(async () => {
@@ -93,6 +119,10 @@ export function OptionForm({
         )}
       </div>
 
+      {isRestaurant && placesEnabled && (
+        <PlacesSearchBox onAutofill={applyAutofill} />
+      )}
+
       {isRestaurant && (
         <>
           <TextField
@@ -118,12 +148,32 @@ export function OptionForm({
       />
 
       {isRestaurant && (
-        <TextField
-          id={`${fieldId}-maps`}
-          label="Maps link"
-          value={mapsUrl}
-          onChange={setMapsUrl}
-        />
+        <>
+          <TextField
+            id={`${fieldId}-maps`}
+            label="Maps link"
+            value={mapsUrl}
+            onChange={setMapsUrl}
+          />
+          <TextField
+            id={`${fieldId}-lat`}
+            label="Latitude"
+            value={lat}
+            onChange={setLat}
+          />
+          <TextField
+            id={`${fieldId}-lng`}
+            label="Longitude"
+            value={lng}
+            onChange={setLng}
+          />
+          <TextField
+            id={`${fieldId}-place-id`}
+            label="Google place ID"
+            value={googlePlaceId}
+            onChange={setGooglePlaceId}
+          />
+        </>
       )}
 
       <div className="flex flex-col gap-1">

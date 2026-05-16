@@ -16,10 +16,12 @@ export function CatalogScreen({
   home,
   restaurants,
   allTags,
+  placesEnabled,
 }: {
   home: OptionWithTags[];
   restaurants: OptionWithTags[];
   allTags: string[];
+  placesEnabled: boolean;
 }) {
   const isEmpty = home.length === 0 && restaurants.length === 0;
 
@@ -37,6 +39,7 @@ export function CatalogScreen({
         addLabel="Add a meal"
         options={home}
         allTags={allTags}
+        placesEnabled={placesEnabled}
       />
       <OptionSection
         kind="restaurant"
@@ -44,6 +47,7 @@ export function CatalogScreen({
         addLabel="Add a restaurant"
         options={restaurants}
         allTags={allTags}
+        placesEnabled={placesEnabled}
       />
     </main>
   );
@@ -56,12 +60,14 @@ function OptionSection({
   addLabel,
   options,
   allTags,
+  placesEnabled,
 }: {
   kind: OptionKind;
   title: string;
   addLabel: string;
   options: OptionWithTags[];
   allTags: string[];
+  placesEnabled: boolean;
 }) {
   const [adding, setAdding] = useState(false);
 
@@ -73,7 +79,12 @@ function OptionSection({
       {options.length > 0 && (
         <ul className="flex flex-col">
           {options.map((option) => (
-            <OptionRow key={option.id} option={option} allTags={allTags} />
+            <OptionRow
+              key={option.id}
+              option={option}
+              allTags={allTags}
+              placesEnabled={placesEnabled}
+            />
           ))}
         </ul>
       )}
@@ -82,6 +93,7 @@ function OptionSection({
           <OptionForm
             kind={kind}
             allTags={allTags}
+            placesEnabled={placesEnabled}
             onCancel={() => setAdding(false)}
             onSaved={() => setAdding(false)}
           />

@@ -22,6 +22,9 @@ const emptyValues: OptionFormValues = {
   address: "",
   phone: "",
   mapsUrl: "",
+  lat: "",
+  lng: "",
+  googlePlaceId: "",
   tags: [],
 };
 
@@ -70,6 +73,35 @@ describe("createOption", () => {
     expect(row.kind).toBe("restaurant");
     expect(row.address).toBe("123 Main St");
     expect(row.phone).toBe("555-1234");
+  });
+
+  it("persists the autofill-only fields — lat, lng, google_place_id — for a Restaurant", async () => {
+    const result = await createOption("restaurant", {
+      ...emptyValues,
+      name: "El Comal",
+      lat: "37.7749",
+      lng: "-122.4194",
+      googlePlaceId: "ChIJabc123",
+    });
+
+    expect(result).toEqual({ ok: true });
+    const [row] = await db.select().from(options);
+    expect(row.lat).toBe(37.7749);
+    expect(row.lng).toBe(-122.4194);
+    expect(row.googlePlaceId).toBe("ChIJabc123");
+  });
+
+  it("stores a blank or non-numeric coordinate as null", async () => {
+    await createOption("restaurant", {
+      ...emptyValues,
+      name: "El Comal",
+      lat: "  ",
+      lng: "not-a-number",
+    });
+
+    const [row] = await db.select().from(options);
+    expect(row.lat).toBeNull();
+    expect(row.lng).toBeNull();
   });
 
   it("rejects a blank name with an inline error", async () => {

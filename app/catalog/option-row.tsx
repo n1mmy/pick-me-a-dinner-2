@@ -17,9 +17,11 @@ const actionButton =
 export function OptionRow({
   option,
   allTags,
+  placesEnabled,
 }: {
   option: OptionWithTags;
   allTags: string[];
+  placesEnabled: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState<"archive" | "delete" | null>(null);
@@ -49,6 +51,7 @@ export function OptionRow({
           kind={option.kind}
           initial={option}
           allTags={allTags}
+          placesEnabled={placesEnabled}
           onCancel={() => setEditing(false)}
           onSaved={() => setEditing(false)}
         />
