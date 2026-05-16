@@ -1,6 +1,6 @@
 # 09 — Prior-version data import script
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -39,16 +39,16 @@ Import-time defaults for fields the prior schema lacks: `dinner_log.created_at`
 
 ## Acceptance criteria
 
-- [ ] The script maps `Meal`/`Restaurant`/`Dinner` into `options` / `dinner_log`
+- [x] The script maps `Meal`/`Restaurant`/`Dinner` into `options` / `dinner_log`
       with fresh uuids and rewired FKs
-- [ ] `hidden` is inverted to `active`; `orderUrl`/`menuUrl` coalesce into `url`
-- [ ] Tags are normalized via the shared `normalizeTag` helper and deduped
+- [x] `hidden` is inverted to `active`; `orderUrl`/`menuUrl` coalesce into `url`
+- [x] Tags are normalized via the shared `normalizeTag` helper and deduped
       across all Options into `tags` + `option_tags`
-- [ ] `dinner_log.created_at` is set to the Dinner's date at local midnight
+- [x] `dinner_log.created_at` is set to the Dinner's date at local midnight
       (`APP_TZ`); absent Restaurant/Home fields import as `null`
-- [ ] The whole import runs in one transaction and rolls back fully on any
+- [x] The whole import runs in one transaction and rolls back fully on any
       failure
-- [ ] Tests cover mapping correctness (`hidden→active` inverted, `url` coalesced,
+- [x] Tests cover mapping correctness (`hidden→active` inverted, `url` coalesced,
       tags normalized + deduped, `created_at` rule) and the all-or-nothing
       rollback
 
