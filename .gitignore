@@ -12,9 +12,11 @@
 /out
 
 # local environment — only .env.example is committed
-.env
-.env.local
-.env*.local
+.env*
+!.env.example
+
+# editor backup files
+*~
 
 # typescript
 *.tsbuildinfo
