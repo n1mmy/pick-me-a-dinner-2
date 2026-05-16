@@ -1,7 +1,7 @@
 import { asc, desc, eq, lte } from "drizzle-orm";
 import { db } from "./index";
 import { dinnerLog, optionTags, options, tags, type Option } from "./schema";
-import type { LogEntry, RankOption } from "../lib/ranking";
+import type { RankOption } from "../lib/ranking";
 
 /** An Option together with the names of the Tags attached to it. */
 export type OptionWithTags = Option & { tags: string[] };
