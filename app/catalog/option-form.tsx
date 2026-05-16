@@ -1,13 +1,14 @@
 "use client";
 
 import { type FormEvent, useId, useState, useTransition } from "react";
-import type { Option } from "../../db/schema";
+import type { OptionWithTags } from "../../db/queries";
 import {
   createOption,
   updateOption,
   type OptionFormValues,
   type OptionKind,
 } from "./actions";
+import { TagInput } from "./tag-input";
 
 const labelClass = "text-meta font-emphasis uppercase tracking-wide text-muted";
 const inputClass =
@@ -19,16 +20,18 @@ const inputClass =
  * The inline add/edit form for one Option — identical on phone and desktop. An
  * `initial` Option means edit; its absence means add. The Restaurant form
  * exposes the restaurant-only fields for manual entry (Places autofill is a
- * later issue).
+ * later issue). `allTags` is the Tag vocabulary the token input suggests from.
  */
 export function OptionForm({
   kind,
   initial,
+  allTags,
   onCancel,
   onSaved,
 }: {
   kind: OptionKind;
-  initial?: Option;
+  initial?: OptionWithTags;
+  allTags: string[];
   onCancel: () => void;
   onSaved: () => void;
 }) {
@@ -39,6 +42,7 @@ export function OptionForm({
   const [address, setAddress] = useState(initial?.address ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
   const [mapsUrl, setMapsUrl] = useState(initial?.mapsUrl ?? "");
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -47,7 +51,15 @@ export function OptionForm({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    const values: OptionFormValues = { name, url, notes, address, phone, mapsUrl };
+    const values: OptionFormValues = {
+      name,
+      url,
+      notes,
+      address,
+      phone,
+      mapsUrl,
+      tags,
+    };
     startTransition(async () => {
       const result = initial
         ? await updateOption(initial.id, kind, values)
@@ -126,6 +138,8 @@ export function OptionForm({
           onChange={(event) => setNotes(event.target.value)}
         />
       </div>
+
+      <TagInput value={tags} onChange={setTags} suggestions={allTags} />
 
       <div className="flex items-center gap-2">
         <button

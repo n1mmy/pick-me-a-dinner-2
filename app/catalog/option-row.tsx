@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { Option } from "../../db/schema";
+import type { OptionWithTags } from "../../db/queries";
 import { archiveOption, deleteOption } from "./actions";
 import { OptionForm } from "./option-form";
 
@@ -14,7 +14,13 @@ const actionButton =
  * Edit expands the row in place into the form, and the destructive actions use
  * the §17 inline-confirm pattern ("Archive · Cancel" / "Delete · Cancel").
  */
-export function OptionRow({ option }: { option: Option }) {
+export function OptionRow({
+  option,
+  allTags,
+}: {
+  option: OptionWithTags;
+  allTags: string[];
+}) {
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState<"archive" | "delete" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +48,7 @@ export function OptionRow({ option }: { option: Option }) {
         <OptionForm
           kind={option.kind}
           initial={option}
+          allTags={allTags}
           onCancel={() => setEditing(false)}
           onSaved={() => setEditing(false)}
         />

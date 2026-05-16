@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "../../db";
-import { dinnerLog, options } from "../../db/schema";
+import { dinnerLog, optionTags, options, tags } from "../../db/schema";
 import { getActiveCatalog } from "../../db/queries";
 import { truncateAll } from "../../db/test-support";
 import {
@@ -22,7 +22,19 @@ const emptyValues: OptionFormValues = {
   address: "",
   phone: "",
   mapsUrl: "",
+  tags: [],
 };
+
+/** The Tag names attached to one Option, ordered for stable assertions. */
+async function tagNamesFor(optionId: string): Promise<string[]> {
+  const rows = await db
+    .select({ name: tags.name })
+    .from(optionTags)
+    .innerJoin(tags, eq(optionTags.tagId, tags.id))
+    .where(eq(optionTags.optionId, optionId))
+    .orderBy(asc(tags.name));
+  return rows.map((row) => row.name);
+}
 
 beforeEach(async () => {
   await truncateAll();
@@ -117,6 +129,75 @@ describe("archiveOption", () => {
 
     const catalog = await getActiveCatalog();
     expect(catalog.home).toHaveLength(0);
+  });
+});
+
+describe("Tags on an Option", () => {
+  it("attaches Tags on create, normalizing and persisting them via option_tags", async () => {
+    await createOption("home", {
+      ...emptyValues,
+      name: "Pasta",
+      tags: ["  Weeknight ", "QUICK"],
+    });
+    const [row] = await db.select().from(options);
+
+    expect(await tagNamesFor(row.id)).toEqual(["quick", "weeknight"]);
+    expect(await db.select().from(tags)).toHaveLength(2);
+  });
+
+  it("reuses an existing Tag case-insensitively — 'Pasta' does not duplicate 'pasta'", async () => {
+    await createOption("home", { ...emptyValues, name: "Spaghetti", tags: ["pasta"] });
+    await createOption("home", { ...emptyValues, name: "Lasagna", tags: ["Pasta"] });
+
+    const tagRows = await db.select().from(tags);
+    expect(tagRows).toHaveLength(1);
+    expect(tagRows[0].name).toBe("pasta");
+    expect(await db.select().from(optionTags)).toHaveLength(2);
+  });
+
+  it("collapses duplicate Tags within one save to a single option_tags row", async () => {
+    await createOption("home", {
+      ...emptyValues,
+      name: "Pasta",
+      tags: ["pasta", "Pasta", " pasta "],
+    });
+    const [row] = await db.select().from(options);
+
+    expect(await tagNamesFor(row.id)).toEqual(["pasta"]);
+  });
+
+  it("attaches and detaches Tags on update, leaving harmless orphan Tags behind", async () => {
+    await createOption("home", {
+      ...emptyValues,
+      name: "Pasta",
+      tags: ["pasta", "cheesy"],
+    });
+    const [row] = await db.select().from(options);
+
+    await updateOption(row.id, "home", {
+      ...emptyValues,
+      name: "Pasta",
+      tags: ["pasta", "spicy"],
+    });
+
+    // "cheesy" is detached; "spicy" attached; the Option keeps only its current Tags.
+    expect(await tagNamesFor(row.id)).toEqual(["pasta", "spicy"]);
+    // The orphaned "cheesy" Tag row simply lingers — no cleanup is needed.
+    const allTagNames = (await db.select().from(tags)).map((t) => t.name).sort();
+    expect(allTagNames).toEqual(["cheesy", "pasta", "spicy"]);
+  });
+
+  it("surfaces an Option's attached Tags through getActiveCatalog", async () => {
+    await createOption("home", {
+      ...emptyValues,
+      name: "Pasta",
+      tags: ["weeknight", "pasta"],
+    });
+
+    const catalog = await getActiveCatalog();
+    expect(catalog.home).toHaveLength(1);
+    expect([...catalog.home[0].tags].sort()).toEqual(["pasta", "weeknight"]);
+    expect(catalog.allTags.sort()).toEqual(["pasta", "weeknight"]);
   });
 });
 

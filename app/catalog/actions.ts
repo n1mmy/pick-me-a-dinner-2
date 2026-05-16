@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { options } from "../../db/schema";
+import { optionTags, options, tags } from "../../db/schema";
+import { normalizeTag } from "../../lib/normalize-tag";
 
 /** Which kind of Option a form is editing. */
 export type OptionKind = "home" | "restaurant";
@@ -11,6 +12,8 @@ export type OptionKind = "home" | "restaurant";
 /**
  * Raw form values for adding or editing an Option. The restaurant-only fields
  * are ignored when `kind` is `"home"` — a Home meal has no address or phone.
+ * `tags` is the full set of Tag strings the form's token input currently
+ * holds; `normalizeTag` canonicalizes each before it touches the DB.
  */
 export type OptionFormValues = {
   name: string;
@@ -19,6 +22,7 @@ export type OptionFormValues = {
   address: string;
   phone: string;
   mapsUrl: string;
+  tags: string[];
 };
 
 /** A Catalog mutation either succeeds or carries a message to show inline. */
@@ -47,6 +51,48 @@ function columnsFor(kind: OptionKind, values: OptionFormValues) {
 }
 
 /**
+ * Resolve a normalized Tag name to its row id, creating the Tag if it is new.
+ * The insert relies on the `tags.lower(name)` unique index: a Tag that already
+ * exists conflicts and inserts nothing, so "Pasta" reuses the existing "pasta"
+ * row rather than duplicating it. Names are pre-normalized, so an exact-name
+ * lookup finds the existing row.
+ */
+async function resolveTagId(name: string): Promise<string> {
+  const [created] = await db
+    .insert(tags)
+    .values({ name })
+    .onConflictDoNothing()
+    .returning({ id: tags.id });
+  if (created) return created.id;
+
+  const [existing] = await db
+    .select({ id: tags.id })
+    .from(tags)
+    .where(eq(tags.name, name));
+  return existing.id;
+}
+
+/**
+ * Replace an Option's `option_tags` rows with exactly the given Tags. Each Tag
+ * is normalized and the set deduped, so "Pasta" and "pasta " collapse to one
+ * row; detached Tags simply lose their link (a Tag with no Options is harmless
+ * and needs no cleanup).
+ */
+async function syncOptionTags(
+  optionId: string,
+  rawTags: string[],
+): Promise<void> {
+  const names = [
+    ...new Set(rawTags.map(normalizeTag).filter((name) => name.length > 0)),
+  ];
+  await db.delete(optionTags).where(eq(optionTags.optionId, optionId));
+  if (names.length === 0) return;
+
+  const tagIds = await Promise.all(names.map(resolveTagId));
+  await db.insert(optionTags).values(tagIds.map((tagId) => ({ optionId, tagId })));
+}
+
+/**
  * A `dinner_log` row referencing the Option triggers `ON DELETE RESTRICT`,
  * which Postgres reports as a foreign-key violation (SQLSTATE 23503).
  */
@@ -67,7 +113,11 @@ export async function createOption(
   if (values.name.trim().length === 0) {
     return { ok: false, error: "Enter a name" };
   }
-  await db.insert(options).values({ kind, ...columnsFor(kind, values) });
+  const [created] = await db
+    .insert(options)
+    .values({ kind, ...columnsFor(kind, values) })
+    .returning({ id: options.id });
+  await syncOptionTags(created.id, values.tags);
   revalidatePath("/catalog");
   return { ok: true };
 }
@@ -82,6 +132,7 @@ export async function updateOption(
     return { ok: false, error: "Enter a name" };
   }
   await db.update(options).set(columnsFor(kind, values)).where(eq(options.id, id));
+  await syncOptionTags(id, values.tags);
   revalidatePath("/catalog");
   return { ok: true };
 }

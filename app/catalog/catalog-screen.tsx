@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Option } from "../../db/schema";
+import type { OptionWithTags } from "../../db/queries";
 import type { OptionKind } from "./actions";
 import { OptionForm } from "./option-form";
 import { OptionRow } from "./option-row";
@@ -9,14 +9,17 @@ import { OptionRow } from "./option-row";
 /**
  * The Catalog screen: Home meals and Restaurants in two sections, each row
  * showing the name. Adding and editing happen inline — an "add" affordance or a
- * row expands in place into the form.
+ * row expands in place into the form. `allTags` feeds every form's Tag
+ * autocomplete.
  */
 export function CatalogScreen({
   home,
   restaurants,
+  allTags,
 }: {
-  home: Option[];
-  restaurants: Option[];
+  home: OptionWithTags[];
+  restaurants: OptionWithTags[];
+  allTags: string[];
 }) {
   const isEmpty = home.length === 0 && restaurants.length === 0;
 
@@ -33,12 +36,14 @@ export function CatalogScreen({
         title="Home meals"
         addLabel="Add a meal"
         options={home}
+        allTags={allTags}
       />
       <OptionSection
         kind="restaurant"
         title="Restaurants"
         addLabel="Add a restaurant"
         options={restaurants}
+        allTags={allTags}
       />
     </main>
   );
@@ -50,11 +55,13 @@ function OptionSection({
   title,
   addLabel,
   options,
+  allTags,
 }: {
   kind: OptionKind;
   title: string;
   addLabel: string;
-  options: Option[];
+  options: OptionWithTags[];
+  allTags: string[];
 }) {
   const [adding, setAdding] = useState(false);
 
@@ -66,7 +73,7 @@ function OptionSection({
       {options.length > 0 && (
         <ul className="flex flex-col">
           {options.map((option) => (
-            <OptionRow key={option.id} option={option} />
+            <OptionRow key={option.id} option={option} allTags={allTags} />
           ))}
         </ul>
       )}
@@ -74,6 +81,7 @@ function OptionSection({
         <div className="border-b border-line py-3">
           <OptionForm
             kind={kind}
+            allTags={allTags}
             onCancel={() => setAdding(false)}
             onSaved={() => setAdding(false)}
           />

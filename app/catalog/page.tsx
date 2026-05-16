@@ -5,6 +5,8 @@ import { CatalogScreen } from "./catalog-screen";
 export const dynamic = "force-dynamic";
 
 export default async function CatalogPage() {
-  const { home, restaurants } = await getActiveCatalog();
-  return <CatalogScreen home={home} restaurants={restaurants} />;
+  const { home, restaurants, allTags } = await getActiveCatalog();
+  return (
+    <CatalogScreen home={home} restaurants={restaurants} allTags={allTags} />
+  );
 }
