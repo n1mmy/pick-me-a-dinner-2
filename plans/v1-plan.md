@@ -43,13 +43,22 @@ into recipes / grocery lists / nutrition / weekly planning.
 
 ## 3. Hosting & deployment  *(override — self-hosted, not Railway)*
 
-- **Self-hosted on Kubernetes.** The repo ships a **Dockerfile only**; k8s
+- **Self-hosted on Kubernetes.** The repo ships a **Dockerfile**; k8s
   manifests / secrets are wired up separately by the operator.
+- **Image build/publish:** a GitHub Actions workflow
+  (`.github/workflows/build.yml`) builds the image and pushes it to GHCR
+  (`ghcr.io/<owner>/pick-me-a-dinner`) on push to `main` and on tags. Deploying
+  is pointing k8s at a new image tag — no build happens on a laptop.
 - The container entrypoint **just runs the Next.js app** — it does not migrate.
   **Schema migrations are applied out of band by the administrator** (e.g.
   `drizzle-kit migrate` run by hand against the DB before/around a deploy). The
   repo still generates and version-controls migration files; applying them is
   an operator step, not an app-startup step.
+- **Startup schema check.** On boot the app compares the migration files
+  bundled in the image against the `__drizzle_migrations` table in the DB. If
+  the DB is behind, it logs a loud, specific error ("DB schema N migrations
+  behind — run drizzle-kit migrate") and exits non-zero, so the pod crash-loops
+  visibly instead of serving pages that 500 on missing columns.
 - **Postgres connection:** plain (no `sslmode=require`) — the DB sits behind
   shared trusted infrastructure.
 - **Env vars:** `DATABASE_URL`, `APP_PASSWORD`, `APP_SECRET`, `APP_TZ`,
@@ -67,13 +76,13 @@ trusted; this app is not a high-value target.
 
 - **Password:** plaintext `APP_PASSWORD` env var. Login compares the submitted
   value with `crypto.timingSafeEqual` (constant-time). No hashing.
-- **Session cookie:** on a correct password, set an `httpOnly` cookie holding a
-  **signed token** — an HMAC over a fixed payload using `APP_SECRET` as the key
-  (never a guessable constant), so the cookie cannot be forged without the
-  secret. The token itself is not time-bound; the long expiry (~180 days) is
-  enforced by the cookie's `Max-Age` attribute.
-  - Cookie flags: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`,
-    `Max-Age` ~180 days.
+- **Session cookie:** on a correct password, establish a session with the
+  **`iron-session`** library — a sealed (encrypted + signed) cookie keyed by
+  `APP_SECRET`. The cookie cannot be forged or read without the secret, and an
+  embedded TTL (~180 days) means a copied cookie self-expires rather than
+  replaying indefinitely until the secret is rotated.
+  - Cookie flags (set by `iron-session`): `HttpOnly`, `Secure`,
+    `SameSite=Lax`, `Path=/`, `ttl` / `Max-Age` ~180 days.
 - **No lockout, no rate limit.** Wrong password → inline error, nothing else.
   Personal app, trusted infra.
 - **Route gating:** Next.js middleware validates the cookie on every route
@@ -238,7 +247,6 @@ itemScore(item):
 
     return  W_ITEM * anti_repeat
           + W_TAG  * variety
-          + W_FAV  * favoriteBonus(item)
 ```
 
 Both terms are in the same unit (capped days, 0..CAP), so they combine cleanly.
@@ -248,20 +256,24 @@ Both terms are in the same unit (capped days, 0..CAP), so they combine cleanly.
 ```
 W_ITEM = 1.0      // anti-repeat
 W_TAG  = 1.0      // variety enforcer
-W_FAV  = 0.0      // favoriteBonus OFF in v1
 ```
 
-`favoriteBonus` is off in v1. When enabled later it must be expressed in the
-same capped-day unit (e.g. `min(CAP, totalTimesEaten * k)`), never a raw count.
-Defer until there is real log data to tune against.
+A favorite term is **not in v1** — no `W_FAV`, no `favoriteBonus` stub: a
+function that exists only to be multiplied by zero is premature abstraction.
+When added later it is a third term expressed in the same capped-day unit
+(e.g. `min(CAP, totalTimesEaten * k)`), never a raw count. Defer until there is
+real log data to tune against.
 
 **Explanation chip** — one per row, derived deterministically from the score:
 
-- If `W_TAG * variety >= W_ITEM * anti_repeat` (tag term dominates, ties
-  included): the chip names the **single tag with the largest `daysSince`** →
-  "No fish in 18 days".
-- Otherwise: the chip names the item's own recency → "Last had 28 days ago".
-- The "Family favorite · ..." chip variant is deferred with `favoriteBonus`.
+- If the item **has tags** AND `W_TAG * variety >= W_ITEM * anti_repeat` (tag
+  term dominates, ties included): the chip names the **single tag with the
+  largest `daysSince`** → "No fish in 18 days".
+- Otherwise (item term dominates, **or the item has no tags**): the chip names
+  the item's own recency → "Last had 28 days ago". A tagless item always uses
+  this branch — it has no tag to name, so the tag branch is never reached for
+  it even on a score tie.
+- The "Family favorite · ..." chip variant is deferred with the favorite term.
 
 The chip is a **product requirement**: if the ranking can't explain itself in
 one plain-English line, it isn't done.
@@ -281,6 +293,11 @@ Purely visual; does not affect the score.
   `maps_url`, and `google_place_id`. All fields stay editable after autofill.
 - If `GOOGLE_PLACES_API_KEY` is unset, the box is **hidden** and the form
   degrades cleanly to plain manual entry.
+- **Places request failure** (network error, quota exceeded, 4xx/5xx from
+  Google): the box shows an inline "Google search unavailable — enter details
+  manually" notice and the manual fields stay fully editable, so a save still
+  works. The Places fetch carries a timeout so the box can't hang on a flaky
+  network.
 - Home meals have no Places integration — just the manual form with an optional
   `url` for a recipe link.
 
@@ -369,7 +386,11 @@ Schema inspection confirmed the import is clean: **no orphan dinners** (every
 `(item, date)` pairs** (the §5 `UNIQUE(item_id, eaten_on)` constraint will not
 be violated), and **no restaurant has both `orderUrl` and `menuUrl`** set.
 
-Write the import as a **one-off script**, not an ongoing feature.
+Write the import as a **one-off script**, not an ongoing feature. It runs
+inside a **single transaction**: any failure rolls back entirely, leaving the
+DB untouched, so after fixing the offending row the script is simply re-run
+from scratch. It targets a fresh empty DB, so no upsert / idempotency
+machinery is needed.
 
 **Mapping:**
 
@@ -418,3 +439,70 @@ It establishes: explanation chip directly under each name; quiet Home/Restaurant
 badges; tag chips carrying per-tag recency with overdue tags in accent color; a
 sticky filter zone with the All/Home/Restaurant segment and tri-state tag chips;
 a calm warm palette with thin dividers and no nested cards.
+
+## 15. Testing
+
+Test framework: **Vitest** — fast, TypeScript-native, the standard for
+Next.js + TS. **No browser E2E in v1**; the three cross-component flows
+(pick→log, login→gated route, log-edit date conflict) are verified by hand
+until a Playwright suite is added in a follow-up. Coverage target: every pure
+function and every server action has a test.
+
+**Pure logic (§7) — unit tests, the highest-value coverage:**
+
+- `daysSince(date | null)` — `null` → CAP; normal `today - date`; capped when
+  older than CAP; a guard for a future date (should never reach it).
+- Epoch-day conversion in `APP_TZ` — SQL `date` → epoch-day, and correctness
+  across a DST boundary.
+- `lastEaten` / `lastTagUse` — most-recent non-future row; future rows
+  excluded; `null` when there is no history.
+- `itemScore` — tagged (`variety = mean(tagDays)`), tagless
+  (`variety = anti_repeat`), and cold start (every item ties at
+  `(W_ITEM + W_TAG) * CAP`).
+- `explanationChip` — tag branch names the largest-`daysSince` tag; item branch
+  names item recency; **a tagless item always uses the item branch** (explicit
+  regression guard for the §7 rule).
+- Overdue styling triggers exactly at `daysSince >= OVERDUE_THRESHOLD`.
+- Tonight sort: descending by score, with the cold-start name fallback.
+
+**Server actions / integration tests:**
+
+- `pick = log` — inserts a row for today; a double-tap is a no-op upsert;
+  log-for-another-date with a past and a future date.
+- Log edit/delete — change item, date, note, delete; an edit that violates
+  `UNIQUE(item_id, eaten_on)` is rejected with an inline error.
+- Catalog — archive sets `active = false`; hard-delete is blocked by
+  `ON DELETE RESTRICT` for a logged item and allowed for an unlogged one.
+- Tags — rename; merge runs in one transaction; a mid-merge failure rolls back.
+- Tri-state tag filter — off → include → exclude cycle; the kind segment and
+  the tag filters AND together.
+- Auth — correct password establishes the session; wrong password → inline
+  error; middleware redirects an unauthenticated / expired request to `/login`.
+- Places — autofill populates the fields; key unset hides the box; a request
+  failure shows the fallback notice (§8).
+
+**Import script (§13):**
+
+- Mapping correctness — `hidden → active` inverted, `orderUrl` / `menuUrl`
+  coalesced into `url`, tags normalized and deduped, `created_at` set to the
+  dinner's date at local midnight.
+- The whole import rolls back on any failure (single transaction).
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | not run (optional) |
+| Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | outside voice skipped by user |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 9 issues, 0 critical gaps, 0 unresolved |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | not run (optional) |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | not run (optional) |
+
+Eng review (2026-05-15) resolved 9 issues across 10 decisions: D1 iron-session
+auth, D2 GHCR build workflow, D3 startup schema check, D4 tagless chip-rule fix,
+D5 tag normalization left as-is, D6 Places failure fallback, D7 single-transaction
+import, D8 dropped the `W_FAV` term, D9 Vitest test section added, D10 no TODOS.md.
+
+- **UNRESOLVED:** 0 — every review question was answered.
+- **VERDICT:** ENG CLEARED — ready to implement. CEO and Design reviews are
+  optional and were not run.
