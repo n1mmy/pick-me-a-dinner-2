@@ -1,4 +1,4 @@
-import { asc, eq, lte } from "drizzle-orm";
+import { asc, desc, eq, lte } from "drizzle-orm";
 import { db } from "./index";
 import { dinnerLog, optionTags, options, tags, type Option } from "./schema";
 import type { LogEntry, RankOption } from "../lib/ranking";
@@ -100,4 +100,50 @@ export async function getTonightData(todaySqlDate: string): Promise<{
     })),
     logEntries,
   };
+}
+
+/** A Log entry joined to its Option, narrowed to what the Log screen renders. */
+export type LogEntryRow = {
+  id: string;
+  optionId: string;
+  optionName: string;
+  kind: "home" | "restaurant";
+  /** `eaten_on` as a SQL `date` string (`"YYYY-MM-DD"`); may be past or future. */
+  eatenOn: string;
+  note: string | null;
+};
+
+/**
+ * The full Log for the Log screen: every Log entry — past, today, and future
+ * (Planned dinners) — joined to its Option, ordered newest `eaten_on` first.
+ * The screen splits future from non-future and groups each side into Dinners.
+ */
+export async function getLog(): Promise<LogEntryRow[]> {
+  return db
+    .select({
+      id: dinnerLog.id,
+      optionId: dinnerLog.optionId,
+      optionName: options.name,
+      kind: options.kind,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(dinnerLog.optionId, options.id))
+    .orderBy(desc(dinnerLog.eatenOn), asc(options.name));
+}
+
+/** An Option reduced to a choice for the Log edit form's Option picker. */
+export type OptionChoice = { id: string; name: string; kind: "home" | "restaurant" };
+
+/**
+ * Every Option — Active and Archived alike — as picker choices for the Log
+ * edit form. Archived Options are included so an entry already logged against
+ * one stays selectable when its row is edited.
+ */
+export async function getOptionChoices(): Promise<OptionChoice[]> {
+  return db
+    .select({ id: options.id, name: options.name, kind: options.kind })
+    .from(options)
+    .orderBy(asc(options.name));
 }
