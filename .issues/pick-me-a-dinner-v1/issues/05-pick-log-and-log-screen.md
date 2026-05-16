@@ -1,6 +1,6 @@
 # 05 — Pick = log and the Log screen
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -38,19 +38,19 @@ collapses with a quiet "Saved").
 
 ## Acceptance criteria
 
-- [ ] "Pick tonight" logs a `dinner_log` row for today in one tap; the row marks
+- [x] "Pick tonight" logs a `dinner_log` row for today in one tap; the row marks
       "Logged ✓" and the list re-sorts
-- [ ] A double-tap on "Pick tonight" is a no-op (upsert on `(option_id,
+- [x] A double-tap on "Pick tonight" is a no-op (upsert on `(option_id,
       eaten_on)`)
-- [ ] "Log another date" allows a past date (backfill) and a future date (a
+- [x] "Log another date" allows a past date (backfill) and a future date (a
       Planned dinner); future entries are excluded from the Tonight ranking
-- [ ] The Log screen shows a capped Upcoming strip above reverse-chronological
+- [x] The Log screen shows a capped Upcoming strip above reverse-chronological
       history grouped by date; multi-entry dates render as one Dinner
-- [ ] Any Log entry can be edited inline (Option, date, note) or deleted; an
+- [x] Any Log entry can be edited inline (Option, date, note) or deleted; an
       edit violating `UNIQUE(option_id, eaten_on)` shows an inline error with
       input preserved
-- [ ] Delete uses the inline-confirm pattern; Log §17 states are covered
-- [ ] Server-action tests: pick inserts for today; double-tap no-op;
+- [x] Delete uses the inline-confirm pattern; Log §17 states are covered
+- [x] Server-action tests: pick inserts for today; double-tap no-op;
       log-for-another-date past + future; edit Option/date/note; delete; the
       UNIQUE-conflict rejection
 
