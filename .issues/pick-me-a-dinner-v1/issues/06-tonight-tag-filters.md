@@ -1,6 +1,6 @@
 # 06 — Tri-state tag filters on Tonight
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -27,14 +27,14 @@ its accessible name ("pasta, included"), and every tap target is at least
 
 ## Acceptance criteria
 
-- [ ] The All/Home/Restaurant segment filters the Tonight list by Option kind
-- [ ] Tag chips cycle off → include → exclude → off; include shows only matching
+- [x] The All/Home/Restaurant segment filters the Tonight list by Option kind
+- [x] Tag chips cycle off → include → exclude → off; include shows only matching
       Options, exclude hides matching Options
-- [ ] Kind segment and tag filters AND together; a hint line states the active
+- [x] Kind segment and tag filters AND together; a hint line states the active
       filter in words
-- [ ] Chip state is distinguishable in grayscale (`+`/`−` + strikethrough) and
+- [x] Chip state is distinguishable in grayscale (`+`/`−` + strikethrough) and
       announced to screen readers; tap targets are ≥ 44×44px
-- [ ] Tests cover the off → include → exclude cycle and that the kind segment
+- [x] Tests cover the off → include → exclude cycle and that the kind segment
       and tag filters AND together
 
 ## Blocked by
