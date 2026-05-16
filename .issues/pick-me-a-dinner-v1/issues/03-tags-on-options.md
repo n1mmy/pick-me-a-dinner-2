@@ -1,6 +1,6 @@
 # 03 — Tags on Options
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -27,14 +27,14 @@ cleanup UI.
 
 ## Acceptance criteria
 
-- [ ] The Catalog Option form has an autocomplete token input that suggests
+- [x] The Catalog Option form has an autocomplete token input that suggests
       existing Tags and creates a new Tag on free text
-- [ ] `normalizeTag` trims and lowercases; it is a shared pure function used by
+- [x] `normalizeTag` trims and lowercases; it is a shared pure function used by
       the tag-attach path (and later the import script)
-- [ ] Adding "Pasta" when "pasta" exists reuses the existing Tag — no duplicate
+- [x] Adding "Pasta" when "pasta" exists reuses the existing Tag — no duplicate
       row (case-insensitive uniqueness holds)
-- [ ] Tags attach/detach via `option_tags` and persist across reloads
-- [ ] `normalizeTag` has unit tests: trims, lowercases, leaves an already-normal
+- [x] Tags attach/detach via `option_tags` and persist across reloads
+- [x] `normalizeTag` has unit tests: trims, lowercases, leaves an already-normal
       Tag unchanged
 
 ## Blocked by
