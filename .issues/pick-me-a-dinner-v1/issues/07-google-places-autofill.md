@@ -1,6 +1,6 @@
 # 07 — Google Places autofill for Restaurants
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -29,15 +29,15 @@ form.
 
 ## Acceptance criteria
 
-- [ ] The Places client is a deep module with a small interface; all failure
+- [x] The Places client is a deep module with a small interface; all failure
       modes (network/quota/4xx/5xx) map to one typed "unavailable" result; each
       request has a timeout
-- [ ] Selecting a Google result autofills all eight fields; every field stays
+- [x] Selecting a Google result autofills all eight fields; every field stays
       editable afterward
-- [ ] With `GOOGLE_PLACES_API_KEY` unset, the Search Google box is not rendered
-- [ ] A Places request failure shows the inline fallback notice; manual entry
+- [x] With `GOOGLE_PLACES_API_KEY` unset, the Search Google box is not rendered
+- [x] A Places request failure shows the inline fallback notice; manual entry
       and save still work
-- [ ] Tests (Places client stubbed): autofill populates the fields; key-unset
+- [x] Tests (Places client stubbed): autofill populates the fields; key-unset
       hides the box; a request failure shows the fallback notice
 
 ## Blocked by
