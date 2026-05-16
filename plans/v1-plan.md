@@ -158,11 +158,14 @@ recent **non-future** `eaten_on` across all items carrying that tag (via the
   evening adds a second row. The only thing blocked is logging the *same* item
   twice on one date: `pick = log` upserts on `(item_id, eaten_on)`, so an
   accidental double-tap is a harmless no-op.
-- **Tags are merged, never deleted.** The Tags screen exposes rename and merge
-  only. A typo tag is fixed by renaming or merging it into the right one.
-  (`ON DELETE CASCADE` on `item_tags.tag_id` exists only so a merge's final
-  `DELETE tag B` stays clean.) The whole merge runs in a **single transaction**
-  so a mid-merge failure can't leave partial state.
+- **No tag-management screen in v1.** Tags are created and changed only through
+  the autocomplete token input when adding or editing a Catalog item (§9).
+  There is no global rename or merge UI — the prior database's 19 tags showed
+  zero case/spelling drift (§13), so that tooling addressed a problem the real
+  data does not have. A tag left with no items simply stops appearing in the
+  Tonight filter; it is harmless. A real rename need, if it appears after weeks
+  of use, is a follow-up — not v1. (`ON DELETE CASCADE` on `item_tags` still
+  applies, so hard-deleting an unlogged item cleans up its tag links.)
 - **Tag edits are not retroactive.** Per-item and per-tag recency are computed
   from an item's *current* tags, not the tags it had when a past dinner was
   logged. This is intentional and simplest; revisit only if it feels wrong in
@@ -272,7 +275,9 @@ real log data to tune against.
 - Otherwise (item term dominates, **or the item has no tags**): the chip names
   the item's own recency → "Last had 28 days ago". A tagless item always uses
   this branch — it has no tag to name, so the tag branch is never reached for
-  it even on a score tie.
+  it even on a score tie. If the item has **never** been eaten (`lastEaten` is
+  `null`), this branch reads **"Never eaten yet"** — never a false "Last had 60
+  days ago".
 - The "Family favorite · ..." chip variant is deferred with the favorite term.
 
 The chip is a **product requirement**: if the ranking can't explain itself in
@@ -303,30 +308,48 @@ Purely visual; does not affect the score.
 
 ## 9. Screens
 
-1. **Tonight** (home, primary) — ranked active catalog. Each row: name, quiet
-   Home/Restaurant badge, one explanation chip, tag chips showing per-tag
-   recency ("fish 18d", overdue tags in accent color), a one-tap "Pick tonight"
-   action, and a secondary "log for another date" path (§6). Sticky filter
-   zone: All/Home/Restaurant segment + tri-state tag filter chips.
+v1 has **4 screens**: Tonight, Log, Catalog, Login. Tonight, Log and Catalog
+are reachable from a persistent bottom navigation bar (3 destinations); Login
+sits outside the authenticated gate. Per-screen layout detail and the approved
+mockups are in §19; the shared visual system is §16.
+
+1. **Tonight** (home, primary) — the ranked active catalog as a **flat, uniform
+   list**. The uniform list is intentional: the app supplies context and
+   ranking, the human scans the whole list — often for inspiration — and
+   decides. Do **not** add lead-item prominence or collapse the long tail;
+   surfacing every option is the point. Each row: name, quiet Home/Restaurant
+   badge, one explanation chip, tag chips showing per-tag recency, a one-tap
+   "Pick tonight" action, and a secondary "Log another date" path (§6).
+   Tag-recency on a chip always shows as `Nd` days (e.g. "fish 18d"), capped at
+   `60d+`; overdue tags render in the accent color. Hierarchy: name →
+   explanation chip → tag chips. Sticky filter zone: All/Home/Restaurant
+   segment + tri-state tag filter chips.
    **Empty state:** zero items → a short "Add your first meals →" prompt linking
    to Catalog.
-2. **Log** — an **"Upcoming"** section pinned on top (future-dated entries,
-   soonest first), then reverse-chronological past history, grouped by date; a
-   date may carry more than one entry. Every entry is editable and deletable
-   (§6 — change item, date, note, or remove).
-3. **Catalog** — add/edit home meals and restaurants; attach tags inline; the
-   restaurant form carries the Google Places search box. Archive action. The
-   desktop-heavy screen.
-4. **Tags** — lightweight: autocomplete + rename/merge. No taxonomy management.
-5. **Login** — single password field.
+2. **Log** — past and planned dinners. An **"Upcoming"** section sits on top as
+   a compact, capped strip (future-dated entries, soonest first) so it never
+   buries today; below it, reverse-chronological past history grouped by date —
+   a date may carry more than one entry. Hierarchy per entry: date header →
+   item name → note. Every entry is editable and deletable **inline** — the row
+   expands in place into an edit form (§6: change item, date, note, or remove).
+3. **Catalog** — add/edit home meals and restaurants; tags attached inline via
+   an autocomplete token input; the restaurant form carries the Google Places
+   search box. Add/edit happens **inline** — the row expands in place into the
+   form, the same on phone and desktop. Hierarchy: Home and Restaurant
+   sections, each row name → tag chips. Archive action, plus hard-delete for
+   unlogged items.
+4. **Login** — a quiet, centered single password field (§4). Wordmark reads
+   **"Pick Me a Dinner"**; no marketing copy, no tagline.
 
 ### Tag filtering (tri-state)
 
 The Tonight filter bar uses tappable tag chips, each cycling
-**off → include → exclude → off**. Include = show only items carrying that tag;
-exclude = hide items carrying it. The kind segment and the tag filters **AND
-together** — an item must satisfy the kind filter *and* all include tags *and*
-none of the exclude tags. A hint line states the active filter in words.
+**off → include → exclude → off**. Include = show only items carrying that tag
+(chip shows a leading `+`); exclude = hide items carrying it (leading `−`, with
+a strikethrough). The kind segment and the tag filters **AND together** — an
+item must satisfy the kind filter *and* all include tags *and* none of the
+exclude tags. A hint line states the active filter in words, and each chip's
+accessible name announces its state ("pasta, included").
 
 ## 10. Non-goals (explicit — protect the wedge)
 
@@ -344,8 +367,9 @@ pulls toward "meal planner," it is out.
 - **Tag recency on a brand-new item** — a new meal tagged "pasta" inherits
   "pasta last used 9 days ago" from the log. Treated as correct; confirm it
   feels right after a couple weeks, or raise `W_ITEM` vs `W_TAG`.
-- **Tag-hygiene aggressiveness** — how often merge is actually needed is a feel
-  call after a few weeks of free-form tagging.
+- **Tag rename / merge** — dropped from v1 entirely; there is no Tags screen
+  (see §5, §9). The prior data showed no tag drift. If free-form tagging
+  diverges after weeks of use, a lightweight rename is a follow-up.
 
 ## 12. Success criteria
 
@@ -367,7 +391,7 @@ pulls toward "meal planner," it is out.
    Reference the approved wireframe (below).
 5. Add the **pick = log** server action, the "log for another date" path, and
    the **Log** screen with the Upcoming section and full edit/delete.
-6. Add the tri-state tag filters and the **Tags** rename/merge screen.
+6. Add the tri-state tag filters on Tonight. (No Tags screen — see §5, §9.)
 7. Add the shared-password gate. Build the Dockerfile with an app-only
    entrypoint (no migration step); deploy to k8s.
 8. Dogfood for two weeks; tune `W_ITEM` / `W_TAG` by feel.
@@ -473,7 +497,6 @@ function and every server action has a test.
   `UNIQUE(item_id, eaten_on)` is rejected with an inline error.
 - Catalog — archive sets `active = false`; hard-delete is blocked by
   `ON DELETE RESTRICT` for a logged item and allowed for an unlogged one.
-- Tags — rename; merge runs in one transaction; a mid-merge failure rolls back.
 - Tri-state tag filter — off → include → exclude cycle; the kind segment and
   the tag filters AND together.
 - Auth — correct password establishes the session; wrong password → inline
@@ -488,14 +511,169 @@ function and every server action has a test.
   dinner's date at local midnight.
 - The whole import rolls back on any failure (single transaction).
 
+## 16. Design foundation  *(added by /plan-design-review 2026-05-16)*
+
+§14's Tonight visual language is the **project-wide** design system — every
+screen uses it. Implement as CSS custom properties so no screen drifts.
+
+**Color** — semantic CSS variables (from the §14 wireframe):
+
+```
+--bg       #faf8f4   page background, flat
+--surface  #ffffff   inputs, the white field/chip surface
+--ink      #2c2823   primary text
+--muted    #8a8278   secondary text, meta
+--line     #e4ded4   1px hairline dividers
+--accent   #c4502e   primary buttons, overdue/accent text
+--chip     #f0ebe1   explanation-chip background
+--home     #3f6b4a   Home badge
+--rest     #7a5a2e   Restaurant badge
+--danger   #b23b25   destructive actions, exclude chip, errors
+--success  #3f6b4a   "Logged" confirmation (reuses the home green)
+```
+
+**Type** — system stack `-apple-system, system-ui, sans-serif`, base 15px/1.5.
+Scale: 12 (meta/labels) · 13 (chips/secondary) · 15 (body) · 17 (item name) ·
+26 (h1). Weights: 400 body · 600 emphasis · 650 h1. The system stack is a
+deliberate choice for a self-hosted personal app — zero font-loading, native
+phone feel — not an oversight.
+
+**Spacing** — 4px base; common steps 4 / 6 / 8 / 12 / 16 / 22.
+
+**Layout primitive** — content is a single centered column: max-width 560px on
+phone, 700px on desktop. Rows are separated by 1px `--line` hairline dividers on
+the flat `--bg`. **No nested cards, no shadows, no border-boxed groups** — the
+hairline-divided row on a flat background is the only list unit.
+
+**Controls** — primary button: `--accent` background, white text, 9px radius,
+~10–14px padding. Inputs: `--surface` background, 1px `--line` border, ~8px
+radius, a visible `<label>` above (never placeholder-as-label). Badges:
+uppercase 11px, 4px radius. Chips: pill (999px radius), `--chip` background.
+
+**Motion** — state-confirming only: a row marking "Logged ✓" on pick, the
+filtered list re-sorting, an edit row expanding/collapsing. No shimmer, no
+ambient or decorative motion, no animated backgrounds.
+
+## 17. Interaction states  *(added by /plan-design-review 2026-05-16)*
+
+Every screen specifies loading, empty, error and success. States describe what
+the **user sees**, not backend behavior.
+
+| Screen | Loading | Empty | Error | Success |
+|---|---|---|---|---|
+| Tonight | calm placeholder rows, no shimmer | zero items → "Add your first meals →" linking to Catalog | pick fails → inline message on the row, item not consumed | picked row briefly marks "Logged ✓" in `--success`, then re-sorts |
+| Log | calm placeholder rows | no dinners → "No dinners logged yet — pick one on Tonight →" | date conflict on edit → inline error directly under the date field, input preserved | edited row collapses with a quiet "Saved" |
+| Catalog | calm placeholder rows | zero items → "Add a meal or restaurant to get started" | blank name → inline field error; delete blocked by a log row → friendly inline "In your log — archive instead", never a 500; Places failure → §8 fallback notice | saved item appears/updates in place |
+| Login | submit button shows a disabled/pending state | n/a | wrong password → inline error under the field, field cleared | redirect to Tonight |
+
+**Destructive actions** use one pattern: an **inline confirm** step (a
+"Delete · Cancel" / "Archive · Cancel" pair appears in place) before acting —
+no modal dialog, no undo-toast infrastructure. Applies to deleting a log entry,
+archiving a catalog item, and hard-deleting an unlogged catalog item.
+
+## 18. Responsive & accessibility  *(added by /plan-design-review 2026-05-16)*
+
+**Responsive** — a single centered column at every size: max-width 560px on
+phone, 700px on desktop, breakpoint at 720px. Tonight, Log and Login are
+single-column on desktop too; the column simply widens. A desktop
+list-plus-edit-panel layout for Catalog was considered and **deferred — not in
+v1 scope** (inline-expand works on both).
+
+**Touch targets** — every tap target is at least 44×44px: filter chips, the
+"Pick tonight" button, nav items, row actions.
+
+**Tri-state filter chip** — state is legible without color: included chips
+carry a leading `+`, excluded chips a leading `−` and a strikethrough. Each
+chip exposes its state to assistive tech via its accessible name.
+
+**Keyboard** — visible focus rings on every interactive element, logical tab
+order, Enter submits the Login form, Enter/Space activates "Pick tonight".
+
+**Contrast** — verified to WCAG AA before ship: `--accent` used as small text
+(overdue tag recency) must reach 4.5:1 on `--bg`; white-on-`--accent` button
+text must reach 3:1. If `--accent`-on-`--bg` falls short for small text, darken
+the accent for text use.
+
+**Semantics** — Tonight's ranked list is an ordered list (`<ol>`); explanation
+chips and tag-recency are real text (not icon-only), so screen readers read
+them; all form inputs have visible associated `<label>`s.
+
+## 19. Approved mockups  *(added by /plan-design-review 2026-05-16)*
+
+Generated and selected during /plan-design-review. These are the visual
+reference for implementation; build to them with the corrections noted. Paths
+under `designs/` are relative to `~/.gstack/projects/n1mmy-pick-me-a-dinner-2/`.
+
+| Screen | Mockup | Corrections to apply |
+|---|---|---|
+| Tonight | `designs/mockup-20260515/tonight-wireframe.html` (+ phone/desktop PNGs) | none — established in §14 |
+| Catalog | `designs/v1-screens-20260516/catalog/variant-A.png` | drop the per-row circular icon (the Home/Restaurant badge suffices); bottom-nav tabs are **Tonight / Log / Catalog** only — no Plan, Family or Settings |
+| Log | `designs/v1-screens-20260516/log/variant-A.png` | drop the sentimental "Good food. Good company." footer; keep Upcoming a compact capped strip (§9) |
+| Login | `designs/v1-screens-20260516/login/variant-A.png` | wordmark text is "Pick Me a Dinner"; no tagline |
+
+The Tags screen was cut during this review — its mockup is discarded.
+
+## 20. Design review — scope notes  *(/plan-design-review 2026-05-16)*
+
+**What already exists / reused** — the §14 Tonight wireframe and its warm
+palette, hairline-divider layout, quiet badges and recency chips. This review
+promoted that language to the project-wide §16 foundation rather than inventing
+a new one.
+
+**NOT in scope (considered, deferred):**
+
+- Tags management screen (rename / merge) — cut; prior data showed no tag drift.
+- Lead-item prominence / collapsed long tail on Tonight — rejected; the uniform
+  scannable list is intentional (§9). The app supplies context; the human picks.
+- Desktop list-plus-edit-panel layout for Catalog — inline-expand suffices.
+- Undo-toast infrastructure — inline confirm chosen instead (§17).
+- First-run onboarding hint for the ranking chips — unnecessary; the imported
+  database is the household's own real history.
+- A custom display typeface — the system font stack is deliberate (§16).
+
+## Implementation Tasks
+
+Synthesized from this review's findings. Each task derives from a specific
+finding above. Run with Claude Code or Codex; checkbox as you ship. (Greenfield
+repo — file paths resolve once the Next.js app is scaffolded per §13.)
+
+- [ ] **T1 (P1, human: ~3h / CC: ~20min)** — design-foundation — Implement the §16 design foundation as CSS variables + Tailwind theme tokens
+  - Surfaced by: Pass 5 — no global visual system; §14 was scoped to Tonight only
+  - Files: `app/globals.css`, `tailwind.config.ts`
+  - Verify: all 4 screens render from the shared tokens, no per-screen hex literals
+- [ ] **T2 (P1, human: ~4h / CC: ~30min)** — interaction-states — Implement the §17 per-screen loading / empty / error / success states
+  - Surfaced by: Pass 2 — only the Tonight empty state was specified
+  - Verify: each screen's four states reachable in manual testing
+- [ ] **T3 (P1, human: ~2h / CC: ~15min)** — destructive-actions — Inline-confirm pattern for delete log entry / archive / hard-delete; friendly delete-blocked message
+  - Surfaced by: Pass 2 — destructive actions had no confirmation; `ON DELETE RESTRICT` would surface as a 500
+  - Verify: deleting a logged item shows the inline "archive instead" message, not an error page
+- [ ] **T4 (P1, human: ~2h / CC: ~20min)** — tonight-a11y — Tri-state filter chip: `+`/`−` prefixes, accessible state names, 44px touch targets
+  - Surfaced by: Pass 6 — chip state was color-only; no touch-target spec
+  - Verify: chip state distinguishable in grayscale; screen reader announces state
+- [ ] **T5 (P2, human: ~30min / CC: ~5min)** — ranking-chip — Explanation chip reads "Never eaten yet" when `lastEaten` is null
+  - Surfaced by: Pass 7 — chip would falsely read "Last had 60 days ago" for never-eaten items
+  - Verify: unit test for the null-recency branch (extends §15 `explanationChip` tests)
+- [ ] **T6 (P2, human: ~1h / CC: ~10min)** — catalog — Drop the per-row circular icon; bottom-nav = Tonight / Log / Catalog only
+  - Surfaced by: Pass 4 / Pass 1 — icons-in-circles slop; mockup nav had off-spec Plan/Family tabs
+  - Verify: nav shows exactly 3 destinations
+- [ ] **T7 (P2, human: ~3h / CC: ~20min)** — responsive-a11y — Responsive column rules, keyboard focus/tab order, WCAG AA contrast verification
+  - Surfaced by: Pass 6 — no viewport, keyboard, or contrast specs
+  - Verify: contrast checker passes on `--accent` text pairs; full keyboard traversal of Tonight
+- [ ] **T8 (P3, human: ~30min / CC: ~5min)** — log — Drop the sentimental footer; keep Upcoming a compact capped strip
+  - Surfaced by: Pass 4 / Pass 1 — happy-talk footer; Upcoming could bury today
+  - Verify: a week of future entries does not push today's history below the fold
+- [ ] **T9 (P3, human: ~15min / CC: ~5min)** — login — Login wordmark reads "Pick Me a Dinner"; no tagline
+  - Surfaced by: Pass 7 — mockups invented "family dinner" / "family table" names
+  - Verify: Login renders the correct app name
+
 ## GSTACK REVIEW REPORT
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | not run (optional) |
-| Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | outside voice skipped by user |
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 9 issues, 0 critical gaps, 0 unresolved |
-| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | not run (optional) |
+| Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | not run; design outside voices ran instead (see below) |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 9 issues, 0 critical gaps, 0 unresolved (commit 18adbe2 — predates this design review) |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | CLEAR | score 5/10 → 9/10, 10 decisions, 0 unresolved |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | not run (optional) |
 
 Eng review (2026-05-15) resolved 9 issues across 10 decisions: D1 iron-session
@@ -503,6 +681,21 @@ auth, D2 GHCR build workflow, D3 startup schema check, D4 tagless chip-rule fix,
 D5 tag normalization left as-is, D6 Places failure fallback, D7 single-transaction
 import, D8 dropped the `W_FAV` term, D9 Vitest test section added, D10 no TODOS.md.
 
+Design review (2026-05-16) generated mockups for the 4 un-wireframed screens,
+ran outside voices, and ran 7 passes. Initial design score 5/10 → 9/10.
+Decisions: cut the Tags screen (scope reduction — no tag drift in prior data);
+Tonight stays a flat uniform list (intentional — the app gives context, the
+human picks); inline-confirm for destructive actions; inline-expand editing;
+added §16 design foundation, §17 interaction states, §18 responsive & a11y,
+§19 approved mockups. The plan dropped from 5 screens to 4.
+
+- **CROSS-MODEL:** design review ran outside voices — Codex (GPT) and an
+  independent Claude subagent. 0 hard rejections; both converged on the same
+  #1 finding (only Tonight was designed; no global visual system), resolved by
+  §16 + §19.
 - **UNRESOLVED:** 0 — every review question was answered.
-- **VERDICT:** ENG CLEARED — ready to implement. CEO and Design reviews are
+- **STALENESS:** eng review predates this design review's plan changes (Tags
+  screen removal, §16–20 added). The change is scope-reducing and adds no new
+  architecture, so eng clearance still holds; a light eng re-check is optional.
+- **VERDICT:** ENG + DESIGN CLEARED — ready to implement. CEO and DX reviews are
   optional and were not run.
