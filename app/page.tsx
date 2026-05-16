@@ -1,20 +1,26 @@
+import { getTonightData } from "../db/queries";
+import { epochDayFromSqlDate, todaySqlDate } from "../lib/local-day";
+import { rankTonight } from "../lib/ranking";
+import { TonightScreen } from "./tonight-screen";
+
 /**
- * Walking-skeleton placeholder. It renders nothing of the real product yet —
- * its job is to prove Next.js, Tailwind and the §16 design tokens are wired
- * up: warm palette, system font, the single centered-column primitive.
+ * Tonight depends on the Household's current calendar day and on every Log
+ * write, so it must never be prerendered — "today" would freeze at build time.
  */
-export default function Home() {
-  return (
-    <main className="column flex min-h-screen flex-col justify-center gap-3 py-5.5">
-      <h1 className="text-h1 font-h1 text-ink">Pick Me a Dinner</h1>
-      <p className="text-body text-muted">
-        Helps one household decide what&apos;s for dinner. This walking skeleton
-        wires up Next.js, Drizzle, PostgreSQL and Tailwind end to end — the real
-        Tonight, Log and Catalog screens land in the issues that follow.
-      </p>
-      <span className="self-start rounded-full bg-chip px-3 py-1.5 text-chip text-muted">
-        warm palette · system font · single centered column
-      </span>
-    </main>
-  );
+export const dynamic = "force-dynamic";
+
+export default async function TonightPage() {
+  // "Today" is the Household's calendar day in APP_TZ — not the server's UTC
+  // day — so all recency is measured from the household's perspective.
+  const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+  const { options, logEntries } = await getTonightData(today);
+
+  const todayEpochDay = epochDayFromSqlDate(today);
+  const entries = logEntries.map((entry) => ({
+    optionId: entry.optionId,
+    eatenOn: epochDayFromSqlDate(entry.eatenOn),
+  }));
+
+  const rows = rankTonight(options, entries, todayEpochDay);
+  return <TonightScreen rows={rows} />;
 }
