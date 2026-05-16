@@ -1,0 +1,159 @@
+# Pick Me a Dinner
+
+The shared language of a small personal web app that helps one household
+decide what's for dinner each night. This glossary is the canonical
+vocabulary: code, issues, tests, and docs should use these terms and avoid the
+listed aliases.
+
+## Language
+
+### The catalog
+
+**Option**:
+A single thing the household could choose for dinner — either a home-cooked
+meal or a restaurant. The unit of the Catalog and the unit ranked on Tonight.
+_Avoid_: Item, dish, "meal" used as the unified term (a Restaurant is not a
+meal).
+
+**Home meal**:
+An Option cooked at home (`kind = 'home'`).
+_Avoid_: Recipe.
+
+**Restaurant**:
+An Option for eating out or ordering in (`kind = 'restaurant'`).
+_Avoid_: Place, venue.
+
+**Catalog**:
+The full set of Options the household maintains.
+
+**Tag**:
+A free-form, case-insensitive label attached to an Option (e.g. `pasta`,
+`fish`, `helen: burger`). Drives the variety side of the ranking.
+
+### The log
+
+**Log entry**:
+A single record that one Option was — or will be — eaten on one date (one
+`dinner_log` row).
+_Avoid_: "Dinner" for a single row (the prior app's `Dinner` table meant this;
+v1 does not).
+
+**Dinner**:
+A whole evening's eating: one calendar date, composed of one or more Log
+entries (e.g. takeout plus some home cooking). The app never stores a Dinner
+as a row — it is the date-grouping the Log screen renders.
+
+**Log**:
+The full history of Log entries — both the `dinner_log` table and the screen
+that shows it.
+_Avoid_: Choices (too close to Option — the Log is realized history, not
+candidate options).
+
+**Pick** (verb):
+To choose tonight's dinner. Picking creates a Log entry dated today —
+"pick = log". A Pick *is* a Log entry; there is no separate "pick" entity.
+
+**Planned dinner**:
+A Log entry dated after today. Excluded from the ranking until its date
+arrives; shown in the Log screen's "Upcoming" section.
+_Avoid_: Plan, Upcoming entry (as the domain term — "Upcoming" is only the
+screen section's heading).
+
+### Ranking
+
+**Tonight**:
+The ranked list of active Options, and the screen that shows it (the home
+screen). Sorted descending by Score.
+
+**Recency**:
+How long since something was last eaten, measured only from non-future Log
+entries. **Per-Option recency** is days since that exact Option was last
+eaten; **per-Tag recency** is days since any Option carrying that Tag was last
+eaten.
+
+**Score**:
+The number that ranks an Option on Tonight, combining its per-Option recency
+with the per-Tag recency of its Tags. Higher = more overdue = higher on the
+list.
+_Avoid_: Anti-repeat, variety enforcer (the two inputs are simply per-Option
+recency and per-Tag recency).
+
+**Explanation chip**:
+The one plain-English line on each Tonight row stating why it ranks where it
+does ("No fish in 18 days", "Never eaten yet"). A product requirement — if the
+ranking cannot explain itself in a line, it is not done.
+
+**Overdue**:
+A Tag whose per-Tag recency has crossed the overdue threshold; rendered in the
+accent color on Tonight.
+
+**Cold start**:
+Too little Log history to differentiate Options — every Score ties and Tonight
+falls back to alphabetical order.
+
+### Lifecycle & access
+
+**Active**:
+An Option that appears on Tonight and in the default Catalog list
+(`active = true`).
+
+**Archived**:
+An Option set inactive (`active = false`): hidden from Tonight and the default
+Catalog list, but still shown in Log history. The action of setting it so is
+**Archive**.
+_Avoid_: Inactive (as the state term).
+
+**Hard-delete**:
+Permanently removing an Option from the Catalog. Allowed only for an Option
+with zero Log entries; an Option with Log history is Archived instead, never
+hard-deleted.
+
+**Household**:
+The single group of people who share the app and its one password. The app is
+single-household — no user accounts, no per-person identity.
+
+## Relationships
+
+- An **Option** is exactly one **kind**: a **Home meal** or a **Restaurant**.
+- An **Option** carries zero or more **Tags**.
+- The **Catalog** is the set of all **Options**.
+- A **Log entry** records exactly one **Option** on one date.
+- A **Dinner** is one or more **Log entries** sharing the same date.
+- The **Log** is the set of all **Log entries**.
+- **Picking** creates a **Log entry** dated today.
+- A **Planned dinner** is a **Log entry** dated after today.
+- **Tonight** ranks active **Options** by **Score**.
+- An Option's **Score** combines its **per-Option recency** with the
+  **per-Tag recency** of its **Tags**.
+- Each **Tonight** row carries one **Explanation chip**.
+- An **Option** is either **Active** or **Archived**.
+- An **Option** with any **Log entry** cannot be **hard-deleted** — only
+  **Archived**.
+- The **Household** shares one password; there are no user accounts.
+
+## Example dialogue
+
+> **Dev:** "If we Pick a Restaurant tonight and also Pick a Home meal, is that
+> two Dinners?"
+> **Domain expert:** "No — one Dinner, two Log entries. A Dinner is the
+> evening; both entries just sit on today's date."
+>
+> **Dev:** "And if I add a Log entry for next Friday?"
+> **Domain expert:** "That's a Planned dinner. It shows in Upcoming, but it
+> doesn't touch any Score until Friday arrives — planning Friday shouldn't
+> make Friday's dish look recently eaten today."
+>
+> **Dev:** "If the Household stops eating an Option, do we delete it?"
+> **Domain expert:** "Only if it has no Log entries. If it's in the Log,
+> Archive it — it leaves Tonight but its past Dinners stay intact."
+
+## Flagged ambiguities
+
+- "Meal" was used loosely for both the unified catalog entry and the
+  home-cooked kind specifically. Resolved: **Option** is the unified term;
+  **Home meal** is reserved for `kind = 'home'`. Friendly UI copy ("Add a meal
+  or restaurant") may still say "meal" — the glossary governs code, issues,
+  and tests.
+- "Dinner" was used for both a single log row and a whole evening. Resolved:
+  **Log entry** is the single row; **Dinner** is the evening (one or more Log
+  entries on a date).
