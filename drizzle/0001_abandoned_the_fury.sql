@@ -1,0 +1,1 @@
+CREATE INDEX "option_tags_tag_id_idx" ON "option_tags" USING btree ("tag_id");

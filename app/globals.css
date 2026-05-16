@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * §16 design foundation — the project-wide visual system as CSS custom
+ * properties. Every screen consumes these tokens (mirrored as Tailwind theme
+ * tokens in tailwind.config.ts); no screen carries a per-screen hex literal.
+ */
+:root {
+  /* Color — warm semantic palette (from the §14 Tonight wireframe). */
+  --color-bg: #faf8f4;
+  --color-surface: #ffffff;
+  --color-ink: #2c2823;
+  --color-muted: #8a8278;
+  --color-line: #e4ded4;
+  --color-accent: #c4502e;
+  --color-chip: #f0ebe1;
+  --color-home: #3f6b4a;
+  --color-rest: #7a5a2e;
+  --color-danger: #b23b25;
+  --color-success: #3f6b4a;
+
+  /* Type — system stack, base 15px/1.5. Scale: meta/chip/body/name/h1. */
+  --text-meta: 12px;
+  --text-chip: 13px;
+  --text-body: 15px;
+  --text-name: 17px;
+  --text-h1: 26px;
+  --weight-body: 400;
+  --weight-emphasis: 600;
+  --weight-h1: 650;
+
+  /* Spacing — 4px base; common steps 4 / 6 / 8 / 12 / 16 / 22. */
+  --space-1: 4px;
+  --space-1_5: 6px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5_5: 22px;
+
+  /* Layout primitive — single centered column, 560px phone / 700px desktop. */
+  --column-max: 560px;
+}
+
+/* The 720px breakpoint widens the one centered column; no other layout shift. */
+@media (min-width: 720px) {
+  :root {
+    --column-max: 700px;
+  }
+}
+
+@layer base {
+  html {
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: var(--text-body);
+    line-height: 1.5;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-weight: var(--weight-body);
+  }
+}
+
+@layer components {
+  /* The single centered-column primitive every screen renders inside. */
+  .column {
+    width: 100%;
+    max-width: var(--column-max);
+    margin-inline: auto;
+    padding-inline: var(--space-4);
+  }
+}

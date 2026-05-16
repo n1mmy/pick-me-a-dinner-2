@@ -15,3 +15,11 @@ When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the 
 Issues are tracked as local markdown files, so a "label" is the value of the `Status:` line near the top of the issue file.
 
 Edit the right-hand column to match whatever vocabulary you actually use.
+
+## Terminal status
+
+| Status in our tracker | Meaning                                              |
+| --------------------- | ---------------------------------------------------- |
+| `done`                | Issue complete — work committed, acceptance criteria all ticked |
+
+`done` is **not** a triage role — it is a terminal lifecycle state past triage, set by the implementing agent (the Ralph loop — see `issue-tracker.md`) once the work is committed. A `done` issue has left the triage state machine; `/triage` ignores it.
