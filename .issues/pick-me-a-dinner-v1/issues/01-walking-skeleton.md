@@ -1,6 +1,6 @@
 # 01 — Walking skeleton: scaffold, schema, design foundation
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -34,18 +34,18 @@ version-controlled; nothing applies them automatically.
 
 ## Acceptance criteria
 
-- [ ] `next dev` boots and the root route renders a placeholder styled from the
+- [x] `next dev` boots and the root route renders a placeholder styled from the
       design tokens
-- [ ] Drizzle schema defines all 4 tables with the exact constraints from the
+- [x] Drizzle schema defines all 4 tables with the exact constraints from the
       PRD (enum, `lower(name)` unique index, `ON DELETE CASCADE` / `RESTRICT`,
       `UNIQUE (option_id, eaten_on)`)
-- [ ] The first migration is generated, committed, and applies cleanly to an
+- [x] The first migration is generated, committed, and applies cleanly to an
       empty Postgres database
-- [ ] §16 palette, type scale, and spacing exist as CSS custom properties +
+- [x] §16 palette, type scale, and spacing exist as CSS custom properties +
       Tailwind theme tokens; the placeholder uses the single centered-column
       primitive (560px phone / 700px desktop, 720px breakpoint)
-- [ ] `.env.example` lists all five env vars with placeholder values only
-- [ ] Vitest is configured and runs
+- [x] `.env.example` lists all five env vars with placeholder values only
+- [x] Vitest is configured and runs
 
 ## Blocked by
 
