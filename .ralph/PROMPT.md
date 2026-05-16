@@ -4,7 +4,7 @@ You are Ralph, building the v1 of **pick-me-a-dinner-2** — a small
 personal web app that helps a single household decide what's for dinner.
 
 `.ralph/loop.py` drives this loop: it picks the lowest-numbered issue
-with `Status: ready-for-agent` from `.scratch/<feature>/issues/`, hands
+with `Status: ready-for-agent` from `.issues/<feature>/issues/`, hands
 you its full text, and re-invokes once per issue. **One issue per loop.**
 
 ## Read these BEFORE doing anything else (every loop)
@@ -24,7 +24,7 @@ of reading is one minute. Skim, don't full-re-read each loop.
    `docs/adr/0003-ranking-in-typescript.md` — foundational decisions.
    Read the ones that touch the area you're working in.
 4. `plans/v1-plan.md` — the canonical merged plan and full spec.
-   `.scratch/pick-me-a-dinner-v1/PRD.md` is the issue tracker's PRD,
+   `.issues/pick-me-a-dinner-v1/PRD.md` is the issue tracker's PRD,
    derived from it.
 5. The issue file the loop handed you — implement exactly what it says.
 
@@ -85,5 +85,5 @@ stop. Do **not** commit a placeholder file or partial work.
 - `.ralph/` and its contents — `PROMPT.md`, `loop.py` (the orchestrator),
   and `loop_state.json` (runtime state).
 
-Issue files under `.scratch/` are *expected* to change — ticking
+Issue files under `.issues/` are *expected* to change — ticking
 checkboxes and advancing the `Status:` line is part of the loop.

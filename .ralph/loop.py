@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 Ralph loop orchestrator — drives Claude Code through the ready-for-agent
-issues in `.scratch/<feature>/issues/`, one issue per invocation.
+issues in `.issues/<feature>/issues/`, one issue per invocation.
 
 Adapted from the wine-inventory `scripts/loop.py`. That project kept its
 task list in a single `.ralph/fix_plan.md` with `- [ ]` checkboxes; this
-project tracks work as individual issue files under `.scratch/` (see
+project tracks work as individual issue files under `.issues/` (see
 `docs/agents/issue-tracker.md`), so task discovery scans those files and
 keys off each issue's `Status:` line instead of a checkbox.
 
@@ -36,8 +36,8 @@ RALPH      = REPO / ".ralph"
 PROMPT     = (RALPH / "PROMPT.md").read_text()  # existence sanity check
 STATE_FILE = RALPH / "loop_state.json"
 
-# Issue files live at `.scratch/<feature>/issues/<NN>-<slug>.md`.
-ISSUES_GLOB     = ".scratch/*/issues/*.md"
+# Issue files live at `.issues/<feature>/issues/<NN>-<slug>.md`.
+ISSUES_GLOB     = ".issues/*/issues/*.md"
 READY_STATUS    = "ready-for-agent"
 STATUS_RE       = re.compile(r"^Status:\s*(.+)$", re.MULTILINE)
 ISSUE_NUM_RE    = re.compile(r"\d+")
@@ -263,7 +263,7 @@ def main():
 
     p = argparse.ArgumentParser(
         description="Drive Claude Code through ready-for-agent issues in "
-                    ".scratch/, one issue per invocation.",
+                    ".issues/, one issue per invocation.",
     )
     p.add_argument("--max-calls", type=int, default=DEFAULT_MAX_CALLS_PER_HOUR,
                    help=f"Max claude invocations per hour (default: {DEFAULT_MAX_CALLS_PER_HOUR})")
