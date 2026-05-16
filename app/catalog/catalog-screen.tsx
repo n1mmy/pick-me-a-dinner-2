@@ -1,0 +1,94 @@
+"use client";
+
+import { useState } from "react";
+import type { Option } from "../../db/schema";
+import type { OptionKind } from "./actions";
+import { OptionForm } from "./option-form";
+import { OptionRow } from "./option-row";
+
+/**
+ * The Catalog screen: Home meals and Restaurants in two sections, each row
+ * showing the name. Adding and editing happen inline — an "add" affordance or a
+ * row expands in place into the form.
+ */
+export function CatalogScreen({
+  home,
+  restaurants,
+}: {
+  home: Option[];
+  restaurants: Option[];
+}) {
+  const isEmpty = home.length === 0 && restaurants.length === 0;
+
+  return (
+    <main className="column flex min-h-screen flex-col gap-5.5 py-5.5">
+      <h1 className="text-h1 font-h1 text-ink">Catalog</h1>
+      {isEmpty && (
+        <p className="text-body text-muted">
+          Add a meal or restaurant to get started
+        </p>
+      )}
+      <OptionSection
+        kind="home"
+        title="Home meals"
+        addLabel="Add a meal"
+        options={home}
+      />
+      <OptionSection
+        kind="restaurant"
+        title="Restaurants"
+        addLabel="Add a restaurant"
+        options={restaurants}
+      />
+    </main>
+  );
+}
+
+/** One kind's section: a heading, its rows, and the inline-expand add form. */
+function OptionSection({
+  kind,
+  title,
+  addLabel,
+  options,
+}: {
+  kind: OptionKind;
+  title: string;
+  addLabel: string;
+  options: Option[];
+}) {
+  const [adding, setAdding] = useState(false);
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="text-meta font-emphasis uppercase tracking-wide text-muted">
+        {title}
+      </h2>
+      {options.length > 0 && (
+        <ul className="flex flex-col">
+          {options.map((option) => (
+            <OptionRow key={option.id} option={option} />
+          ))}
+        </ul>
+      )}
+      {adding ? (
+        <div className="border-b border-line py-3">
+          <OptionForm
+            kind={kind}
+            onCancel={() => setAdding(false)}
+            onSaved={() => setAdding(false)}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="min-h-11 self-start rounded-control px-2 text-body
+            font-emphasis text-accent focus-visible:outline focus-visible:outline-2
+            focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          + {addLabel}
+        </button>
+      )}
+    </section>
+  );
+}

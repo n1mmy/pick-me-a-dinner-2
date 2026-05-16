@@ -44,6 +44,9 @@ export const options = pgTable("options", {
   mapsUrl: text("maps_url"),
 });
 
+/** A Catalog row as stored — a Home meal or a Restaurant. */
+export type Option = typeof options.$inferSelect;
+
 /**
  * Free-form, case-insensitive Tags. The unique index on `lower(name)` enforces
  * case-insensitive uniqueness without the `citext` extension.
