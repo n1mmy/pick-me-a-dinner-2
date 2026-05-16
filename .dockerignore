@@ -1,0 +1,15 @@
+# Build the image from sources only — never ship local artifacts or secrets.
+node_modules
+.next
+out
+.git
+.env
+.env.local
+.env*.local
+*.tsbuildinfo
+.handoff.md
+.gstack
+.ralph/loop_state.json
+.issues
+docs
+plans
