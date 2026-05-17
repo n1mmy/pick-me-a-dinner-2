@@ -3,7 +3,6 @@ handoff.md
 
 # ralph loop runtime state (regenerated every loop)
 .ralph/loop_state.json
-.ralph/watch-steps-offsets.json
 
 # git worktrees created by parallel agents
 .claude/worktrees/
