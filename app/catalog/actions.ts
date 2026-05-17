@@ -123,6 +123,17 @@ async function syncOptionTags(
 }
 
 /**
+ * Revalidate every screen a Catalog mutation changes: the Catalog list and the
+ * Option detail page. An Edit, Archive, or Delete invoked from the detail page
+ * must refresh it in place there too — a control behaves identically wherever
+ * it is invoked (PRD: Option detail page, ADR-0007).
+ */
+function revalidateCatalog(): void {
+  revalidatePath("/catalog");
+  revalidatePath("/catalog/[id]", "page");
+}
+
+/**
  * Add a Home meal or Restaurant to the Catalog. The Option insert and its Tag
  * sync run in one transaction, so a mid-write failure rolls back rather than
  * leaving an Option with missing Tags.
@@ -173,7 +184,7 @@ export const updateOption = authedAction(
       }
       throw error;
     }
-    revalidatePath("/catalog");
+    revalidateCatalog();
     return { ok: true };
   },
 );
@@ -193,7 +204,7 @@ export const archiveOption = authedAction(
       }
       throw error;
     }
-    revalidatePath("/catalog");
+    revalidateCatalog();
     return { ok: true };
   },
 );
@@ -219,7 +230,7 @@ export const deleteOption = authedAction(
       }
       throw error;
     }
-    revalidatePath("/catalog");
+    revalidateCatalog();
     return { ok: true };
   },
 );
