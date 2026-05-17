@@ -73,7 +73,7 @@ the rule is stated here so you never even attempt it.
    ```
    Write, Read, Edit, Glob, Grep,
    Bash(git *), Bash(pnpm *), Bash(npm *), Bash(npx *),
-   Bash(node *), Bash(tsx *), Bash(python3 *), Bash(docker *), Bash(docker-compose *),
+   Bash(node *), Bash(tsx *), Bash(docker *), Bash(docker-compose *),
    Bash(curl *), Bash(wget *), Bash(command -v *), Bash(which *),
    Bash(test *), Bash(echo *)
    ```
@@ -98,25 +98,18 @@ the rule is stated here so you never even attempt it.
 
 ## Watching the run
 
-Worker sub-agents report back only terse outcomes (the "do not narrate"
-rule). For visibility into what each worker is *doing*, `.ralph/watch-steps.py`
-turns their transcripts into a compact step log — one line per tool call
-(`Read x`, `Edit y`, `Bash pnpm test`), never the tool output. Two ways to
-use it:
+Foreground worker sub-agents render their steps in the Claude Code GUI — each
+wave's workers show up as disclosures in the session sidebar, so the human
+running the orchestrator can watch progress there directly. You, the
+orchestrator agent, do not see those steps; a foreground `Agent` call returns
+only the worker's final terse outcome.
 
-- **Separate terminal (the live view)** — run `python3
-  .ralph/watch-steps.py` (no args) in another terminal for a live tail
-  that costs no agent context. This is the only *live* view: a foreground
-  wave suspends you (step 3), so you cannot tail from inside the session
-  while workers run.
-- **In-session digest** — between waves (after a dispatch message has
-  returned) you may run `python3 .ralph/watch-steps.py --digest` to log
-  the just-finished wave's worker steps into this session. Each `--digest`
-  call prints only what is new since the last. It is a post-hoc record,
-  not a live feed, and costs a little context by design.
-
-Either way it is a plain transcript reader: it surfaces only the workers'
-tool calls, never the raw transcript's (large) tool output.
+For a terminal view — or in a headless run with no GUI — `.ralph/watch-steps.py`
+turns the workers' transcripts into a compact step log, one line per tool call
+(`Read x`, `Edit y`, `Bash pnpm test`), never the tool output. Run `python3
+.ralph/watch-steps.py` (no args) in a separate terminal for a live tail. It is
+a plain process, not an agent: nothing it reads or prints enters any agent's
+context.
 
 ## Configuration
 
@@ -194,26 +187,23 @@ working isolation; see step 4.
 ### 4 — While the wave runs
 
 A foreground wave suspends you until the whole dispatch message returns —
-you cannot wake, monitor, or kill a worker mid-wave. Two consequences:
+you cannot wake, monitor, or kill a worker mid-wave. (The human can still
+watch progress: workers render their steps in the GUI sidebar, and
+`.ralph/watch-steps.py` gives the same view in a terminal — see "Watching
+the run". You, the orchestrator, see only each worker's final outcome.)
 
-- **`WORKER_TIMEOUT` is advisory — you do not enforce it.** You have no
-  `TaskStop` kill hook. Enforcement is worker-side: the dispatch template
-  tells each worker its budget and to write a failure note and stop rather
-  than run indefinitely. A genuinely hung worker (one that does not
-  self-police) stalls only its own wave, until the agent runtime ends it;
-  on return, treat it as a failure (step 6). It cannot corrupt the
-  integration branch — its work is isolated in its own worktree.
-- **Live visibility is out-of-session.** Run `python3
-  .ralph/watch-steps.py` (no args) in a separate terminal for a live tail
-  while you are suspended — it needs nothing from you. The in-session
-  `--digest` is post-hoc only: run it once after the wave returns (step 5)
-  to log the finished wave's worker steps into this session.
+One consequence: **`WORKER_TIMEOUT` is advisory — you do not enforce it.**
+You have no `TaskStop` kill hook. Enforcement is worker-side: the dispatch
+template tells each worker its budget and to write a failure note and stop
+rather than run indefinitely. A genuinely hung worker (one that does not
+self-police) stalls only its own wave, until the agent runtime ends it; on
+return, treat it as a failure (step 6). It cannot corrupt the integration
+branch — its work is isolated in its own worktree.
 
 ### 5 — Collect and merge
 
 When the wave's dispatch message returns, all workers have resolved
-together. Optionally run `python3 .ralph/watch-steps.py --digest` to log
-their steps into this session. Then, for each worker:
+together. Then, for each worker:
 
 - Read its result — but **do not trust the self-report**. Verify the
   durable artifacts: the issue's `Status:` line actually flipped to
