@@ -1,6 +1,6 @@
 # 04 — AI search: mode polish and accessibility
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -29,18 +29,18 @@ with visible focus and have adequate touch targets on phone and desktop.
 
 ## Acceptance criteria
 
-- [ ] The kind segment and Tag filter chips are hidden while an AI result is
+- [x] The kind segment and Tag filter chips are hidden while an AI result is
       shown, and restored when the search is cleared
-- [ ] The search box shows a pending state and is disabled while a search is in
+- [x] The search box shows a pending state and is disabled while a search is in
       flight; the deterministic list stays visible underneath until the result
       arrives
-- [ ] The swap between deterministic list and AI result, and the pending and
+- [x] The swap between deterministic list and AI result, and the pending and
       error states, are announced to assistive tech
-- [ ] The search box, submit, and clear controls are keyboard-operable with
+- [x] The search box, submit, and clear controls are keyboard-operable with
       visible focus and have adequate touch targets
-- [ ] A screen-level test covers clearing-restores-the-filter-zone and the
+- [x] A screen-level test covers clearing-restores-the-filter-zone and the
       in-flight disable
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
 
 ## Blocked by
 

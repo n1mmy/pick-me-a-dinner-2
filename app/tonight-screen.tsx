@@ -30,9 +30,15 @@ const focusRing =
  * A sticky zone sits above the list: a search box, an All/Home/Restaurant kind
  * segment, and tri-state tag filter chips. Submitting the search box runs an
  * **AI search** (PRD: AI search) — the deterministic list swaps in place for an
- * AI-ranked result, each row carrying an AI rationale. Clearing the search, or
- * any page reload, restores the deterministic list. The deterministic ranking
+ * AI-ranked result, each row carrying an AI rationale. While an AI result is
+ * shown the kind segment and tag chips are hidden, so the query is the single
+ * ranking authority; clearing the search, or any page reload, restores both
+ * the deterministic list and its filter controls. The deterministic ranking
  * stays the default that loads on its own; the AI result is never persisted.
+ *
+ * A visually-hidden live region announces the mode to assistive tech: the
+ * pending state, and the swap between the deterministic list and the AI
+ * result. A failed search is announced by the inline error on the box.
  *
  * Each row carries the `pick = log` write action (§6) in `tonight-row.tsx` and
  * is pickable in either state.
@@ -60,6 +66,19 @@ export function TonightScreen({ rows }: { rows: TonightRow[] }) {
     [rows, kind, tagFilters],
   );
   const hint = filterHint(kind, tagFilters);
+
+  // The AI search mode restated for assistive tech: a polite announcement of
+  // the pending state and of the swap between the deterministic list and the
+  // AI result. The initial string is not announced — a live region only voices
+  // changes — so a fresh load stays silent. A failed search is announced
+  // separately by the inline error on the search box.
+  const searchStatus = pending
+    ? "Searching for dinner…"
+    : aiResults === null
+      ? "Showing the ranked dinner list."
+      : aiResults.length === 0
+        ? "AI search found no Options."
+        : "Showing AI search results.";
 
   // The AI result resolved against the rows already on screen: every validated
   // id is in the active Catalog, so it has a row to render with name and Tags.
@@ -125,30 +144,40 @@ export function TonightScreen({ rows }: { rows: TonightRow[] }) {
               error={aiError}
               showClear={aiResults !== null || aiError}
             />
-            <KindSegment kind={kind} onChange={setKind} />
-            {tags.length > 0 && (
-              <div
-                role="group"
-                aria-label="Filter by tag"
-                className="flex flex-wrap gap-1"
-              >
-                {tags.map((tag) => (
-                  <TagFilterChip
-                    key={tag}
-                    tag={tag}
-                    state={tagFilters[tag] ?? "off"}
-                    onClick={() => cycleTag(tag)}
-                  />
-                ))}
-              </div>
-            )}
-            <p
-              role="status"
-              aria-live="polite"
-              className="text-meta text-muted"
-            >
-              {hint}
+            <p className="sr-only" role="status" aria-live="polite">
+              {searchStatus}
             </p>
+            {/* The filter zone — kind segment and Tag chips — is hidden while an
+                AI result is shown so the query alone ranks the list; clearing
+                the search restores it with the deterministic list. */}
+            {aiRows === null && (
+              <>
+                <KindSegment kind={kind} onChange={setKind} />
+                {tags.length > 0 && (
+                  <div
+                    role="group"
+                    aria-label="Filter by tag"
+                    className="flex flex-wrap gap-1"
+                  >
+                    {tags.map((tag) => (
+                      <TagFilterChip
+                        key={tag}
+                        tag={tag}
+                        state={tagFilters[tag] ?? "off"}
+                        onClick={() => cycleTag(tag)}
+                      />
+                    ))}
+                  </div>
+                )}
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className="text-meta text-muted"
+                >
+                  {hint}
+                </p>
+              </>
+            )}
           </div>
           {aiRows !== null ? (
             aiRows.length === 0 ? (

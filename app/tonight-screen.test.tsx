@@ -14,15 +14,24 @@ vi.mock("./log/actions", () => ({
   pickTonight: vi.fn(async () => ({ ok: true })),
 }));
 
+import type { AiSearchResult } from "../lib/ai-search";
 import { aiSearchAction } from "./tonight-actions";
 import { TonightScreen } from "./tonight-screen";
 
 const mockedAiSearch = vi.mocked(aiSearchAction);
 
-/** A deterministic Tonight row with a distinct Explanation chip. */
-function row(id: string, name: string, explanation: string): TonightRow {
+/**
+ * A deterministic Tonight row with a distinct Explanation chip. `tags` are the
+ * Option's Tags, which drive the Tag filter chips in the filter zone.
+ */
+function row(
+  id: string,
+  name: string,
+  explanation: string,
+  tags: string[] = [],
+): TonightRow {
   return {
-    option: { id, name, kind: "home", tags: [] },
+    option: { id, name, kind: "home", tags },
     score: 10,
     explanation,
     tags: [],
@@ -34,6 +43,13 @@ function row(id: string, name: string, explanation: string): TonightRow {
 const ROWS: TonightRow[] = [
   row("o1", "Apple Crumble", "Never eaten yet"),
   row("o2", "Banana Bread", "Eaten quite recently"),
+];
+
+// Rows that carry a Tag, so the filter zone renders the Tag filter chips
+// alongside the kind segment.
+const TAGGED_ROWS: TonightRow[] = [
+  row("o1", "Apple Crumble", "Never eaten yet", ["dessert"]),
+  row("o2", "Banana Bread", "Eaten quite recently", ["dessert"]),
 ];
 
 afterEach(() => {
@@ -122,6 +138,70 @@ describe("TonightScreen — AI search", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
     expect(screen.queryByText("Search unavailable — try again")).toBeNull();
+  });
+
+  it("hides the filter zone while an AI result is shown and restores it on clear", async () => {
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o2", reason: "Light and quick" }],
+    });
+
+    render(<TonightScreen rows={TAGGED_ROWS} />);
+
+    // The kind segment and Tag filter chips are part of the deterministic view.
+    expect(
+      screen.queryByRole("group", { name: "Filter by kind" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Light and quick");
+
+    // While the AI result is shown the query is the single ranking authority:
+    // both the kind segment and the Tag filter chips are gone.
+    expect(screen.queryByRole("group", { name: "Filter by kind" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+    // Clearing restores both the deterministic list and its filter controls.
+    expect(screen.getByText("Never eaten yet")).toBeTruthy();
+    expect(
+      screen.queryByRole("group", { name: "Filter by kind" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeTruthy();
+  });
+
+  it("disables the search box in flight and keeps the deterministic list visible", async () => {
+    // A deferred result lets the test observe the in-flight state.
+    let resolveSearch: (result: AiSearchResult) => void = () => {};
+    mockedAiSearch.mockReturnValue(
+      new Promise<AiSearchResult>((resolve) => {
+        resolveSearch = resolve;
+      }),
+    );
+
+    render(<TonightScreen rows={ROWS} />);
+    const input = screen.getByLabelText(
+      "Search for dinner by intent",
+    ) as HTMLInputElement;
+    expect(input.disabled).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    // While the search is in flight the box is disabled — so only one search
+    // runs at a time — and the deterministic list stays visible underneath.
+    await screen.findByRole("button", { name: "Searching…" });
+    expect(input.disabled).toBe(true);
+    expect(screen.getByText("Never eaten yet")).toBeTruthy();
+
+    // The result arrives, swaps in, and re-enables the box.
+    resolveSearch({
+      ok: true,
+      results: [{ id: "o2", reason: "Light and quick" }],
+    });
+    await screen.findByText("Light and quick");
+    expect(input.disabled).toBe(false);
   });
 
   it("clears the error when a later search succeeds", async () => {
