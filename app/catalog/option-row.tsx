@@ -7,7 +7,7 @@ import { OptionForm } from "./option-form";
 
 const actionButton =
   "min-h-11 rounded-control px-2 text-chip focus-visible:outline " +
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
  * One Catalog row. Shows the Option name with Edit / Archive / Delete actions;
@@ -105,7 +105,7 @@ export function OptionRow({
                 type="button"
                 disabled={pending}
                 className={`${actionButton} font-emphasis ${
-                  confirm === "delete" ? "text-danger" : "text-accent"
+                  confirm === "delete" ? "text-danger" : "text-action"
                 }`}
                 onClick={confirm === "delete" ? runDelete : runArchive}
               >

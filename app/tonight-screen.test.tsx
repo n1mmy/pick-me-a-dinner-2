@@ -40,6 +40,7 @@ function row(
     score: 10,
     explanation,
     tags: [],
+    recencyDays: 0,
   };
 }
 

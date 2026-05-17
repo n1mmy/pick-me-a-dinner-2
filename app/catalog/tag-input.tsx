@@ -78,7 +78,7 @@ export function TagInput({
                 onClick={() => removeTag(tag)}
                 className="flex items-center gap-1 rounded-badge bg-raised px-2 py-1.5
                   text-chip text-ink focus-visible:outline focus-visible:outline-2
-                  focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  focus-visible:outline-offset-2 focus-visible:outline-action"
               >
                 {tag}
                 <span aria-hidden="true" className="text-muted">
@@ -96,7 +96,7 @@ export function TagInput({
           id={`${fieldId}-tag`}
           className="min-h-11 w-full rounded-input border border-line bg-surface px-3
             text-body text-ink focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-accent"
+            focus-visible:outline-offset-2 focus-visible:outline-action"
           value={draft}
           placeholder="Add a tag"
           autoComplete="off"
@@ -140,7 +140,7 @@ export function TagInput({
                   type="button"
                   role="option"
                   aria-selected="false"
-                  className="min-h-11 w-full px-3 text-left text-body text-accent
+                  className="min-h-11 w-full px-3 text-left text-body text-action
                     hover:bg-raised"
                   onMouseDown={(event) => {
                     event.preventDefault();

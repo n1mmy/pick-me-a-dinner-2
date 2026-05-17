@@ -19,6 +19,7 @@ function row(
     score: 0,
     explanation: "",
     tags: tags.map((tag) => ({ tag, days: 0, overdue: false })),
+    recencyDays: 0,
   };
 }
 

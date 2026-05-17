@@ -103,8 +103,8 @@ function OptionSection({
           type="button"
           onClick={() => setAdding(true)}
           className="min-h-11 self-start rounded-control px-2 text-body
-            font-emphasis text-accent focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-accent"
+            font-emphasis text-action focus-visible:outline focus-visible:outline-2
+            focus-visible:outline-offset-2 focus-visible:outline-action"
         >
           + {addLabel}
         </button>
