@@ -45,3 +45,13 @@ other Options carry a higher raw recency.
   harness against real data, judged by whether the rationales surface something
   genuinely useful. Reverting to the deterministic cadence option later means
   building that math from scratch.
+- The size of the AI result is query-dependent (tightened post-launch,
+  2026-05-17 — the original prompt let the model freely decide how many to
+  return and it under-returned on open queries). A query that genuinely
+  narrows the Catalog ("something light") returns a focused shortlist of the
+  Options that fit. An empty query, or an open one that narrows nothing
+  ("recommend something"), returns the whole candidate Catalog ranked — each
+  rationale then does double duty: a positive reason near the top, a "why this
+  is a weaker pick" note near the bottom. The model itself judges whether a
+  query narrows; the snapshot shape and the withheld recency above are
+  unchanged by this.
