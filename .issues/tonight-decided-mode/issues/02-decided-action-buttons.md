@@ -1,6 +1,6 @@
 # 02 — Action buttons on a picked Option (Menu / Call / Recipe)
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -26,16 +26,16 @@ render. Extend `getTonightData` so each Option also carries `url` and `phone`.
 
 ## Acceptance criteria
 
-- [ ] A Picked Restaurant with both fields shows a "Menu" button and a "Call"
+- [x] A Picked Restaurant with both fields shows a "Menu" button and a "Call"
       button in the decided block
-- [ ] A Picked Restaurant missing one field shows only the button whose field
+- [x] A Picked Restaurant missing one field shows only the button whose field
       is set; with neither, it shows no action buttons
-- [ ] A Picked Home meal with a `url` shows a "Recipe" button; without a `url`,
+- [x] A Picked Home meal with a `url` shows a "Recipe" button; without a `url`,
       no button
-- [ ] A Home meal never shows "Menu" or "Call"
-- [ ] "Call" is a `tel:` link; "Menu" and "Recipe" open the Option's `url`
-- [ ] `decidedActions` is unit-tested across the kind/field combinations above
-- [ ] The buttons are keyboard-operable with visible focus and meet the
+- [x] A Home meal never shows "Menu" or "Call"
+- [x] "Call" is a `tel:` link; "Menu" and "Recipe" open the Option's `url`
+- [x] `decidedActions` is unit-tested across the kind/field combinations above
+- [x] The buttons are keyboard-operable with visible focus and meet the
       44×44px touch-target minimum
 
 ## Blocked by

@@ -15,7 +15,7 @@ function row(
   tags: string[] = [],
 ): TonightRow {
   return {
-    option: { id, name: id, kind, tags },
+    option: { id, name: id, kind, tags, url: null, phone: null },
     score: 0,
     explanation: "",
     tags: tags.map((tag) => ({ tag, days: 0, overdue: false })),

@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { TonightRow } from "./ranking";
-import { splitTonight, type TodayLogEntry } from "./tonights-dinner";
+import {
+  decidedActions,
+  splitTonight,
+  type TodayLogEntry,
+} from "./tonights-dinner";
 
 /** A minimal ranked Tonight row — `splitTonight` only reads `option.id`. */
 function row(id: string, name: string): TonightRow {
   return {
-    option: { id, name, kind: "home", tags: [] },
+    option: { id, name, kind: "home", tags: [], url: null, phone: null },
     score: 0,
     explanation: "",
     tags: [],
@@ -78,5 +82,67 @@ describe("splitTonight", () => {
     ]);
     expect(tonightsDinner.map((d) => d.row.option.id)).toEqual(["b"]);
     expect(picker.map((r) => r.option.id)).toEqual(["a", "c"]);
+  });
+});
+
+describe("decidedActions", () => {
+  it("gives a Restaurant with both fields a Menu and a Call button", () => {
+    expect(
+      decidedActions({
+        kind: "restaurant",
+        url: "https://thai.example/menu",
+        phone: "+1-555-0100",
+      }),
+    ).toEqual([
+      { label: "Menu", href: "https://thai.example/menu" },
+      { label: "Call", href: "tel:+1-555-0100" },
+    ]);
+  });
+
+  it("gives a Restaurant with only a url just the Menu button", () => {
+    expect(
+      decidedActions({
+        kind: "restaurant",
+        url: "https://thai.example/order",
+        phone: null,
+      }),
+    ).toEqual([{ label: "Menu", href: "https://thai.example/order" }]);
+  });
+
+  it("gives a Restaurant with only a phone just the Call button", () => {
+    expect(
+      decidedActions({ kind: "restaurant", url: null, phone: "+1-555-0100" }),
+    ).toEqual([{ label: "Call", href: "tel:+1-555-0100" }]);
+  });
+
+  it("gives a Restaurant with neither field no buttons", () => {
+    expect(
+      decidedActions({ kind: "restaurant", url: null, phone: null }),
+    ).toEqual([]);
+  });
+
+  it("gives a Home meal with a url a Recipe button", () => {
+    expect(
+      decidedActions({
+        kind: "home",
+        url: "https://recipes.example/stew",
+        phone: null,
+      }),
+    ).toEqual([{ label: "Recipe", href: "https://recipes.example/stew" }]);
+  });
+
+  it("gives a Home meal without a url no buttons", () => {
+    expect(decidedActions({ kind: "home", url: null, phone: null })).toEqual(
+      [],
+    );
+  });
+
+  it("never yields Menu or Call for a Home meal, even with a stray phone", () => {
+    const actions = decidedActions({
+      kind: "home",
+      url: "https://recipes.example/stew",
+      phone: "+1-555-0100",
+    });
+    expect(actions.map((a) => a.label)).toEqual(["Recipe"]);
   });
 });

@@ -77,3 +77,46 @@ export function splitTonight(
 
   return { tonightsDinner, picker };
 }
+
+/** The three action-button labels a decided row can surface. */
+export type DecidedActionLabel = "Menu" | "Call" | "Recipe";
+
+/**
+ * One action button on a decided row: its label and the `href` it opens. A
+ * "Call" button's `href` is a `tel:` link; "Menu" and "Recipe" open the
+ * Option's `url`.
+ */
+export type DecidedAction = {
+  label: DecidedActionLabel;
+  href: string;
+};
+
+/**
+ * The action buttons a Picked Option's decided row should render.
+ *
+ * A **Restaurant** yields a "Menu" button (its `url`) and a "Call" button (a
+ * `tel:` link from its `phone`); a **Home meal** yields a "Recipe" button (its
+ * `url`). A button appears only when its source field is set, so a Restaurant
+ * with no `phone` gets no "Call" and an Option with neither field gets no
+ * buttons at all — the decided view never shows a dead control.
+ *
+ * The `url` button is labelled "Menu" for a Restaurant regardless of whether
+ * the link is a menu or an order/delivery page. A Home meal never yields "Menu"
+ * or "Call": its `phone` is ignored even on the off chance one is set.
+ */
+export function decidedActions(option: {
+  kind: "home" | "restaurant";
+  url: string | null;
+  phone: string | null;
+}): DecidedAction[] {
+  const actions: DecidedAction[] = [];
+  if (option.kind === "restaurant") {
+    if (option.url) actions.push({ label: "Menu", href: option.url });
+    if (option.phone) {
+      actions.push({ label: "Call", href: `tel:${option.phone}` });
+    }
+  } else if (option.url) {
+    actions.push({ label: "Recipe", href: option.url });
+  }
+  return actions;
+}

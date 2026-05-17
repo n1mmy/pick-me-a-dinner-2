@@ -10,12 +10,23 @@
  */
 import { CAP, OVERDUE_THRESHOLD, W_OPTION, W_TAG } from "./ranking.config";
 
-/** An active Catalog Option, with the names of the Tags attached to it. */
+/**
+ * An active Catalog Option, with the names of the Tags attached to it. `url`
+ * and `phone` are carried purely for the consumer — the ranking math ignores
+ * them, exactly as it ignores `kind` — so the decided view (PRD: Tonight —
+ * decided mode) can render the Menu / Call / Recipe action buttons from a
+ * `TonightRow` without a second lookup. `phone` is always `null` for a Home
+ * meal.
+ */
 export type RankOption = {
   id: string;
   name: string;
   kind: "home" | "restaurant";
   tags: string[];
+  /** Menu / delivery / recipe link; `null` when none is on file. */
+  url: string | null;
+  /** Restaurant phone; always `null` for a Home meal. */
+  phone: string | null;
 };
 
 /** A Log entry reduced to what the ranking needs: which Option, eaten when. */
@@ -85,7 +96,9 @@ export function lastEaten(
  */
 export function lastTagUse(
   entries: LogEntry[],
-  options: RankOption[],
+  // Only `id` and `tags` are read, so any Option-shaped value works — the AI
+  // search snapshot passes its own `SnapshotOption`, which has no url/phone.
+  options: { id: string; tags: string[] }[],
   tag: string,
   today: number,
 ): number | null {

@@ -20,7 +20,7 @@ function option(
   tags: string[] = [],
   kind: "home" | "restaurant" = "home",
 ): RankOption {
-  return { id, name, kind, tags };
+  return { id, name, kind, tags, url: null, phone: null };
 }
 
 describe("daysSince", () => {

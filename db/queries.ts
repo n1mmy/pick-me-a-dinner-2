@@ -79,8 +79,11 @@ export type TonightLogRow = {
  * Score itself is computed in the pure `lib/ranking` module, not in SQL.
  *
  * Each Option also carries its `notes` and each Log entry its `note` — text the
- * AI search snapshot builder needs (PRD: AI search). The ranking input is
- * otherwise unchanged: `rankTonight` reads only the `RankOption` fields.
+ * AI search snapshot builder needs (PRD: AI search). Each Option additionally
+ * carries `url` and `phone` (both nullable; `phone` is always null for a Home
+ * meal) — the fields the decided view's Menu / Call / Recipe action buttons
+ * render from (PRD: Tonight — decided mode). The ranking input is otherwise
+ * unchanged: `rankTonight` reads only the recency-relevant `RankOption` fields.
  *
  * `todayEntries` is the `dinner_log` rows dated *today* — with their `id` and
  * `created_at` — which the decided mode of Tonight needs (PRD: Tonight —
@@ -144,6 +147,8 @@ export async function getTonightData(todaySqlDate: string): Promise<{
       kind: option.kind,
       tags: tagsByOption.get(option.id) ?? [],
       notes: option.notes,
+      url: option.url,
+      phone: option.phone,
     })),
     logEntries,
     todayEntries,

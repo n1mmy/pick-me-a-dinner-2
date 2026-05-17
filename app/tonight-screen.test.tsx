@@ -31,7 +31,7 @@ function row(
   tags: string[] = [],
 ): TonightRow {
   return {
-    option: { id, name, kind: "home", tags },
+    option: { id, name, kind: "home", tags, url: null, phone: null },
     score: 10,
     explanation,
     tags: [],
