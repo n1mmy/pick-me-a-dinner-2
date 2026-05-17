@@ -5,22 +5,28 @@ import { CAP } from "../lib/ranking.config";
 import type { TagRecency, TonightRow } from "../lib/ranking";
 import { logForDate, pickTonight } from "./log/actions";
 
+const focusRing =
+  "focus-visible:outline focus-visible:outline-2 " +
+  "focus-visible:outline-offset-2 focus-visible:outline-accent";
+
 const actionButton =
-  "min-h-11 rounded-control px-2 text-chip focus-visible:outline " +
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  `min-h-11 rounded-control px-2 text-chip transition-colors duration-micro ${focusRing}`;
 
 /**
- * One Tonight row. Hierarchy per §9: name → Explanation chip → tag chips, then
- * the write actions. "Pick tonight" is the one-tap `pick = log` path; the
- * picked button briefly marks "Logged ✓" in `--success` while the action
- * revalidates and the list re-sorts. "Log another date" expands a date picker
- * for a backfilled (past) or Planned (future) dinner.
+ * One Tonight row of the flat ledger (DESIGN.md "Tonight row anatomy"). Mobile
+ * is two lines — rank + name + tags, then the Explanation chip + actions;
+ * desktop collapses to one dense line via `desktop:contents` on the chip/action
+ * wrapper. "Pick tonight" is the one-tap `pick = log` path; the picked button
+ * briefly marks "Logged ✓". "Log another date" expands a date picker for a
+ * backfilled (past) or Planned (future) dinner.
  */
 export function TonightRowItem({
   row,
+  rank,
   today,
 }: {
   row: TonightRow;
+  rank: number;
   today: string;
 }) {
   const { option } = row;
@@ -61,60 +67,68 @@ export function TonightRowItem({
   }
 
   return (
-    <li className="flex flex-col gap-1.5 border-b border-line py-3">
-      <div className="flex items-center gap-2">
-        <span className="text-name text-ink">{option.name}</span>
-        <KindBadge kind={option.kind} />
-      </div>
-      <span
-        className="self-start rounded-full bg-chip px-3 py-1.5 text-chip
-          text-muted"
+    <li className="border-b border-line py-3">
+      <div
+        className="flex flex-col gap-2 desktop:flex-row desktop:items-center
+          desktop:gap-3"
       >
-        {row.explanation}
-      </span>
-      {row.tags.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5">
-          {row.tags.map((tag) => (
-            <TagChip key={tag.tag} tag={tag} />
-          ))}
-        </ul>
-      )}
-      <div className="mt-1 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={pick}
-          disabled={pending}
-          aria-live="polite"
-          className={`min-h-11 rounded-control px-4 text-body font-emphasis
-            focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-accent
-            disabled:opacity-60 ${
-              justLogged ? "bg-chip text-success" : "bg-accent text-surface"
-            }`}
-        >
-          {justLogged ? "Logged ✓" : "Pick tonight"}
-        </button>
-        {!loggingDate && (
-          <button
-            type="button"
-            onClick={() => {
-              setDateValue(today);
-              setDateError(null);
-              setLoggingDate(true);
-            }}
-            className={`${actionButton} text-muted`}
+        <div className="desktop:min-w-0 desktop:flex-1">
+          <div className="flex items-baseline gap-2">
+            <span className="w-6 shrink-0 text-right font-mono text-meta tabular-nums text-muted">
+              {rank}
+            </span>
+            <span className="font-display text-name font-name text-ink">
+              {option.name}
+            </span>
+            <KindBadge kind={option.kind} />
+          </div>
+          {row.tags.length > 0 && <RowTags tags={row.tags} />}
+        </div>
+        <div className="flex items-center gap-2 desktop:contents">
+          <span
+            className="self-start rounded-badge bg-raised px-2 py-1 text-chip
+              text-muted"
           >
-            Log another date
-          </button>
-        )}
+            <MonoNumerals text={row.explanation} />
+          </span>
+          <div className="flex flex-wrap items-center gap-2 desktop:ml-auto">
+            <button
+              type="button"
+              onClick={pick}
+              disabled={pending}
+              aria-live="polite"
+              className={`min-h-11 rounded-control px-4 text-body font-emphasis
+                transition-colors duration-short disabled:opacity-60 ${focusRing} ${
+                  justLogged
+                    ? "bg-raised text-success"
+                    : "bg-accent text-accent-ink hover:bg-accent-dark"
+                }`}
+            >
+              {justLogged ? "Logged ✓" : "Pick tonight"}
+            </button>
+            {!loggingDate && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateValue(today);
+                  setDateError(null);
+                  setLoggingDate(true);
+                }}
+                className={`${actionButton} text-muted`}
+              >
+                Log another date
+              </button>
+            )}
+          </div>
+        </div>
       </div>
       {pickError && (
-        <p className="text-chip text-danger" aria-live="polite">
+        <p className="mt-2 text-chip text-danger" aria-live="polite">
           {pickError}
         </p>
       )}
       {loggingDate && (
-        <div className="mt-1 flex flex-col gap-1">
+        <div className="mt-2 flex flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <input
               type="date"
@@ -122,18 +136,16 @@ export function TonightRowItem({
               value={dateValue}
               onChange={(event) => setDateValue(event.target.value)}
               aria-invalid={dateError !== null}
-              className="min-h-11 rounded-input border border-line bg-surface px-3
-                text-body text-ink focus-visible:outline focus-visible:outline-2
-                focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className={`min-h-11 rounded-input border border-line bg-surface
+                px-3 font-mono text-body text-ink ${focusRing}`}
             />
             <button
               type="button"
               onClick={submitDate}
               disabled={pending}
-              className="min-h-11 rounded-control bg-accent px-4 text-body
-                font-emphasis text-surface focus-visible:outline
-                focus-visible:outline-2 focus-visible:outline-offset-2
-                focus-visible:outline-accent disabled:opacity-60"
+              className={`min-h-11 rounded-control bg-accent px-4 text-body
+                font-emphasis text-accent-ink transition-colors duration-micro
+                hover:bg-accent-dark disabled:opacity-60 ${focusRing}`}
             >
               Log
             </button>
@@ -156,13 +168,13 @@ export function TonightRowItem({
   );
 }
 
-/** The quiet Home / Restaurant badge. */
+/** The quiet Home / Restaurant kind marker. */
 function KindBadge({ kind }: { kind: "home" | "restaurant" }) {
   const isHome = kind === "home";
   return (
     <span
-      className={`rounded-badge bg-chip px-1.5 py-0.5 text-meta uppercase
-        tracking-wide ${isHome ? "text-home" : "text-rest"}`}
+      className={`shrink-0 rounded-badge bg-raised px-1.5 py-0.5 text-meta
+        uppercase tracking-wide ${isHome ? "text-home" : "text-rest"}`}
     >
       {isHome ? "Home" : "Restaurant"}
     </span>
@@ -170,18 +182,44 @@ function KindBadge({ kind }: { kind: "home" | "restaurant" }) {
 }
 
 /**
- * A tag chip with its per-Tag recency. Recency reads as `Nd`, capped at `60d+`;
- * an Overdue Tag renders in the accent color.
+ * The Option's tags as a plain muted text run directly under the name
+ * (DESIGN.md), each carrying its per-Tag recency (`Nd`, capped `60d+`) with the
+ * numerals in Geist Mono. An Overdue Tag is emphasized in the accent color.
  */
-function TagChip({ tag }: { tag: TagRecency }) {
-  const recency = tag.days >= CAP ? `${CAP}d+` : `${tag.days}d`;
+function RowTags({ tags }: { tags: TagRecency[] }) {
   return (
-    <li
-      className={`rounded-full bg-chip px-2 py-1 text-chip ${
-        tag.overdue ? "font-emphasis text-accent" : "text-muted"
-      }`}
-    >
-      {tag.tag} {recency}
-    </li>
+    <p className="mt-1 text-meta text-muted">
+      {tags.map((tag, index) => {
+        const recency = tag.days >= CAP ? `${CAP}d+` : `${tag.days}d`;
+        return (
+          <span key={tag.tag}>
+            {index > 0 && <span aria-hidden="true"> · </span>}
+            <span
+              className={tag.overdue ? "font-emphasis text-accent" : undefined}
+            >
+              {tag.tag}{" "}
+              <span className="font-mono tabular-nums">{recency}</span>
+            </span>
+          </span>
+        );
+      })}
+    </p>
+  );
+}
+
+/** Renders a string with every run of digits set in Geist Mono (tabular). */
+function MonoNumerals({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(\d+)/).map((part, index) =>
+        /^\d+$/.test(part) ? (
+          <span key={index} className="font-mono tabular-nums">
+            {part}
+          </span>
+        ) : (
+          <span key={index}>{part}</span>
+        ),
+      )}
+    </>
   );
 }

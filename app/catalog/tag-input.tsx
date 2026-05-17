@@ -76,7 +76,7 @@ export function TagInput({
               <button
                 type="button"
                 onClick={() => removeTag(tag)}
-                className="flex items-center gap-1 rounded-badge bg-chip px-2 py-1.5
+                className="flex items-center gap-1 rounded-badge bg-raised px-2 py-1.5
                   text-chip text-ink focus-visible:outline focus-visible:outline-2
                   focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
@@ -124,7 +124,7 @@ export function TagInput({
                   role="option"
                   aria-selected="false"
                   className="min-h-11 w-full px-3 text-left text-body text-ink
-                    hover:bg-chip"
+                    hover:bg-raised"
                   onMouseDown={(event) => {
                     event.preventDefault();
                     addTag(name);
@@ -141,7 +141,7 @@ export function TagInput({
                   role="option"
                   aria-selected="false"
                   className="min-h-11 w-full px-3 text-left text-body text-accent
-                    hover:bg-chip"
+                    hover:bg-raised"
                   onMouseDown={(event) => {
                     event.preventDefault();
                     addTag(normalizedDraft);

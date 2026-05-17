@@ -42,6 +42,12 @@ export function TonightScreen({
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
 
   const tags = useMemo(() => distinctTags(rows), [rows]);
+  // Rank reflects each Option's position in the full Score ranking, so a
+  // filtered row keeps its true rank (#4, #7, ...) rather than being renumbered.
+  const rankOf = useMemo(
+    () => new Map(rows.map((row, index) => [row.option.id, index + 1])),
+    [rows],
+  );
   const visible = useMemo(
     () => filterTonightRows(rows, kind, tagFilters),
     [rows, kind, tagFilters],
@@ -56,8 +62,8 @@ export function TonightScreen({
   }
 
   return (
-    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5">
-      <h1 className="text-h1 font-h1 text-ink">Tonight</h1>
+    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
+      <h1 className="font-display text-h1 font-h1 text-ink">Tonight</h1>
       {rows.length === 0 ? (
         <p className="text-body text-muted">
           Your Catalog is empty.{" "}
@@ -103,7 +109,12 @@ export function TonightScreen({
           ) : (
             <ol className="flex flex-col">
               {visible.map((row) => (
-                <TonightRowItem key={row.option.id} row={row} today={today} />
+                <TonightRowItem
+                  key={row.option.id}
+                  row={row}
+                  rank={rankOf.get(row.option.id) ?? 0}
+                  today={today}
+                />
               ))}
             </ol>
           )}
@@ -141,11 +152,12 @@ function KindSegment({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(segment.value)}
-            className={`min-h-11 min-w-11 rounded-control px-3 text-chip ${focusRing} ${
-              selected
-                ? "bg-accent font-emphasis text-surface"
-                : "bg-chip text-muted"
-            }`}
+            className={`min-h-11 min-w-11 rounded-control px-3 text-chip
+              transition-colors duration-micro ${focusRing} ${
+                selected
+                  ? "bg-accent font-emphasis text-accent-ink"
+                  : "bg-raised text-muted"
+              }`}
           >
             {segment.label}
           </button>
@@ -178,12 +190,13 @@ function TagFilterChip({
       onClick={onClick}
       aria-label={`${tag}, ${chipStateLabel(state)}`}
       className={`inline-flex min-h-11 min-w-11 items-center justify-center
-        rounded-full px-3 text-chip ${focusRing} ${
+        rounded-badge px-3 text-chip transition-colors duration-micro
+        ${focusRing} ${
           state === "include"
-            ? "bg-chip font-emphasis text-accent"
+            ? "bg-raised font-emphasis text-accent"
             : state === "exclude"
-              ? "bg-chip text-danger line-through"
-              : "bg-chip text-muted"
+              ? "bg-raised text-danger line-through"
+              : "bg-raised text-muted"
         }`}
     >
       {prefix}

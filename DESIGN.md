@@ -1,9 +1,9 @@
 # Design System — Pick Me a Dinner
 
 The canonical visual system. Code, components, and review must follow this
-file; it supersedes the placeholder `§16 design foundation` block currently in
-`app/globals.css` / `tailwind.config.ts` (those tokens predate this system and
-need an implementation pass to match — see "Implementation note" below).
+file. As of 2026-05-16 the code matches it — `app/globals.css`,
+`tailwind.config.ts`, the fonts, the layout shell, and the screens were all
+brought into line (see "Implementation note" below).
 
 ## Product Context
 
@@ -140,12 +140,14 @@ Redesigned surfaces (not inverted), saturation pulled down ~10–15%.
 
 ## Implementation note
 
-The live `app/globals.css` and `tailwind.config.ts` carry an earlier
-placeholder foundation (system font stack, lighter `#e4ded4` hairline, 8–9px
-radii, single-column-only layout). Adopting this system means an implementation
-pass: wire Fraunces / Geist / Geist Mono via `next/font`, update the color and
-radius tokens, add the desktop left-rail layout, and add the dark-theme token
-set. This file is the target; the code is not there yet.
+This system was implemented in the code on 2026-05-16. Fraunces is loaded via
+`next/font/google` and Geist / Geist Mono via the `geist` package, all exposed
+as CSS variables on `<html>` in `app/layout.tsx`. `app/globals.css` carries the
+full light + dark token sets, and `tailwind.config.ts` mirrors them. The
+mobile-bottom-nav → desktop-left-rail shift lives in `app/app-nav.tsx` (the
+720px `desktop:` breakpoint). All four screens and the loading states consume
+the tokens; the per-row tags on Tonight render as a plain muted text run that
+keeps each tag's recency (with overdue tags emphasized).
 
 ## Decisions Log
 

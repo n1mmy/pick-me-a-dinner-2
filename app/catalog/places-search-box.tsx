@@ -75,7 +75,8 @@ export function PlacesSearchBox({
           onClick={runSearch}
           disabled={pending || query.trim().length === 0}
           className="min-h-11 rounded-control bg-accent px-3 text-body font-emphasis
-            text-surface focus-visible:outline focus-visible:outline-2
+            text-accent-ink transition-colors duration-micro hover:bg-accent-dark
+            focus-visible:outline focus-visible:outline-2
             focus-visible:outline-offset-2 focus-visible:outline-accent
             disabled:opacity-60"
         >
@@ -104,7 +105,9 @@ export function PlacesSearchBox({
                   focus-visible:outline-offset-2 focus-visible:outline-accent
                   disabled:opacity-60"
               >
-                <span className="text-name text-ink">{result.name}</span>
+                <span className="font-display text-name font-name text-ink">
+                  {result.name}
+                </span>
                 <span className="text-chip text-muted">{result.address}</span>
               </button>
             </li>

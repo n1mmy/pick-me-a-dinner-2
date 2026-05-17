@@ -47,7 +47,8 @@ export function LoginForm() {
         type="submit"
         disabled={pending}
         className={`min-h-11 rounded-control bg-accent px-4 text-body
-          font-emphasis text-surface disabled:opacity-60 ${focusRing}`}
+          font-emphasis text-accent-ink transition-colors duration-micro
+          hover:bg-accent-dark disabled:opacity-60 ${focusRing}`}
       >
         Enter
       </button>

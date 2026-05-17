@@ -3,33 +3,39 @@
 @tailwind utilities;
 
 /*
- * §16 design foundation — the project-wide visual system as CSS custom
- * properties. Every screen consumes these tokens (mirrored as Tailwind theme
- * tokens in tailwind.config.ts); no screen carries a per-screen hex literal.
+ * Design foundation — the project-wide visual system from DESIGN.md as CSS
+ * custom properties. Every screen consumes these tokens (mirrored as Tailwind
+ * theme tokens in tailwind.config.ts); no screen carries a per-screen hex
+ * literal. DESIGN.md is the canonical source for every value here.
  */
 :root {
-  /* Color — warm semantic palette (from the §14 Tonight wireframe). */
+  /* Color — warm "sharp instrument" palette, light theme (primary). */
   --color-bg: #faf8f4;
   --color-surface: #ffffff;
+  --color-raised: #f1ece3;
   --color-ink: #2c2823;
   --color-muted: #8a8278;
-  --color-line: #e4ded4;
+  --color-line: #ded6c8;
   --color-accent: #c4502e;
-  --color-chip: #f0ebe1;
+  --color-accent-dark: #8f321d;
+  --color-accent-ink: #ffffff;
+  --color-success: #3f6b4a;
+  --color-danger: #b23b25;
+  --color-planned: #b9822b;
   --color-home: #3f6b4a;
   --color-rest: #7a5a2e;
-  --color-danger: #b23b25;
-  --color-success: #3f6b4a;
 
-  /* Type — system stack, base 15px/1.5. Scale: meta/chip/body/name/h1. */
+  /* Type — Fraunces (display) / Geist (UI) / Geist Mono (data). The font
+   * family variables are supplied by next/font in app/layout.tsx. */
   --text-meta: 12px;
   --text-chip: 13px;
   --text-body: 15px;
-  --text-name: 17px;
-  --text-h1: 26px;
+  --text-name: 18px;
+  --text-h1: 28px;
   --weight-body: 400;
+  --weight-name: 500;
   --weight-emphasis: 600;
-  --weight-h1: 650;
+  --weight-h1: 600;
 
   /* Spacing — 4px base; common steps 4 / 6 / 8 / 12 / 16 / 22. */
   --space-1: 4px;
@@ -39,20 +45,49 @@
   --space-4: 16px;
   --space-5_5: 22px;
 
-  /* Layout primitive — single centered column, 560px phone / 700px desktop. */
+  /* Motion — minimal-functional; durations only where they aid comprehension. */
+  --motion-micro: 80ms;
+  --motion-short: 140ms;
+  --motion-medium: 220ms;
+
+  /* Layout — centered column 560px phone / 700px desktop; ~200px desktop rail. */
   --column-max: 560px;
+  --rail-width: 200px;
 }
 
-/* The 720px breakpoint widens the one centered column; no other layout shift. */
+/* Dark theme — redesigned surfaces (not inverted), saturation pulled down. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #1c1a17;
+    --color-surface: #25221e;
+    --color-raised: #2f2b26;
+    --color-ink: #ece7dd;
+    --color-muted: #9a9286;
+    --color-line: #3a352e;
+    --color-accent: #cf5d3c;
+    --color-accent-dark: #b8431f;
+    --color-accent-ink: #ffffff;
+    --color-success: #5a8c5f;
+    --color-danger: #c8543e;
+    --color-planned: #cf9a45;
+  }
+}
+
+/* The 720px breakpoint widens the centered column and offsets it past the
+ * desktop left rail (see app/app-nav.tsx). */
 @media (min-width: 720px) {
   :root {
     --column-max: 700px;
+  }
+
+  body {
+    padding-left: var(--rail-width);
   }
 }
 
 @layer base {
   html {
-    font-family: -apple-system, system-ui, sans-serif;
+    font-family: var(--font-geist-sans), -apple-system, system-ui, sans-serif;
     font-size: var(--text-body);
     line-height: 1.5;
   }
@@ -65,7 +100,7 @@
 }
 
 @layer components {
-  /* The single centered-column primitive every screen renders inside. */
+  /* The centered-column primitive every screen renders inside. */
   .column {
     width: 100%;
     max-width: var(--column-max);
