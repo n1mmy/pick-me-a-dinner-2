@@ -2,17 +2,20 @@ import "dotenv/config";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { testDatabaseName } from "./vitest.test-db";
 
 /**
- * Create and migrate the dedicated test database once per `pnpm test` run.
- * Server-action tests run against it (see `vitest.setup.ts`) so they can
- * truncate freely without touching development data.
+ * Create and migrate the dedicated test database once per `pnpm test:db` run.
+ * The database is named per git worktree (see `vitest.test-db.ts`), so parallel
+ * agents each get their own and never collide. Server-action tests run against
+ * it (see `vitest.setup.ts`) so they can truncate freely without touching
+ * development data.
  */
 export default async function setup(): Promise<void> {
   const base = process.env.DATABASE_URL;
   if (!base) throw new Error("DATABASE_URL is not set");
 
-  const testName = `${new URL(base).pathname.replace(/^\//, "")}_test`;
+  const testName = testDatabaseName(base);
 
   const adminUrl = new URL(base);
   adminUrl.pathname = "/postgres";
