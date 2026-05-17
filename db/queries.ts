@@ -2,6 +2,7 @@ import { and, asc, desc, eq, lte } from "drizzle-orm";
 import { db } from "./index";
 import { dinnerLog, optionTags, options, tags, type Option } from "./schema";
 import type { RankOption } from "../lib/ranking";
+import type { TodayLogEntry } from "../lib/tonights-dinner";
 
 /** An Option together with the names of the Tags attached to it. */
 export type OptionWithTags = Option & { tags: string[] };
@@ -80,10 +81,16 @@ export type TonightLogRow = {
  * Each Option also carries its `notes` and each Log entry its `note` — text the
  * AI search snapshot builder needs (PRD: AI search). The ranking input is
  * otherwise unchanged: `rankTonight` reads only the `RankOption` fields.
+ *
+ * `todayEntries` is the `dinner_log` rows dated *today* — with their `id` and
+ * `created_at` — which the decided mode of Tonight needs (PRD: Tonight —
+ * decided mode): `created_at` gives the pick order and `id` is the handle the
+ * decided row's "Remove" deletes.
  */
 export async function getTonightData(todaySqlDate: string): Promise<{
   options: TonightOption[];
   logEntries: TonightLogRow[];
+  todayEntries: TodayLogEntry[];
 }> {
   const active = await db
     .select()
@@ -118,6 +125,18 @@ export async function getTonightData(todaySqlDate: string): Promise<{
     .innerJoin(options, eq(dinnerLog.optionId, options.id))
     .where(and(lte(dinnerLog.eatenOn, todaySqlDate), eq(options.active, true)));
 
+  // Today's Log entries — the Picks that put Tonight into decided mode. An
+  // entry for a since-Archived Option is harmless: `splitTonight` skips any
+  // Option not in the ranked set.
+  const todayEntries = await db
+    .select({
+      id: dinnerLog.id,
+      optionId: dinnerLog.optionId,
+      createdAt: dinnerLog.createdAt,
+    })
+    .from(dinnerLog)
+    .where(eq(dinnerLog.eatenOn, todaySqlDate));
+
   return {
     options: active.map((option) => ({
       id: option.id,
@@ -127,6 +146,7 @@ export async function getTonightData(todaySqlDate: string): Promise<{
       notes: option.notes,
     })),
     logEntries,
+    todayEntries,
   };
 }
 

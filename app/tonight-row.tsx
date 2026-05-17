@@ -102,7 +102,7 @@ export function TonightRowItem({
 }
 
 /** The quiet Home / Restaurant kind marker. */
-function KindBadge({ kind }: { kind: "home" | "restaurant" }) {
+export function KindBadge({ kind }: { kind: "home" | "restaurant" }) {
   const isHome = kind === "home";
   return (
     <span
@@ -120,7 +120,7 @@ function KindBadge({ kind }: { kind: "home" | "restaurant" }) {
  * (`Nd`, capped `60d+`) with the numerals in Geist Mono; an Overdue Tag is
  * drawn in the accent color.
  */
-function RowTags({ tags }: { tags: TagRecency[] }) {
+export function RowTags({ tags }: { tags: TagRecency[] }) {
   return (
     <ul className="mt-1 flex flex-wrap gap-1">
       {tags.map((tag) => {

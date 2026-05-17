@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import type { AiRankingRow } from "../lib/ai-search";
 import type { TonightRow } from "../lib/ranking";
@@ -14,44 +14,140 @@ import {
   type KindFilter,
   type TagFilters,
 } from "../lib/tonight-filter";
+import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 import { aiSearchAction } from "./tonight-actions";
 import { TonightRowItem } from "./tonight-row";
+import { TonightsDinnerBlock } from "./tonights-dinner-block";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
   "focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 /**
- * The Tonight screen (plan §9, §16) — the home screen. It renders the active
- * Catalog ranked by Score as a **flat, uniform list**: no lead-option
- * prominence, no collapsed long tail. Surfacing every Option is the point — the
- * app supplies the ranking, the human scans the whole list and decides.
+ * The Tonight screen (plan §9, §16; PRD: Tonight — decided mode) — the home
+ * screen, with two modes decided server-side from the Household's Log.
  *
- * A sticky zone sits above the list: a search box, an All/Home/Restaurant kind
- * segment, and tri-state tag filter chips. The search box appears only when AI
- * search is configured (`searchEnabled`) — without a key Tonight is exactly v1:
- * the deterministic list and its filter zone, no search box.
- * Submitting the search box runs an
- * **AI search** (PRD: AI search) — the deterministic list swaps in place for an
- * AI-ranked result, each row carrying an AI rationale. While an AI result is
- * shown the kind segment and tag chips are hidden, so the query is the single
- * ranking authority; clearing the search, or any page reload, restores both
- * the deterministic list and its filter controls. The deterministic ranking
- * stays the default that loads on its own; the AI result is never persisted.
+ * **Picker mode** — no Log entry dated today — is the ranked picker exactly as
+ * v1: the All/Home/Restaurant kind segment, the tri-state Tag filters, and the
+ * flat ranked list.
  *
- * A visually-hidden live region announces the mode to assistive tech: the
- * pending state, and the swap between the deterministic list and the AI
- * result. A failed search is announced by the inline error on the box.
+ * **Decided mode** — one or more Log entries dated today — surfaces a "Tonight's
+ * dinner" block of what was Picked and collapses the picker behind an "Add
+ * another option" control. Picking from the re-opened picker appends the Option
+ * to Tonight's dinner and auto-collapses the picker again. The heading stays
+ * "Tonight" in both modes; a visually-hidden live region announces the switch.
  *
- * Each row carries the `pick = log` write action (§6) in `tonight-row.tsx` and
- * is pickable in either state.
+ * The mode is not client state: it follows `tonightsDinner`, which the server
+ * recomputes from today's Log on every Pick. A new calendar day empties
+ * `tonightsDinner` on its own, so Tonight returns to picker mode with no
+ * day-boundary logic here.
  */
 export function TonightScreen({
+  tonightsDinner,
+  pickerRows,
+  searchEnabled,
+}: {
+  /** The Picked Options, in pick order — non-empty puts Tonight in decided mode. */
+  tonightsDinner: TonightsDinnerEntry[];
+  /** The ranked picker rows, with every already-Picked Option removed. */
+  pickerRows: TonightRow[];
+  /** Whether AI search is configured — gates the search box (`aiSearchEnabled`). */
+  searchEnabled: boolean;
+}) {
+  const decided = tonightsDinner.length > 0;
+  // Picker mode with nothing to rank at all — an empty Catalog, not "all Picked".
+  const catalogEmpty = !decided && pickerRows.length === 0;
+
+  // In decided mode the picker is collapsed by default behind "Add another
+  // option"; picker mode shows it outright, so this flag only governs decided
+  // mode.
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Auto-collapse: a Pick revalidates the page, so `tonightsDinner` grows and
+  // the re-opened picker should drop back to the settled view without a tap.
+  // Keying off the count catches the new entry without re-collapsing on every
+  // unrelated re-render.
+  const dinnerCount = tonightsDinner.length;
+  const lastDinnerCount = useRef(dinnerCount);
+  useEffect(() => {
+    if (dinnerCount !== lastDinnerCount.current) {
+      lastDinnerCount.current = dinnerCount;
+      setPickerOpen(false);
+    }
+  }, [dinnerCount]);
+
+  // The mode restated for assistive tech. A live region voices only changes, so
+  // a fresh load is silent; a Pick that flips picker → decided (or a Remove
+  // that flips back) is announced.
+  const modeStatus = decided
+    ? "Tonight's dinner is decided."
+    : "Choosing tonight's dinner.";
+
+  return (
+    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
+      <h1 className="font-display text-h1 font-h1 text-ink">Tonight</h1>
+      <p className="sr-only" role="status" aria-live="polite">
+        {modeStatus}
+      </p>
+
+      {catalogEmpty ? (
+        <p className="text-body text-muted">
+          Your Catalog is empty.{" "}
+          <Link
+            href="/catalog"
+            className={`font-emphasis text-accent ${focusRing}`}
+          >
+            Add your first meals →
+          </Link>
+        </p>
+      ) : decided ? (
+        <>
+          <TonightsDinnerBlock entries={tonightsDinner} />
+          <button
+            type="button"
+            aria-expanded={pickerOpen}
+            onClick={() => setPickerOpen((open) => !open)}
+            className={`min-h-11 self-start rounded-control border border-line
+              px-4 text-body font-emphasis text-accent transition-colors
+              duration-short hover:bg-raised ${focusRing}`}
+          >
+            {pickerOpen ? "Hide options" : "Add another option"}
+          </button>
+          {pickerOpen &&
+            (pickerRows.length === 0 ? (
+              <p className="text-body text-muted">
+                Every Option is already on tonight&rsquo;s dinner.
+              </p>
+            ) : (
+              <Picker rows={pickerRows} searchEnabled={searchEnabled} />
+            ))}
+        </>
+      ) : (
+        <Picker rows={pickerRows} searchEnabled={searchEnabled} />
+      )}
+    </main>
+  );
+}
+
+/**
+ * The ranked picker: a sticky filter zone — optional AI search box, the
+ * All/Home/Restaurant kind segment, the tri-state Tag filter chips — above the
+ * flat ranked `<ol>`. It is the whole screen in picker mode and the collapsible
+ * body in decided mode; its behavior is identical either way.
+ *
+ * The search box appears only when AI search is configured (`searchEnabled`).
+ * Submitting it runs an **AI search** (PRD: AI search) — the deterministic list
+ * swaps in place for an AI-ranked result, each row carrying an AI rationale.
+ * While an AI result is shown the kind segment and Tag chips are hidden so the
+ * query is the single ranking authority; clearing the search restores both.
+ *
+ * Each row carries the `pick = log` write action (§6) in `tonight-row.tsx`.
+ */
+function Picker({
   rows,
   searchEnabled,
 }: {
   rows: TonightRow[];
-  /** Whether AI search is configured — gates the search box (`aiSearchEnabled`). */
   searchEnabled: boolean;
 }) {
   const [kind, setKind] = useState<KindFilter>("all");
@@ -65,8 +161,8 @@ export function TonightScreen({
   const [pending, startTransition] = useTransition();
 
   const tags = useMemo(() => distinctTags(rows), [rows]);
-  // Rank reflects each Option's position in the full Score ranking, so a
-  // filtered row keeps its true rank (#4, #7, ...) rather than being renumbered.
+  // Rank reflects each Option's position in the picker ranking, so a filtered
+  // row keeps its true rank (#4, #7, ...) rather than being renumbered.
   const rankOf = useMemo(
     () => new Map(rows.map((row, index) => [row.option.id, index + 1])),
     [rows],
@@ -130,121 +226,100 @@ export function TonightScreen({
   }
 
   return (
-    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
-      <h1 className="font-display text-h1 font-h1 text-ink">Tonight</h1>
-      {rows.length === 0 ? (
-        <p className="text-body text-muted">
-          Your Catalog is empty.{" "}
-          <Link
-            href="/catalog"
-            className={`font-emphasis text-accent ${focusRing}`}
-          >
-            Add your first meals →
-          </Link>
-        </p>
-      ) : (
-        <>
-          <div className="sticky top-0 z-10 -mx-4 flex flex-col gap-2 bg-bg px-4 py-3">
-            {/* The search box appears only when AI search is configured; with
-                no key Tonight is exactly v1 and the box is absent entirely. */}
-            {searchEnabled && (
-              <>
-                <SearchBox
-                  query={query}
-                  onQueryChange={setQuery}
-                  onSubmit={runSearch}
-                  onClear={clearSearch}
-                  pending={pending}
-                  error={aiError}
-                  showClear={aiResults !== null || aiError}
-                />
-                <p className="sr-only" role="status" aria-live="polite">
-                  {searchStatus}
-                </p>
-              </>
-            )}
-            {/* The filter zone — kind segment and Tag chips — is hidden while an
-                AI result is shown so the query alone ranks the list; clearing
-                the search restores it with the deterministic list. */}
-            {aiRows === null && (
-              <>
-                <KindSegment kind={kind} onChange={setKind} />
-                {tags.length > 0 && (
-                  <div
-                    role="group"
-                    aria-label="Filter by tag"
-                    className="flex flex-wrap gap-1"
-                  >
-                    {tags.map((tag) => (
-                      <TagFilterChip
-                        key={tag}
-                        tag={tag}
-                        state={tagFilters[tag] ?? "off"}
-                        onClick={() => cycleTag(tag)}
-                      />
-                    ))}
-                  </div>
-                )}
-                <p
-                  role="status"
-                  aria-live="polite"
-                  className="text-meta text-muted"
-                >
-                  {hint}
-                </p>
-              </>
-            )}
-          </div>
-          {aiRows !== null ? (
-            aiRows.length === 0 ? (
-              // An empty AI result is a real answer — the model legitimately
-              // found nothing fitting the query — not a broken screen. The
-              // message mirrors the deterministic "No Options match" state; the
-              // inline control returns the screen to the deterministic list.
-              <div className="flex flex-col items-start gap-2">
-                <p className="text-body text-muted">
-                  No Options fit that search.
-                </p>
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className={`min-h-11 rounded-control px-3 text-body
-                    font-emphasis text-accent transition-colors duration-short
-                    ${focusRing}`}
-                >
-                  Clear search
-                </button>
-              </div>
-            ) : (
-              <ol className="flex flex-col">
-                {aiRows.map(({ row, reason }, index) => (
-                  <TonightRowItem
-                    key={row.option.id}
-                    row={row}
-                    rank={index + 1}
-                    aiReason={reason}
+    <>
+      <div className="sticky top-0 z-10 -mx-4 flex flex-col gap-2 bg-bg px-4 py-3">
+        {/* The search box appears only when AI search is configured; with
+            no key Tonight is exactly v1 and the box is absent entirely. */}
+        {searchEnabled && (
+          <>
+            <SearchBox
+              query={query}
+              onQueryChange={setQuery}
+              onSubmit={runSearch}
+              onClear={clearSearch}
+              pending={pending}
+              error={aiError}
+              showClear={aiResults !== null || aiError}
+            />
+            <p className="sr-only" role="status" aria-live="polite">
+              {searchStatus}
+            </p>
+          </>
+        )}
+        {/* The filter zone — kind segment and Tag chips — is hidden while an
+            AI result is shown so the query alone ranks the list; clearing
+            the search restores it with the deterministic list. */}
+        {aiRows === null && (
+          <>
+            <KindSegment kind={kind} onChange={setKind} />
+            {tags.length > 0 && (
+              <div
+                role="group"
+                aria-label="Filter by tag"
+                className="flex flex-wrap gap-1"
+              >
+                {tags.map((tag) => (
+                  <TagFilterChip
+                    key={tag}
+                    tag={tag}
+                    state={tagFilters[tag] ?? "off"}
+                    onClick={() => cycleTag(tag)}
                   />
                 ))}
-              </ol>
-            )
-          ) : visible.length === 0 ? (
-            <p className="text-body text-muted">
-              No Options match the current filter.
+              </div>
+            )}
+            <p role="status" aria-live="polite" className="text-meta text-muted">
+              {hint}
             </p>
-          ) : (
-            <ol className="flex flex-col">
-              {visible.map((row) => (
-                <TonightRowItem
-                  key={row.option.id}
-                  row={row}
-                  rank={rankOf.get(row.option.id) ?? 0}
-                />
-              ))}
-            </ol>
-          )}
-        </>
+          </>
+        )}
+      </div>
+      {aiRows !== null ? (
+        aiRows.length === 0 ? (
+          // An empty AI result is a real answer — the model legitimately
+          // found nothing fitting the query — not a broken screen. The
+          // message mirrors the deterministic "No Options match" state; the
+          // inline control returns the screen to the deterministic list.
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-body text-muted">No Options fit that search.</p>
+            <button
+              type="button"
+              onClick={clearSearch}
+              className={`min-h-11 rounded-control px-3 text-body
+                font-emphasis text-accent transition-colors duration-short
+                ${focusRing}`}
+            >
+              Clear search
+            </button>
+          </div>
+        ) : (
+          <ol className="flex flex-col">
+            {aiRows.map(({ row, reason }, index) => (
+              <TonightRowItem
+                key={row.option.id}
+                row={row}
+                rank={index + 1}
+                aiReason={reason}
+              />
+            ))}
+          </ol>
+        )
+      ) : visible.length === 0 ? (
+        <p className="text-body text-muted">
+          No Options match the current filter.
+        </p>
+      ) : (
+        <ol className="flex flex-col">
+          {visible.map((row) => (
+            <TonightRowItem
+              key={row.option.id}
+              row={row}
+              rank={rankOf.get(row.option.id) ?? 0}
+            />
+          ))}
+        </ol>
       )}
-    </main>
+    </>
   );
 }
 
@@ -342,11 +417,7 @@ function KindSegment({
   onChange: (next: KindFilter) => void;
 }) {
   return (
-    <div
-      role="group"
-      aria-label="Filter by kind"
-      className="flex gap-1.5"
-    >
+    <div role="group" aria-label="Filter by kind" className="flex gap-1.5">
       {KIND_SEGMENTS.map((segment) => {
         const selected = kind === segment.value;
         return (
