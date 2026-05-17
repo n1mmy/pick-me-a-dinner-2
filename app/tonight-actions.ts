@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "../db";
 import { rejections } from "../db/schema";
-import { getTonightData } from "../db/queries";
+import { getRejections, getTonightData } from "../db/queries";
 import {
   AI_SEARCH_UNAVAILABLE,
   buildSnapshot,
@@ -31,7 +31,10 @@ export const aiSearchAction = authedAction(
     if (!apiKey) return AI_SEARCH_UNAVAILABLE;
 
     const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
-    const { options, logEntries } = await getTonightData(today);
+    const [{ options, logEntries }, rejections] = await Promise.all([
+      getTonightData(today),
+      getRejections(),
+    ]);
 
     const snapshot = buildSnapshot({
       options: options.map((option) => ({
@@ -46,11 +49,16 @@ export const aiSearchAction = authedAction(
         eatenOn: entry.eatenOn,
         note: entry.note,
       })),
+      rejections,
       today,
       query,
     });
 
-    const activeIds = new Set(options.map((option) => option.id));
+    // `buildSnapshot` has already dropped today's-rejected Options from the
+    // snapshot's candidate `options`; deriving `activeIds` from those leaves a
+    // rejected Option out of the result set too, so it stays absent from AI
+    // search for the rest of the day (PRD: Rejections on Tonight).
+    const activeIds = new Set(snapshot.options.map((option) => option.id));
     return createAiSearchClient(apiKey).search(snapshot, activeIds);
   },
 );

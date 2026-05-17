@@ -2,14 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The mock factories below are hoisted above these declarations, so the spies
 // they close over must be created with `vi.hoisted` to exist in time.
-const { getTonightData, search } = vi.hoisted(() => ({
+const { getTonightData, getRejections, search } = vi.hoisted(() => ({
   getTonightData: vi.fn(),
+  getRejections: vi.fn(),
   search: vi.fn(),
 }));
 
-// `getTonightData` is the only DB read `aiSearchAction` makes — stub it so the
-// test never touches a database, and so the snapshot wiring can be asserted.
-vi.mock("../db/queries", () => ({ getTonightData }));
+// `getTonightData` and `getRejections` are the DB reads `aiSearchAction` makes
+// — stub them so the test never touches a database, and so the snapshot wiring
+// can be asserted.
+vi.mock("../db/queries", () => ({ getTonightData, getRejections }));
 
 // `authedAction` wraps the action with the shared-password session check;
 // that check has its own coverage, so here it is a pass-through and the test
@@ -28,6 +30,7 @@ vi.mock("../lib/ai-search", async (importOriginal) => ({
 
 import { aiSearchAction } from "./tonight-actions";
 import { AI_SEARCH_UNAVAILABLE } from "../lib/ai-search";
+import { todaySqlDate } from "../lib/local-day";
 
 const TONIGHT_DATA = {
   options: [
@@ -47,8 +50,10 @@ const TONIGHT_DATA = {
 
 beforeEach(() => {
   getTonightData.mockReset();
+  getRejections.mockReset();
   search.mockReset();
   getTonightData.mockResolvedValue(TONIGHT_DATA);
+  getRejections.mockResolvedValue([]);
   delete process.env.ANTHROPIC_API_KEY;
 });
 
@@ -82,6 +87,34 @@ describe("aiSearchAction", () => {
     );
     // ...and only the real active Option ids form the validation set.
     expect([...activeIds]).toEqual(["o1"]);
+  });
+
+  it("drops a today-rejected Option from the candidate set and activeIds", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+    getRejections.mockResolvedValue([
+      {
+        optionId: "o1",
+        reason: "too heavy tonight",
+        rejectedOn: today,
+        optionName: "Apple Crumble",
+        kind: "home",
+        tags: ["sweet"],
+      },
+    ]);
+    search.mockResolvedValue({ ok: true, results: [] });
+
+    await aiSearchAction("something sweet");
+
+    const [snapshot, activeIds] = search.mock.calls[0];
+    // o1 was rejected today — gone from the candidate options and the
+    // validation set, so an AI search cannot resurface it for the rest of the
+    // day. Its Rejection still rides along in the snapshot's Rejections block.
+    expect(snapshot.options).toEqual([]);
+    expect([...activeIds]).toEqual([]);
+    expect(snapshot.rejections.rejectedTonight.map((r) => r.optionId)).toEqual([
+      "o1",
+    ]);
   });
 
   it("passes an empty query straight through — an empty search is valid", async () => {
