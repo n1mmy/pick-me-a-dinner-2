@@ -1,6 +1,6 @@
 # 03 — Option detail page: Rejection history section
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -25,13 +25,13 @@ new one.
 
 ## Acceptance criteria
 
-- [ ] The detail page lists every Rejection ever made for the Option, newest first
-- [ ] Each Rejection shows its date and reason; a Rejection with no reason renders cleanly without one
-- [ ] A Rejection made today carries a Bring back control
-- [ ] Bringing back a Rejection deletes it and updates the page in place
-- [ ] A Rejection from an earlier day renders as plain history with no Bring back
-- [ ] An Option that has never been rejected shows a quiet empty state
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] The detail page lists every Rejection ever made for the Option, newest first
+- [x] Each Rejection shows its date and reason; a Rejection with no reason renders cleanly without one
+- [x] A Rejection made today carries a Bring back control
+- [x] Bringing back a Rejection deletes it and updates the page in place
+- [x] A Rejection from an earlier day renders as plain history with no Bring back
+- [x] An Option that has never been rejected shows a quiet empty state
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
 
 ## Blocked by
 
