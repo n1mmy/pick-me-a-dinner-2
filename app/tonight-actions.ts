@@ -100,10 +100,16 @@ export const rejectOption = authedAction(
  * a mis-tapped Rejection never reaches AI search and never teaches the model
  * anything (ADR-0006). Thin by design — it does the delete and nothing else,
  * mirroring `rejectOption` and `pickTonight`.
+ *
+ * Revalidates Tonight and the Option detail page: Bring back is offered on
+ * both — Tonight's "Rejected tonight" disclosure and the detail page's
+ * Rejection history section — and the same action must update whichever screen
+ * it was invoked from in place (PRD: Option detail page).
  */
 export const bringBackRejection = authedAction(
   async (rejectionId: string): Promise<void> => {
     await db.delete(rejections).where(eq(rejections.id, rejectionId));
     revalidatePath("/");
+    revalidatePath("/catalog/[id]", "page");
   },
 );

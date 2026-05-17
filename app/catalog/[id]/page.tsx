@@ -3,13 +3,15 @@ import {
   getOptionById,
   getOptionChoices,
   getOptionLog,
+  getOptionRejections,
   getTonightData,
 } from "../../../db/queries";
-import { splitDinners } from "../../../lib/dinner-grouping";
+import { formatDinnerDate, splitDinners } from "../../../lib/dinner-grouping";
 import { epochDayFromSqlDate, todaySqlDate } from "../../../lib/local-day";
 import { rankOption, type RankOption } from "../../../lib/ranking";
 import { DinnerGroup } from "../../log/log-entry-row";
 import { kindBarClass, RowChips } from "../../tonight-row";
+import { BringBackButton } from "./bring-back-button";
 
 /**
  * The Option detail page reads the DB on every visit and its recency depends
@@ -51,11 +53,12 @@ export default async function OptionDetailPage({
   // page reads it — so this page's recency matches the Tonight ranking.
   const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
   const todayEpochDay = epochDayFromSqlDate(today);
-  const [{ options, logEntries }, optionLog, optionChoices] =
+  const [{ options, logEntries }, optionLog, optionChoices, optionRejections] =
     await Promise.all([
       getTonightData(today),
       getOptionLog(option.id),
       getOptionChoices(),
+      getOptionRejections(option.id),
     ]);
   const entries = logEntries.map((entry) => ({
     optionId: entry.optionId,
@@ -190,6 +193,44 @@ export default async function OptionDetailPage({
               />
             ))}
           </>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className={sectionHeading}>Rejections</h2>
+        {optionRejections.length === 0 ? (
+          <p className="text-body text-muted">
+            This Option has never been rejected.
+          </p>
+        ) : (
+          <ul className="flex flex-col">
+            {optionRejections.map((rejection) => {
+              // Today vs settled history — the same `rejected_on === today`
+              // split `lib/rejections.ts` partitions on. A Rejection made
+              // today is still undoable and carries Bring back; an earlier
+              // one is settled history and renders plain.
+              const undoable = rejection.rejectedOn === today;
+              return (
+                <li
+                  key={rejection.id}
+                  className="flex items-start justify-between gap-3
+                    border-b border-line py-3"
+                >
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="text-body text-ink">
+                      {formatDinnerDate(rejection.rejectedOn, today)}
+                    </span>
+                    {rejection.reason && (
+                      <p className="text-meta text-muted">
+                        {rejection.reason}
+                      </p>
+                    )}
+                  </div>
+                  {undoable && <BringBackButton rejectionId={rejection.id} />}
+                </li>
+              );
+            })}
+          </ul>
         )}
       </section>
     </main>

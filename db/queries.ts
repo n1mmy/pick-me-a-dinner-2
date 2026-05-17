@@ -346,6 +346,41 @@ export async function getRejections(): Promise<RejectionRow[]> {
   }));
 }
 
+/**
+ * One Rejection in an Option's history, narrowed to what the Option detail
+ * page's Rejection history section renders (PRD: Option detail page).
+ */
+export type OptionRejectionRow = {
+  /** The `rejections` row id — the handle the "Bring back" action deletes by. */
+  id: string;
+  /** The optional short reason; `null` when the Household gave none. */
+  reason: string | null;
+  /** `rejected_on` as a SQL `date` string (`"YYYY-MM-DD"`). */
+  rejectedOn: string;
+};
+
+/**
+ * Every Rejection ever made for one Option — `rejections` rows scoped to the
+ * given Option id, ordered newest `rejected_on` first (`created_at` breaks a
+ * same-day tie). The Option detail page's Rejection history section lists
+ * these (PRD: Option detail page). Unlike `getRejections` it is scoped to one
+ * Option and unlike the Tonight queries it is not filtered to active Options —
+ * the detail page serves an Archived Option's Rejection history too.
+ */
+export async function getOptionRejections(
+  optionId: string,
+): Promise<OptionRejectionRow[]> {
+  return db
+    .select({
+      id: rejections.id,
+      reason: rejections.reason,
+      rejectedOn: rejections.rejectedOn,
+    })
+    .from(rejections)
+    .where(eq(rejections.optionId, optionId))
+    .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
+}
+
 /** An Option reduced to a choice for the Log edit form's Option picker. */
 export type OptionChoice = { id: string; name: string; kind: "home" | "restaurant" };
 
