@@ -61,11 +61,15 @@ the user's call.
    features beyond what the issue requires. If the issue seems to need
    that, stop and leave a note instead.
 3. Write tests per `plans/v1-plan.md` §15: every pure function and
-   server action gets a Vitest test. No browser E2E in v1.
+   server action gets a Vitest test. No browser E2E in v1. A test that
+   exercises the database — it runs queries or drives a server action
+   that does — must be named `*.db.test.ts` so it runs under
+   `pnpm test:db`; pure tests stay `*.test.ts` under `pnpm test`.
 4. Verify — every check the project defines must be green:
    - `pnpm typecheck`
    - `pnpm lint`
    - `pnpm test`
+   - `pnpm test:db`
    - For UI / route / env-touching work, also `pnpm build`.
 
    The first issue (walking skeleton) is what *creates* these scripts;
