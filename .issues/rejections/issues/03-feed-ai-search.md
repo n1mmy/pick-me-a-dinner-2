@@ -1,6 +1,6 @@
 # 03 — Rejections: feed AI search
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -35,22 +35,22 @@ mirroring how the Log already excludes Archived Options' entries.
 
 ## Acceptance criteria
 
-- [ ] `lib/rejections.ts` partitions Rejection rows into rejected-tonight and
+- [x] `lib/rejections.ts` partitions Rejection rows into rejected-tonight and
       earlier on an exact today boundary, derives the today suppression set, and
       shapes the snapshot block (delimited reasons, weekday dates, newest first,
       a null reason carried as null)
-- [ ] `buildSnapshot` drops today's-rejected Options from the candidate
+- [x] `buildSnapshot` drops today's-rejected Options from the candidate
       `options` and attaches a Rejections block with the `rejectedTonight` and
       `earlierRejections` groups
-- [ ] An earlier-rejected Option still appears in the candidate `options`
-- [ ] `SYSTEM_PROMPT` explains the Rejections block and that the model judges
+- [x] An earlier-rejected Option still appears in the candidate `options`
+- [x] `SYSTEM_PROMPT` explains the Rejections block and that the model judges
       standing versus one-off itself
-- [ ] A rejected Option is absent from AI search results for the rest of the day
-- [ ] Rejections of Archived Options are excluded from the snapshot
-- [ ] A Rejection with no reason is still carried into the snapshot
-- [ ] Unit tests cover `lib/rejections.ts` in full and extend
+- [x] A rejected Option is absent from AI search results for the rest of the day
+- [x] Rejections of Archived Options are excluded from the snapshot
+- [x] A Rejection with no reason is still carried into the snapshot
+- [x] Unit tests cover `lib/rejections.ts` in full and extend
       `lib/ai-search.test.ts` for the candidate-drop and the Rejections block
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
 
 ## Blocked by
 

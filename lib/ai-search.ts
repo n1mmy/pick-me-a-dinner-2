@@ -34,6 +34,18 @@
  * `pnpm build`) needs no env vars.
  */
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  partitionRejections,
+  type RejectionRow,
+  type RejectionsBlock,
+} from "./rejections";
+import {
+  delimit,
+  delimitNullable,
+  formatDateWithWeekday,
+  HOUSEHOLD_TEXT_CLOSE,
+  HOUSEHOLD_TEXT_OPEN,
+} from "./snapshot-format";
 
 /** One AI search result row: an Option id and its AI rationale, in rank order. */
 export type AiRankingRow = { id: string; reason: string };
@@ -106,67 +118,26 @@ export type ModelSnapshot = {
   today: string;
   /** The Household's query — Household-authored, so delimited. */
   query: string;
-  /** The active Catalog — the candidate set — in alphabetical order by name. */
+  /**
+   * The candidate set in alphabetical order by name — the active Catalog with
+   * today's-rejected Options dropped (the AI-result side of suppression).
+   */
   options: SnapshotModelOption[];
   /** The full non-future Log as dated history, newest dinner first. */
   log: SnapshotModelLogEntry[];
+  /**
+   * The Household's Rejections — Options turned down and why — as raw dated
+   * history, split into today's and earlier (PRD: Rejections on Tonight,
+   * ADR-0006). The model judges from each reason what is standing and what was
+   * one-off; this snapshot pre-digests nothing.
+   */
+  rejections: RejectionsBlock;
 };
 
-/** The XML-style delimiters wrapping Household-authored free text. */
-const HOUSEHOLD_TEXT_OPEN = "<household-text>";
-const HOUSEHOLD_TEXT_CLOSE = "</household-text>";
-
 /**
- * Wrap Household-authored free text in an XML-style delimiter so the model
- * reads it as data, never as instructions — the prompt-injection guard. The
- * Catalog and Log are full of free text the Household typed; none of it may be
- * able to steer the model.
- *
- * The delimiter strings are stripped from the text itself before wrapping —
- * otherwise text containing a literal `</household-text>` would close the
- * envelope early and the rest would read as out-of-band instructions.
- */
-function delimit(text: string): string {
-  const stripped = text
-    .split(HOUSEHOLD_TEXT_OPEN)
-    .join("")
-    .split(HOUSEHOLD_TEXT_CLOSE)
-    .join("");
-  return `${HOUSEHOLD_TEXT_OPEN}${stripped}${HOUSEHOLD_TEXT_CLOSE}`;
-}
-
-/** Delimit a nullable note — `null` stays `null`, there is nothing to wrap. */
-function delimitNullable(text: string | null): string | null {
-  return text === null ? null : delimit(text);
-}
-
-/** Weekday names, indexed by `Date.prototype.getUTCDay()` (0 = Sunday). */
-const WEEKDAYS = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
-/**
- * Format a SQL date (`"YYYY-MM-DD"`) as `"YYYY-MM-DD (Weekday)"` so day-of-week
- * patterns are visible to the model — a bare date hides whether a dinner fell
- * on a Friday. The weekday is read by anchoring the date at UTC midnight purely
- * to count, exactly as `local-day.ts` does; a SQL date carries no zone, so this
- * is exact and timezone-independent.
- */
-function formatDateWithWeekday(sqlDate: string): string {
-  const [year, month, day] = sqlDate.split("-").map(Number);
-  const weekday = WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
-  return `${sqlDate} (${weekday})`;
-}
-
-/**
- * Turn the active Catalog, the non-future Log, today, and the query into the
- * model-input JSON. Decisions baked in (ADR-0005):
+ * Turn the active Catalog, the non-future Log, the Rejection history, today,
+ * and the query into the model-input JSON. Decisions baked in (ADR-0005,
+ * ADR-0006):
  *
  * - Options come out in **alphabetical order by name**, not Score-rank order —
  *   a pre-ranked list would anchor the model toward the existing order.
@@ -176,21 +147,38 @@ function formatDateWithWeekday(sqlDate: string): string {
  * - The Log is a **flat chronological list, newest dinner first**, each entry
  *   carrying its real date + weekday and the eaten Option's name / kind / Tags
  *   inline, so the model reads eating history directly without joining ids.
+ * - Options the Household **rejected today** are dropped from the candidate
+ *   `options` — the AI-result side of "suppressed for the day" (PRD:
+ *   Rejections on Tonight). It is a presentation filter on the snapshot only;
+ *   the Score and `lib/ranking` are untouched (ADR-0003, ADR-0006). A
+ *   suppressed Option's eating history still appears in the Log — only its
+ *   candidacy is removed.
+ * - The **Rejections block** carries every Rejection of an active Option as
+ *   raw dated history (via `lib/rejections`), split into today's and earlier;
+ *   the model judges from the reasons what is standing and what was one-off.
  * - The Restaurant **Places fields** (`address`, `phone`, `lat`, `lng`,
  *   `googlePlaceId`, `mapsUrl`) never enter — `SnapshotOption` has no slot for
  *   them, so they are excluded by construction.
- * - All Household-authored text — names, Tags, Option notes, Log notes, and
- *   the query — is wrapped in `<household-text>` delimiters.
+ * - All Household-authored text — names, Tags, Option notes, Log notes,
+ *   Rejection reasons, and the query — is wrapped in `<household-text>`
+ *   delimiters.
  */
 export function buildSnapshot(input: {
   options: SnapshotOption[];
   logEntries: SnapshotLogEntry[];
+  rejections: RejectionRow[];
   today: string;
   query: string;
 }): ModelSnapshot {
-  const { options, logEntries, today, query } = input;
+  const { options, logEntries, rejections, today, query } = input;
 
-  const sorted = [...options].sort((a, b) => a.name.localeCompare(b.name));
+  const { suppressedToday, block } = partitionRejections(rejections, today);
+
+  // Today's-rejected Options leave the candidate set. The Log below is still
+  // built from the *full* `options` input, so a suppressed Option's eating
+  // history reads as history even though it is no longer a candidate.
+  const candidates = options.filter((o) => !suppressedToday.has(o.id));
+  const sorted = [...candidates].sort((a, b) => a.name.localeCompare(b.name));
   const modelOptions = sorted.map(
     (option): SnapshotModelOption => ({
       id: option.id,
@@ -227,6 +215,7 @@ export function buildSnapshot(input: {
     query: delimit(query),
     options: modelOptions,
     log,
+    rejections: block,
   };
 }
 
@@ -368,9 +357,9 @@ const SYSTEM_PROMPT = [
   "",
   "You are given a JSON snapshot: today's date (with weekday), the " +
     "household's free-text query (which may be empty), their Catalog of " +
-    "dinner Options, and their full recent dinner Log as dated history " +
+    "dinner Options, their full recent dinner Log as dated history " +
     "(newest first), each entry naming the Option eaten, its kind, and its " +
-    "Tags.",
+    "Tags, and a Rejections block — Options the household has turned down.",
   "",
   "Your job is NOT to re-sort the Catalog by how long ago each Option was " +
     "eaten. A separate deterministic ranking already does plain recency, and " +
@@ -390,6 +379,22 @@ const SYSTEM_PROMPT = [
   "These are examples, not a checklist. Look for any real pattern in this " +
     "household's history, including ones they have never put into words. " +
     "Think it through before you answer.",
+  "",
+  "The Rejections block is the household's record of Options they turned " +
+    "down and why. Each Rejection carries an optional reason and the date it " +
+    "was made; it is raw dated history, not a pre-digested signal — reason " +
+    "over it the way you reason over the Log. Read each reason together with " +
+    "its date and how often it recurs, and decide for YOURSELF which " +
+    "Rejections are standing — a lasting dislike, like \"closed on Sundays\", " +
+    "that should still weigh today — and which were one-off — a passing \"too " +
+    "heavy tonight\" that has since faded. Do not treat every Rejection as a " +
+    "permanent verdict. The block has two groups. \"Rejected tonight\" " +
+    "Options have deliberately been left out of the Catalog above and are NOT " +
+    "candidates to return — but their reasons may still inform how you rank " +
+    "the Options that remain. \"Earlier rejections\" are still candidates: " +
+    "reconsider them on their merits while weighing why they were once passed " +
+    "over. A Rejection with no reason is a light \"passed on this\" signal, " +
+    "nothing more.",
   "",
   "If there is a query, weigh it together with the patterns you found. If " +
     "the query is empty, finding and applying those patterns is the entire " +

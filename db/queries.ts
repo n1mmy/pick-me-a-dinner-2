@@ -9,6 +9,7 @@ import {
   type Option,
 } from "./schema";
 import type { RankOption } from "../lib/ranking";
+import type { RejectionRow } from "../lib/rejections";
 import type { TodayLogEntry } from "../lib/tonights-dinner";
 
 /** An Option together with the names of the Tags attached to it. */
@@ -236,6 +237,56 @@ export async function getTodayRejections(
       and(eq(rejections.rejectedOn, todaySqlDate), eq(options.active, true)),
     )
     .orderBy(desc(rejections.createdAt));
+}
+
+/**
+ * The Household's full Rejection history for the AI search snapshot (PRD:
+ * Rejections on Tonight, ADR-0006) — every `rejections` row joined to its
+ * Option, with the Option's name / kind / Tags carried for snapshot
+ * readability, ordered newest `rejected_on` first (`created_at` breaks a
+ * same-day tie). Only Rejections of **active** Options are returned, mirroring
+ * how `getTonightData` already excludes Archived Options' Log entries: an
+ * Archived Option is off Tonight, so its Rejections must not shape an AI
+ * search either. `lib/rejections.ts` partitions the result into today's
+ * Rejections — dropped from the candidate set — and earlier ones — still
+ * candidates. Uncapped by choice: the table is single-household-small and
+ * ADR-0006 stores Rejections flat; revisit only if a prompt genuinely bloats.
+ */
+export async function getRejections(): Promise<RejectionRow[]> {
+  const rows = await db
+    .select({
+      optionId: rejections.optionId,
+      reason: rejections.reason,
+      rejectedOn: rejections.rejectedOn,
+      optionName: options.name,
+      kind: options.kind,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(rejections.optionId, options.id))
+    .where(eq(options.active, true))
+    .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
+
+  const links = await db
+    .select({ optionId: optionTags.optionId, name: tags.name })
+    .from(optionTags)
+    .innerJoin(tags, eq(optionTags.tagId, tags.id))
+    .orderBy(asc(tags.name));
+
+  const tagsByOption = new Map<string, string[]>();
+  for (const link of links) {
+    const list = tagsByOption.get(link.optionId) ?? [];
+    list.push(link.name);
+    tagsByOption.set(link.optionId, list);
+  }
+
+  return rows.map((row) => ({
+    optionId: row.optionId,
+    reason: row.reason,
+    rejectedOn: row.rejectedOn,
+    optionName: row.optionName,
+    kind: row.kind,
+    tags: tagsByOption.get(row.optionId) ?? [],
+  }));
 }
 
 /** An Option reduced to a choice for the Log edit form's Option picker. */
