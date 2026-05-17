@@ -54,7 +54,7 @@ the rule is stated here so you never even attempt it.
    ```
    Write, Read, Edit, Glob, Grep,
    Bash(git *), Bash(pnpm *), Bash(npm *), Bash(npx *),
-   Bash(node *), Bash(tsx *), Bash(docker *), Bash(docker-compose *),
+   Bash(node *), Bash(tsx *), Bash(python3 *), Bash(docker *), Bash(docker-compose *),
    Bash(curl *), Bash(wget *), Bash(command -v *), Bash(which *),
    Bash(test *), Bash(echo *)
    ```
@@ -77,21 +77,23 @@ the rule is stated here so you never even attempt it.
    supplies (the dev Postgres). `.env.ralph` holds no API keys, so AI
    search stays off under the loop — which is fine.
 
-## Watching the run (optional)
+## Watching the run
 
-Worker sub-agents report back only terse outcomes — by design, so the
-long-lived orchestrator keeps its context small (see "the one hard rule"
-above). For a live view of what each worker is *doing*, run the step viewer
-in a separate terminal for the duration of the run:
+Worker sub-agents report back only terse outcomes (the "do not narrate"
+rule). For visibility into what each worker is *doing*, `.ralph/watch-steps.py`
+turns their transcripts into a compact step log — one line per tool call
+(`Read x`, `Edit y`, `Bash pnpm test`), never the tool output. Two ways to
+use it:
 
-```
-python3 .ralph/watch-steps.py
-```
+- **In-session** — your watchdog runs `python3 .ralph/watch-steps.py
+  --digest` on each wake (step 4), so worker steps appear in this session as
+  the run proceeds. Each `--digest` call prints only what is new since the
+  last. This costs a little context, by design — a compact line per tool call.
+- **Separate terminal** — run `python3 .ralph/watch-steps.py` (no args) in
+  another terminal for a live tail that costs no agent context at all.
 
-It tails the workers' transcripts and prints one compact line per tool call
-(`Read x`, `Edit y`, `Bash pnpm test`) — no tool output, no narration. It is
-a plain process, not an agent: nothing it reads or prints enters any agent's
-context, so it never bloats the orchestrator.
+Either way it is a plain transcript reader: it surfaces only the workers'
+tool calls, never the raw transcript's (large) tool output.
 
 ## Configuration
 
@@ -159,6 +161,13 @@ on completion, but a *hung* worker never completes — so you must also wake
 periodically (a `Monitor` until-loop, or bounded waits between completion
 notifications) and check each worker's elapsed time. `TaskStop` any worker
 past budget; count it as a **timeout-fail** (step 6).
+
+On each wake, also run `python3 .ralph/watch-steps.py --digest`. It prints
+the workers' tool calls since your last check — a compact line per call
+(`Read x`, `Edit y`, `Bash pnpm test`), never the tool output — surfacing
+live worker progress in this session. It does not change what you act on
+(step 5 still verifies the durable artifacts); it is visibility only, at a
+small, deliberate context cost.
 
 ### 5 — Collect and merge (rolling)
 
