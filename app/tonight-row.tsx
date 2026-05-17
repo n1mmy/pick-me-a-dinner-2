@@ -3,38 +3,30 @@
 import { useState, useTransition } from "react";
 import { CAP } from "../lib/ranking.config";
 import type { TagRecency, TonightRow } from "../lib/ranking";
-import { logForDate, pickTonight } from "./log/actions";
+import { pickTonight } from "./log/actions";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
   "focus-visible:outline-offset-2 focus-visible:outline-accent";
 
-const actionButton =
-  `min-h-11 rounded-control px-2 text-chip transition-colors duration-micro ${focusRing}`;
-
 /**
  * One Tonight row of the flat ledger (DESIGN.md "Tonight row anatomy"). Mobile
- * is two lines — rank + name + tags, then the Explanation chip + actions;
- * desktop collapses to one dense line via `desktop:contents` on the chip/action
+ * is two lines — rank + name + tags, then the Explanation chip + PICK; desktop
+ * collapses to one dense line via `desktop:contents` on the chip/action
  * wrapper. "Pick tonight" is the one-tap `pick = log` path; the picked button
- * briefly marks "Logged ✓". "Log another date" expands a date picker for a
- * backfilled (past) or Planned (future) dinner.
+ * briefly marks "Logged ✓". To log a dinner for any other date, use the Log
+ * screen.
  */
 export function TonightRowItem({
   row,
   rank,
-  today,
 }: {
   row: TonightRow;
   rank: number;
-  today: string;
 }) {
   const { option } = row;
   const [justLogged, setJustLogged] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
-  const [loggingDate, setLoggingDate] = useState(false);
-  const [dateValue, setDateValue] = useState(today);
-  const [dateError, setDateError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function pick() {
@@ -49,20 +41,6 @@ export function TonightRowItem({
       // Hold "Logged ✓" briefly; the revalidation re-sorts the list under it.
       setJustLogged(true);
       window.setTimeout(() => setJustLogged(false), 1600);
-    });
-  }
-
-  function submitDate() {
-    if (!dateValue) return;
-    setDateError(null);
-    startTransition(async () => {
-      const result = await logForDate(option.id, dateValue);
-      if (result.ok) {
-        setLoggingDate(false);
-        setDateValue(today);
-      } else {
-        setDateError(result.error);
-      }
     });
   }
 
@@ -91,78 +69,27 @@ export function TonightRowItem({
           >
             <MonoNumerals text={row.explanation} />
           </span>
-          <div className="flex flex-wrap items-center gap-2 desktop:ml-auto">
-            <button
-              type="button"
-              onClick={pick}
-              disabled={pending}
-              aria-live="polite"
-              className={`min-h-11 rounded-control px-4 text-body font-emphasis
-                transition-colors duration-short disabled:opacity-60 ${focusRing} ${
-                  justLogged
-                    ? "bg-raised text-success"
-                    : "bg-accent text-accent-ink hover:bg-accent-dark"
-                }`}
-            >
-              {justLogged ? "Logged ✓" : "Pick tonight"}
-            </button>
-            {!loggingDate && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDateValue(today);
-                  setDateError(null);
-                  setLoggingDate(true);
-                }}
-                className={`${actionButton} text-muted`}
-              >
-                Log another date
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={pick}
+            disabled={pending}
+            aria-live="polite"
+            className={`min-h-11 rounded-control px-4 text-body font-emphasis
+              transition-colors duration-short disabled:opacity-60
+              desktop:ml-auto ${focusRing} ${
+                justLogged
+                  ? "bg-raised text-success"
+                  : "bg-accent text-accent-ink hover:bg-accent-dark"
+              }`}
+          >
+            {justLogged ? "Logged ✓" : "Pick tonight"}
+          </button>
         </div>
       </div>
       {pickError && (
         <p className="mt-2 text-chip text-danger" aria-live="polite">
           {pickError}
         </p>
-      )}
-      {loggingDate && (
-        <div className="mt-2 flex flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="date"
-              aria-label={`Date to log ${option.name}`}
-              value={dateValue}
-              onChange={(event) => setDateValue(event.target.value)}
-              aria-invalid={dateError !== null}
-              className={`min-h-11 rounded-input border border-line bg-surface
-                px-3 font-mono text-body text-ink ${focusRing}`}
-            />
-            <button
-              type="button"
-              onClick={submitDate}
-              disabled={pending}
-              className={`min-h-11 rounded-control bg-accent px-4 text-body
-                font-emphasis text-accent-ink transition-colors duration-micro
-                hover:bg-accent-dark disabled:opacity-60 ${focusRing}`}
-            >
-              Log
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setLoggingDate(false);
-                setDateError(null);
-              }}
-              disabled={pending}
-              className={`${actionButton} text-muted`}
-            >
-              Cancel
-            </button>
-          </div>
-          {dateError && <p className="text-chip text-danger">{dateError}</p>}
-        </div>
       )}
     </li>
   );

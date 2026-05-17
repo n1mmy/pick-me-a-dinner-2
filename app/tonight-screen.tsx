@@ -31,13 +31,7 @@ const focusRing =
  * words. Each row carries the `pick = log` write actions (§6) in
  * `tonight-row.tsx`.
  */
-export function TonightScreen({
-  rows,
-  today,
-}: {
-  rows: TonightRow[];
-  today: string;
-}) {
+export function TonightScreen({ rows }: { rows: TonightRow[] }) {
   const [kind, setKind] = useState<KindFilter>("all");
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
 
@@ -113,7 +107,6 @@ export function TonightScreen({
                   key={row.option.id}
                   row={row}
                   rank={rankOf.get(row.option.id) ?? 0}
-                  today={today}
                 />
               ))}
             </ol>

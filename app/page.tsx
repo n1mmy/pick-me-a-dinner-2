@@ -22,5 +22,5 @@ export default async function TonightPage() {
   }));
 
   const rows = rankTonight(options, entries, todayEpochDay);
-  return <TonightScreen rows={rows} today={today} />;
+  return <TonightScreen rows={rows} />;
 }
