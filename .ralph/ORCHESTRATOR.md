@@ -77,6 +77,22 @@ the rule is stated here so you never even attempt it.
    supplies (the dev Postgres). `.env.ralph` holds no API keys, so AI
    search stays off under the loop — which is fine.
 
+## Watching the run (optional)
+
+Worker sub-agents report back only terse outcomes — by design, so the
+long-lived orchestrator keeps its context small (see "the one hard rule"
+above). For a live view of what each worker is *doing*, run the step viewer
+in a separate terminal for the duration of the run:
+
+```
+python3 .ralph/watch-steps.py
+```
+
+It tails the workers' transcripts and prints one compact line per tool call
+(`Read x`, `Edit y`, `Bash pnpm test`) — no tool output, no narration. It is
+a plain process, not an agent: nothing it reads or prints enters any agent's
+context, so it never bloats the orchestrator.
+
 ## Configuration
 
 - `MAX_PARALLEL` — workers per wave. Default **3**. Set **1** to disable
@@ -309,7 +325,7 @@ workflow — **you do not push, and you do not merge outside your worktree.**
 ## Protected files — never modify
 
 - `.ralph/` and its contents — `ORCHESTRATOR.md`, `PROMPT.md`, `loop.py`,
-  `loop_state.json`.
+  `loop_state.json`, `watch-steps.py`.
 
 Issue files under `.issues/` *are* expected to change — ticking checkboxes
 and advancing `Status:` lines is the loop.
