@@ -49,14 +49,19 @@ export type TagRecency = {
 export type TonightRow = {
   option: RankOption;
   score: number;
-  explanation: string;
   tags: TagRecency[];
   /**
    * Per-Option recency in days, capped at `CAP` (the `anti_repeat` term). Drives
-   * the Explanation chip's recency-heatmap background; the ranking math itself
-   * reads it via `optionScore`, not this field.
+   * the Recency chip's text and heatmap fill; the ranking math itself reads it
+   * via `optionScore`, not this field.
    */
   recencyDays: number;
+  /**
+   * True when the Option has no non-future Log entry. `recencyDays` caps at
+   * `CAP`, so a never-eaten Option and one last eaten 60+ days ago both read
+   * `CAP` — this flag lets the Recency chip show "new" instead of "60d+".
+   */
+  neverEaten: boolean;
 };
 
 /** Arithmetic mean of a non-empty list. */
@@ -132,39 +137,6 @@ export function optionScore(antiRepeat: number, tagDays: number[]): number {
 }
 
 /**
- * The Explanation chip text, derived deterministically from the Score terms.
- *
- * If the Option has Tags and the Tag term dominates (`W_TAG·variety >=
- * W_OPTION·anti_repeat`, ties included), the chip names the single Tag with the
- * largest recency. Otherwise it names the Option's own recency — and a tagless
- * Option always lands here, since the Tag branch needs at least one Tag. When
- * the Option has never been eaten the chip reads "Never eaten yet" rather than
- * a false "Last had 60 days ago".
- */
-export function explanationChip(input: {
-  tagDays: { tag: string; days: number }[];
-  antiRepeat: number;
-  lastEatenIsNull: boolean;
-}): string {
-  const { tagDays, antiRepeat, lastEatenIsNull } = input;
-  const variety =
-    tagDays.length === 0
-      ? antiRepeat
-      : mean(tagDays.map((entry) => entry.days));
-  const tagBranch =
-    tagDays.length > 0 && W_TAG * variety >= W_OPTION * antiRepeat;
-
-  if (tagBranch) {
-    const [top] = [...tagDays].sort(
-      (a, b) => b.days - a.days || a.tag.localeCompare(b.tag),
-    );
-    return `No ${top.tag} in ${top.days} days`;
-  }
-  if (lastEatenIsNull) return "Never eaten yet";
-  return `Last had ${antiRepeat} days ago`;
-}
-
-/**
  * Rank the active Catalog into the Tonight list: descending by Score, with an
  * alphabetical tie-break that also gives the cold-start fallback for free —
  * with no non-future Log history every Score ties, so the list is alphabetical.
@@ -187,13 +159,9 @@ export function rankTonight(
     return {
       option,
       score: optionScore(antiRepeat, tagDays),
-      explanation: explanationChip({
-        tagDays: tags.map((entry) => ({ tag: entry.tag, days: entry.days })),
-        antiRepeat,
-        lastEatenIsNull: lastEatenDay === null,
-      }),
       tags,
       recencyDays: antiRepeat,
+      neverEaten: lastEatenDay === null,
     };
   });
 

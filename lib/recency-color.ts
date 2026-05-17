@@ -32,9 +32,23 @@ export function recencyColor(days: number): string {
 }
 
 /**
- * The Explanation chip background for a recency of `days`: the heatmap color at
- * low opacity, so the tint reads without overpowering the chip text.
+ * The Tag chip background for a recency of `days`: the heatmap color at low
+ * opacity, so the tint reads under `text-ink` without overpowering it. The
+ * faint end of the two-tier chip scale — the louder Recency chip uses
+ * `recencyChipBgStrong`.
  */
 export function recencyChipBg(days: number): string {
   return `color-mix(in srgb, ${recencyColor(days)}, transparent 86%)`;
+}
+
+/**
+ * The Recency chip background for a recency of `days`: the heatmap color at a
+ * stronger opacity than `recencyChipBg`, so the single per-Option Recency chip
+ * reads louder than the per-Tag chips beside it. Still translucent — never a
+ * solid fill — so `text-ink` stays legible across the whole red→green heatmap
+ * (the light tan midpoint would fail contrast under an opaque fill) in both
+ * the light and dark themes.
+ */
+export function recencyChipBgStrong(days: number): string {
+  return `color-mix(in srgb, ${recencyColor(days)}, transparent 62%)`;
 }

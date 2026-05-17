@@ -7,7 +7,7 @@ import {
   type TonightsDinnerEntry,
 } from "../lib/tonights-dinner";
 import { deleteLogEntry } from "./log/actions";
-import { kindBarClass, RowTags } from "./tonight-row";
+import { kindBarClass, RowChips } from "./tonight-row";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
@@ -17,8 +17,8 @@ const focusRing =
  * Tonight's dinner — the decided block (PRD: Tonight — decided mode). Under a
  * quiet "Tonight's dinner" sub-label it lists the Picked Options in pick order,
  * oldest first. Each row shows the Option name, the 3px meal-kind bar on its
- * left edge, and its Tag chips with per-Tag recency — and deliberately no
- * Explanation chip: the chip exists to help *choose*, and the choice is made.
+ * left edge, and the Recency chip + Tag chips — the same chip row Tonight's
+ * picker uses, so a decided dinner still shows how long it had been.
  *
  * Each row also surfaces its action buttons — for a Restaurant a "Menu" and a
  * "Call", for a Home meal a "Recipe" — so once the choice is made the screen
@@ -55,7 +55,7 @@ export function TonightsDinnerBlock({
 /**
  * One row of Tonight's dinner: the Picked Option's name with the inline
  * "Remove" control beside it and the 3px meal-kind bar on the left edge, then
- * the Tag chips and the Menu/Call/Recipe action buttons.
+ * the Recency + Tag chips and the Menu/Call/Recipe action buttons.
  */
 function DecidedRow({ entry }: { entry: TonightsDinnerEntry }) {
   const { entryId, row } = entry;
@@ -68,7 +68,11 @@ function DecidedRow({ entry }: { entry: TonightsDinnerEntry }) {
         </span>
         <RemoveControl entryId={entryId} />
       </div>
-      {row.tags.length > 0 && <RowTags tags={row.tags} />}
+      <RowChips
+        recencyDays={row.recencyDays}
+        neverEaten={row.neverEaten}
+        tags={row.tags}
+      />
       {actions.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
           {actions.map((action) => (

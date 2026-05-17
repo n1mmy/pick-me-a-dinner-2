@@ -11,9 +11,9 @@ function row(id: string, name: string): TonightRow {
   return {
     option: { id, name, kind: "home", tags: [], url: null, phone: null },
     score: 0,
-    explanation: "",
     tags: [],
     recencyDays: 0,
+    neverEaten: false,
   };
 }
 
