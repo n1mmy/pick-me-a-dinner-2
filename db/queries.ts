@@ -57,6 +57,24 @@ export async function getActiveCatalog(): Promise<{
   };
 }
 
+/** An Archived Option reduced to what the Catalog's "Archived" disclosure links. */
+export type ArchivedOption = { id: string; name: string };
+
+/**
+ * The Archived Options for the Catalog screen's "Archived" disclosure (PRD:
+ * Option detail page) — `active = false` Options ordered by name, narrowed to
+ * the id and name the disclosure renders as links to each detail page. It is
+ * the counterpart of `getActiveCatalog`'s active list: the disclosure is pinned
+ * collapsed below it, so an Archived Option stays reachable again.
+ */
+export async function getArchivedOptions(): Promise<ArchivedOption[]> {
+  return db
+    .select({ id: options.id, name: options.name })
+    .from(options)
+    .where(eq(options.active, false))
+    .orderBy(asc(options.name));
+}
+
 /**
  * The full Tag vocabulary, ordered by name — the autocomplete source the
  * Option form suggests from. `getActiveCatalog` returns it for the Catalog

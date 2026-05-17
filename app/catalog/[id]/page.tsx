@@ -73,6 +73,20 @@ export default async function OptionDetailPage({
     optionId: entry.optionId,
     eatenOn: epochDayFromSqlDate(entry.eatenOn),
   }));
+  // `getTonightData` feeds the ranking only active Options' Log entries, so an
+  // Archived Option's own history is absent above. Add it back here — the
+  // detail page's per-Option recency line is factual recency data, computed
+  // from the Option's own Log regardless of Active/Archived state (see
+  // `rankOption`). It still takes no part in the Score: an Archived Option is
+  // not an active per-Tag carrier, so this never moves another Option's rank.
+  if (!option.active) {
+    for (const entry of optionLog) {
+      entries.push({
+        optionId: entry.optionId,
+        eatenOn: epochDayFromSqlDate(entry.eatenOn),
+      });
+    }
+  }
 
   const target: RankOption = {
     id: option.id,
@@ -110,7 +124,7 @@ export default async function OptionDetailPage({
 
       <section className="flex flex-col gap-2">
         <h2 className={sectionHeading}>Ranking</h2>
-        {ranking.score !== null && (
+        {ranking.score !== null ? (
           <div className="flex flex-col gap-0.5">
             <p className="font-mono text-h1 tabular-nums text-ink">
               {Math.round(ranking.score)}
@@ -121,6 +135,11 @@ export default async function OptionDetailPage({
               fixed property of it.
             </p>
           </div>
+        ) : (
+          // An Archived Option is excluded from the ranking, so it has no
+          // Score; its per-Option recency and Tag chips below are still
+          // factual recency data, not a Score.
+          <p className="text-body text-muted">Archived — not ranked</p>
         )}
         <RowChips
           recencyDays={ranking.recencyDays}

@@ -2,12 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { asc, eq } from "drizzle-orm";
 import { db } from "../../db";
 import { dinnerLog, optionTags, options, tags } from "../../db/schema";
-import { getActiveCatalog } from "../../db/queries";
+import { getActiveCatalog, getArchivedOptions } from "../../db/queries";
 import { truncateAll } from "../../db/test-support";
 import {
   archiveOption,
   createOption,
   deleteOption,
+  unarchiveOption,
   updateOption,
   type OptionFormValues,
 } from "./actions";
@@ -167,6 +168,40 @@ describe("archiveOption", () => {
 
     const catalog = await getActiveCatalog();
     expect(catalog.home).toHaveLength(0);
+  });
+});
+
+describe("unarchiveOption", () => {
+  it("sets active = true and returns the Option to the default Catalog list", async () => {
+    await createOption("home", { ...emptyValues, name: "Pasta" });
+    const [row] = await db.select().from(options);
+    await archiveOption(row.id);
+
+    const result = await unarchiveOption(row.id);
+
+    expect(result).toEqual({ ok: true });
+    const [unarchived] = await db
+      .select()
+      .from(options)
+      .where(eq(options.id, row.id));
+    expect(unarchived.active).toBe(true);
+
+    const catalog = await getActiveCatalog();
+    expect(catalog.home).toHaveLength(1);
+    expect(await getArchivedOptions()).toHaveLength(0);
+  });
+});
+
+describe("getArchivedOptions", () => {
+  it("lists Archived Options by name, leaving the active Catalog out", async () => {
+    await createOption("home", { ...emptyValues, name: "Pasta" });
+    await createOption("restaurant", { ...emptyValues, name: "El Comal" });
+    const all = await db.select().from(options).orderBy(asc(options.name));
+    const elComal = all.find((o) => o.name === "El Comal")!;
+    await archiveOption(elComal.id);
+
+    const archived = await getArchivedOptions();
+    expect(archived).toEqual([{ id: elComal.id, name: "El Comal" }]);
   });
 });
 
