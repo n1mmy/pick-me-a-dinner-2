@@ -228,6 +228,30 @@ export async function getLog(): Promise<LogEntryRow[]> {
 }
 
 /**
+ * Every Log entry for one Option — past, today, and future (its Planned
+ * dinners) — joined to its Option, ordered newest `eaten_on` first. The Option
+ * detail page's History section splits and groups this with
+ * `lib/dinner-grouping`. Unlike `getLog` it is scoped to a single Option id,
+ * and unlike the Tonight queries it is not filtered to active Options — the
+ * detail page serves an Archived Option's history too.
+ */
+export async function getOptionLog(optionId: string): Promise<LogEntryRow[]> {
+  return db
+    .select({
+      id: dinnerLog.id,
+      optionId: dinnerLog.optionId,
+      optionName: options.name,
+      kind: options.kind,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(dinnerLog.optionId, options.id))
+    .where(eq(dinnerLog.optionId, optionId))
+    .orderBy(desc(dinnerLog.eatenOn));
+}
+
+/**
  * A Rejection the Household made today, narrowed to what the "Rejected
  * tonight" disclosure renders and to the per-day suppression set the Tonight
  * page derives from it (PRD: Rejections on Tonight).

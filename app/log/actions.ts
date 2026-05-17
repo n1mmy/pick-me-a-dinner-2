@@ -22,10 +22,16 @@ function today(): string {
   return todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
 }
 
-/** Revalidate the two screens a Log write changes: Tonight's ranking and the Log. */
+/**
+ * Revalidate every screen a Log write changes: Tonight's ranking, the Log, and
+ * the Option detail page's History section — a Log entry edited or deleted
+ * from the detail page must refresh in place there too (PRD: Option detail
+ * page — controls behave identically wherever invoked).
+ */
 function revalidateLogViews(): void {
   revalidatePath("/");
   revalidatePath("/log");
+  revalidatePath("/catalog/[id]", "page");
 }
 
 /**
