@@ -1,6 +1,6 @@
 # 06 — Option detail page: links from Tonight and Log
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -20,10 +20,10 @@ those controls.
 
 ## Acceptance criteria
 
-- [ ] The Option name on a Tonight row links to its detail page
-- [ ] The Option name on a Log entry row links to its detail page
-- [ ] The name link is visually distinct from the row's action controls and does not interfere with them
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] The Option name on a Tonight row links to its detail page
+- [x] The Option name on a Log entry row links to its detail page
+- [x] The name link is visually distinct from the row's action controls and does not interfere with them
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
 
 ## Blocked by
 

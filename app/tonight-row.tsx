@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { CAP } from "../lib/ranking.config";
 import type { TagRecency, TonightRow } from "../lib/ranking";
@@ -103,9 +104,13 @@ export function TonightRowItem({
             <span className="w-6 shrink-0 text-right font-mono text-meta tabular-nums text-muted">
               {rank}
             </span>
-            <span className="font-display text-name font-name text-ink">
+            <Link
+              href={`/catalog/${option.id}`}
+              className={`font-display text-name font-name text-ink
+                underline-offset-2 hover:underline ${focusRing}`}
+            >
               {option.name}
-            </span>
+            </Link>
           </div>
           <RowChips
             recencyDays={row.recencyDays}

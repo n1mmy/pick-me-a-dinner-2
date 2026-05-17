@@ -101,6 +101,9 @@ describe.skip("TonightScreen — AI search", () => {
     render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await screen.findByText("Light and quick");
+    // Wait for the in-flight transition to settle — the Clear control is
+    // disabled while `pending`, so clicking it sooner is a silent no-op.
+    await screen.findByRole("button", { name: "Search" });
 
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
@@ -147,6 +150,9 @@ describe.skip("TonightScreen — AI search", () => {
     render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await screen.findByText("Search unavailable — try again");
+    // Wait for the in-flight transition to settle — the Clear control is
+    // disabled while `pending`, so clicking it sooner is a silent no-op.
+    await screen.findByRole("button", { name: "Search" });
 
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
@@ -175,6 +181,9 @@ describe.skip("TonightScreen — AI search", () => {
     expect(screen.queryByRole("group", { name: "Filter by kind" })).toBeNull();
     expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeNull();
 
+    // Wait for the in-flight transition to settle — the Clear control is
+    // disabled while `pending`, so clicking it sooner is a silent no-op.
+    await screen.findByRole("button", { name: "Search" });
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
     // Clearing restores both the deterministic list and its filter controls.
@@ -214,6 +223,9 @@ describe.skip("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
     await screen.findByText("Light and quick");
+    // The box re-enables only once the transition settles back out of
+    // `pending` — wait for "Searching…" to revert before asserting.
+    await screen.findByRole("button", { name: "Search" });
     expect(input.disabled).toBe(false);
   });
 
@@ -229,7 +241,9 @@ describe.skip("TonightScreen — AI search", () => {
     await screen.findByText("Search unavailable — try again");
 
     // A second, successful search swaps in the AI result and clears the error.
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    // The submit button is disabled while `pending` — wait for it to revert
+    // from "Searching…" so the second click is not a silent no-op.
+    fireEvent.click(await screen.findByRole("button", { name: "Search" }));
     expect(await screen.findByText("Light and quick")).toBeTruthy();
     expect(screen.queryByText("Search unavailable — try again")).toBeNull();
   });
