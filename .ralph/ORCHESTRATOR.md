@@ -69,9 +69,13 @@ the rule is stated here so you never even attempt it.
 
    Widening the allowlist is the user's call — if entries are missing,
    surface them and stop; do not edit the file yourself.
-3. **`.env` exists in the worktree.** A fresh worktree has no `.env`
-   (gitignored); the gate's `pnpm build` passes env-free, but DB-touching
-   work does not. If absent, ask the user to copy it in.
+3. **The worktree carries `.env.ralph`.** A fresh worktree has no `.env`
+   (gitignored), but it does carry the committed, secret-free `.env.ralph`
+   — materialise `.env` with `cp .env.ralph .env`. The gate's
+   `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build` all pass
+   env-free; only `pnpm test:db` needs `DATABASE_URL`, which `.env.ralph`
+   supplies (the dev Postgres). `.env.ralph` holds no API keys, so AI
+   search stays off under the loop — which is fine.
 
 ## Configuration
 
@@ -121,8 +125,13 @@ For each issue in the wave, dispatch one `Agent`:
 
 - `run_in_background: true` — **mandatory**. Foreground dispatch blocks you
   on the slowest worker and gives no kill hook for the timeout.
-- `isolation: "worktree"` — each worker gets its own worktree + branch off
-  the current integration tip, and returns its branch name.
+- `isolation: "worktree"` — each worker runs in its own isolated git
+  worktree and returns its branch name. **That worktree is branched off
+  `main`, not off the integration tip** — `main` is stale and may predate
+  the issues themselves. The worker's dispatch prompt must therefore carry
+  a setup preamble that resets the worktree onto the integration tip;
+  inline the tip SHA recorded in step 2 into every worker's prompt (see the
+  worker dispatch template).
 - Prompt: the **worker dispatch template** below, with the issue's full
   text inlined (including any `## Comments` failure notes from prior
   attempts).
@@ -240,15 +249,26 @@ workflow — **you do not push, and you do not merge outside your worktree.**
 > them>`
 > --- END `<rel-path>` ---
 >
-> Read first, this loop: `.ralph/PROMPT.md` (your full doctrine),
+> First, set up your worktree — it was branched off `main`, which is stale
+> and may predate this issue:
+>
+> 1. `git reset --hard <integration-tip>` — move your worktree onto the
+>    integration tip (`<integration-tip>` is the SHA inlined here by the
+>    orchestrator). It is reachable through the shared object store, so
+>    this needs no network. Your worktree has no work yet, so the reset is
+>    safe.
+> 2. `cp .env.ralph .env` — materialise the gitignored `.env` from the
+>    committed, secret-free defaults.
+>
+> Then read, this loop: `.ralph/PROMPT.md` (your full doctrine),
 > `CLAUDE.md`, `CONTEXT.md`, and any `docs/adr/` that touch this issue.
 > Then follow `PROMPT.md` exactly:
 >
 > - Implement the issue literally; satisfy every acceptance criterion; use
 >   `CONTEXT.md` glossary terms; keep scope lean.
 > - Verify before committing — run every check the project defines
->   (`pnpm typecheck`, `pnpm lint`, `pnpm test`, and for UI/route/env work
->   `pnpm build`). All must be green.
+>   (`pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:db`, and for
+>   UI/route/env work `pnpm build`). All must be green.
 > - On success: tick every acceptance checkbox, flip the issue's `Status:`
 >   line to `done`, and make **one** commit on your branch containing both
 >   the code and the issue-file edit. Commit locally only — never
@@ -278,7 +298,9 @@ workflow — **you do not push, and you do not merge outside your worktree.**
 ### Gate-verify sub-agent
 
 > Run the full project gate on the current branch and report whether it is
-> green. Run `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build`.
+> green. First ensure `.env` exists — `cp .env.ralph .env` if it does not.
+> Then run `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:db`, and
+> `pnpm build`.
 >
 > Do not fix anything; do not commit. Report `gate: green`, or `gate: red`
 > with a terse summary of the first failure (which check, which
