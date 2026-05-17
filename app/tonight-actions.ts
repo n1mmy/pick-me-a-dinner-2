@@ -8,7 +8,7 @@ import {
   type AiSearchResult,
 } from "../lib/ai-search";
 import { authedAction } from "../lib/authed-action";
-import { epochDayFromSqlDate, todaySqlDate } from "../lib/local-day";
+import { todaySqlDate } from "../lib/local-day";
 
 /**
  * Run an AI search over Tonight: build the model snapshot from the active
@@ -28,7 +28,6 @@ export const aiSearchAction = authedAction(
 
     const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
     const { options, logEntries } = await getTonightData(today);
-    const todayEpochDay = epochDayFromSqlDate(today);
 
     const snapshot = buildSnapshot({
       options: options.map((option) => ({
@@ -40,10 +39,10 @@ export const aiSearchAction = authedAction(
       })),
       logEntries: logEntries.map((entry) => ({
         optionId: entry.optionId,
-        eatenOn: epochDayFromSqlDate(entry.eatenOn),
+        eatenOn: entry.eatenOn,
         note: entry.note,
       })),
-      today: todayEpochDay,
+      today,
       query,
     });
 

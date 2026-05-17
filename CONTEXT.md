@@ -108,18 +108,22 @@ falls back to alphabetical order.
 **AI search**:
 A triggered, query-driven re-ranking of Tonight by an AI model. The Household
 types an intent ("something light", "we have guests") — or leaves the query
-empty — and the model returns a ranked set of Options to fit it. Always a
-deliberate action; it never replaces the deterministic ranking as the default
-Tonight view. The model decides how many Options to return, so a narrowing
-query yields a subset of the Catalog, not the whole list.
+empty — and the model returns a ranked set of Options to fit it. The model
+also reads the household's eating history for habits and rhythms — how often
+something recurs, day-of-week tendencies, what tends to follow what — and lets
+those shape the ranking, surfacing patterns the deterministic Score's pure
+recency cannot; with an empty query, finding those patterns is the whole job.
+Always a deliberate action; it never replaces the deterministic ranking as the
+default Tonight view. The model decides how many Options to return, so a
+narrowing query yields a subset of the Catalog, not the whole list.
 _Avoid_: AI ranking (it is search — there is a query, even when empty).
 
 **AI rationale**:
 The model-generated line of prose on each AI search result row explaining why
-that Option fits the query ("Light and fast — a soup, and it's been three
-weeks"). Generative and query-aware, and unique to AI search — the
-deterministic Tonight list has no prose "why" line; it shows the Recency chip
-and Tag chips instead.
+that Option fits — naming the query intent and/or the habit the model found in
+the Log ("Light and fast — a soup, and it's been three weeks"). Generative and
+query-aware, and unique to AI search — the deterministic Tonight list has no
+prose "why" line; it shows the Recency chip and Tag chips instead.
 _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).
 
