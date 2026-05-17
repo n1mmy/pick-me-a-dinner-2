@@ -45,6 +45,8 @@ call wastes the loop. The fixes that matter most here:
 - **No bare `rm`, no `mkdir`** — `git rm` for tracked files, `Write` to
   overwrite or to auto-create a parent directory.
 - **Never run `find /`.**
+- **No remote git** — never `git push`, `git fetch`, or `git pull`. The
+  loop works the local checkout only; pushing is the user's job.
 
 If a command you need is genuinely blocked, stop and leave a note in the
 issue file rather than re-shaping the command. Widening the allowlist is
