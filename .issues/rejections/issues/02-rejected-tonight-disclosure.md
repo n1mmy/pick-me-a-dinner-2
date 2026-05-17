@@ -1,6 +1,6 @@
 # 02 — Rejections: see and undo today's Rejections
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -31,22 +31,22 @@ alike.
 
 ## Acceptance criteria
 
-- [ ] A "Rejected tonight (N)" disclosure pinned at the bottom of the picker
+- [x] A "Rejected tonight (N)" disclosure pinned at the bottom of the picker
       list, collapsed by default, showing a count of today's Rejections
-- [ ] Expanded, it lists today's Rejections with the Option name and the reason
+- [x] Expanded, it lists today's Rejections with the Option name and the reason
       when one was given
-- [ ] Each entry has a "Bring back" control calling the `authedAction`-wrapped
+- [x] Each entry has a "Bring back" control calling the `authedAction`-wrapped
       `bringBackRejection`
-- [ ] "Bring back" deletes the Rejection record and returns the Option to
+- [x] "Bring back" deletes the Rejection record and returns the Option to
       tonight's list immediately
-- [ ] Only today's Rejections appear in the disclosure
-- [ ] The disclosure renders in picker mode and in decided mode's reopened
+- [x] Only today's Rejections appear in the disclosure
+- [x] The disclosure renders in picker mode and in decided mode's reopened
       picker
-- [ ] The disclosure toggle and every "Bring back" control are
+- [x] The disclosure toggle and every "Bring back" control are
       keyboard-operable with visible focus and adequate touch targets
-- [ ] `bringBackRejection` is `authedAction`-wrapped and rejects an
+- [x] `bringBackRejection` is `authedAction`-wrapped and rejects an
       unauthenticated caller
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
 
 ## Blocked by
 
