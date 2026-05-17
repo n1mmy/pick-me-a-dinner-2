@@ -69,9 +69,12 @@ the rule is stated here so you never even attempt it.
 
    Widening the allowlist is the user's call — if entries are missing,
    surface them and stop; do not edit the file yourself.
-3. **`.env` exists in the worktree.** A fresh worktree has no `.env`
-   (gitignored); the gate's `pnpm build` passes env-free, but DB-touching
-   work does not. If absent, ask the user to copy it in.
+3. **The worktree has a `.env`.** A fresh worktree has no `.env`
+   (gitignored), but it does carry the committed, secret-free
+   `.env.ralph` — materialise `.env` with `cp .env.ralph .env`. The gate's
+   `pnpm build` passes env-free; `pnpm test` needs `DATABASE_URL`, which
+   `.env.ralph` supplies (the dev Postgres). `.env.ralph` holds no API
+   keys, so AI search stays off under the loop — which is fine.
 
 ## Configuration
 
@@ -246,6 +249,8 @@ workflow — **you do not push, and you do not merge outside your worktree.**
 >
 > - Implement the issue literally; satisfy every acceptance criterion; use
 >   `CONTEXT.md` glossary terms; keep scope lean.
+> - Your isolated worktree has no `.env` — before `pnpm test`, run
+>   `cp .env.ralph .env` (committed, secret-free dev defaults).
 > - Verify before committing — run every check the project defines
 >   (`pnpm typecheck`, `pnpm lint`, `pnpm test`, and for UI/route/env work
 >   `pnpm build`). All must be green.

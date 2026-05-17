@@ -14,9 +14,10 @@ handoff.md
 /.next
 /out
 
-# local environment — only .env.example is committed
+# local environment — only .env.example and .env.ralph are committed
 .env*
 !.env.example
+!.env.ralph
 
 # editor backup files
 *~
