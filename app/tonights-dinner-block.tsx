@@ -1,8 +1,12 @@
+"use client";
+
+import { useState, useTransition } from "react";
 import {
   decidedActions,
   type DecidedAction,
   type TonightsDinnerEntry,
 } from "../lib/tonights-dinner";
+import { deleteLogEntry } from "./log/actions";
 import { KindBadge, RowTags } from "./tonight-row";
 
 const focusRing =
@@ -22,8 +26,12 @@ const focusRing =
  * gets from the Option's `kind`, `url`, and `phone`, so a row with no source
  * field for an action simply shows no button.
  *
- * The decided row's inline "Remove" control is a separate slice — issue 03 —
- * and adds to this file later.
+ * Every row also carries an inline "Remove" control (issue 03) to undo a
+ * mis-tapped Pick: it deletes today's Log entry for that Option via the
+ * existing `deleteLogEntry` server action. The server then recomputes Tonight's
+ * dinner — the Option drops out of this block and reappears in the picker — and
+ * removing the last Option empties the block, so Tonight falls back to picker
+ * mode with no extra logic here.
  */
 export function TonightsDinnerBlock({
   entries,
@@ -36,29 +44,105 @@ export function TonightsDinnerBlock({
         Tonight&rsquo;s dinner
       </h2>
       <ul className="flex flex-col">
-        {entries.map(({ entryId, row }) => {
-          const actions = decidedActions(row.option);
-          return (
-            <li key={entryId} className="border-b border-line py-3">
-              <div className="flex items-baseline gap-2">
-                <span className="font-display text-name font-name text-ink">
-                  {row.option.name}
-                </span>
-                <KindBadge kind={row.option.kind} />
-              </div>
-              {row.tags.length > 0 && <RowTags tags={row.tags} />}
-              {actions.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {actions.map((action) => (
-                    <ActionButton key={action.label} action={action} />
-                  ))}
-                </div>
-              )}
-            </li>
-          );
-        })}
+        {entries.map((entry) => (
+          <DecidedRow key={entry.entryId} entry={entry} />
+        ))}
       </ul>
     </section>
+  );
+}
+
+/**
+ * One row of Tonight's dinner: the Picked Option's name and Home/Restaurant
+ * badge with the inline "Remove" control beside them, then the Tag chips and
+ * the Menu/Call/Recipe action buttons.
+ */
+function DecidedRow({ entry }: { entry: TonightsDinnerEntry }) {
+  const { entryId, row } = entry;
+  const actions = decidedActions(row.option);
+  return (
+    <li className="border-b border-line py-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-baseline gap-2">
+          <span className="font-display text-name font-name text-ink">
+            {row.option.name}
+          </span>
+          <KindBadge kind={row.option.kind} />
+        </div>
+        <RemoveControl entryId={entryId} />
+      </div>
+      {row.tags.length > 0 && <RowTags tags={row.tags} />}
+      {actions.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {actions.map((action) => (
+            <ActionButton key={action.label} action={action} />
+          ))}
+        </div>
+      )}
+    </li>
+  );
+}
+
+const removeButton =
+  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-control " +
+  `px-2 text-chip transition-colors duration-short ${focusRing}`;
+
+/**
+ * The decided row's inline "Remove" control — the app's destructive-action
+ * pattern (plan §17): a confirm step in place, no modal and no undo-toast, the
+ * same as Delete on the Log screen. The first tap arms it; the armed "Remove"
+ * then deletes today's Log entry for the Option via the existing
+ * `deleteLogEntry` server action, and "Cancel" disarms it.
+ *
+ * `deleteLogEntry` revalidates Tonight, so on the next render the server drops
+ * this row from the block (and, if it was the last one, returns the whole
+ * screen to picker mode). The control therefore needs no post-delete cleanup —
+ * it simply unmounts with its row.
+ */
+function RemoveControl({ entryId }: { entryId: string }) {
+  const [confirming, setConfirming] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  function runRemove() {
+    startTransition(async () => {
+      await deleteLogEntry(entryId);
+    });
+  }
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        onClick={() => setConfirming(true)}
+        className={`${removeButton} shrink-0 text-danger`}
+      >
+        Remove
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={runRemove}
+        className={`${removeButton} font-emphasis text-danger disabled:opacity-60`}
+      >
+        Remove
+      </button>
+      <span aria-hidden="true" className="text-chip text-muted">
+        ·
+      </span>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => setConfirming(false)}
+        className={`${removeButton} text-muted disabled:opacity-60`}
+      >
+        Cancel
+      </button>
+    </div>
   );
 }
 

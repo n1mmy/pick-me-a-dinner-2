@@ -2,23 +2,28 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { TonightRow } from "../lib/ranking";
+import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 
 // `aiSearchAction` is the AI search server action; the screen test drives the
 // component with it mocked (PRD: AI search — "with aiSearchAction mocked").
 vi.mock("./tonight-actions", () => ({
   aiSearchAction: vi.fn(),
 }));
-// `tonight-row` calls `pickTonight`; stub it so importing the row never pulls
-// in the database client.
+// `tonight-row` calls `pickTonight` and the decided block calls
+// `deleteLogEntry`; stub both so importing them never pulls in the database
+// client, and so the Remove flow can be asserted on the mock.
 vi.mock("./log/actions", () => ({
   pickTonight: vi.fn(async () => ({ ok: true })),
+  deleteLogEntry: vi.fn(async () => {}),
 }));
 
 import type { AiSearchResult } from "../lib/ai-search";
 import { aiSearchAction } from "./tonight-actions";
+import { deleteLogEntry } from "./log/actions";
 import { TonightScreen } from "./tonight-screen";
 
 const mockedAiSearch = vi.mocked(aiSearchAction);
+const mockedDelete = vi.mocked(deleteLogEntry);
 
 /**
  * A deterministic Tonight row with a distinct Explanation chip. `tags` are the
@@ -50,6 +55,14 @@ const ROWS: TonightRow[] = [
 const TAGGED_ROWS: TonightRow[] = [
   row("o1", "Apple Crumble", "Never eaten yet", ["dessert"]),
   row("o2", "Banana Bread", "Eaten quite recently", ["dessert"]),
+];
+
+// Two Picked Options — a non-empty `tonightsDinner` puts Tonight in decided
+// mode and renders the "Tonight's dinner" block. `entryId` is the today Log
+// entry id the row's "Remove" deletes.
+const DINNER: TonightsDinnerEntry[] = [
+  { entryId: "e1", row: row("o1", "Apple Crumble", "Never eaten yet") },
+  { entryId: "e2", row: row("o2", "Banana Bread", "Eaten quite recently") },
 ];
 
 afterEach(() => {
@@ -233,5 +246,93 @@ describe("TonightScreen — AI search", () => {
     expect(
       screen.queryByRole("group", { name: "Filter by kind" }),
     ).toBeTruthy();
+  });
+});
+
+describe("TonightScreen — Remove from Tonight's dinner", () => {
+  it("gives every decided-block row a Remove control", () => {
+    render(
+      <TonightScreen
+        tonightsDinner={DINNER}
+        pickerRows={[]}
+        searchEnabled={false}
+      />,
+    );
+    // One Remove control per Picked Option.
+    expect(screen.getAllByRole("button", { name: "Remove" })).toHaveLength(2);
+  });
+
+  it("asks for an inline confirm before deleting today's Log entry", () => {
+    render(
+      <TonightScreen
+        tonightsDinner={DINNER}
+        pickerRows={[]}
+        searchEnabled={false}
+      />,
+    );
+
+    // The first tap only arms the confirm — nothing is deleted yet, and an
+    // in-place Cancel control appears alongside the armed Remove.
+    fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[0]);
+    expect(mockedDelete).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
+
+    // Confirming deletes today's Log entry for that Option by its entry id —
+    // reusing `deleteLogEntry`, no new server action.
+    fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[0]);
+    expect(mockedDelete).toHaveBeenCalledWith("e1");
+  });
+
+  it("backs out of the confirm on Cancel without deleting", () => {
+    render(
+      <TonightScreen
+        tonightsDinner={DINNER}
+        pickerRows={[]}
+        searchEnabled={false}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    // The confirm is disarmed and the Log entry was never deleted.
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+    expect(mockedDelete).not.toHaveBeenCalled();
+  });
+
+  it("drops back to picker mode once the last Option is removed", () => {
+    // A Remove revalidates Tonight, so the server hands the screen a smaller
+    // `tonightsDinner`; emptying it returns the screen to picker mode.
+    const { rerender } = render(
+      <TonightScreen
+        tonightsDinner={DINNER}
+        pickerRows={ROWS}
+        searchEnabled={false}
+      />,
+    );
+    // Decided mode: the "Tonight's dinner" block is shown, the picker collapsed.
+    expect(
+      screen.getByRole("region", { name: "Tonight's dinner" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("group", { name: "Filter by kind" }),
+    ).toBeNull();
+
+    rerender(
+      <TonightScreen
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+      />,
+    );
+
+    // Picker mode: the decided block is gone and the ranked picker is back.
+    expect(
+      screen.queryByRole("region", { name: "Tonight's dinner" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("group", { name: "Filter by kind" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Never eaten yet")).toBeTruthy();
   });
 });
