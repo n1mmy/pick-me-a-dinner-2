@@ -29,6 +29,17 @@ You *may* run git plumbing that produces little output (`git log
 inspection) and read the `.issues/` and `.ralph/` files. That is the whole
 of your direct surface.
 
+## Local git only — never contact a remote
+
+This loop works the local checkout exclusively. Neither you nor any
+sub-agent runs `git push`, `git fetch`, `git pull`, `git clone`, or
+`git ls-remote` — nothing that reaches `github.com` or any other remote.
+Workers commit to their local branches; you merge locally; the finished
+integration branch is left on disk for the user to push. A git command
+that would contact a remote is a bug — do not run it. This is enforced by
+`deny` entries in `.claude/settings.local.json` (setup prerequisite 2);
+the rule is stated here so you never even attempt it.
+
 ## Setup prerequisites — check before starting
 
 1. **You are in a fresh git worktree.** That worktree's branch is the
@@ -46,6 +57,14 @@ of your direct surface.
    Bash(node *), Bash(tsx *), Bash(docker *), Bash(docker-compose *),
    Bash(curl *), Bash(wget *), Bash(command -v *), Bash(which *),
    Bash(test *), Bash(echo *)
+   ```
+
+   And these `deny` entries, so remote git is hard-blocked regardless of
+   doctrine (a `deny` rule overrides `allow`):
+
+   ```
+   Bash(git push:*), Bash(git fetch:*), Bash(git pull:*),
+   Bash(git clone:*), Bash(git ls-remote:*), Bash(git remote:*)
    ```
 
    Widening the allowlist is the user's call — if entries are missing,
@@ -232,7 +251,8 @@ workflow — **you do not push, and you do not merge outside your worktree.**
 >   `pnpm build`). All must be green.
 > - On success: tick every acceptance checkbox, flip the issue's `Status:`
 >   line to `done`, and make **one** commit on your branch containing both
->   the code and the issue-file edit.
+>   the code and the issue-file edit. Commit locally only — never
+>   `git push`, `git fetch`, or `git pull`.
 > - On failure (a check stays red and you cannot fix it): do **not**
 >   commit. Append a one-to-three-line note under a `## Comments` heading
 >   in the issue file describing what failed, leave `Status:` as
