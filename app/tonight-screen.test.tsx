@@ -87,11 +87,40 @@ describe("TonightScreen — AI search", () => {
     render(<TonightScreen rows={ROWS} />);
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
+    // The persistent inline error appears; the deterministic list is untouched.
     expect(
-      await screen.findByText(
-        "Search failed — the deterministic list is unchanged.",
-      ),
+      await screen.findByText("Search unavailable — try again"),
     ).toBeTruthy();
     expect(screen.getByText("Never eaten yet")).toBeTruthy();
+    expect(screen.getByText("Eaten quite recently")).toBeTruthy();
+  });
+
+  it("clears the error when the query is cleared", async () => {
+    mockedAiSearch.mockResolvedValue({ ok: false });
+
+    render(<TonightScreen rows={ROWS} />);
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Search unavailable — try again");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(screen.queryByText("Search unavailable — try again")).toBeNull();
+  });
+
+  it("clears the error when a later search succeeds", async () => {
+    mockedAiSearch.mockResolvedValueOnce({ ok: false });
+    mockedAiSearch.mockResolvedValueOnce({
+      ok: true,
+      results: [{ id: "o2", reason: "Light and quick" }],
+    });
+
+    render(<TonightScreen rows={ROWS} />);
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Search unavailable — try again");
+
+    // A second, successful search swaps in the AI result and clears the error.
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(await screen.findByText("Light and quick")).toBeTruthy();
+    expect(screen.queryByText("Search unavailable — try again")).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 # 02 — AI search: failure model and fallback
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -28,18 +28,18 @@ keep using the deterministic ranking.
 
 ## Acceptance criteria
 
-- [ ] The Anthropic call has a ~10-second timeout via `AbortController`
-- [ ] A transient failure (timeout, 429, 5xx, network) is retried exactly once;
+- [x] The Anthropic call has a ~10-second timeout via `AbortController`
+- [x] A transient failure (timeout, 429, 5xx, network) is retried exactly once;
       a malformed-output failure is not retried
-- [ ] Every failure mode collapses to one typed fallback outcome
-- [ ] A failed search leaves the deterministic list exactly as-is and shows a
+- [x] Every failure mode collapses to one typed fallback outcome
+- [x] A failed search leaves the deterministic list exactly as-is and shows a
       persistent inline error on the search box
-- [ ] The inline error clears on query-clear or a subsequent successful search
-- [ ] Unit tests cover each failure class mapping to the fallback, and the
+- [x] The inline error clears on query-clear or a subsequent successful search
+- [x] Unit tests cover each failure class mapping to the fallback, and the
       retry-once-on-transient / no-retry-on-malformed behavior; a screen-level
       test covers "a failed search leaves the deterministic list intact and
       shows the error"
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
 
 ## Blocked by
 

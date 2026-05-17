@@ -4,10 +4,19 @@
  * interface over an external API, every failure collapsing to one typed
  * outcome.
  *
- * It has pure parts — `buildSnapshot` and `parseAndValidate` — and one impure
- * Anthropic call. The deterministic ranking in `lib/ranking.ts` is untouched
- * (ADR-0003); this module only *reuses* its exported recency helpers, so a
- * rationale citing "three weeks" quotes a number the app supplied.
+ * It has pure parts — `buildSnapshot`, `parseAndValidate`, `classifyError` —
+ * and one impure Anthropic call. The deterministic ranking in `lib/ranking.ts`
+ * is untouched (ADR-0003); this module only *reuses* its exported recency
+ * helpers, so a rationale citing "three weeks" quotes a number the app
+ * supplied.
+ *
+ * The module is **fail-safe**: the call carries a ~10-second `AbortController`
+ * timeout, a transient failure (timeout, HTTP 429, 5xx, network) is retried
+ * exactly once, and every failure mode — transient-after-retry, a fatal HTTP
+ * status, or malformed tool-use output — collapses to the one typed
+ * `AI_SEARCH_UNAVAILABLE` outcome, the way the Places client collapses every
+ * failure to one "unavailable" result. The deterministic Tonight ranking is
+ * the fallback, so a failed search costs the Household nothing.
  *
  * The Anthropic client is constructed lazily — inside `createAiSearchClient`,
  * at call time, never at import time — so importing this module (and therefore
@@ -181,8 +190,31 @@ export function parseAndValidate(
 /** The default model when `AI_MODEL` is unset — a current Claude Sonnet. */
 const MODEL_DEFAULT = "claude-sonnet-4-6";
 
-/** Per-request timeout: a slow model call aborts here rather than hanging. */
+/**
+ * Per-request timeout. A model call that has not answered within this window
+ * is aborted via an `AbortController` rather than left to hang — a hung call
+ * would freeze the search box well past any reasonable wait. An abort is a
+ * transient failure, so it earns the one retry.
+ */
 const REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * Classify a thrown model-call error as **transient** — worth exactly one
+ * retry — or **fatal**. Transient: an HTTP 429, any 5xx, or a call that never
+ * reached an HTTP status at all (a network error, or our own abort/timeout).
+ * Fatal: any other 4xx — a bad request, auth, or not-found — which a retry
+ * would not fix. Duck-typed on `.status` so it needs no Anthropic error class
+ * at runtime and stays trivially unit-testable.
+ */
+export function classifyError(error: unknown): "transient" | "fatal" {
+  const status = (error as { status?: unknown } | null)?.status;
+  if (typeof status === "number") {
+    if (status === 429 || status >= 500) return "transient";
+    return "fatal";
+  }
+  // No HTTP status reached us: a network-level failure or an abort/timeout.
+  return "transient";
+}
 
 /**
  * The single tool the model must call: its input is an ordered array of
@@ -243,9 +275,26 @@ export interface AiSearchClient {
 }
 
 /**
+ * One model call's outcome, before the retry decision is applied:
+ *
+ * - `ok` — a usable tool-use response; the parsed result rides along.
+ * - `transient` — a timeout, 429, 5xx, or network error; a retry may succeed.
+ * - `fatal` — malformed tool-use output, or a fatal HTTP status; a retry would
+ *   not help, so this is the end of the line.
+ */
+type AttemptOutcome =
+  | { kind: "ok"; results: AiRankingRow[] }
+  | { kind: "transient" }
+  | { kind: "fatal" };
+
+/**
  * Build an `AiSearchClient` bound to `apiKey`. The Anthropic client is
  * constructed here, at call time — never at import time — so the build stays
  * env-free. The model id is `AI_MODEL`, or a current Sonnet by default.
+ *
+ * `search` is fail-safe: each model call carries a ~10-second `AbortController`
+ * timeout, a transient failure is retried exactly once, and every non-`ok`
+ * outcome collapses to `AI_SEARCH_UNAVAILABLE`.
  */
 export function createAiSearchClient(apiKey: string): AiSearchClient {
   const anthropic = new Anthropic({ apiKey });
@@ -253,29 +302,49 @@ export function createAiSearchClient(apiKey: string): AiSearchClient {
 
   return {
     async search(snapshot, activeIds) {
-      try {
-        const response = await anthropic.messages.create(
-          {
-            model,
-            max_tokens: 1024,
-            system: SYSTEM_PROMPT,
-            tools: [RANK_TOOL],
-            tool_choice: { type: "tool", name: RANK_TOOL.name },
-            messages: [{ role: "user", content: JSON.stringify(snapshot) }],
-          },
-          { timeout: REQUEST_TIMEOUT_MS },
-        );
-        const toolUse = response.content.find(
-          (block) => block.type === "tool_use",
-        );
-        if (toolUse?.type !== "tool_use") return AI_SEARCH_UNAVAILABLE;
-        return {
-          ok: true,
-          results: parseAndValidate(toolUse.input, activeIds),
-        };
-      } catch {
-        return AI_SEARCH_UNAVAILABLE;
+      /**
+       * Issue one model call under a ~10-second `AbortController` timeout. A
+       * thrown error is classified transient/fatal; a response carrying no
+       * tool-use block is malformed output — `fatal`, since a retry would
+       * return the same shape.
+       */
+      async function attempt(): Promise<AttemptOutcome> {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        try {
+          const response = await anthropic.messages.create(
+            {
+              model,
+              max_tokens: 1024,
+              system: SYSTEM_PROMPT,
+              tools: [RANK_TOOL],
+              tool_choice: { type: "tool", name: RANK_TOOL.name },
+              messages: [{ role: "user", content: JSON.stringify(snapshot) }],
+            },
+            { signal: controller.signal },
+          );
+          const toolUse = response.content.find(
+            (block) => block.type === "tool_use",
+          );
+          if (toolUse?.type !== "tool_use") return { kind: "fatal" };
+          return {
+            kind: "ok",
+            results: parseAndValidate(toolUse.input, activeIds),
+          };
+        } catch (error) {
+          return { kind: classifyError(error) };
+        } finally {
+          clearTimeout(timer);
+        }
       }
+
+      // A transient failure earns exactly one retry; a fatal one earns none.
+      let outcome = await attempt();
+      if (outcome.kind === "transient") outcome = await attempt();
+
+      return outcome.kind === "ok"
+        ? { ok: true, results: outcome.results }
+        : AI_SEARCH_UNAVAILABLE;
     },
   };
 }

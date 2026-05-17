@@ -80,14 +80,16 @@ export function TonightScreen({ rows }: { rows: TonightRow[] }) {
   }
 
   function runSearch() {
-    setAiError(false);
     startTransition(async () => {
       const result = await aiSearchAction(query);
       if (!result.ok) {
-        // A failed search leaves the deterministic list exactly as it was.
+        // A failed search leaves the deterministic list exactly as it was. The
+        // inline error is persistent — it is not cleared on submit, only when a
+        // later search succeeds (below) or the query is cleared.
         setAiError(true);
         return;
       }
+      setAiError(false);
       setAiResults(result.results);
     });
   }
@@ -121,7 +123,7 @@ export function TonightScreen({ rows }: { rows: TonightRow[] }) {
               onClear={clearSearch}
               pending={pending}
               error={aiError}
-              showClear={aiResults !== null}
+              showClear={aiResults !== null || aiError}
             />
             <KindSegment kind={kind} onChange={setKind} />
             {tags.length > 0 && (
@@ -193,8 +195,12 @@ const inputClass =
 /**
  * The AI search box above the list. Submitting — by Enter or the Search button,
  * an empty query allowed — runs an AI search; a Clear control (shown once an AI
- * result is on screen) restores the deterministic list. The box is disabled
- * while a search is in flight so only one search runs at a time.
+ * result is on screen, or once a search has failed) restores the deterministic
+ * list and clears the query. The box is disabled while a search is in flight so
+ * only one search runs at a time.
+ *
+ * On failure a persistent inline error sits under the box: the deterministic
+ * list is left untouched, and the Household can retry or just keep using it.
  */
 function SearchBox({
   query,
@@ -254,7 +260,7 @@ function SearchBox({
       </div>
       {error && (
         <p role="status" aria-live="polite" className="text-meta text-danger">
-          Search failed — the deterministic list is unchanged.
+          Search unavailable — try again
         </p>
       )}
     </form>

@@ -1,7 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// The Anthropic SDK is mocked so no live call is ever made — the failure-model
+// tests drive `messages.create` through canned rejections and responses, the
+// way `places.test.ts` drives the Places client through a stubbed `fetch`.
+const { messagesCreate } = vi.hoisted(() => ({ messagesCreate: vi.fn() }));
+vi.mock("@anthropic-ai/sdk", () => ({
+  default: class {
+    messages = { create: messagesCreate };
+  },
+}));
+
 import {
+  AI_SEARCH_UNAVAILABLE,
   buildSnapshot,
+  classifyError,
+  createAiSearchClient,
   parseAndValidate,
+  type AiRankingRow,
   type SnapshotLogEntry,
   type SnapshotOption,
 } from "./ai-search";
@@ -125,5 +140,99 @@ describe("parseAndValidate", () => {
     ).toEqual([]);
     expect(parseAndValidate(null, activeIds)).toEqual([]);
     expect(parseAndValidate({ results: "nope" }, activeIds)).toEqual([]);
+  });
+});
+
+describe("classifyError", () => {
+  it("treats a 429, any 5xx, and a statusless failure as transient", () => {
+    expect(classifyError({ status: 429 })).toBe("transient");
+    expect(classifyError({ status: 500 })).toBe("transient");
+    expect(classifyError({ status: 503 })).toBe("transient");
+    // No HTTP status: a network error, or our own abort/timeout.
+    expect(classifyError(new Error("network down"))).toBe("transient");
+    expect(
+      classifyError(Object.assign(new Error("aborted"), { name: "AbortError" })),
+    ).toBe("transient");
+  });
+
+  it("treats a non-429 4xx as fatal — a retry would not fix it", () => {
+    expect(classifyError({ status: 400 })).toBe("fatal");
+    expect(classifyError({ status: 401 })).toBe("fatal");
+    expect(classifyError({ status: 404 })).toBe("fatal");
+  });
+});
+
+describe("createAiSearchClient — failure model and fallback", () => {
+  const snapshot = buildSnapshot({
+    options: [],
+    logEntries: [],
+    today: TODAY,
+    query: "",
+  });
+  const activeIds = new Set(["a1"]);
+
+  /** A model response carrying a valid `rank_options` tool-use block. */
+  function toolUseResponse(rows: AiRankingRow[]) {
+    return {
+      content: [
+        { type: "tool_use", name: "rank_options", input: { results: rows } },
+      ],
+    };
+  }
+
+  beforeEach(() => {
+    messagesCreate.mockReset();
+  });
+
+  it("returns the validated ordered result on a tool-use response", async () => {
+    messagesCreate.mockResolvedValueOnce(
+      toolUseResponse([{ id: "a1", reason: "fits" }]),
+    );
+    const result = await createAiSearchClient("k").search(snapshot, activeIds);
+    expect(result).toEqual({ ok: true, results: [{ id: "a1", reason: "fits" }] });
+    expect(messagesCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a transient failure exactly once, then succeeds", async () => {
+    messagesCreate
+      .mockRejectedValueOnce({ status: 503 })
+      .mockResolvedValueOnce(toolUseResponse([{ id: "a1", reason: "fits" }]));
+    const result = await createAiSearchClient("k").search(snapshot, activeIds);
+    expect(result).toEqual({ ok: true, results: [{ id: "a1", reason: "fits" }] });
+    expect(messagesCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it("collapses each transient failure class to the fallback after one retry", async () => {
+    // timeout/abort, HTTP 429, 5xx, and a network error — every transient class.
+    const transientErrors = [
+      Object.assign(new Error("aborted"), { name: "AbortError" }),
+      { status: 429 },
+      { status: 500 },
+      new Error("network down"),
+    ];
+    for (const error of transientErrors) {
+      messagesCreate.mockReset();
+      messagesCreate.mockRejectedValue(error);
+      const result = await createAiSearchClient("k").search(snapshot, activeIds);
+      expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+      // Exactly one retry — the call is made twice, never a third time.
+      expect(messagesCreate).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it("does not retry malformed tool-use output — a retry would not fix it", async () => {
+    messagesCreate.mockResolvedValue({
+      content: [{ type: "text", text: "no tool call here" }],
+    });
+    const result = await createAiSearchClient("k").search(snapshot, activeIds);
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    expect(messagesCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry a fatal HTTP status", async () => {
+    messagesCreate.mockRejectedValue({ status: 400 });
+    const result = await createAiSearchClient("k").search(snapshot, activeIds);
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    expect(messagesCreate).toHaveBeenCalledTimes(1);
   });
 });
