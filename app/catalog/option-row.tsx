@@ -62,7 +62,9 @@ export function OptionRow({
   return (
     <li className="flex flex-col gap-1 border-b border-line py-3">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-name text-ink">{option.name}</span>
+        <span className="font-display text-name font-name text-ink">
+          {option.name}
+        </span>
         <div className="flex shrink-0 items-center gap-1">
           {confirm === null ? (
             <>

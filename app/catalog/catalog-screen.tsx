@@ -26,8 +26,8 @@ export function CatalogScreen({
   const isEmpty = home.length === 0 && restaurants.length === 0;
 
   return (
-    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5">
-      <h1 className="text-h1 font-h1 text-ink">Catalog</h1>
+    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
+      <h1 className="font-display text-h1 font-h1 text-ink">Catalog</h1>
       {isEmpty && (
         <p className="text-body text-muted">
           Add a meal or restaurant to get started

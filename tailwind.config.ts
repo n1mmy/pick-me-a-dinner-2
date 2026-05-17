@@ -1,9 +1,10 @@
 import type { Config } from "tailwindcss";
 
 /**
- * §16 design foundation as Tailwind theme tokens. Every value resolves to a
- * CSS custom property declared in `app/globals.css`, so screens consume shared
+ * Design foundation as Tailwind theme tokens. Every value resolves to a CSS
+ * custom property declared in `app/globals.css`, so screens consume shared
  * tokens (`bg-bg`, `text-h1`, `p-3`, ...) and never inline a hex literal.
+ * DESIGN.md is the canonical source.
  */
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}"],
@@ -12,18 +13,24 @@ const config: Config = {
       colors: {
         bg: "var(--color-bg)",
         surface: "var(--color-surface)",
+        raised: "var(--color-raised)",
         ink: "var(--color-ink)",
         muted: "var(--color-muted)",
         line: "var(--color-line)",
         accent: "var(--color-accent)",
-        chip: "var(--color-chip)",
+        "accent-dark": "var(--color-accent-dark)",
+        "accent-ink": "var(--color-accent-ink)",
+        success: "var(--color-success)",
+        danger: "var(--color-danger)",
+        planned: "var(--color-planned)",
+        exclude: "var(--color-exclude)",
         home: "var(--color-home)",
         rest: "var(--color-rest)",
-        danger: "var(--color-danger)",
-        success: "var(--color-success)",
       },
       fontFamily: {
-        sans: ["-apple-system", "system-ui", "sans-serif"],
+        display: ["var(--font-fraunces)", "Georgia", "serif"],
+        sans: ["var(--font-geist-sans)", "-apple-system", "system-ui", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"],
       },
       fontSize: {
         meta: "var(--text-meta)",
@@ -33,6 +40,7 @@ const config: Config = {
         h1: "var(--text-h1)",
       },
       fontWeight: {
+        name: "var(--weight-name)",
         emphasis: "var(--weight-emphasis)",
         h1: "var(--weight-h1)",
       },
@@ -48,9 +56,14 @@ const config: Config = {
         column: "var(--column-max)",
       },
       borderRadius: {
-        control: "9px",
-        input: "8px",
-        badge: "4px",
+        control: "6px",
+        input: "6px",
+        badge: "3px",
+      },
+      transitionDuration: {
+        micro: "var(--motion-micro)",
+        short: "var(--motion-short)",
+        medium: "var(--motion-medium)",
       },
       screens: {
         desktop: "720px",

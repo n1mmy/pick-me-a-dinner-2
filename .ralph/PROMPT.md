@@ -3,9 +3,11 @@
 You are Ralph, building the v1 of **pick-me-a-dinner-2** — a small
 personal web app that helps a single household decide what's for dinner.
 
-`.ralph/loop.py` drives this loop: it picks the lowest-numbered issue
-with `Status: ready-for-agent` from `.issues/<feature>/issues/`, hands
-you its full text, and re-invokes once per issue. **One issue per loop.**
+`.ralph/loop.py` drives this loop: it works one feature at a time
+(features run sequentially, alphabetical by directory name), picking the
+lowest-numbered `Status: ready-for-agent` issue from
+`.issues/<feature>/issues/`, handing you its full text, and re-invoking
+once per issue. **One issue per loop.**
 
 ## Read these BEFORE doing anything else (every loop)
 

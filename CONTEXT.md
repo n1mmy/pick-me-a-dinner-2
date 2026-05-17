@@ -49,6 +49,10 @@ that shows it.
 _Avoid_: Choices (too close to Option — the Log is realized history, not
 candidate options).
 
+**Tonight's dinner**:
+Today's Dinner — the Log entries dated today — as surfaced on the Tonight
+screen once the Household has Picked. May be one Option or several.
+
 **Pick** (verb):
 To choose tonight's dinner. Picking creates a Log entry dated today —
 "pick = log". A Pick *is* a Log entry; there is no separate "pick" entity.
@@ -62,8 +66,9 @@ screen section's heading).
 ### Ranking
 
 **Tonight**:
-The ranked list of active Options, and the screen that shows it (the home
-screen). Sorted descending by Score.
+The home screen. It ranks active Options by Score (descending) for the
+Household to choose from, and once a Pick is made it surfaces **Tonight's
+dinner** — the screen has both jobs, deciding and showing what was decided.
 
 **Recency**:
 How long since something was last eaten, measured only from non-future Log
@@ -82,7 +87,9 @@ recency and per-Tag recency).
 **Explanation chip**:
 The one plain-English line on each Tonight row stating why it ranks where it
 does ("No fish in 18 days", "Never eaten yet"). A product requirement — if the
-ranking cannot explain itself in a line, it is not done.
+ranking cannot explain itself in a line, it is not done. Computed
+deterministically from the Score terms; it is **not** an AI rationale and
+cannot say anything the recency numbers don't support.
 
 **Overdue**:
 A Tag whose per-Tag recency has crossed the overdue threshold; rendered in the
@@ -91,6 +98,24 @@ accent color on Tonight.
 **Cold start**:
 Too little Log history to differentiate Options — every Score ties and Tonight
 falls back to alphabetical order.
+
+### AI search
+
+**AI search**:
+A triggered, query-driven re-ranking of Tonight by an AI model. The Household
+types an intent ("something light", "we have guests") — or leaves the query
+empty — and the model returns a ranked set of Options to fit it. Always a
+deliberate action; it never replaces the deterministic ranking as the default
+Tonight view. The model decides how many Options to return, so a narrowing
+query yields a subset of the Catalog, not the whole list.
+_Avoid_: AI ranking (it is search — there is a query, even when empty).
+
+**AI rationale**:
+The model-generated line of prose on each AI search result row explaining why
+that Option fits the query ("Light and fast — a soup, and it's been three
+weeks"). The AI search counterpart of the Explanation chip: generative and
+query-aware, where the chip is deterministic and formulaic.
+_Avoid_: Explanation chip (that term is reserved for the deterministic line).
 
 ### Lifecycle & access
 
@@ -124,6 +149,7 @@ single-household — no user accounts, no per-person identity.
 - **Picking** creates a **Log entry** dated today.
 - A **Planned dinner** is a **Log entry** dated after today.
 - **Tonight** ranks active **Options** by **Score**.
+- **Tonight** surfaces **Tonight's dinner** once a **Pick** is made.
 - An Option's **Score** combines its **per-Option recency** with the
   **per-Tag recency** of its **Tags**.
 - Each **Tonight** row carries one **Explanation chip**.
@@ -158,3 +184,6 @@ single-household — no user accounts, no per-person identity.
 - "Dinner" was used for both a single log row and a whole evening. Resolved:
   **Log entry** is the single row; **Dinner** is the evening (one or more Log
   entries on a date).
+- "Tonight" was defined as only the ranked picker list. Resolved: the Tonight
+  screen has two jobs — ranking Options to choose from, and showing
+  **Tonight's dinner** once a Pick is made.

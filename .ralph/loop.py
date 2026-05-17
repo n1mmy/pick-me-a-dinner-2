@@ -53,13 +53,21 @@ LOOP_TIMEOUT_SEC      = DEFAULT_LOOP_TIMEOUT_SEC
 
 
 def next_issue():
-    """Return `(path, text)` for the lowest-numbered issue file whose
-    `Status:` line is `ready-for-agent`, or None when there are none.
+    """Return `(path, text)` for the next issue to work on, or None when
+    no `ready-for-agent` issues remain.
 
-    Issues are numbered in dependency order (`Blocked by` always points
-    at lower numbers), so lowest-number-first respects the dependency
-    graph without parsing it. A failed loop leaves its issue at
-    `ready-for-agent`, so the next loop naturally retries the same one.
+    Features (`.issues/<feature>/`) are drained one at a time: every
+    `ready-for-agent` issue in a feature is completed before the loop
+    moves to the next feature. Features are ordered alphabetically by
+    directory name; within a feature, the lowest-numbered issue comes
+    first.
+
+    Per-feature numbering is dependency order (`Blocked by` always points
+    at lower numbers in the same feature), so lowest-number-first
+    respects the dependency graph without parsing it. Cross-feature
+    interleaving would not respect that, which is why features run
+    sequentially. A failed loop leaves its issue at `ready-for-agent`, so
+    the next loop naturally retries the same one.
     """
     candidates = []
     for path in sorted(REPO.glob(ISSUES_GLOB)):
@@ -67,13 +75,14 @@ def next_issue():
         m = STATUS_RE.search(text)
         if not m or m.group(1).strip() != READY_STATUS:
             continue
+        feature = path.parent.parent.name
         num_m = ISSUE_NUM_RE.search(path.name)
         num = int(num_m.group(0)) if num_m else 9999
-        candidates.append((num, path, text))
+        candidates.append((feature, num, path, text))
     if not candidates:
         return None
-    candidates.sort(key=lambda c: (c[0], c[1].name))
-    _, path, text = candidates[0]
+    candidates.sort(key=lambda c: (c[0], c[1], c[2].name))
+    _, _, path, text = candidates[0]
     return path, text
 
 

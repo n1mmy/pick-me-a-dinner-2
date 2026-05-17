@@ -31,17 +31,17 @@ const focusRing =
  * words. Each row carries the `pick = log` write actions (§6) in
  * `tonight-row.tsx`.
  */
-export function TonightScreen({
-  rows,
-  today,
-}: {
-  rows: TonightRow[];
-  today: string;
-}) {
+export function TonightScreen({ rows }: { rows: TonightRow[] }) {
   const [kind, setKind] = useState<KindFilter>("all");
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
 
   const tags = useMemo(() => distinctTags(rows), [rows]);
+  // Rank reflects each Option's position in the full Score ranking, so a
+  // filtered row keeps its true rank (#4, #7, ...) rather than being renumbered.
+  const rankOf = useMemo(
+    () => new Map(rows.map((row, index) => [row.option.id, index + 1])),
+    [rows],
+  );
   const visible = useMemo(
     () => filterTonightRows(rows, kind, tagFilters),
     [rows, kind, tagFilters],
@@ -56,8 +56,8 @@ export function TonightScreen({
   }
 
   return (
-    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5">
-      <h1 className="text-h1 font-h1 text-ink">Tonight</h1>
+    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
+      <h1 className="font-display text-h1 font-h1 text-ink">Tonight</h1>
       {rows.length === 0 ? (
         <p className="text-body text-muted">
           Your Catalog is empty.{" "}
@@ -76,7 +76,7 @@ export function TonightScreen({
               <div
                 role="group"
                 aria-label="Filter by tag"
-                className="flex flex-wrap gap-1.5"
+                className="flex flex-wrap gap-1"
               >
                 {tags.map((tag) => (
                   <TagFilterChip
@@ -103,7 +103,11 @@ export function TonightScreen({
           ) : (
             <ol className="flex flex-col">
               {visible.map((row) => (
-                <TonightRowItem key={row.option.id} row={row} today={today} />
+                <TonightRowItem
+                  key={row.option.id}
+                  row={row}
+                  rank={rankOf.get(row.option.id) ?? 0}
+                />
               ))}
             </ol>
           )}
@@ -141,11 +145,12 @@ function KindSegment({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(segment.value)}
-            className={`min-h-11 min-w-11 rounded-control px-3 text-chip ${focusRing} ${
-              selected
-                ? "bg-accent font-emphasis text-surface"
-                : "bg-chip text-muted"
-            }`}
+            className={`min-h-11 min-w-11 rounded-control px-3 text-chip
+              transition-colors duration-micro ${focusRing} ${
+                selected
+                  ? "bg-accent font-emphasis text-accent-ink"
+                  : "bg-raised text-muted"
+              }`}
           >
             {segment.label}
           </button>
@@ -157,10 +162,14 @@ function KindSegment({
 
 /**
  * One tri-state tag filter chip. It cycles off → include → exclude → off on
- * tap. State is legible without color (§18): an include chip carries a leading
- * `+`, an exclude chip a leading `−` and a strikethrough. The chip's accessible
- * name announces its state ("pasta, included") for assistive tech, and the tap
- * target is at least 44×44px.
+ * tap. Each state has its own fill — a neutral off chip, a filled accent
+ * include chip, a filled danger exclude chip — plus a text decoration
+ * (underline / strikethrough) so state stays legible without relying on color
+ * alone (§18). The border is present in every state so toggling never changes
+ * the chip's width and the wrapped rows never reflow. The chip's accessible
+ * name announces its state ("pasta, included") for assistive tech. The chips
+ * are deliberately compact — the filter zone holds ~20 tags and density beats
+ * a 44px tap target here.
  */
 function TagFilterChip({
   tag,
@@ -171,22 +180,21 @@ function TagFilterChip({
   state: ChipState;
   onClick: () => void;
 }) {
-  const prefix = state === "include" ? "+ " : state === "exclude" ? "− " : "";
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={`${tag}, ${chipStateLabel(state)}`}
-      className={`inline-flex min-h-11 min-w-11 items-center justify-center
-        rounded-full px-3 text-chip ${focusRing} ${
+      className={`inline-flex items-center justify-center rounded-badge border
+        px-2 py-0.5 text-meta leading-tight underline-offset-2 transition-colors
+        duration-micro ${focusRing} ${
           state === "include"
-            ? "bg-chip font-emphasis text-accent"
+            ? "border-accent bg-accent text-accent-ink underline"
             : state === "exclude"
-              ? "bg-chip text-danger line-through"
-              : "bg-chip text-muted"
+              ? "border-exclude bg-exclude text-accent-ink line-through"
+              : "border-line bg-surface text-muted"
         }`}
     >
-      {prefix}
       {tag}
     </button>
   );

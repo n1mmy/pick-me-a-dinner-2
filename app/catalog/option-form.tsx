@@ -196,7 +196,8 @@ export function OptionForm({
           type="submit"
           disabled={pending}
           className="min-h-11 rounded-control bg-accent px-4 text-body font-emphasis
-            text-surface focus-visible:outline focus-visible:outline-2
+            text-accent-ink transition-colors duration-micro hover:bg-accent-dark
+            focus-visible:outline focus-visible:outline-2
             focus-visible:outline-offset-2 focus-visible:outline-accent
             disabled:opacity-60"
         >

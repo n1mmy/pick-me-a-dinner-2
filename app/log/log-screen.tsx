@@ -91,8 +91,8 @@ export function LogScreen({
   const [adding, setAdding] = useState(false);
 
   return (
-    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5">
-      <h1 className="text-h1 font-h1 text-ink">Log</h1>
+    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
+      <h1 className="font-display text-h1 font-h1 text-ink">Log</h1>
 
       {optionChoices.length > 0 &&
         (adding ? (
@@ -240,7 +240,9 @@ function EntryRow({
   return (
     <li className="flex flex-col gap-1 border-b border-line py-3">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-name text-ink">{entry.optionName}</span>
+        <span className="font-display text-name font-name text-ink">
+          {entry.optionName}
+        </span>
         <div className="flex shrink-0 items-center gap-1">
           {saved && (
             <span className="text-chip text-success" aria-live="polite">
@@ -413,9 +415,10 @@ function EntryEditForm({
           type="submit"
           disabled={pending}
           className="min-h-11 rounded-control bg-accent px-4 text-body
-            font-emphasis text-surface focus-visible:outline
-            focus-visible:outline-2 focus-visible:outline-offset-2
-            focus-visible:outline-accent disabled:opacity-60"
+            font-emphasis text-accent-ink transition-colors duration-micro
+            hover:bg-accent-dark focus-visible:outline focus-visible:outline-2
+            focus-visible:outline-offset-2 focus-visible:outline-accent
+            disabled:opacity-60"
         >
           Save
         </button>
@@ -549,9 +552,10 @@ function AddEntryForm({
           type="submit"
           disabled={pending}
           className="min-h-11 rounded-control bg-accent px-4 text-body
-            font-emphasis text-surface focus-visible:outline
-            focus-visible:outline-2 focus-visible:outline-offset-2
-            focus-visible:outline-accent disabled:opacity-60"
+            font-emphasis text-accent-ink transition-colors duration-micro
+            hover:bg-accent-dark focus-visible:outline focus-visible:outline-2
+            focus-visible:outline-offset-2 focus-visible:outline-accent
+            disabled:opacity-60"
         >
           Add
         </button>

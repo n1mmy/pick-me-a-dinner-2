@@ -154,3 +154,12 @@ The five canonical triage roles use their default strings. See `docs/agents/tria
 ### Domain docs
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Design System
+
+Always read `DESIGN.md` before making any visual or UI decision. Font choices,
+colors, spacing, layout, radius, and motion are all defined there — do not
+deviate without explicit user approval. In QA or review, flag any code that
+does not match `DESIGN.md`. As of 2026-05-16 the live code (`app/globals.css`,
+`tailwind.config.ts`, fonts, the `app/app-nav.tsx` layout shell, and the
+screens) implements `DESIGN.md`.
