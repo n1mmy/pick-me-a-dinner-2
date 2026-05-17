@@ -29,6 +29,15 @@ You *may* run git plumbing that produces little output (`git log
 inspection) and read the `.issues/` and `.ralph/` files. That is the whole
 of your direct surface.
 
+Read those files the same way a worker does — `CLAUDE.md` "Tool &
+permissions discipline" binds you, not just the sub-agents. Use `Read`,
+`Glob`, and `Grep`; never `Bash` `cat`/`ls`/`grep`/`find` to inspect
+`.issues/` or `.ralph/`. The Bash matcher treats every `cat .issues/...`
+shape as unrecognised and prompts the user — `Glob` for
+`.issues/*/issues/*.md` and `Read` per file never do. The git plumbing
+above is the *only* `Bash` you run; everything else is the dedicated
+file tools.
+
 ## Local git only — never contact a remote
 
 This loop works the local checkout exclusively. Neither you nor any
