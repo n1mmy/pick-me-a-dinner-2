@@ -3,11 +3,12 @@
 You are Ralph, building the v1 of **pick-me-a-dinner-2** — a small
 personal web app that helps a single household decide what's for dinner.
 
-`.ralph/loop.py` drives this loop: it works one feature at a time
-(features run sequentially, alphabetical by directory name), picking the
-lowest-numbered `Status: ready-for-agent` issue from
-`.issues/<feature>/issues/`, handing you its full text, and re-invoking
-once per issue. **One issue per loop.**
+A **Ralph loop** drives this work — it picks the next
+`Status: ready-for-agent` issue, hands you its full text, and re-invokes
+once per issue. Two drivers exist: `.ralph/loop.py` (headless, one
+`claude` process per issue) and an interactive orchestrator following
+`.ralph/ORCHESTRATOR.md` (which dispatches you as a worker sub-agent in
+an isolated git worktree). Either way: **one issue per loop.**
 
 ## Read these BEFORE doing anything else (every loop)
 
@@ -33,9 +34,8 @@ of reading is one minute. Skim, don't full-re-read each loop.
 ## Bash discipline (loop-halting if violated)
 
 `CLAUDE.md` "Tool & permissions discipline" is the full rule set — follow
-it verbatim. The loop runs `claude` with a fixed `--allowedTools`
-allowlist; a denied `Bash` call wastes the loop. The fixes that matter
-most here:
+it verbatim. The loop runs with a fixed tool allowlist; a denied `Bash`
+call wastes the loop. The fixes that matter most here:
 
 - **No compound shell** — no `&&`, `||`, `|`, `;`, subshells, or
   redirects (`>`, `>>`, `<`, `2>&1`). Split into separate `Bash` calls
@@ -85,8 +85,8 @@ stop. Do **not** commit a placeholder file or partial work.
 
 ## Protected files (never modify or delete)
 
-- `.ralph/` and its contents — `PROMPT.md`, `loop.py` (the orchestrator),
-  and `loop_state.json` (runtime state).
+- `.ralph/` and its contents — `PROMPT.md`, `ORCHESTRATOR.md`, `loop.py`
+  (the loop drivers), and `loop_state.json` (runtime state).
 
 Issue files under `.issues/` are *expected* to change — ticking
 checkboxes and advancing the `Status:` line is part of the loop.
