@@ -1,9 +1,11 @@
 # Design System — Pick Me a Dinner
 
 The canonical visual system. Code, components, and review must follow this
-file. As of 2026-05-16 the code matches it — `app/globals.css`,
-`tailwind.config.ts`, the fonts, the layout shell, and the screens were all
-brought into line (see "Implementation note" below).
+file. The typography, spacing, layout, and motion sections were implemented
+in code on 2026-05-16. **The Color section was revised on 2026-05-17 via
+`/design-shotgun` and is not yet implemented** — `app/globals.css`,
+`tailwind.config.ts`, and the screens still carry the prior warm palette (see
+"Implementation note" below).
 
 ## Product Context
 
@@ -20,7 +22,7 @@ brought into line (see "Implementation note" below).
 
 **A sharp instrument** — dense, precise, confident. A sharp tool that does one
 job. Every decision below serves this: density without clutter, precision in
-the numbers, one note of warmth so it doesn't read clinical.
+the numbers, and functional color so the dense list parses at a glance.
 
 ## Aesthetic Direction
 
@@ -57,46 +59,82 @@ no CDN, no layout shift).
 
 ## Color
 
-- **Approach:** Restrained — warm neutrals, a single clay accent, semantic
-  colors used sparingly. Color is rare and always meaningful. The light theme
-  is primary; dark mode is a derived theme (below).
+- **Approach:** Functional color on a cool-neutral base. Color is no longer
+  rare — it does two specific jobs on every dinner row: it codes *meal kind*
+  and it maps *recency*. Everything else stays neutral so those two signals
+  read instantly. The light theme is primary; dark mode is a derived theme
+  (below). Revised 2026-05-17 via `/design-shotgun` (see Decisions Log) — the
+  Tonight screen was the explored canvas; the same tokens propagate to the
+  other screens.
+
+### Two color channels
+
+Every Tonight row carries exactly two color signals:
+
+1. **Meal kind** — a 3px solid vertical bar on the row's left edge. Teal
+   `kind-home` for home-cooked Options, plum `kind-restaurant` for
+   restaurants. One calm decision per row: home vs out, before reading a word.
+2. **Recency heatmap** — a continuous red→green scale. An Option (or a Tag)
+   long overdue reads green ("go ahead"); one eaten recently reads red ("you
+   just had this"); the scale fades through a muted tan midpoint. The heatmap
+   colors the Explanation chip background and tints each Tag word by that
+   Tag's own recency. Because Tonight is ranked best-first, the list runs
+   green at the top to red at the bottom.
 
 ### Light theme (primary)
 
 | Token | Hex | Role |
 |---|---|---|
-| `bg` | `#faf8f4` | App background (warm cream) |
-| `surface` | `#ffffff` | Cards-less content surface, modals, inputs base |
-| `raised` | `#f1ece3` | Explanation chip background, input fill |
-| `ink` | `#2c2823` | Primary text |
-| `muted` | `#8a8278` | Tags, dates, secondary text, rank numbers |
-| `line` | `#ded6c8` | Hairline rules and borders (crisp, slightly dark) |
-| `accent` | `#c4502e` | Clay — the PICK action and active states only |
-| `accent-dark` | `#8f321d` | Accent hover / pressed |
-| `accent-ink` | `#ffffff` | Text/label on an accent fill |
-| `success` | `#3f6b4a` | Confirmation, success feedback |
-| `danger` | `#b23b25` | Destructive actions, errors |
-| `exclude` | `#7d5c46` | Muted clay-brown — the excluded tag-filter chip |
+| `bg` | `#f3f4f6` | App background (cool grey) |
+| `surface` | `#ffffff` | Card-less content surface, modals, inputs base |
+| `raised` | `#e8eaed` | Input fill, neutral (non-recency) chip background |
+| `ink` | `#25282d` | Primary text |
+| `muted` | `#767a82` | Tags baseline, dates, secondary text, rank numbers |
+| `line` | `#d8dade` | Hairline rules and borders |
+| `kind-home` | `#2c6e6e` | Meal-kind left bar — home-cooked (teal) |
+| `kind-restaurant` | `#7a4f6b` | Meal-kind left bar — restaurant (plum) |
+| `recency-overdue` | `#3f8a4a` | Recency heatmap — green end, long overdue |
+| `recency-mid` | `#c8b78f` | Recency heatmap — muted tan midpoint |
+| `recency-recent` | `#c4453a` | Recency heatmap — red end, eaten recently |
+| `action` | `#2c2f36` | PICK button fill (charcoal-ink) |
+| `action-hover` | `#3c4049` | PICK hover / pressed |
+| `action-ink` | `#ffffff` | Text/label on the PICK fill |
+| `success` | `#3f8a4a` | Confirmation, success feedback (shares the green) |
+| `danger` | `#c4453a` | Destructive actions, errors (shares the red) |
 | `planned` | `#b9822b` | Amber — the Upcoming planned-dinner section |
-| `home` | `#3f6b4a` | Home meal kind marker |
-| `rest` | `#7a5a2e` | Restaurant kind marker |
+
+`recency-overdue` / `recency-mid` / `recency-recent` are the three anchor
+stops of a continuous scale; the implementation interpolates between them,
+applying the result at low opacity for Explanation chip backgrounds and at
+higher strength for Tag text. The PICK button is a neutral charcoal so it
+never collides with the green end of the heatmap.
+
+The earlier excluded-tag-filter chip token (`exclude`) is carried over from
+the prior warm system and should be re-tuned against this cool base when the
+Tonight tag filters get their own visual pass — it was not part of this
+exploration.
 
 ### Dark theme
 
-Redesigned surfaces (not inverted), saturation pulled down ~10–15%.
+Derived from the light theme — cool dark surfaces, the same kind / recency /
+action hues lifted for contrast. **Derived, not yet visually verified** —
+check before relying on it.
 
 | Token | Hex |
 |---|---|
-| `bg` | `#1c1a17` |
-| `surface` | `#25221e` |
-| `raised` | `#2f2b26` |
-| `ink` | `#ece7dd` |
-| `muted` | `#9a9286` |
-| `line` | `#3a352e` |
-| `accent` | `#cf5d3c` |
-| `accent-dark` | `#b8431f` |
-| `success` | `#5a8c5f` |
-| `danger` | `#c8543e` |
+| `bg` | `#1a1c1f` |
+| `surface` | `#232629` |
+| `raised` | `#2c2f33` |
+| `ink` | `#e6e7ea` |
+| `muted` | `#8b8f98` |
+| `line` | `#383b40` |
+| `kind-home` | `#4a9a9a` |
+| `kind-restaurant` | `#a87d99` |
+| `recency-overdue` | `#5aa863` |
+| `recency-mid` | `#bdae89` |
+| `recency-recent` | `#d65a4f` |
+| `action` | `#e6e7ea` |
+| `action-ink` | `#1a1c1f` |
 | `planned` | `#cf9a45` |
 
 ## Spacing
@@ -118,12 +156,16 @@ Redesigned surfaces (not inverted), saturation pulled down ~10–15%.
   Tonight rows collapse to a single dense line: rank + name + tags on the left,
   Explanation chip center, PICK on the right edge. Keyboard-navigable.
 - **Tonight row anatomy:** A flat, uniform ledger — every row the same height,
-  separated by a 1px `line` rule, no cards, no shadows. Rank number in Geist
-  Mono `muted`. Option name in Fraunces. Tags as plain lowercase `muted` Geist
-  text directly under the name. Explanation chip on a `raised` background, its
-  numerals in Geist Mono. PICK as a filled `accent` button with `accent-ink`
-  label. The uniform flat list is intentional and locked — no lead-item
-  prominence, no collapsed long tail.
+  separated by a 1px `line` rule, no cards, no shadows, no row given a
+  different background. A 3px vertical meal-kind bar (`kind-home` /
+  `kind-restaurant`) sits flush on the row's left edge. Rank number in Geist
+  Mono `muted`. Option name in Fraunces, uncolored. Tags as plain lowercase
+  Geist text directly under the name, each tinted on the recency heatmap by
+  that tag's own recency (overdue greener, recent redder). Explanation chip
+  background carries the recency-heatmap color for the Option, its numerals in
+  Geist Mono. PICK as a filled `action` (charcoal-ink) button with
+  `action-ink` label. The uniform flat list is intentional and locked — no
+  lead-item prominence, no collapsed long tail, no per-row background tint.
 - **Border radius:** badge/chip 3px, inputs 6px, buttons/controls 6px. Sharp
   crisp corners suit a sharp tool — no pill shapes except where a control is
   genuinely circular.
@@ -150,6 +192,14 @@ mobile-bottom-nav → desktop-left-rail shift lives in `app/app-nav.tsx` (the
 the tokens; the per-row tags on Tonight render as a plain muted text run that
 keeps each tag's recency (with overdue tags emphasized).
 
+**Color revision pending (2026-05-17):** the Color section above was replaced
+via `/design-shotgun` — a cool-grey base with the two-channel
+kind-bar + red→green recency-heatmap system. The code still carries the prior
+warm palette in `app/globals.css` and `tailwind.config.ts`. Applying the new
+tokens, the Tonight row's left-edge kind bar and recency heatmap (Explanation
+chip + per-tag tint), the charcoal PICK button, and a visual check of the
+re-derived dark theme are a follow-up implementation task.
+
 ## Decisions Log
 
 | Date | Decision | Rationale |
@@ -159,3 +209,4 @@ keeps each tag's recency (with overdue tags emphasized).
 | 2026-05-16 | Keep the warm §16 palette, refined | Approved in the earlier plan design review. Hairline darkened to `#ded6c8` for crisp rules; added `accent-dark`, `planned` amber, `raised`. |
 | 2026-05-16 | Desktop = persistent left rail, not a wider column | User chose to include it: desktop gets its own identity and more density instead of feeling like a stretched phone. |
 | 2026-05-16 | PICK = filled clay button; Tonight rows compact | User decisions. PICK is the app's single primary action — must be unmissable; compact density serves the data-density brief. |
+| 2026-05-17 | Color system revised via `/design-shotgun`: cool-grey base, two-channel kind-bar + red→green recency heatmap | The prior warm palette read as too monochrome to parse quickly. Six rounds of Tonight-screen mockups; user chose the cool-slate base with teal/plum meal-kind left bars and a red→green recency heatmap on the Explanation chip and per-tag text. PICK moved from clay to neutral charcoal so it never collides with the heatmap's green. Spec only — not yet in code. |
