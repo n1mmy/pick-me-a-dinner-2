@@ -127,6 +127,21 @@ prose "why" line; it shows the Recency chip and Tag chips instead.
 _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).
 
+**Rejection**:
+A Household action recording that an Option was passed over for tonight's
+dinner, carrying an optional short reason ("closed on Sundays", "too heavy for
+tonight"). A Rejection is tied to one night's decision — not to a particular AI
+search query. It does two things: it removes the Option from Tonight's list for
+the rest of that day (the Option returns on its own the next day), and it is
+kept as dated history fed into future AI searches — where the model judges from
+the reason which Rejections reflect a standing dislike and which were one-off.
+The Household can undo a Rejection made today (the **Bring back** action),
+which deletes it entirely, so a mis-tapped Rejection never reaches the AI; once
+the day passes a Rejection is settled history. A Rejection is not a Log entry
+and does not affect any Score.
+_Avoid_: Archive (a Rejection lasts one night; Archive removes an Option from
+the Catalog until un-archived). Avoid "reject" for declining a whole AI result.
+
 ### Lifecycle & access
 
 **Active**:
@@ -164,6 +179,8 @@ single-household — no user accounts, no per-person identity.
   **per-Tag recency** of its **Tags**.
 - Each **Tonight** row carries one **Recency chip**.
 - An **Option** is either **Active** or **Archived**.
+- A **Household** may **Reject** an Option for one night's decision; the
+  **Rejection** is kept as history and feeds future **AI searches**.
 - An **Option** with any **Log entry** cannot be **hard-deleted** — only
   **Archived**.
 - The **Household** shares one password; there are no user accounts.
