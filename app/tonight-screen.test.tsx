@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { TonightRow } from "../lib/ranking";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 
@@ -65,12 +72,38 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-// QUARANTINED — these AI-search screen tests are flaky under React 19: their
-// `findBy`-then-`getBy` async assertions race the component's state flushes,
-// and 2-3 of them fail per run, varying. Skipped so the gate stays
-// deterministic. The flakiness is pre-existing — it reproduces on the
-// pre-split vitest config — and still needs a proper root-cause fix.
-describe.skip("TonightScreen — AI search", () => {
+/**
+ * Click "Search" and wait for the in-flight AI-search transition to *fully*
+ * settle before returning.
+ *
+ * The search runs inside an async `useTransition` (`startTransition(async …)`).
+ * Under React 19 the transition's `pending` flag does not flip back to `false`
+ * in the same commit that renders the AI result — it settles a commit later. A
+ * bare `await screen.findByText(<result>)` therefore resolves while `pending`
+ * is still `true`, and the search input and Search/Clear buttons are all
+ * `disabled={pending}`: a `fireEvent.click` fired in that window hits a
+ * still-disabled control and is silently dropped, and an `input.disabled`
+ * assertion reads the not-yet-flushed value. That race is what made this block
+ * flaky.
+ *
+ * Waiting for the Search button's label to revert from "Searching…" to
+ * "Search" pins `pending` back to `false` — and, because the AI result and the
+ * label revert land in the same transition commit, also guarantees the result
+ * (or the inline error) has rendered.
+ */
+async function submitSearchAndSettle() {
+  fireEvent.click(screen.getByRole("button", { name: "Search" }));
+  await screen.findByRole("button", { name: "Search" });
+}
+
+/** Re-query the search input — never reuse a captured ref across re-renders. */
+function searchInput() {
+  return screen.getByLabelText(
+    "Search for dinner by intent",
+  ) as HTMLInputElement;
+}
+
+describe("TonightScreen — AI search", () => {
   it("swaps the deterministic list for the AI result on submit", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,
@@ -84,7 +117,7 @@ describe.skip("TonightScreen — AI search", () => {
     fireEvent.change(screen.getByLabelText("Search for dinner by intent"), {
       target: { value: "something light" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await submitSearchAndSettle();
 
     // The AI result swaps in; the unranked deterministic row is gone.
     expect(await screen.findByText("Light and quick")).toBeTruthy();
@@ -99,7 +132,7 @@ describe.skip("TonightScreen — AI search", () => {
     });
 
     render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await submitSearchAndSettle();
     await screen.findByText("Light and quick");
     // Wait for the in-flight transition to settle — the Clear control is
     // disabled while `pending`, so clicking it sooner is a silent no-op.
@@ -108,7 +141,9 @@ describe.skip("TonightScreen — AI search", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
     // Both deterministic rows are back and the AI rationale is gone.
-    expect(screen.getByText("Apple Crumble")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByText("Apple Crumble")).toBeTruthy();
+    });
     expect(screen.getByText("Banana Bread")).toBeTruthy();
     expect(screen.queryByText("Light and quick")).toBeNull();
   });
@@ -117,7 +152,7 @@ describe.skip("TonightScreen — AI search", () => {
     mockedAiSearch.mockResolvedValue({ ok: true, results: [] });
 
     render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await submitSearchAndSettle();
 
     // The empty result reads as a real answer, not a broken screen.
     expect(await screen.findByText("No Options fit that search.")).toBeTruthy();
@@ -125,7 +160,9 @@ describe.skip("TonightScreen — AI search", () => {
 
     // The inline clear control returns the screen to the deterministic list.
     fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
-    expect(screen.getByText("Apple Crumble")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByText("Apple Crumble")).toBeTruthy();
+    });
     expect(screen.getByText("Banana Bread")).toBeTruthy();
     expect(screen.queryByText("No Options fit that search.")).toBeNull();
   });
@@ -134,7 +171,7 @@ describe.skip("TonightScreen — AI search", () => {
     mockedAiSearch.mockResolvedValue({ ok: false });
 
     render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await submitSearchAndSettle();
 
     // The persistent inline error appears; the deterministic list is untouched.
     expect(
@@ -148,7 +185,7 @@ describe.skip("TonightScreen — AI search", () => {
     mockedAiSearch.mockResolvedValue({ ok: false });
 
     render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await submitSearchAndSettle();
     await screen.findByText("Search unavailable — try again");
     // Wait for the in-flight transition to settle — the Clear control is
     // disabled while `pending`, so clicking it sooner is a silent no-op.
@@ -156,7 +193,11 @@ describe.skip("TonightScreen — AI search", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
-    expect(screen.queryByText("Search unavailable — try again")).toBeNull();
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Search unavailable — try again"),
+      ).toBeNull();
+    });
   });
 
   it("hides the filter zone while an AI result is shown and restores it on clear", async () => {
@@ -173,12 +214,18 @@ describe.skip("TonightScreen — AI search", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await submitSearchAndSettle();
     await screen.findByText("Light and quick");
 
     // While the AI result is shown the query is the single ranking authority:
-    // both the kind segment and the Tag filter chips are gone.
-    expect(screen.queryByRole("group", { name: "Filter by kind" })).toBeNull();
+    // both the kind segment and the Tag filter chips are gone. The kind segment
+    // is hidden by a parent-state update driven by a `useEffect`, so it can
+    // settle a render after the result itself — `waitFor` rides that out.
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("group", { name: "Filter by kind" }),
+      ).toBeNull();
+    });
     expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeNull();
 
     // Wait for the in-flight transition to settle — the Clear control is
@@ -187,7 +234,9 @@ describe.skip("TonightScreen — AI search", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
     // Clearing restores both the deterministic list and its filter controls.
-    expect(screen.getByText("Apple Crumble")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByText("Apple Crumble")).toBeTruthy();
+    });
     expect(
       screen.queryByRole("group", { name: "Filter by kind" }),
     ).toBeTruthy();
@@ -204,29 +253,28 @@ describe.skip("TonightScreen — AI search", () => {
     );
 
     render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
-    const input = screen.getByLabelText(
-      "Search for dinner by intent",
-    ) as HTMLInputElement;
-    expect(input.disabled).toBe(false);
+    expect(searchInput().disabled).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     // While the search is in flight the box is disabled — so only one search
     // runs at a time — and the deterministic list stays visible underneath.
     await screen.findByRole("button", { name: "Searching…" });
-    expect(input.disabled).toBe(true);
+    expect(searchInput().disabled).toBe(true);
     expect(screen.getByText("Apple Crumble")).toBeTruthy();
 
-    // The result arrives, swaps in, and re-enables the box.
-    resolveSearch({
-      ok: true,
-      results: [{ id: "o2", reason: "Light and quick" }],
+    // The result arrives, swaps in, and re-enables the box. Resolving inside
+    // `act` flushes the transition — input and result both settle — so the
+    // disabled assertion no longer races the not-yet-committed `pending` flip.
+    await act(async () => {
+      resolveSearch({
+        ok: true,
+        results: [{ id: "o2", reason: "Light and quick" }],
+      });
     });
     await screen.findByText("Light and quick");
-    // The box re-enables only once the transition settles back out of
-    // `pending` — wait for "Searching…" to revert before asserting.
     await screen.findByRole("button", { name: "Search" });
-    expect(input.disabled).toBe(false);
+    expect(searchInput().disabled).toBe(false);
   });
 
   it("clears the error when a later search succeeds", async () => {
@@ -237,13 +285,11 @@ describe.skip("TonightScreen — AI search", () => {
     });
 
     render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await submitSearchAndSettle();
     await screen.findByText("Search unavailable — try again");
 
     // A second, successful search swaps in the AI result and clears the error.
-    // The submit button is disabled while `pending` — wait for it to revert
-    // from "Searching…" so the second click is not a silent no-op.
-    fireEvent.click(await screen.findByRole("button", { name: "Search" }));
+    await submitSearchAndSettle();
     expect(await screen.findByText("Light and quick")).toBeTruthy();
     expect(screen.queryByText("Search unavailable — try again")).toBeNull();
   });
