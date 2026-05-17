@@ -1,6 +1,6 @@
 # 01 — Option detail page: core (fields and ranking)
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -37,16 +37,16 @@ name becomes a link in this slice; Tonight and Log links come in issue 06.
 
 ## Acceptance criteria
 
-- [ ] `/catalog/[id]` renders a detail page for an active Option of either kind
-- [ ] A request for an id matching no Option renders a not-found page
-- [ ] The page shows the name, kind, notes, and the URL as a clickable link
-- [ ] For a Restaurant the page shows address, phone, and a Google Maps link; for a Home meal these are omitted
-- [ ] The page shows the Score as a rounded whole number with a caption noting it is a point-in-time comparative figure
-- [ ] The page shows the per-Option recency line and the Tag chips tinted on the recency heatmap
-- [ ] `rankOption`'s result for an active Option matches that Option's `rankTonight` row over the same inputs
-- [ ] `lib/ranking.test.ts` covers `rankOption` — active Option matches `rankTonight`, the never-eaten flag and `CAP` recency
-- [ ] The Option name on the Catalog row links to its detail page
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] `/catalog/[id]` renders a detail page for an active Option of either kind
+- [x] A request for an id matching no Option renders a not-found page
+- [x] The page shows the name, kind, notes, and the URL as a clickable link
+- [x] For a Restaurant the page shows address, phone, and a Google Maps link; for a Home meal these are omitted
+- [x] The page shows the Score as a rounded whole number with a caption noting it is a point-in-time comparative figure
+- [x] The page shows the per-Option recency line and the Tag chips tinted on the recency heatmap
+- [x] `rankOption`'s result for an active Option matches that Option's `rankTonight` row over the same inputs
+- [x] `lib/ranking.test.ts` covers `rankOption` — active Option matches `rankTonight`, the never-eaten flag and `CAP` recency
+- [x] The Option name on the Catalog row links to its detail page
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
 
 ## Blocked by
 

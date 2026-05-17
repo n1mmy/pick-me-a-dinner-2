@@ -63,6 +63,39 @@ export async function getActiveCatalog(): Promise<{
 }
 
 /**
+ * A SQL `uuid` column rejects a non-UUID string at the database, so a junk
+ * route param must be screened before it reaches a query — `getOptionById`
+ * turns one into a clean `null` (a not-found page) instead of a 500.
+ */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * One Option by id with its Tag names, or `null` when no `options` row matches
+ * — the not-found case the Option detail page's route renders as a 404 (a
+ * stale link to a Deleted Option, or a malformed id). Unlike `getActiveCatalog`
+ * this is not filtered to active Options: the detail page serves an Archived
+ * Option too.
+ */
+export async function getOptionById(
+  id: string,
+): Promise<OptionWithTags | null> {
+  if (!UUID_RE.test(id)) return null;
+
+  const [row] = await db.select().from(options).where(eq(options.id, id));
+  if (!row) return null;
+
+  const links = await db
+    .select({ name: tags.name })
+    .from(optionTags)
+    .innerJoin(tags, eq(optionTags.tagId, tags.id))
+    .where(eq(optionTags.optionId, id))
+    .orderBy(asc(tags.name));
+
+  return { ...row, tags: links.map((link) => link.name) };
+}
+
+/**
  * A ranking Option plus its free-text `notes`. The ranking ignores `notes` —
  * `rankTonight` still receives exactly a `RankOption` — but the AI search
  * snapshot builder needs it (PRD: AI search).

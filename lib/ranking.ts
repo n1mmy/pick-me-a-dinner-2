@@ -64,6 +64,24 @@ export type TonightRow = {
   neverEaten: boolean;
 };
 
+/**
+ * The single-Option ranking view for the Option detail page — the same
+ * Score / per-Option recency / Tag fields a `TonightRow` carries, computed for
+ * one Option in isolation. For an active Option it equals that Option's
+ * `rankTonight` row over the same inputs, so the detail page and Tonight never
+ * disagree; for an Archived Option `score` is `null` — it takes no part in the
+ * ranking — while the factual recency fields are still computed.
+ */
+export type OptionRanking = {
+  /** The Score, or `null` for an Archived Option (excluded from ranking). */
+  score: number | null;
+  tags: TagRecency[];
+  /** Per-Option recency in days, capped at `CAP`. */
+  recencyDays: number;
+  /** True when the Option has no non-future Log entry — see `TonightRow`. */
+  neverEaten: boolean;
+};
+
 /** Arithmetic mean of a non-empty list. */
 function mean(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -169,4 +187,44 @@ export function rankTonight(
     (a, b) =>
       b.score - a.score || a.option.name.localeCompare(b.option.name),
   );
+}
+
+/**
+ * Rank one Option in isolation for its detail page (PRD: Option detail page).
+ * `activeOptions` is the active Catalog — the per-Tag recency carriers, exactly
+ * as `rankTonight` reads them — and `entries` the non-future Log entries that
+ * feed recency. For an Archived `target` (one not in `activeOptions`) pass its
+ * own Log entries in `entries` too, so per-Option recency is still computed
+ * from the Option's own history regardless of Active/Archived state.
+ *
+ * The Score is returned only when `target` is in `activeOptions`: an Archived
+ * Option is excluded from the ranking, so its `score` is `null`. Per-Option and
+ * per-Tag recency are returned either way — they are factual recency data, not
+ * a Score. For an active Option every field equals that Option's `rankTonight`
+ * row over the same inputs, since the recency internals are the very same.
+ */
+export function rankOption(
+  target: RankOption,
+  activeOptions: RankOption[],
+  entries: LogEntry[],
+  today: number,
+): OptionRanking {
+  const lastEatenDay = lastEaten(entries, target.id, today);
+  const antiRepeat = daysSince(lastEatenDay, today);
+
+  const tags: TagRecency[] = target.tags.map((tag) => {
+    const days = daysSince(
+      lastTagUse(entries, activeOptions, tag, today),
+      today,
+    );
+    return { tag, days, overdue: days >= OVERDUE_THRESHOLD };
+  });
+
+  const active = activeOptions.some((option) => option.id === target.id);
+  return {
+    score: active ? optionScore(antiRepeat, tags.map((t) => t.days)) : null,
+    tags,
+    recencyDays: antiRepeat,
+    neverEaten: lastEatenDay === null,
+  };
 }
