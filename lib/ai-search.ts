@@ -284,10 +284,10 @@ const MODEL_DEFAULT = "claude-sonnet-4-6";
  * has not answered within this window, rather than left to hang. Extended
  * thinking (below) makes the call substantially slower than a plain completion
  * — the model reasons over the whole Log before it ranks — so the budget is
- * 60s, sized to clear a healthy thinking call's latency tail rather than race
+ * 90s, sized to clear a healthy thinking call's latency tail rather than race
  * it. A timed-out call is not retried — it has already spent the budget.
  */
-const REQUEST_TIMEOUT_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 90_000;
 
 /**
  * Extended-thinking budget. The model is given room to reason over the Log —
@@ -295,8 +295,10 @@ const REQUEST_TIMEOUT_MS = 60_000;
  * (ADR-0005); without it the model can only re-sort recency. The budget is a
  * cap, not a target: a focused pass over a household-sized Log typically uses
  * well under this. Raising it buys deeper reasoning at the cost of latency.
+ * Tuned down from an initial 6000 — that ran calls near a 60s timeout with no
+ * visible quality gain over this.
  */
-const THINKING_BUDGET_TOKENS = 6000;
+const THINKING_BUDGET_TOKENS = 4000;
 
 /**
  * Output cap. Thinking tokens count against `max_tokens`, so this must exceed
