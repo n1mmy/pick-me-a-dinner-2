@@ -1,6 +1,6 @@
 # 01 — Rejections: reject an Option, suppressed for the day
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -43,29 +43,29 @@ of this slice — they are the issues blocked on this one.
 
 ## Acceptance criteria
 
-- [ ] A `rejections` table (Option ref `ON DELETE CASCADE`, optional reason,
+- [x] A `rejections` table (Option ref `ON DELETE CASCADE`, optional reason,
       `rejected_on` date, created timestamp) with a Drizzle migration; an
       Option's hard-delete is not blocked by its Rejections
-- [ ] Every Tonight picker row has a secondary reject control, subordinate to
+- [x] Every Tonight picker row has a secondary reject control, subordinate to
       Pick, in both picker mode and decided mode's reopened picker
-- [ ] Tapping reject inline-expands an autofocused reason box with Submit and
+- [x] Tapping reject inline-expands an autofocused reason box with Submit and
       Cancel; the reason is optional
-- [ ] Submit records the Rejection dated today via the `authedAction`-wrapped
+- [x] Submit records the Rejection dated today via the `authedAction`-wrapped
       `rejectOption`; Cancel records nothing
-- [ ] A rejected Option leaves the deterministic Tonight list immediately and
+- [x] A rejected Option leaves the deterministic Tonight list immediately and
       stays gone across a page reload
-- [ ] A rejected Option reappears on its own the next calendar day
-- [ ] Rejecting every remaining Option leaves a plain empty-list state, not a
+- [x] A rejected Option reappears on its own the next calendar day
+- [x] Rejecting every remaining Option leaves a plain empty-list state, not a
       broken screen
-- [ ] `lib/ranking.ts`, the Score, and `rankTonight`'s tests are unchanged —
+- [x] `lib/ranking.ts`, the Score, and `rankTonight`'s tests are unchanged —
       suppression is a presentation filter
-- [ ] Rejecting works with no `ANTHROPIC_API_KEY` set
-- [ ] The reject control, reason box, Submit, and Cancel are keyboard-operable
+- [x] Rejecting works with no `ANTHROPIC_API_KEY` set
+- [x] The reject control, reason box, Submit, and Cancel are keyboard-operable
       with visible focus and adequate touch targets; the reason box's open
       state and the row's removal are announced to assistive tech
-- [ ] `rejectOption` is `authedAction`-wrapped and rejects an unauthenticated
+- [x] `rejectOption` is `authedAction`-wrapped and rejects an unauthenticated
       caller
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by

@@ -46,17 +46,25 @@ export function TonightScreen({
   tonightsDinner,
   pickerRows,
   searchEnabled,
+  allRejected = false,
 }: {
   /** The Picked Options, in pick order — non-empty puts Tonight in decided mode. */
   tonightsDinner: TonightsDinnerEntry[];
-  /** The ranked picker rows, with every already-Picked Option removed. */
+  /** The ranked picker rows, with Picked and today-rejected Options removed. */
   pickerRows: TonightRow[];
   /** Whether AI search is configured — gates the search box (`aiSearchEnabled`). */
   searchEnabled: boolean;
+  /**
+   * True when the picker had rows but every one was rejected for tonight (PRD:
+   * Rejections). It separates an all-rejected empty list — a real state, with
+   * the Options back tomorrow — from a genuinely empty Catalog.
+   */
+  allRejected?: boolean;
 }) {
   const decided = tonightsDinner.length > 0;
-  // Picker mode with nothing to rank at all — an empty Catalog, not "all Picked".
-  const catalogEmpty = !decided && pickerRows.length === 0;
+  // Picker mode with nothing to rank at all — an empty Catalog, not "all Picked"
+  // and not "all rejected" (both of which are real states with their own copy).
+  const catalogEmpty = !decided && pickerRows.length === 0 && !allRejected;
 
   // In decided mode the picker is collapsed by default behind "Add another
   // option"; picker mode shows it outright, so this flag only governs decided
@@ -100,6 +108,13 @@ export function TonightScreen({
             Add your first meals →
           </Link>
         </p>
+      ) : !decided && allRejected ? (
+        // Every Option was rejected for tonight — a real state, not a broken
+        // screen. A Rejection means "not tonight": the Options return tomorrow.
+        <p className="text-body text-muted">
+          Every Option has been rejected for tonight. They&rsquo;ll be back
+          tomorrow.
+        </p>
       ) : decided ? (
         <>
           <TonightsDinnerBlock entries={tonightsDinner} />
@@ -116,7 +131,9 @@ export function TonightScreen({
           {pickerOpen &&
             (pickerRows.length === 0 ? (
               <p className="text-body text-muted">
-                Every Option is already on tonight&rsquo;s dinner.
+                {allRejected
+                  ? "Every remaining Option has been rejected for tonight."
+                  : "Every Option is already on tonight’s dinner."}
               </p>
             ) : (
               <Picker rows={pickerRows} searchEnabled={searchEnabled} />
@@ -159,6 +176,11 @@ function Picker({
   const [aiResults, setAiResults] = useState<AiRankingRow[] | null>(null);
   const [aiError, setAiError] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  // A submitted Rejection removes its row from the list on revalidation; this
+  // live region — stable across that re-render, unlike the row itself —
+  // announces the removal to assistive tech (PRD: Rejections, story 33).
+  const [rejectNotice, setRejectNotice] = useState("");
 
   const tags = useMemo(() => distinctTags(rows), [rows]);
   // Rank reflects each Option's position in the picker ranking, so a filtered
@@ -274,6 +296,9 @@ function Picker({
           </>
         )}
       </div>
+      <p className="sr-only" role="status" aria-live="polite">
+        {rejectNotice}
+      </p>
       {aiRows !== null ? (
         aiRows.length === 0 ? (
           // An empty AI result is a real answer — the model legitimately
@@ -300,6 +325,9 @@ function Picker({
                 row={row}
                 rank={index + 1}
                 aiReason={reason}
+                onRejected={(name) =>
+                  setRejectNotice(`Rejected ${name}, removed from the list.`)
+                }
               />
             ))}
           </ol>
@@ -315,6 +343,9 @@ function Picker({
               key={row.option.id}
               row={row}
               rank={rankOf.get(row.option.id) ?? 0}
+              onRejected={(name) =>
+                setRejectNotice(`Rejected ${name}, removed from the list.`)
+              }
             />
           ))}
         </ol>

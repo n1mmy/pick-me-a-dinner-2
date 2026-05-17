@@ -1,6 +1,13 @@
 import { and, asc, desc, eq, lte } from "drizzle-orm";
 import { db } from "./index";
-import { dinnerLog, optionTags, options, tags, type Option } from "./schema";
+import {
+  dinnerLog,
+  optionTags,
+  options,
+  rejections,
+  tags,
+  type Option,
+} from "./schema";
 import type { RankOption } from "../lib/ranking";
 import type { TodayLogEntry } from "../lib/tonights-dinner";
 
@@ -184,6 +191,26 @@ export async function getLog(): Promise<LogEntryRow[]> {
     .from(dinnerLog)
     .innerJoin(options, eq(dinnerLog.optionId, options.id))
     .orderBy(desc(dinnerLog.eatenOn), asc(options.name));
+}
+
+/**
+ * The Option ids the Household has rejected *today* — `rejections` rows whose
+ * `rejected_on` equals `todaySqlDate`, the Household's calendar day in
+ * `APP_TZ` (PRD: Rejections on Tonight). This is the per-day suppression set:
+ * the Tonight page removes these Options from the deterministic picker, a
+ * presentation filter that leaves `lib/ranking` and the Score untouched
+ * (ADR-0003, ADR-0006). Because the query is keyed on today's date, a new
+ * calendar day empties the set on its own and a rejected Option reappears with
+ * no day-boundary logic.
+ */
+export async function getRejectedOptionIds(
+  todaySqlDate: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ optionId: rejections.optionId })
+    .from(rejections)
+    .where(eq(rejections.rejectedOn, todaySqlDate));
+  return rows.map((row) => row.optionId);
 }
 
 /** An Option reduced to a choice for the Log edit form's Option picker. */
