@@ -82,7 +82,7 @@ export function TonightScreen({
               <div
                 role="group"
                 aria-label="Filter by tag"
-                className="flex flex-wrap gap-1.5"
+                className="flex flex-wrap gap-1"
               >
                 {tags.map((tag) => (
                   <TagFilterChip
@@ -169,10 +169,14 @@ function KindSegment({
 
 /**
  * One tri-state tag filter chip. It cycles off → include → exclude → off on
- * tap. State is legible without color (§18): an include chip carries a leading
- * `+`, an exclude chip a leading `−` and a strikethrough. The chip's accessible
- * name announces its state ("pasta, included") for assistive tech, and the tap
- * target is at least 44×44px.
+ * tap. Each state has its own fill — a neutral off chip, a filled accent
+ * include chip, a filled danger exclude chip — plus a text decoration
+ * (underline / strikethrough) so state stays legible without relying on color
+ * alone (§18). The border is present in every state so toggling never changes
+ * the chip's width and the wrapped rows never reflow. The chip's accessible
+ * name announces its state ("pasta, included") for assistive tech. The chips
+ * are deliberately compact — the filter zone holds ~20 tags and density beats
+ * a 44px tap target here.
  */
 function TagFilterChip({
   tag,
@@ -183,23 +187,21 @@ function TagFilterChip({
   state: ChipState;
   onClick: () => void;
 }) {
-  const prefix = state === "include" ? "+ " : state === "exclude" ? "− " : "";
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={`${tag}, ${chipStateLabel(state)}`}
-      className={`inline-flex min-h-11 min-w-11 items-center justify-center
-        rounded-badge px-3 text-chip transition-colors duration-micro
-        ${focusRing} ${
+      className={`inline-flex items-center justify-center rounded-badge border
+        px-2 py-0.5 text-meta leading-tight underline-offset-2 transition-colors
+        duration-micro ${focusRing} ${
           state === "include"
-            ? "bg-raised font-emphasis text-accent"
+            ? "border-accent bg-accent text-accent-ink underline"
             : state === "exclude"
-              ? "bg-raised text-danger line-through"
-              : "bg-raised text-muted"
+              ? "border-exclude bg-exclude text-accent-ink line-through"
+              : "border-line bg-surface text-muted"
         }`}
     >
-      {prefix}
       {tag}
     </button>
   );

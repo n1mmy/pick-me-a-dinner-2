@@ -76,6 +76,7 @@ no CDN, no layout shift).
 | `accent-ink` | `#ffffff` | Text/label on an accent fill |
 | `success` | `#3f6b4a` | Confirmation, success feedback |
 | `danger` | `#b23b25` | Destructive actions, errors |
+| `exclude` | `#7d5c46` | Muted clay-brown — the excluded tag-filter chip |
 | `planned` | `#b9822b` | Amber — the Upcoming planned-dinner section |
 | `home` | `#3f6b4a` | Home meal kind marker |
 | `rest` | `#7a5a2e` | Restaurant kind marker |

@@ -182,28 +182,30 @@ function KindBadge({ kind }: { kind: "home" | "restaurant" }) {
 }
 
 /**
- * The Option's tags as a plain muted text run directly under the name
- * (DESIGN.md), each carrying its per-Tag recency (`Nd`, capped `60d+`) with the
- * numerals in Geist Mono. An Overdue Tag is emphasized in the accent color.
+ * The Option's tags directly under the name, each rendered as a bordered chip
+ * matching the Tonight tag-filter chips. Each carries its per-Tag recency
+ * (`Nd`, capped `60d+`) with the numerals in Geist Mono; an Overdue Tag is
+ * drawn in the accent color.
  */
 function RowTags({ tags }: { tags: TagRecency[] }) {
   return (
-    <p className="mt-1 text-meta text-muted">
-      {tags.map((tag, index) => {
+    <ul className="mt-1 flex flex-wrap gap-1">
+      {tags.map((tag) => {
         const recency = tag.days >= CAP ? `${CAP}d+` : `${tag.days}d`;
         return (
-          <span key={tag.tag}>
-            {index > 0 && <span aria-hidden="true"> · </span>}
-            <span
-              className={tag.overdue ? "font-emphasis text-accent" : undefined}
-            >
-              {tag.tag}{" "}
-              <span className="font-mono tabular-nums">{recency}</span>
-            </span>
-          </span>
+          <li
+            key={tag.tag}
+            className={`inline-flex items-center gap-1 rounded-badge border
+              border-line bg-surface px-2 py-0.5 text-meta leading-tight ${
+                tag.overdue ? "text-accent" : "text-muted"
+              }`}
+          >
+            {tag.tag}
+            <span className="font-mono tabular-nums">{recency}</span>
+          </li>
         );
       })}
-    </p>
+    </ul>
   );
 }
 

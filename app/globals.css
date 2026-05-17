@@ -22,6 +22,10 @@
   --color-success: #3f6b4a;
   --color-danger: #b23b25;
   --color-planned: #b9822b;
+  /* Muted clay-brown — the "exclude" tag-filter chip. Calmer than danger red,
+   * same warm family as the accent, and dark enough for a legible white label.
+   * A single value reads well on both the light and dark themes. */
+  --color-exclude: #7d5c46;
   --color-home: #3f6b4a;
   --color-rest: #7a5a2e;
 

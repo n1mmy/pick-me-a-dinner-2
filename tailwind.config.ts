@@ -23,6 +23,7 @@ const config: Config = {
         success: "var(--color-success)",
         danger: "var(--color-danger)",
         planned: "var(--color-planned)",
+        exclude: "var(--color-exclude)",
         home: "var(--color-home)",
         rest: "var(--color-rest)",
       },
