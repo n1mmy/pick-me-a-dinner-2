@@ -13,7 +13,6 @@ vi.mock("@anthropic-ai/sdk", () => ({
 import {
   AI_SEARCH_UNAVAILABLE,
   buildSnapshot,
-  classifyError,
   createAiSearchClient,
   parseAndValidate,
   type AiRankingRow,
@@ -180,25 +179,6 @@ describe("parseAndValidate", () => {
   });
 });
 
-describe("classifyError", () => {
-  it("treats a 429, any 5xx, and a statusless failure as transient", () => {
-    expect(classifyError({ status: 429 })).toBe("transient");
-    expect(classifyError({ status: 500 })).toBe("transient");
-    expect(classifyError({ status: 503 })).toBe("transient");
-    // No HTTP status: a network error, or our own abort/timeout.
-    expect(classifyError(new Error("network down"))).toBe("transient");
-    expect(
-      classifyError(Object.assign(new Error("aborted"), { name: "AbortError" })),
-    ).toBe("transient");
-  });
-
-  it("treats a non-429 4xx as fatal — a retry would not fix it", () => {
-    expect(classifyError({ status: 400 })).toBe("fatal");
-    expect(classifyError({ status: 401 })).toBe("fatal");
-    expect(classifyError({ status: 404 })).toBe("fatal");
-  });
-});
-
 describe("createAiSearchClient — failure model and fallback", () => {
   const snapshot = buildSnapshot({
     options: [],
@@ -236,44 +216,29 @@ describe("createAiSearchClient — failure model and fallback", () => {
     expect(messagesCreate).toHaveBeenCalledTimes(1);
   });
 
-  it("retries a transient failure exactly once, then succeeds", async () => {
-    messagesCreate
-      .mockRejectedValueOnce({ status: 503 })
-      .mockResolvedValueOnce(toolUseResponse([{ id: "a1", reason: "fits" }]));
-    const result = await createAiSearchClient("k").search(snapshot, activeIds);
-    expect(result).toEqual({ ok: true, results: [{ id: "a1", reason: "fits" }] });
-    expect(messagesCreate).toHaveBeenCalledTimes(2);
-  });
-
-  it("collapses each transient failure class to the fallback after one retry", async () => {
-    // timeout/abort, HTTP 429, 5xx, and a network error — every transient class.
-    const transientErrors = [
+  it("collapses every failure class to the fallback without retrying", async () => {
+    // A timeout/abort, HTTP 429, a 5xx, a non-429 4xx, and a network error.
+    const failures = [
       Object.assign(new Error("aborted"), { name: "AbortError" }),
       { status: 429 },
       { status: 500 },
+      { status: 400 },
       new Error("network down"),
     ];
-    for (const error of transientErrors) {
+    for (const failure of failures) {
       messagesCreate.mockReset();
-      messagesCreate.mockRejectedValue(error);
+      messagesCreate.mockRejectedValue(failure);
       const result = await createAiSearchClient("k").search(snapshot, activeIds);
       expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
-      // Exactly one retry — the call is made twice, never a third time.
-      expect(messagesCreate).toHaveBeenCalledTimes(2);
+      // No retry — the model is called exactly once, whatever the failure.
+      expect(messagesCreate).toHaveBeenCalledTimes(1);
     }
   });
 
-  it("does not retry malformed tool-use output — a retry would not fix it", async () => {
+  it("collapses a response with no tool-use block to the fallback", async () => {
     messagesCreate.mockResolvedValue({
       content: [{ type: "text", text: "no tool call here" }],
     });
-    const result = await createAiSearchClient("k").search(snapshot, activeIds);
-    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
-    expect(messagesCreate).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not retry a fatal HTTP status", async () => {
-    messagesCreate.mockRejectedValue({ status: 400 });
     const result = await createAiSearchClient("k").search(snapshot, activeIds);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(messagesCreate).toHaveBeenCalledTimes(1);
@@ -305,7 +270,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
     const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
     expect(line).toMatchObject({
       event: "ai_search",
-      outcome: "fallback:fatal",
+      outcome: "fallback",
       resultCount: 0,
     });
   });
