@@ -17,6 +17,12 @@
  * where the JSON is `{ meals: PriorMeal[], restaurants: PriorRestaurant[],
  * dinners: PriorDinner[] }`. `DATABASE_URL` and `APP_TZ` are read from `.env`.
  *
+ * Alternatively, set `MIGRATE_FROM` to a Postgres connection string for the
+ * live prior database and the script reads the three tables straight from it,
+ * skipping the JSON dump entirely:
+ *
+ *   MIGRATE_FROM=postgresql://… npx tsx scripts/import-prior-data.ts
+ *
  * Producing that JSON is a manual one-off: dump the prior Prisma DB's three
  * tables, with the JSON keys matching the Prior* types below. The prior
  * table/column names are case-sensitive, so they stay double-quoted. psql's
@@ -41,6 +47,7 @@
 import "dotenv/config";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import postgres from "postgres";
 import { db } from "../db";
 import { dinnerLog, optionTags, options, tags } from "../db/schema";
 import { normalizeTag } from "../lib/normalize-tag";
@@ -284,14 +291,56 @@ export async function runImport(
   };
 }
 
+/**
+ * Read the prior Prisma app's three tables straight from its database.
+ *
+ * An alternative to the `\copy` JSON dump documented in the file header — used
+ * when seeding directly from the live prior DB via `MIGRATE_FROM`. The prior
+ * table/column names are case-sensitive, so they stay double-quoted; the
+ * `date`/`createdAt` columns are cast to text so the rows match the JSON shape
+ * `mapPriorData` expects.
+ */
+export async function loadPriorDataFromDb(
+  connectionString: string,
+): Promise<PriorData> {
+  const sql = postgres(connectionString);
+  try {
+    const meals = await sql<PriorMeal[]>`
+      SELECT id, name, notes, "createdAt"::text AS "createdAt", hidden, tags
+      FROM "Meal"`;
+    const restaurants = await sql<PriorRestaurant[]>`
+      SELECT id, name, notes, "createdAt"::text AS "createdAt", hidden, tags,
+             "phoneNumber", "orderUrl", "menuUrl"
+      FROM "Restaurant"`;
+    const dinners = await sql<PriorDinner[]>`
+      SELECT id, date::text AS date, notes, type, "mealId", "restaurantId"
+      FROM "Dinner"`;
+    return {
+      meals: [...meals],
+      restaurants: [...restaurants],
+      dinners: [...dinners],
+    };
+  } finally {
+    await sql.end();
+  }
+}
+
 async function main(): Promise<void> {
-  const sourcePath = process.argv[2] ?? "prior-data.json";
-  const prior = JSON.parse(readFileSync(sourcePath, "utf8")) as PriorData;
   const timeZone = process.env.APP_TZ ?? "UTC";
+  const migrateFrom = process.env.MIGRATE_FROM;
+  let prior: PriorData;
+  let source: string;
+  if (migrateFrom) {
+    prior = await loadPriorDataFromDb(migrateFrom);
+    source = "MIGRATE_FROM";
+  } else {
+    source = process.argv[2] ?? "prior-data.json";
+    prior = JSON.parse(readFileSync(source, "utf8")) as PriorData;
+  }
   const summary = await runImport(prior, timeZone);
   console.log(
     `Imported ${summary.options} Options, ${summary.tags} Tags, ` +
-      `${summary.dinnerLog} Log entries from ${sourcePath}.`,
+      `${summary.dinnerLog} Log entries from ${source}.`,
   );
 }
 
