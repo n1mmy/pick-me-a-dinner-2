@@ -1,5 +1,8 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { db } from "../db";
+import { rejections } from "../db/schema";
 import { getTonightData } from "../db/queries";
 import {
   AI_SEARCH_UNAVAILABLE,
@@ -48,5 +51,31 @@ export const aiSearchAction = authedAction(
 
     const activeIds = new Set(options.map((option) => option.id));
     return createAiSearchClient(apiKey).search(snapshot, activeIds);
+  },
+);
+
+/**
+ * Reject an Option for tonight's decision (PRD: Rejections on Tonight). Inserts
+ * a `rejections` row dated the Household's calendar day in `APP_TZ`, with the
+ * optional short reason — an empty or whitespace-only reason is stored as
+ * `null` — then revalidates Tonight so the Option drops out of the picker on
+ * the next render.
+ *
+ * `authedAction`-wrapped: a Server Action is reachable by id from any route, so
+ * the shared-password session check is not optional. Thin by design — it does
+ * the write and nothing else, mirroring `pickTonight`. A Rejection is not a Log
+ * entry and carries no Score weight; suppression is a presentation filter the
+ * Tonight page applies, never a ranking change (ADR-0003, ADR-0006).
+ */
+export const rejectOption = authedAction(
+  async (optionId: string, reason: string): Promise<void> => {
+    const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+    const trimmed = reason.trim();
+    await db.insert(rejections).values({
+      optionId,
+      reason: trimmed.length === 0 ? null : trimmed,
+      rejectedOn: today,
+    });
+    revalidatePath("/");
   },
 );

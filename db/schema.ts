@@ -104,3 +104,39 @@ export const dinnerLog = pgTable(
   },
   (t) => [unique("dinner_log_option_eaten_on_unique").on(t.optionId, t.eatenOn)],
 );
+
+/**
+ * Rejections (PRD: Rejections on Tonight, ADR-0006). A Rejection records that
+ * the Household passed an Option over for one night's decision, carrying an
+ * optional short reason.
+ *
+ * `option_id` is ON DELETE CASCADE: a Rejection is light history and must never
+ * block an Option's hard-delete (allowed only for an Option with no Log entries
+ * — ADR-0001); a Rejection of a hard-deleted Option is meaningless, so it goes
+ * with the Option. A Rejection is *not* a Log entry and carries no Score
+ * weight. `rejected_on` is the Household's calendar day in `APP_TZ`; the index
+ * on it serves the today's-Rejections query that derives the per-day
+ * suppression set. No `(option_id, rejected_on)` unique constraint is needed —
+ * a rejected Option leaves the picker, so it cannot be re-rejected the same
+ * day.
+ */
+export const rejections = pgTable(
+  "rejections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    optionId: uuid("option_id")
+      .notNull()
+      .references(() => options.id, { onDelete: "cascade" }),
+    /** The optional short reason — null when the Household gave none. */
+    reason: text("reason"),
+    /** The Household's calendar day in `APP_TZ` the Option was rejected on. */
+    rejectedOn: date("rejected_on").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("rejections_rejected_on_idx").on(t.rejectedOn)],
+);
+
+/** A Rejection row as stored. */
+export type Rejection = typeof rejections.$inferSelect;
