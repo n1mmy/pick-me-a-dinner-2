@@ -40,6 +40,10 @@ describe("recencyColor", () => {
   it("clamps days beyond CAP to the green end", () => {
     expect(recencyColor(CAP + 100)).toBe(recencyColor(CAP));
   });
+
+  it("clamps a negative recency to the red (recent) end", () => {
+    expect(recencyColor(-5)).toBe(recencyColor(0));
+  });
 });
 
 describe("recencyChipBg", () => {

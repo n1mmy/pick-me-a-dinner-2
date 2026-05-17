@@ -121,9 +121,18 @@ const HOUSEHOLD_TEXT_CLOSE = "</household-text>";
  * reads it as data, never as instructions — the prompt-injection guard. The
  * Catalog and Log are full of free text the Household typed; none of it may be
  * able to steer the model.
+ *
+ * The delimiter strings are stripped from the text itself before wrapping —
+ * otherwise text containing a literal `</household-text>` would close the
+ * envelope early and the rest would read as out-of-band instructions.
  */
 function delimit(text: string): string {
-  return `${HOUSEHOLD_TEXT_OPEN}${text}${HOUSEHOLD_TEXT_CLOSE}`;
+  const stripped = text
+    .split(HOUSEHOLD_TEXT_OPEN)
+    .join("")
+    .split(HOUSEHOLD_TEXT_CLOSE)
+    .join("");
+  return `${HOUSEHOLD_TEXT_OPEN}${stripped}${HOUSEHOLD_TEXT_CLOSE}`;
 }
 
 /** Delimit a nullable note — `null` stays `null`, there is nothing to wrap. */
@@ -255,13 +264,18 @@ function truncateRationale(reason: string): string {
  * - An AI rationale over ~200 characters is truncated (see `truncateRationale`).
  *
  * The model's array order is preserved: it *is* the result ranking.
+ *
+ * Returns `null` when the tool input is **malformed** — `results` is missing or
+ * is not an array. That is distinct from a valid, genuinely empty result
+ * (`results: []` → `[]`): malformed output is a Failure that must fall back to
+ * the deterministic list (PRD §5), an empty result is a real answer (PRD §8).
  */
 export function parseAndValidate(
   toolInput: unknown,
   activeIds: ReadonlySet<string>,
-): AiRankingRow[] {
+): AiRankingRow[] | null {
   const results = (toolInput as { results?: unknown } | null)?.results;
-  if (!Array.isArray(results)) return [];
+  if (!Array.isArray(results)) return null;
 
   const rows: AiRankingRow[] = [];
   const seen = new Set<string>();
@@ -471,10 +485,11 @@ export function createAiSearchClient(apiKey: string): AiSearchClient {
           (block) => block.type === "tool_use",
         );
         if (toolUse?.type === "tool_use") {
-          result = {
-            ok: true,
-            results: parseAndValidate(toolUse.input, activeIds),
-          };
+          const rows = parseAndValidate(toolUse.input, activeIds);
+          // `null` is malformed tool input — collapse to the fallback (PRD §5:
+          // unparseable output is a Failure), never show it as a valid empty
+          // result. A real empty `results: []` stays `ok: true`.
+          if (rows !== null) result = { ok: true, results: rows };
         }
       } catch {
         // A thrown error — a timeout/abort, an HTTP error, a network failure

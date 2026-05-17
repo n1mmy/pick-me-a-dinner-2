@@ -92,13 +92,30 @@ export type DecidedAction = {
 };
 
 /**
+ * Return `url` only when it parses as an `http(s)` link. A Catalog `url` is
+ * free text the Household typed and is never scheme-checked on save, so a
+ * `javascript:` or `data:` value must not become a clickable action button —
+ * the decided row's Menu / Recipe `href` is the first place a Catalog `url`
+ * is rendered as a live link. Anything that is not http/https yields no button.
+ */
+function safeHttpUrl(url: string): string | null {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "http:" || protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The action buttons a Picked Option's decided row should render.
  *
  * A **Restaurant** yields a "Menu" button (its `url`) and a "Call" button (a
  * `tel:` link from its `phone`); a **Home meal** yields a "Recipe" button (its
  * `url`). A button appears only when its source field is set, so a Restaurant
  * with no `phone` gets no "Call" and an Option with neither field gets no
- * buttons at all — the decided view never shows a dead control.
+ * buttons at all — the decided view never shows a dead control. A `url` that
+ * is not an `http(s)` link yields no button either (see `safeHttpUrl`).
  *
  * The `url` button is labelled "Menu" for a Restaurant regardless of whether
  * the link is a menu or an order/delivery page. A Home meal never yields "Menu"
@@ -110,13 +127,14 @@ export function decidedActions(option: {
   phone: string | null;
 }): DecidedAction[] {
   const actions: DecidedAction[] = [];
+  const link = option.url ? safeHttpUrl(option.url) : null;
   if (option.kind === "restaurant") {
-    if (option.url) actions.push({ label: "Menu", href: option.url });
+    if (link) actions.push({ label: "Menu", href: link });
     if (option.phone) {
       actions.push({ label: "Call", href: `tel:${option.phone}` });
     }
-  } else if (option.url) {
-    actions.push({ label: "Recipe", href: option.url });
+  } else if (link) {
+    actions.push({ label: "Recipe", href: link });
   }
   return actions;
 }

@@ -97,6 +97,10 @@ prompts even when each piece is allowlisted.
   command.
 - **No `cd <path> && …`.** Commands resolve from the repo root. Prefixing
   with `cd` turns an allowed command into a denied compound.
+- **Don't prefix a command with its full path.** Run `pnpm`, `git`, `node`,
+  etc. bare — the matcher allowlists the bare command shape, and an explicit
+  path (`/opt/homebrew/bin/pnpm …`) is a different, unrecognized shape that
+  prompts. Use a full path only when the command genuinely is not on `$PATH`.
 - **No bare `rm`, no `mkdir`.** Use `git rm <path>` for tracked files,
   `Write` to overwrite, and `Write` to a path inside a missing directory to
   auto-create the parent.
