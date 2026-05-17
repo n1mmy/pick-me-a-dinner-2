@@ -7,7 +7,7 @@ const INITIAL: LoginState = {};
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
  * The Login form — a single password field and nothing else. A wrong password
@@ -46,9 +46,9 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className={`min-h-11 rounded-control bg-accent px-4 text-body
-          font-emphasis text-accent-ink transition-colors duration-micro
-          hover:bg-accent-dark disabled:opacity-60 ${focusRing}`}
+        className={`min-h-11 rounded-control bg-action px-4 text-body
+          font-emphasis text-action-ink transition-colors duration-micro
+          hover:bg-action-hover disabled:opacity-60 ${focusRing}`}
       >
         Enter
       </button>

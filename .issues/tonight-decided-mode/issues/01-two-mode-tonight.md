@@ -1,6 +1,6 @@
 # 01 — Two-mode Tonight: the "Tonight's dinner" decided block
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -41,26 +41,26 @@ Pick.
 
 ## Acceptance criteria
 
-- [ ] With no Log entry dated today, Tonight renders picker mode — ranked list,
+- [x] With no Log entry dated today, Tonight renders picker mode — ranked list,
       kind segment, Tag filters — behaving as before
-- [ ] Picking an Option switches Tonight to decided mode, showing that Option
+- [x] Picking an Option switches Tonight to decided mode, showing that Option
       under a "Tonight's dinner" sub-label; the heading stays "Tonight"
-- [ ] A decided-block row shows the Option name, a Home/Restaurant badge, and
+- [x] A decided-block row shows the Option name, a Home/Restaurant badge, and
       Tag chips with per-Tag recency; no Explanation chip
-- [ ] In decided mode the picker is collapsed behind an "Add another option"
+- [x] In decided mode the picker is collapsed behind an "Add another option"
       control
-- [ ] "Add another option" re-opens the picker; an already-Picked Option is
+- [x] "Add another option" re-opens the picker; an already-Picked Option is
       absent from it
-- [ ] Picking a second Option appends it to Tonight's dinner and auto-collapses
+- [x] Picking a second Option appends it to Tonight's dinner and auto-collapses
       the picker
-- [ ] A multi-Option Tonight's dinner lists Options in pick order, oldest first
-- [ ] Returning to Tonight later the same day opens directly in decided mode; a
+- [x] A multi-Option Tonight's dinner lists Options in pick order, oldest first
+- [x] Returning to Tonight later the same day opens directly in decided mode; a
       new calendar day returns it to picker mode
-- [ ] `splitTonight` is unit-tested: no picks → empty dinner + full picker;
+- [x] `splitTonight` is unit-tested: no picks → empty dinner + full picker;
       one/several picks → picked Options excluded from the picker and ordered
       by `created_at`; all Options picked → empty picker; a today entry for an
       Option not in the ranked set is handled without error
-- [ ] The mode change is announced to assistive tech; "Add another option" is
+- [x] The mode change is announced to assistive tech; "Add another option" is
       keyboard-operable with visible focus
 
 ## Blocked by

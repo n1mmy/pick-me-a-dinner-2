@@ -12,7 +12,7 @@ const DESTINATIONS = [
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
  * Primary navigation — three destinations: Tonight, Log, Catalog. It performs
@@ -54,7 +54,7 @@ export function AppNav() {
                   desktop:justify-start desktop:rounded-input desktop:px-3
                   desktop:py-2 desktop:text-body ${focusRing} ${
                     active
-                      ? "font-emphasis text-accent desktop:bg-raised"
+                      ? "font-emphasis text-action desktop:bg-raised"
                       : "text-muted"
                   }`}
               >

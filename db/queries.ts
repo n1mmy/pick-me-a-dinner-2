@@ -2,6 +2,7 @@ import { and, asc, desc, eq, lte } from "drizzle-orm";
 import { db } from "./index";
 import { dinnerLog, optionTags, options, tags, type Option } from "./schema";
 import type { RankOption } from "../lib/ranking";
+import type { TodayLogEntry } from "../lib/tonights-dinner";
 
 /** An Option together with the names of the Tags attached to it. */
 export type OptionWithTags = Option & { tags: string[] };
@@ -53,8 +54,22 @@ export async function getActiveCatalog(): Promise<{
   };
 }
 
-/** A non-future `dinner_log` row, narrowed to what the ranking engine needs. */
-export type TonightLogRow = { optionId: string; eatenOn: string };
+/**
+ * A ranking Option plus its free-text `notes`. The ranking ignores `notes` —
+ * `rankTonight` still receives exactly a `RankOption` — but the AI search
+ * snapshot builder needs it (PRD: AI search).
+ */
+export type TonightOption = RankOption & { notes: string | null };
+
+/**
+ * A non-future `dinner_log` row, narrowed to what Tonight needs. The ranking
+ * ignores `note`; the AI search snapshot builder uses it.
+ */
+export type TonightLogRow = {
+  optionId: string;
+  eatenOn: string;
+  note: string | null;
+};
 
 /**
  * Everything the Tonight screen needs to rank the Catalog (ADR-0003): the
@@ -62,10 +77,23 @@ export type TonightLogRow = { optionId: string; eatenOn: string };
  * filtered against `todaySqlDate` — the Household's calendar day in `APP_TZ`,
  * computed by the caller — so a Planned dinner never reaches the ranking. The
  * Score itself is computed in the pure `lib/ranking` module, not in SQL.
+ *
+ * Each Option also carries its `notes` and each Log entry its `note` — text the
+ * AI search snapshot builder needs (PRD: AI search). Each Option additionally
+ * carries `url` and `phone` (both nullable; `phone` is always null for a Home
+ * meal) — the fields the decided view's Menu / Call / Recipe action buttons
+ * render from (PRD: Tonight — decided mode). The ranking input is otherwise
+ * unchanged: `rankTonight` reads only the recency-relevant `RankOption` fields.
+ *
+ * `todayEntries` is the `dinner_log` rows dated *today* — with their `id` and
+ * `created_at` — which the decided mode of Tonight needs (PRD: Tonight —
+ * decided mode): `created_at` gives the pick order and `id` is the handle the
+ * decided row's "Remove" deletes.
  */
 export async function getTonightData(todaySqlDate: string): Promise<{
-  options: RankOption[];
+  options: TonightOption[];
   logEntries: TonightLogRow[];
+  todayEntries: TodayLogEntry[];
 }> {
   const active = await db
     .select()
@@ -91,10 +119,26 @@ export async function getTonightData(todaySqlDate: string): Promise<{
   // recency (it is not in the ranked set) nor as per-Tag recency (review fix
   // F5 / review B3). The join makes that exclusion explicit at the query.
   const logEntries = await db
-    .select({ optionId: dinnerLog.optionId, eatenOn: dinnerLog.eatenOn })
+    .select({
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+    })
     .from(dinnerLog)
     .innerJoin(options, eq(dinnerLog.optionId, options.id))
     .where(and(lte(dinnerLog.eatenOn, todaySqlDate), eq(options.active, true)));
+
+  // Today's Log entries — the Picks that put Tonight into decided mode. An
+  // entry for a since-Archived Option is harmless: `splitTonight` skips any
+  // Option not in the ranked set.
+  const todayEntries = await db
+    .select({
+      id: dinnerLog.id,
+      optionId: dinnerLog.optionId,
+      createdAt: dinnerLog.createdAt,
+    })
+    .from(dinnerLog)
+    .where(eq(dinnerLog.eatenOn, todaySqlDate));
 
   return {
     options: active.map((option) => ({
@@ -102,8 +146,12 @@ export async function getTonightData(todaySqlDate: string): Promise<{
       name: option.name,
       kind: option.kind,
       tags: tagsByOption.get(option.id) ?? [],
+      notes: option.notes,
+      url: option.url,
+      phone: option.phone,
     })),
     logEntries,
+    todayEntries,
   };
 }
 

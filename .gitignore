@@ -4,6 +4,9 @@ handoff.md
 # ralph loop runtime state (regenerated every loop)
 .ralph/loop_state.json
 
+# git worktrees created by parallel agents
+.claude/worktrees/
+
 # dependencies
 /node_modules
 

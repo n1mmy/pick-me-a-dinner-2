@@ -1,6 +1,6 @@
 # 03 — Remove a pick from Tonight's dinner
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -21,15 +21,15 @@ empty, so the screen returns to picker mode.
 
 ## Acceptance criteria
 
-- [ ] Each decided-block row has a "Remove" control
-- [ ] "Remove" asks for an inline confirm before deleting; confirming deletes
+- [x] Each decided-block row has a "Remove" control
+- [x] "Remove" asks for an inline confirm before deleting; confirming deletes
       today's Log entry for that Option
-- [ ] After a Remove the Option is gone from Tonight's dinner and reappears in
+- [x] After a Remove the Option is gone from Tonight's dinner and reappears in
       the picker
-- [ ] Removing the last Option in Tonight's dinner drops the screen back to
+- [x] Removing the last Option in Tonight's dinner drops the screen back to
       picker mode
-- [ ] Removal reuses `deleteLogEntry` — no new server action is introduced
-- [ ] "Remove" is keyboard-operable with visible focus and meets the 44×44px
+- [x] Removal reuses `deleteLogEntry` — no new server action is introduced
+- [x] "Remove" is keyboard-operable with visible focus and meets the 44×44px
       touch-target minimum
 
 ## Blocked by

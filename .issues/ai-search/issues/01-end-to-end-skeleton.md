@@ -1,6 +1,6 @@
 # 01 — AI search: end-to-end skeleton
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -52,26 +52,26 @@ the filter zone need not yet hide in AI mode.
 
 ## Acceptance criteria
 
-- [ ] A search box on Tonight; submitting a query (Enter or button, empty
+- [x] A search box on Tonight; submitting a query (Enter or button, empty
       allowed) swaps the deterministic list for an AI-ranked result in place
-- [ ] `lib/ai-search` builds the model snapshot — active Catalog with notes,
+- [x] `lib/ai-search` builds the model snapshot — active Catalog with notes,
       non-future Log with notes, recency integers, alphabetical order, Places
       fields excluded, Household text delimited
-- [ ] The Anthropic call uses tool-use with a strict ordered `{ id, reason }`
+- [x] The Anthropic call uses tool-use with a strict ordered `{ id, reason }`
       schema; the client is constructed lazily so the build needs no env vars
-- [ ] `parseAndValidate` drops any `id` not in the active Catalog
-- [ ] AI result rows show the AI rationale instead of the Explanation chip and
+- [x] `parseAndValidate` drops any `id` not in the active Catalog
+- [x] AI result rows show the AI rationale instead of the Explanation chip and
       are pickable; clearing the search or reloading restores the
       deterministic list with the Explanation chip
-- [ ] `getTonightData` returns Option notes and Log-entry notes; the ranking
+- [x] `getTonightData` returns Option notes and Log-entry notes; the ranking
       input is unchanged and `rankTonight` still passes its tests
-- [ ] `aiSearchAction` is `authedAction`-wrapped and rejects an unauthenticated
+- [x] `aiSearchAction` is `authedAction`-wrapped and rejects an unauthenticated
       caller
-- [ ] Unit tests cover the snapshot builder (ordering, field selection,
+- [x] Unit tests cover the snapshot builder (ordering, field selection,
       delimiters, recency) and `parseAndValidate` (hallucinated `id` dropped);
       a screen-level test covers submit-swaps / clear-restores (introduces
       React Testing Library)
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by

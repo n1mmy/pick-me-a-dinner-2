@@ -14,7 +14,7 @@ const labelClass = "text-meta font-emphasis uppercase tracking-wide text-muted";
 const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body text-ink " +
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
-  "focus-visible:outline-accent";
+  "focus-visible:outline-action";
 
 /**
  * The "Search Google" box on the Restaurant form. Rendered only when a Places
@@ -74,10 +74,10 @@ export function PlacesSearchBox({
           type="button"
           onClick={runSearch}
           disabled={pending || query.trim().length === 0}
-          className="min-h-11 rounded-control bg-accent px-3 text-body font-emphasis
-            text-accent-ink transition-colors duration-micro hover:bg-accent-dark
+          className="min-h-11 rounded-control bg-action px-3 text-body font-emphasis
+            text-action-ink transition-colors duration-micro hover:bg-action-hover
             focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-accent
+            focus-visible:outline-offset-2 focus-visible:outline-action
             disabled:opacity-60"
         >
           Search
@@ -102,7 +102,7 @@ export function PlacesSearchBox({
                 disabled={pending}
                 className="flex min-h-11 w-full flex-col items-start py-2 text-left
                   focus-visible:outline focus-visible:outline-2
-                  focus-visible:outline-offset-2 focus-visible:outline-accent
+                  focus-visible:outline-offset-2 focus-visible:outline-action
                   disabled:opacity-60"
               >
                 <span className="font-display text-name font-name text-ink">
