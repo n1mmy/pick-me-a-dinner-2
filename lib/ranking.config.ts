@@ -13,5 +13,5 @@ export const W_OPTION = 1.0;
 /** Weight on per-Tag recency (the variety term). */
 export const W_TAG = 1.0;
 
-/** A Tag at or past this per-Tag recency renders as Overdue (accent color). */
+/** A Tag at or past this per-Tag recency counts as Overdue. */
 export const OVERDUE_THRESHOLD = 14;

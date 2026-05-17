@@ -2,10 +2,9 @@
 
 The canonical visual system. Code, components, and review must follow this
 file. The typography, spacing, layout, and motion sections were implemented
-in code on 2026-05-16. **The Color section was revised on 2026-05-17 via
-`/design-shotgun` and is not yet implemented** — `app/globals.css`,
-`tailwind.config.ts`, and the screens still carry the prior warm palette (see
-"Implementation note" below).
+in code on 2026-05-16; the Color section was revised on 2026-05-17 via
+`/design-shotgun` and implemented in code the same day (see "Implementation
+note" below). The code now matches this file.
 
 ## Product Context
 
@@ -189,16 +188,19 @@ as CSS variables on `<html>` in `app/layout.tsx`. `app/globals.css` carries the
 full light + dark token sets, and `tailwind.config.ts` mirrors them. The
 mobile-bottom-nav → desktop-left-rail shift lives in `app/app-nav.tsx` (the
 720px `desktop:` breakpoint). All four screens and the loading states consume
-the tokens; the per-row tags on Tonight render as a plain muted text run that
-keeps each tag's recency (with overdue tags emphasized).
+the tokens.
 
-**Color revision pending (2026-05-17):** the Color section above was replaced
-via `/design-shotgun` — a cool-grey base with the two-channel
-kind-bar + red→green recency-heatmap system. The code still carries the prior
-warm palette in `app/globals.css` and `tailwind.config.ts`. Applying the new
-tokens, the Tonight row's left-edge kind bar and recency heatmap (Explanation
-chip + per-tag tint), the charcoal PICK button, and a visual check of the
-re-derived dark theme are a follow-up implementation task.
+**Color revision implemented (2026-05-17):** the cool-grey base, the two
+functional channels (the 3px meal-kind left bar and the red→green recency
+heatmap), and the charcoal PICK button are all in code. The light + dark token
+sets live in `app/globals.css` and `tailwind.config.ts`; the heatmap
+interpolation is `lib/recency-color.ts` (a `color-mix()` over the
+`--color-recency-*` variables). The Tonight row's kind bar and per-tag/chip
+tint are in `app/tonight-row.tsx` (and the decided block in
+`app/tonights-dinner-block.tsx`); the per-Option recency that drives the
+Explanation chip is the `recencyDays` field on `TonightRow`. The dark theme is
+derived and was sanity-checked, not exhaustively verified. The tag-filter
+chips kept the carried-over `exclude` token and await their own visual pass.
 
 ## Decisions Log
 

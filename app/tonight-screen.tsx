@@ -21,7 +21,7 @@ import { TonightsDinnerBlock } from "./tonights-dinner-block";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
  * The Tonight screen (plan §9, §16; PRD: Tonight — decided mode) — the home
@@ -95,7 +95,7 @@ export function TonightScreen({
           Your Catalog is empty.{" "}
           <Link
             href="/catalog"
-            className={`font-emphasis text-accent ${focusRing}`}
+            className={`font-emphasis text-action ${focusRing}`}
           >
             Add your first meals →
           </Link>
@@ -108,7 +108,7 @@ export function TonightScreen({
             aria-expanded={pickerOpen}
             onClick={() => setPickerOpen((open) => !open)}
             className={`min-h-11 self-start rounded-control border border-line
-              px-4 text-body font-emphasis text-accent transition-colors
+              px-4 text-body font-emphasis text-action transition-colors
               duration-short hover:bg-raised ${focusRing}`}
           >
             {pickerOpen ? "Hide options" : "Add another option"}
@@ -286,7 +286,7 @@ function Picker({
               type="button"
               onClick={clearSearch}
               className={`min-h-11 rounded-control px-3 text-body
-                font-emphasis text-accent transition-colors duration-short
+                font-emphasis text-action transition-colors duration-short
                 ${focusRing}`}
             >
               Clear search
@@ -375,9 +375,9 @@ function SearchBox({
         <button
           type="submit"
           disabled={pending}
-          className={`min-h-11 rounded-control bg-accent px-4 text-body
-            font-emphasis text-accent-ink transition-colors duration-short
-            hover:bg-accent-dark disabled:opacity-60 ${focusRing}`}
+          className={`min-h-11 rounded-control bg-action px-4 text-body
+            font-emphasis text-action-ink transition-colors duration-short
+            hover:bg-action-hover disabled:opacity-60 ${focusRing}`}
         >
           {pending ? "Searching…" : "Search"}
         </button>
@@ -429,7 +429,7 @@ function KindSegment({
             className={`min-h-11 min-w-11 rounded-control px-3 text-chip
               transition-colors duration-micro ${focusRing} ${
                 selected
-                  ? "bg-accent font-emphasis text-accent-ink"
+                  ? "bg-action font-emphasis text-action-ink"
                   : "bg-raised text-muted"
               }`}
           >
@@ -443,7 +443,7 @@ function KindSegment({
 
 /**
  * One tri-state tag filter chip. It cycles off → include → exclude → off on
- * tap. Each state has its own fill — a neutral off chip, a filled accent
+ * tap. Each state has its own fill — a neutral off chip, a filled action
  * include chip, a filled danger exclude chip — plus a text decoration
  * (underline / strikethrough) so state stays legible without relying on color
  * alone (§18). The border is present in every state so toggling never changes
@@ -470,9 +470,9 @@ function TagFilterChip({
         px-2 py-0.5 text-meta leading-tight underline-offset-2 transition-colors
         duration-micro ${focusRing} ${
           state === "include"
-            ? "border-accent bg-accent text-accent-ink underline"
+            ? "border-action bg-action text-action-ink underline"
             : state === "exclude"
-              ? "border-exclude bg-exclude text-accent-ink line-through"
+              ? "border-exclude bg-exclude text-action-ink line-through"
               : "border-line bg-surface text-muted"
         }`}
     >

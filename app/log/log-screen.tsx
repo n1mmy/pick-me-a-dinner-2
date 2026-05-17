@@ -17,10 +17,10 @@ const labelClass = "text-meta font-emphasis uppercase tracking-wide text-muted";
 const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body text-ink " +
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
-  "focus-visible:outline-accent";
+  "focus-visible:outline-action";
 const actionButton =
   "min-h-11 rounded-control px-2 text-chip focus-visible:outline " +
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /** A Dinner: one calendar date carrying one or more Log entries. */
 type Dinner = { date: string; entries: LogEntryRow[] };
@@ -109,9 +109,9 @@ export function LogScreen({
             type="button"
             onClick={() => setAdding(true)}
             className="min-h-11 self-start rounded-control px-2 text-body
-              font-emphasis text-accent focus-visible:outline
+              font-emphasis text-action focus-visible:outline
               focus-visible:outline-2 focus-visible:outline-offset-2
-              focus-visible:outline-accent"
+              focus-visible:outline-action"
           >
             + Add a dinner
           </button>
@@ -122,9 +122,9 @@ export function LogScreen({
           No dinners logged yet —{" "}
           <Link
             href="/"
-            className="font-emphasis text-accent focus-visible:outline
+            className="font-emphasis text-action focus-visible:outline
               focus-visible:outline-2 focus-visible:outline-offset-2
-              focus-visible:outline-accent"
+              focus-visible:outline-action"
           >
             pick one on Tonight →
           </Link>
@@ -414,10 +414,10 @@ function EntryEditForm({
         <button
           type="submit"
           disabled={pending}
-          className="min-h-11 rounded-control bg-accent px-4 text-body
-            font-emphasis text-accent-ink transition-colors duration-micro
-            hover:bg-accent-dark focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-accent
+          className="min-h-11 rounded-control bg-action px-4 text-body
+            font-emphasis text-action-ink transition-colors duration-micro
+            hover:bg-action-hover focus-visible:outline focus-visible:outline-2
+            focus-visible:outline-offset-2 focus-visible:outline-action
             disabled:opacity-60"
         >
           Save
@@ -428,7 +428,7 @@ function EntryEditForm({
           disabled={pending}
           className="min-h-11 rounded-control px-3 text-body text-muted
             focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-accent"
+            focus-visible:outline-offset-2 focus-visible:outline-action"
         >
           Cancel
         </button>
@@ -551,10 +551,10 @@ function AddEntryForm({
         <button
           type="submit"
           disabled={pending}
-          className="min-h-11 rounded-control bg-accent px-4 text-body
-            font-emphasis text-accent-ink transition-colors duration-micro
-            hover:bg-accent-dark focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-accent
+          className="min-h-11 rounded-control bg-action px-4 text-body
+            font-emphasis text-action-ink transition-colors duration-micro
+            hover:bg-action-hover focus-visible:outline focus-visible:outline-2
+            focus-visible:outline-offset-2 focus-visible:outline-action
             disabled:opacity-60"
         >
           Add
@@ -565,7 +565,7 @@ function AddEntryForm({
           disabled={pending}
           className="min-h-11 rounded-control px-3 text-body text-muted
             focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-accent"
+            focus-visible:outline-offset-2 focus-visible:outline-action"
         >
           Cancel
         </button>

@@ -9,25 +9,35 @@
  * literal. DESIGN.md is the canonical source for every value here.
  */
 :root {
-  /* Color — warm "sharp instrument" palette, light theme (primary). */
-  --color-bg: #faf8f4;
+  /* Color — cool-grey "sharp instrument" palette, light theme (primary).
+   * Functional color does two jobs on every Tonight row: a meal-kind left bar
+   * and a red->green recency heatmap. Everything else stays neutral. */
+  --color-bg: #f3f4f6;
   --color-surface: #ffffff;
-  --color-raised: #f1ece3;
-  --color-ink: #2c2823;
-  --color-muted: #8a8278;
-  --color-line: #ded6c8;
-  --color-accent: #c4502e;
-  --color-accent-dark: #8f321d;
-  --color-accent-ink: #ffffff;
-  --color-success: #3f6b4a;
-  --color-danger: #b23b25;
+  --color-raised: #e8eaed;
+  --color-ink: #25282d;
+  --color-muted: #767a82;
+  --color-line: #d8dade;
+  /* Meal-kind left bar — teal for home-cooked, plum for restaurant. */
+  --color-kind-home: #2c6e6e;
+  --color-kind-restaurant: #7a4f6b;
+  /* Recency heatmap — three anchor stops of a continuous red->green scale;
+   * lib/recency-color.ts interpolates between them. */
+  --color-recency-overdue: #3f8a4a;
+  --color-recency-mid: #c8b78f;
+  --color-recency-recent: #c4453a;
+  /* PICK and other primary actions — neutral charcoal so they never collide
+   * with the heatmap's green end. */
+  --color-action: #2c2f36;
+  --color-action-hover: #3c4049;
+  --color-action-ink: #ffffff;
+  --color-success: #3f8a4a;
+  --color-danger: #c4453a;
   --color-planned: #b9822b;
-  /* Muted clay-brown — the "exclude" tag-filter chip. Calmer than danger red,
-   * same warm family as the accent, and dark enough for a legible white label.
-   * A single value reads well on both the light and dark themes. */
+  /* Muted clay-brown — the "exclude" tag-filter chip. Carried over from the
+   * prior warm palette; to be re-tuned when the tag filters get their own
+   * visual pass. A single value reads well on both the light and dark themes. */
   --color-exclude: #7d5c46;
-  --color-home: #3f6b4a;
-  --color-rest: #7a5a2e;
 
   /* Type — Fraunces (display) / Geist (UI) / Geist Mono (data). The font
    * family variables are supplied by next/font in app/layout.tsx. */
@@ -59,20 +69,28 @@
   --rail-width: 200px;
 }
 
-/* Dark theme — redesigned surfaces (not inverted), saturation pulled down. */
+/* Dark theme — derived from the light theme: cool dark surfaces, the same
+ * kind / recency / action hues lifted for contrast. Not yet visually verified.
+ * `action-hover`, `success`, `danger` are derived (absent from the DESIGN.md
+ * dark table); success/danger share the recency green/red. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: #1c1a17;
-    --color-surface: #25221e;
-    --color-raised: #2f2b26;
-    --color-ink: #ece7dd;
-    --color-muted: #9a9286;
-    --color-line: #3a352e;
-    --color-accent: #cf5d3c;
-    --color-accent-dark: #b8431f;
-    --color-accent-ink: #ffffff;
-    --color-success: #5a8c5f;
-    --color-danger: #c8543e;
+    --color-bg: #1a1c1f;
+    --color-surface: #232629;
+    --color-raised: #2c2f33;
+    --color-ink: #e6e7ea;
+    --color-muted: #8b8f98;
+    --color-line: #383b40;
+    --color-kind-home: #4a9a9a;
+    --color-kind-restaurant: #a87d99;
+    --color-recency-overdue: #5aa863;
+    --color-recency-mid: #bdae89;
+    --color-recency-recent: #d65a4f;
+    --color-action: #e6e7ea;
+    --color-action-hover: #d0d2d6;
+    --color-action-ink: #1a1c1f;
+    --color-success: #5aa863;
+    --color-danger: #d65a4f;
     --color-planned: #cf9a45;
   }
 }

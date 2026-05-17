@@ -51,6 +51,12 @@ export type TonightRow = {
   score: number;
   explanation: string;
   tags: TagRecency[];
+  /**
+   * Per-Option recency in days, capped at `CAP` (the `anti_repeat` term). Drives
+   * the Explanation chip's recency-heatmap background; the ranking math itself
+   * reads it via `optionScore`, not this field.
+   */
+  recencyDays: number;
 };
 
 /** Arithmetic mean of a non-empty list. */
@@ -187,6 +193,7 @@ export function rankTonight(
         lastEatenIsNull: lastEatenDay === null,
       }),
       tags,
+      recencyDays: antiRepeat,
     };
   });
 

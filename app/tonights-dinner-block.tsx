@@ -7,18 +7,18 @@ import {
   type TonightsDinnerEntry,
 } from "../lib/tonights-dinner";
 import { deleteLogEntry } from "./log/actions";
-import { KindBadge, RowTags } from "./tonight-row";
+import { kindBarClass, RowTags } from "./tonight-row";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
  * Tonight's dinner — the decided block (PRD: Tonight — decided mode). Under a
  * quiet "Tonight's dinner" sub-label it lists the Picked Options in pick order,
- * oldest first. Each row shows the Option name, its Home/Restaurant badge, and
- * its Tag chips with per-Tag recency — and deliberately no Explanation chip:
- * the chip exists to help *choose*, and the choice is already made.
+ * oldest first. Each row shows the Option name, the 3px meal-kind bar on its
+ * left edge, and its Tag chips with per-Tag recency — and deliberately no
+ * Explanation chip: the chip exists to help *choose*, and the choice is made.
  *
  * Each row also surfaces its action buttons — for a Restaurant a "Menu" and a
  * "Call", for a Home meal a "Recipe" — so once the choice is made the screen
@@ -53,22 +53,19 @@ export function TonightsDinnerBlock({
 }
 
 /**
- * One row of Tonight's dinner: the Picked Option's name and Home/Restaurant
- * badge with the inline "Remove" control beside them, then the Tag chips and
- * the Menu/Call/Recipe action buttons.
+ * One row of Tonight's dinner: the Picked Option's name with the inline
+ * "Remove" control beside it and the 3px meal-kind bar on the left edge, then
+ * the Tag chips and the Menu/Call/Recipe action buttons.
  */
 function DecidedRow({ entry }: { entry: TonightsDinnerEntry }) {
   const { entryId, row } = entry;
   const actions = decidedActions(row.option);
   return (
-    <li className="border-b border-line py-3">
+    <li className={`border-b border-line py-3 ${kindBarClass(row.option.kind)}`}>
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-baseline gap-2">
-          <span className="font-display text-name font-name text-ink">
-            {row.option.name}
-          </span>
-          <KindBadge kind={row.option.kind} />
-        </div>
+        <span className="font-display text-name font-name text-ink">
+          {row.option.name}
+        </span>
         <RemoveControl entryId={entryId} />
       </div>
       {row.tags.length > 0 && <RowTags tags={row.tags} />}
@@ -160,9 +157,9 @@ function ActionButton({ action }: { action: DecidedAction }) {
       {...(isCall
         ? {}
         : { target: "_blank", rel: "noopener noreferrer" })}
-      className={`inline-flex min-h-11 items-center rounded-control bg-accent
-        px-4 text-body font-emphasis text-accent-ink transition-colors
-        duration-short hover:bg-accent-dark ${focusRing}`}
+      className={`inline-flex min-h-11 items-center rounded-control bg-action
+        px-4 text-body font-emphasis text-action-ink transition-colors
+        duration-short hover:bg-action-hover ${focusRing}`}
     >
       {action.label}
     </a>

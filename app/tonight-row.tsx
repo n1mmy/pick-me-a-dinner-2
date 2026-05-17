@@ -3,11 +3,23 @@
 import { useState, useTransition } from "react";
 import { CAP } from "../lib/ranking.config";
 import type { TagRecency, TonightRow } from "../lib/ranking";
+import { recencyChipBg, recencyColor } from "../lib/recency-color";
 import { pickTonight } from "./log/actions";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "focus-visible:outline-offset-2 focus-visible:outline-action";
+
+/**
+ * The 3px meal-kind bar on a Tonight/decided row's left edge (DESIGN.md "Two
+ * color channels") — teal for a home-cooked Option, plum for a restaurant.
+ * Pair with `pl-2` so the row content clears the bar.
+ */
+export function kindBarClass(kind: "home" | "restaurant"): string {
+  return kind === "home"
+    ? "border-l-[3px] border-l-kind-home pl-2"
+    : "border-l-[3px] border-l-kind-restaurant pl-2";
+}
 
 /**
  * One Tonight row of the flat ledger (DESIGN.md "Tonight row anatomy"). Mobile
@@ -19,7 +31,8 @@ const focusRing =
  *
  * On an AI search result row, `aiReason` is the AI rationale and takes the
  * place of the deterministic Explanation chip — one row never shows two
- * competing "why" lines.
+ * competing "why" lines. The AI chip stays a neutral `raised` surface; only
+ * the deterministic chip carries the recency-heatmap background.
  */
 export function TonightRowItem({
   row,
@@ -51,7 +64,7 @@ export function TonightRowItem({
   }
 
   return (
-    <li className="border-b border-line py-3">
+    <li className={`border-b border-line py-3 ${kindBarClass(option.kind)}`}>
       <div
         className="flex flex-col gap-2 desktop:flex-row desktop:items-center
           desktop:gap-3"
@@ -64,14 +77,19 @@ export function TonightRowItem({
             <span className="font-display text-name font-name text-ink">
               {option.name}
             </span>
-            <KindBadge kind={option.kind} />
           </div>
           {row.tags.length > 0 && <RowTags tags={row.tags} />}
         </div>
         <div className="flex items-center gap-2 desktop:contents">
           <span
-            className="self-start rounded-badge bg-raised px-2 py-1 text-chip
-              text-muted"
+            className={`self-start rounded-badge px-2 py-1 text-chip ${
+              aiReason ? "bg-raised text-muted" : "text-ink"
+            }`}
+            style={
+              aiReason
+                ? undefined
+                : { backgroundColor: recencyChipBg(row.recencyDays) }
+            }
           >
             <MonoNumerals text={aiReason ?? row.explanation} />
           </span>
@@ -85,7 +103,7 @@ export function TonightRowItem({
               desktop:ml-auto ${focusRing} ${
                 justLogged
                   ? "bg-raised text-success"
-                  : "bg-accent text-accent-ink hover:bg-accent-dark"
+                  : "bg-action text-action-ink hover:bg-action-hover"
               }`}
           >
             {justLogged ? "Logged ✓" : "Pick tonight"}
@@ -101,24 +119,11 @@ export function TonightRowItem({
   );
 }
 
-/** The quiet Home / Restaurant kind marker. */
-export function KindBadge({ kind }: { kind: "home" | "restaurant" }) {
-  const isHome = kind === "home";
-  return (
-    <span
-      className={`shrink-0 rounded-badge bg-raised px-1.5 py-0.5 text-meta
-        uppercase tracking-wide ${isHome ? "text-home" : "text-rest"}`}
-    >
-      {isHome ? "Home" : "Restaurant"}
-    </span>
-  );
-}
-
 /**
- * The Option's tags directly under the name, each rendered as a bordered chip
- * matching the Tonight tag-filter chips. Each carries its per-Tag recency
- * (`Nd`, capped `60d+`) with the numerals in Geist Mono; an Overdue Tag is
- * drawn in the accent color.
+ * The Option's tags directly under the name, each rendered as a bordered chip.
+ * Each carries its per-Tag recency (`Nd`, capped `60d+`) with the numerals in
+ * Geist Mono, and each is tinted on the red→green recency heatmap by that
+ * Tag's own recency — overdue tags greener, recently used tags redder.
  */
 export function RowTags({ tags }: { tags: TagRecency[] }) {
   return (
@@ -128,10 +133,9 @@ export function RowTags({ tags }: { tags: TagRecency[] }) {
         return (
           <li
             key={tag.tag}
-            className={`inline-flex items-center gap-1 rounded-badge border
-              border-line bg-surface px-2 py-0.5 text-meta leading-tight ${
-                tag.overdue ? "text-accent" : "text-muted"
-              }`}
+            className="inline-flex items-center gap-1 rounded-badge border
+              border-line bg-surface px-2 py-0.5 text-meta leading-tight"
+            style={{ color: recencyColor(tag.days) }}
           >
             {tag.tag}
             <span className="font-mono tabular-nums">{recency}</span>

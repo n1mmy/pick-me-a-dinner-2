@@ -13,6 +13,7 @@ function row(id: string, name: string): TonightRow {
     score: 0,
     explanation: "",
     tags: [],
+    recencyDays: 0,
   };
 }
 

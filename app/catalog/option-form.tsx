@@ -16,7 +16,7 @@ const labelClass = "text-meta font-emphasis uppercase tracking-wide text-muted";
 const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body text-ink " +
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
-  "focus-visible:outline-accent";
+  "focus-visible:outline-action";
 
 /**
  * The inline add/edit form for one Option — identical on phone and desktop. An
@@ -195,10 +195,10 @@ export function OptionForm({
         <button
           type="submit"
           disabled={pending}
-          className="min-h-11 rounded-control bg-accent px-4 text-body font-emphasis
-            text-accent-ink transition-colors duration-micro hover:bg-accent-dark
+          className="min-h-11 rounded-control bg-action px-4 text-body font-emphasis
+            text-action-ink transition-colors duration-micro hover:bg-action-hover
             focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-accent
+            focus-visible:outline-offset-2 focus-visible:outline-action
             disabled:opacity-60"
         >
           {initial ? "Save" : "Add"}
@@ -209,7 +209,7 @@ export function OptionForm({
           disabled={pending}
           className="min-h-11 rounded-control px-3 text-body text-muted
             focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-accent"
+            focus-visible:outline-offset-2 focus-visible:outline-action"
         >
           Cancel
         </button>
