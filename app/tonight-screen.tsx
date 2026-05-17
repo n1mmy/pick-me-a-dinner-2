@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import type { TodayRejection } from "../db/queries";
 import type { AiRankingRow } from "../lib/ai-search";
 import type { TonightRow } from "../lib/ranking";
 import {
@@ -15,7 +16,7 @@ import {
   type TagFilters,
 } from "../lib/tonight-filter";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
-import { aiSearchAction } from "./tonight-actions";
+import { aiSearchAction, bringBackRejection } from "./tonight-actions";
 import { TonightRowItem } from "./tonight-row";
 import { TonightsDinnerBlock } from "./tonights-dinner-block";
 
@@ -47,6 +48,7 @@ export function TonightScreen({
   pickerRows,
   searchEnabled,
   allRejected = false,
+  rejectedTonight = [],
 }: {
   /** The Picked Options, in pick order — non-empty puts Tonight in decided mode. */
   tonightsDinner: TonightsDinnerEntry[];
@@ -60,6 +62,12 @@ export function TonightScreen({
    * the Options back tomorrow — from a genuinely empty Catalog.
    */
   allRejected?: boolean;
+  /**
+   * Today's Rejections (PRD: Rejections on Tonight) — what the "Rejected
+   * tonight" disclosure lists and lets the Household bring back. Empty by
+   * default, so the disclosure costs nothing until something is rejected.
+   */
+  rejectedTonight?: TodayRejection[];
 }) {
   const decided = tonightsDinner.length > 0;
   // Picker mode with nothing to rank at all — an empty Catalog, not "all Picked"
@@ -90,6 +98,12 @@ export function TonightScreen({
   const modeStatus = decided
     ? "Tonight's dinner is decided."
     : "Choosing tonight's dinner.";
+
+  // The "Rejected tonight" disclosure is pinned to the bottom of the picker, so
+  // it shows wherever the picker shows: always in picker mode, and in decided
+  // mode only once the picker has been re-opened. Collapsed mode keeps it off
+  // the screen entirely, so it costs nothing until the picker is in view.
+  const showDisclosure = !decided || pickerOpen;
 
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
@@ -142,7 +156,92 @@ export function TonightScreen({
       ) : (
         <Picker rows={pickerRows} searchEnabled={searchEnabled} />
       )}
+
+      {/* Pinned to the bottom of the picker list, after the ranked rows —
+          collapsed by default, so it costs no screen space until scrolled to.
+          Rendered only when the picker is in view and something was rejected
+          today; it then lists today's Rejections with a "Bring back" undo. */}
+      {showDisclosure && rejectedTonight.length > 0 && (
+        <RejectedTonightDisclosure rejections={rejectedTonight} />
+      )}
     </main>
+  );
+}
+
+/**
+ * The "Rejected tonight (N)" disclosure (PRD: Rejections on Tonight) — pinned
+ * at the bottom of the picker list, collapsed by default so it costs no screen
+ * space until the Household scrolls to it; the pattern mirrors decided mode's
+ * "Add another option" disclosure. The heading carries a count of today's
+ * Rejections.
+ *
+ * Expanded, it lists each of today's Rejections — the Option name, and the
+ * reason when one was given — each with a "Bring back" control. "Bring back"
+ * calls `bringBackRejection`, which **deletes** the Rejection record: the
+ * Option returns to tonight's list immediately and — because the record is
+ * gone, not merely expired — a mis-tapped Rejection never reaches AI search.
+ * Only today's Rejections appear here; managing the historical Rejection log
+ * is out of scope (PRD: Out of Scope).
+ */
+function RejectedTonightDisclosure({
+  rejections,
+}: {
+  rejections: TodayRejection[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  function bringBack(rejectionId: string) {
+    startTransition(async () => {
+      await bringBackRejection(rejectionId);
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((isOpen) => !isOpen)}
+        className={`min-h-11 self-start rounded-control border border-line
+          px-4 text-body font-emphasis text-action transition-colors
+          duration-short hover:bg-raised ${focusRing}`}
+      >
+        {`Rejected tonight (${rejections.length})`}
+      </button>
+      {open && (
+        <ul className="flex flex-col">
+          {rejections.map((rejection) => (
+            <li
+              key={rejection.id}
+              className="flex items-start gap-3 border-b border-line py-3"
+            >
+              <div className="min-w-0 flex-1">
+                <span className="font-display text-name font-name text-ink">
+                  {rejection.optionName}
+                </span>
+                {rejection.reason && (
+                  <p className="mt-0.5 text-meta text-muted">
+                    {rejection.reason}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => bringBack(rejection.id)}
+                disabled={pending}
+                className={`min-h-11 shrink-0 rounded-control border
+                  border-line px-3 text-body font-emphasis text-action
+                  transition-colors duration-short hover:bg-raised
+                  disabled:opacity-60 ${focusRing}`}
+              >
+                Bring back
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

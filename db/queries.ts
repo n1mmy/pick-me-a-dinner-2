@@ -194,23 +194,48 @@ export async function getLog(): Promise<LogEntryRow[]> {
 }
 
 /**
- * The Option ids the Household has rejected *today* — `rejections` rows whose
- * `rejected_on` equals `todaySqlDate`, the Household's calendar day in
- * `APP_TZ` (PRD: Rejections on Tonight). This is the per-day suppression set:
- * the Tonight page removes these Options from the deterministic picker, a
- * presentation filter that leaves `lib/ranking` and the Score untouched
- * (ADR-0003, ADR-0006). Because the query is keyed on today's date, a new
- * calendar day empties the set on its own and a rejected Option reappears with
- * no day-boundary logic.
+ * A Rejection the Household made today, narrowed to what the "Rejected
+ * tonight" disclosure renders and to the per-day suppression set the Tonight
+ * page derives from it (PRD: Rejections on Tonight).
  */
-export async function getRejectedOptionIds(
+export type TodayRejection = {
+  /** The `rejections` row id — the handle the "Bring back" action deletes by. */
+  id: string;
+  optionId: string;
+  optionName: string;
+  /** The optional short reason; `null` when the Household gave none. */
+  reason: string | null;
+};
+
+/**
+ * The Household's Rejections made *today* — `rejections` rows whose
+ * `rejected_on` equals `todaySqlDate`, the Household's calendar day in
+ * `APP_TZ` — joined to their Option, newest first (PRD: Rejections on
+ * Tonight). The Tonight page uses one result for both jobs: the per-day
+ * suppression set — Options dropped from the deterministic picker, a
+ * presentation filter that leaves `lib/ranking` and the Score untouched
+ * (ADR-0003, ADR-0006) — and the "Rejected tonight" disclosure list. Only
+ * active Options are joined, mirroring how the Log already excludes Archived
+ * Options. Because the query is keyed on today's date, a new calendar day
+ * empties the result on its own and a rejected Option reappears with no
+ * day-boundary logic.
+ */
+export async function getTodayRejections(
   todaySqlDate: string,
-): Promise<string[]> {
-  const rows = await db
-    .select({ optionId: rejections.optionId })
+): Promise<TodayRejection[]> {
+  return db
+    .select({
+      id: rejections.id,
+      optionId: rejections.optionId,
+      optionName: options.name,
+      reason: rejections.reason,
+    })
     .from(rejections)
-    .where(eq(rejections.rejectedOn, todaySqlDate));
-  return rows.map((row) => row.optionId);
+    .innerJoin(options, eq(rejections.optionId, options.id))
+    .where(
+      and(eq(rejections.rejectedOn, todaySqlDate), eq(options.active, true)),
+    )
+    .orderBy(desc(rejections.createdAt));
 }
 
 /** An Option reduced to a choice for the Log edit form's Option picker. */

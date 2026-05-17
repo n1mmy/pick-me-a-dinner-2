@@ -1,4 +1,4 @@
-import { getRejectedOptionIds, getTonightData } from "../db/queries";
+import { getTodayRejections, getTonightData } from "../db/queries";
 import { aiSearchEnabled } from "../lib/ai-search";
 import { epochDayFromSqlDate, todaySqlDate } from "../lib/local-day";
 import { rankTonight } from "../lib/ranking";
@@ -15,8 +15,8 @@ export default async function TonightPage() {
   // "Today" is the Household's calendar day in APP_TZ — not the server's UTC
   // day — so all recency is measured from the household's perspective.
   const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
-  const [{ options, logEntries, todayEntries }, rejectedOptionIds] =
-    await Promise.all([getTonightData(today), getRejectedOptionIds(today)]);
+  const [{ options, logEntries, todayEntries }, todayRejections] =
+    await Promise.all([getTonightData(today), getTodayRejections(today)]);
 
   const todayEpochDay = epochDayFromSqlDate(today);
   const entries = logEntries.map((entry) => ({
@@ -34,7 +34,9 @@ export default async function TonightPage() {
   // applied after `rankTonight`, so the Score and the ranking are untouched
   // (ADR-0003, ADR-0006). `allRejected` distinguishes a list emptied by
   // Rejections from a genuinely empty Catalog, so the screen shows honest copy.
-  const rejectedToday = new Set(rejectedOptionIds);
+  // The same `todayRejections` result also feeds the "Rejected tonight"
+  // disclosure, where each entry can be brought back.
+  const rejectedToday = new Set(todayRejections.map((r) => r.optionId));
   const visiblePicker = picker.filter(
     (row) => !rejectedToday.has(row.option.id),
   );
@@ -46,6 +48,7 @@ export default async function TonightPage() {
     <TonightScreen
       tonightsDinner={tonightsDinner}
       pickerRows={visiblePicker}
+      rejectedTonight={todayRejections}
       allRejected={allRejected}
       searchEnabled={aiSearchEnabled()}
     />
