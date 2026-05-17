@@ -165,10 +165,35 @@ export function buildSnapshot(input: {
 }
 
 /**
- * Validate the model's tool-use input into an ordered result. Any `id` not in
- * the active Catalog is dropped — a hallucinated Option the Household could not
- * actually Pick. A malformed entry (missing or non-string `id` / `reason`) is
- * skipped. The model's array order is preserved: it *is* the result ranking.
+ * The AI rationale cap. The rationale is a one-line glance, not a paragraph, so
+ * an over-long one is truncated to this length (PRD §16 — "about 80
+ * characters, plain text"). A model that ignores the "one short line"
+ * instruction cannot make a result row sprawl.
+ */
+const MAX_RATIONALE_LENGTH = 80;
+
+/**
+ * Truncate an over-long AI rationale to the cap, marking the cut with an
+ * ellipsis. A rationale within the cap is returned unchanged. The text is
+ * plain — no markdown — so a blind character cut is safe.
+ */
+function truncateRationale(reason: string): string {
+  if (reason.length <= MAX_RATIONALE_LENGTH) return reason;
+  return reason.slice(0, MAX_RATIONALE_LENGTH).trimEnd() + "…";
+}
+
+/**
+ * Validate the model's tool-use input into an ordered result. Hardening, so a
+ * sloppy model response still yields a clean screen:
+ *
+ * - Any `id` not in the active Catalog is dropped — a hallucinated Option the
+ *   Household could not actually Pick.
+ * - A malformed entry (missing or non-string `id` / `reason`) is skipped.
+ * - A repeated `id` is deduped, the **first** occurrence kept — a model that
+ *   lists the same Option twice never produces a duplicate result row.
+ * - An AI rationale over ~80 characters is truncated (see `truncateRationale`).
+ *
+ * The model's array order is preserved: it *is* the result ranking.
  */
 export function parseAndValidate(
   toolInput: unknown,
@@ -178,11 +203,14 @@ export function parseAndValidate(
   if (!Array.isArray(results)) return [];
 
   const rows: AiRankingRow[] = [];
+  const seen = new Set<string>();
   for (const raw of results) {
     const { id, reason } = (raw ?? {}) as { id?: unknown; reason?: unknown };
     if (typeof id !== "string" || typeof reason !== "string") continue;
     if (!activeIds.has(id)) continue;
-    rows.push({ id, reason });
+    if (seen.has(id)) continue;
+    seen.add(id);
+    rows.push({ id, reason: truncateRationale(reason) });
   }
   return rows;
 }

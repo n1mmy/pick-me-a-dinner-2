@@ -141,6 +141,43 @@ describe("parseAndValidate", () => {
     expect(parseAndValidate(null, activeIds)).toEqual([]);
     expect(parseAndValidate({ results: "nope" }, activeIds)).toEqual([]);
   });
+
+  it("dedupes a repeated id, keeping the first occurrence", () => {
+    const result = parseAndValidate(
+      {
+        results: [
+          { id: "a1", reason: "first take" },
+          { id: "b1", reason: "other Option" },
+          { id: "a1", reason: "second take — dropped" },
+        ],
+      },
+      activeIds,
+    );
+    expect(result).toEqual([
+      { id: "a1", reason: "first take" },
+      { id: "b1", reason: "other Option" },
+    ]);
+  });
+
+  it("truncates a rationale over ~80 characters", () => {
+    const longReason = "x".repeat(200);
+    const [row] = parseAndValidate(
+      { results: [{ id: "a1", reason: longReason }] },
+      activeIds,
+    );
+    expect(row.reason.length).toBeLessThan(longReason.length);
+    expect(row.reason.length).toBeLessThanOrEqual(81);
+    expect(row.reason.endsWith("…")).toBe(true);
+  });
+
+  it("leaves a short rationale unchanged", () => {
+    const shortReason = "Light and quick — a soup, three weeks since fish";
+    const [row] = parseAndValidate(
+      { results: [{ id: "a1", reason: shortReason }] },
+      activeIds,
+    );
+    expect(row.reason).toBe(shortReason);
+  });
 });
 
 describe("classifyError", () => {

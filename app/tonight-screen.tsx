@@ -152,9 +152,24 @@ export function TonightScreen({ rows }: { rows: TonightRow[] }) {
           </div>
           {aiRows !== null ? (
             aiRows.length === 0 ? (
-              <p className="text-body text-muted">
-                No Options fit that search.
-              </p>
+              // An empty AI result is a real answer — the model legitimately
+              // found nothing fitting the query — not a broken screen. The
+              // message mirrors the deterministic "No Options match" state; the
+              // inline control returns the screen to the deterministic list.
+              <div className="flex flex-col items-start gap-2">
+                <p className="text-body text-muted">
+                  No Options fit that search.
+                </p>
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className={`min-h-11 rounded-control px-3 text-body
+                    font-emphasis text-accent transition-colors duration-short
+                    ${focusRing}`}
+                >
+                  Clear search
+                </button>
+              </div>
             ) : (
               <ol className="flex flex-col">
                 {aiRows.map(({ row, reason }, index) => (

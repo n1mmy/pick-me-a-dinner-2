@@ -1,6 +1,6 @@
 # 03 — AI search: result hardening and empty state
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -24,15 +24,15 @@ mirroring the existing "No Options match the current filter" state.
 
 ## Acceptance criteria
 
-- [ ] `parseAndValidate` dedupes repeated `id`s, keeping the first occurrence
-- [ ] `parseAndValidate` truncates any rationale over ~80 characters and leaves
+- [x] `parseAndValidate` dedupes repeated `id`s, keeping the first occurrence
+- [x] `parseAndValidate` truncates any rationale over ~80 characters and leaves
       a short one unchanged
-- [ ] An empty AI result renders a plain empty-state message with a clear/retry
+- [x] An empty AI result renders a plain empty-state message with a clear/retry
       control
-- [ ] The clear/retry control returns the screen to the deterministic list
-- [ ] Unit tests cover dedup, rationale truncation, and a short rationale left
+- [x] The clear/retry control returns the screen to the deterministic list
+- [x] Unit tests cover dedup, rationale truncation, and a short rationale left
       unchanged
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
 
 ## Blocked by
 

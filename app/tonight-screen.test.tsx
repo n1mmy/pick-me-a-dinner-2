@@ -81,6 +81,23 @@ describe("TonightScreen — AI search", () => {
     expect(screen.queryByText("Light and quick")).toBeNull();
   });
 
+  it("shows a plain empty-state with a clear control on an empty AI result", async () => {
+    mockedAiSearch.mockResolvedValue({ ok: true, results: [] });
+
+    render(<TonightScreen rows={ROWS} />);
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    // The empty result reads as a real answer, not a broken screen.
+    expect(await screen.findByText("No Options fit that search.")).toBeTruthy();
+    expect(screen.queryByText("Never eaten yet")).toBeNull();
+
+    // The inline clear control returns the screen to the deterministic list.
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(screen.getByText("Never eaten yet")).toBeTruthy();
+    expect(screen.getByText("Eaten quite recently")).toBeTruthy();
+    expect(screen.queryByText("No Options fit that search.")).toBeNull();
+  });
+
   it("leaves the deterministic list intact and shows an error on failure", async () => {
     mockedAiSearch.mockResolvedValue({ ok: false });
 
