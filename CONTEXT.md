@@ -26,6 +26,14 @@ _Avoid_: Place, venue.
 **Catalog**:
 The full set of Options the household maintains.
 
+**Option detail page**:
+A screen showing everything about a single Option — its fields, its ranking
+data (Score and recency), its Log history, and its Rejections — reached by
+tapping the Option's name anywhere it appears, and carrying every control that
+makes sense for that Option.
+_Avoid_: Restaurant page (the page serves both kinds of Option, not only
+Restaurants).
+
 **Tag**:
 A free-form, case-insensitive label attached to an Option (e.g. `pasta`,
 `fish`, `helen: burger`). Drives the variety side of the ranking.
