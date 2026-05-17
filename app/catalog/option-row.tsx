@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { OptionWithTags } from "../../db/queries";
+import { PickButton } from "../pick-button";
 import { archiveOption, deleteOption } from "./actions";
 import { OptionForm } from "./option-form";
 
@@ -124,6 +125,7 @@ export function OptionRow({
               </button>
             </>
           )}
+          <PickButton optionId={option.id} />
         </div>
       </div>
       {error && <p className="text-chip text-danger">{error}</p>}

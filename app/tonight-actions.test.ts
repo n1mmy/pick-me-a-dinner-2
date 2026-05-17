@@ -29,6 +29,7 @@ vi.mock("../lib/ai-search", async (importOriginal) => ({
 }));
 
 import { aiSearchAction } from "./tonight-actions";
+import type { TodayRejection } from "../db/queries";
 import { AI_SEARCH_UNAVAILABLE } from "../lib/ai-search";
 import { todaySqlDate } from "../lib/local-day";
 
@@ -112,7 +113,11 @@ describe("aiSearchAction", () => {
     // day. Its Rejection still rides along in the snapshot's Rejections block.
     expect(snapshot.options).toEqual([]);
     expect([...activeIds]).toEqual([]);
-    expect(snapshot.rejections.rejectedTonight.map((r) => r.optionId)).toEqual([
+    expect(
+      snapshot.rejections.rejectedTonight.map(
+        (r: TodayRejection) => r.optionId,
+      ),
+    ).toEqual([
       "o1",
     ]);
   });

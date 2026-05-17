@@ -79,6 +79,13 @@ export function TonightScreen({
   // mode.
   const [pickerOpen, setPickerOpen] = useState(false);
 
+  // The All/Home/Restaurant kind filter lives here so its segment can sit in
+  // the page header beside "Tonight"; the Picker still owns the filtering.
+  const [kind, setKind] = useState<KindFilter>("all");
+  // The Picker reports when an AI result is on screen — the kind segment hides
+  // then, since an AI result is ranked by the query alone.
+  const [aiActive, setAiActive] = useState(false);
+
   // Auto-collapse: a Pick revalidates the page, so `tonightsDinner` grows and
   // the re-opened picker should drop back to the settled view without a tap.
   // Keying off the count catches the new entry without re-collapsing on every
@@ -105,9 +112,17 @@ export function TonightScreen({
   // the screen entirely, so it costs nothing until the picker is in view.
   const showDisclosure = !decided || pickerOpen;
 
+  // The kind segment shows only when a Picker is actually on screen and not
+  // overridden by an AI result.
+  const pickerRendered = pickerRows.length > 0 && (!decided || pickerOpen);
+  const showKindSegment = pickerRendered && !aiActive;
+
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
-      <h1 className="font-display text-h1 font-h1 text-ink">Tonight</h1>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h1 className="font-display text-h1 font-h1 text-ink">Tonight</h1>
+        {showKindSegment && <KindSegment kind={kind} onChange={setKind} />}
+      </div>
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}
       </p>
@@ -150,11 +165,21 @@ export function TonightScreen({
                   : "Every Option is already on tonight’s dinner."}
               </p>
             ) : (
-              <Picker rows={pickerRows} searchEnabled={searchEnabled} />
+              <Picker
+                rows={pickerRows}
+                searchEnabled={searchEnabled}
+                kind={kind}
+                onAiActiveChange={setAiActive}
+              />
             ))}
         </>
       ) : (
-        <Picker rows={pickerRows} searchEnabled={searchEnabled} />
+        <Picker
+          rows={pickerRows}
+          searchEnabled={searchEnabled}
+          kind={kind}
+          onAiActiveChange={setAiActive}
+        />
       )}
 
       {/* Pinned to the bottom of the picker list, after the ranked rows —
@@ -247,9 +272,12 @@ function RejectedTonightDisclosure({
 
 /**
  * The ranked picker: a sticky filter zone — optional AI search box, the
- * All/Home/Restaurant kind segment, the tri-state Tag filter chips — above the
- * flat ranked `<ol>`. It is the whole screen in picker mode and the collapsible
- * body in decided mode; its behavior is identical either way.
+ * tri-state Tag filter chips — above the flat ranked `<ol>`. It is the whole
+ * screen in picker mode and the collapsible body in decided mode; its behavior
+ * is identical either way. The All/Home/Restaurant kind segment lives in the
+ * page header (`TonightScreen`) and scrolls away with it; the picker only reads
+ * the resulting `kind` and reports AI-result state back via `onAiActiveChange`
+ * so the header can hide the segment.
  *
  * The search box appears only when AI search is configured (`searchEnabled`).
  * Submitting it runs an **AI search** (PRD: AI search) — the deterministic list
@@ -262,11 +290,14 @@ function RejectedTonightDisclosure({
 function Picker({
   rows,
   searchEnabled,
+  kind,
+  onAiActiveChange,
 }: {
   rows: TonightRow[];
   searchEnabled: boolean;
+  kind: KindFilter;
+  onAiActiveChange: (active: boolean) => void;
 }) {
-  const [kind, setKind] = useState<KindFilter>("all");
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
 
   // AI search state. `aiResults === null` is the default deterministic view;
@@ -317,6 +348,12 @@ function Picker({
       return row ? [{ row, reason: result.reason }] : [];
     });
   }, [aiResults, rows]);
+
+  // Surface the AI-result state to the page header so its kind segment hides
+  // while an AI result is on screen.
+  useEffect(() => {
+    onAiActiveChange(aiRows !== null);
+  }, [aiRows, onAiActiveChange]);
 
   function cycleTag(tag: string) {
     setTagFilters((prev) => ({
@@ -372,7 +409,6 @@ function Picker({
             the search restores it with the deterministic list. */}
         {aiRows === null && (
           <>
-            <KindSegment kind={kind} onChange={setKind} />
             {tags.length > 0 && (
               <div
                 role="group"
