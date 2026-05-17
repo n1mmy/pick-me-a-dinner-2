@@ -8,8 +8,8 @@ dispatch **worker sub-agents** to do the issues.
 Three roles:
 
 - **You, the orchestrator** — schedule and integrate. You decide which
-  issues run, dispatch workers, merge their branches, enforce timeouts and
-  stop conditions. You are long-lived: you survive the whole run.
+  issues run, dispatch workers, merge their branches, enforce stop
+  conditions. You are long-lived: you survive the whole run.
 - **Worker sub-agents** — do one issue each, in an isolated git worktree.
 - **Service sub-agents** — one-shot merge and gate-verify helpers.
 
@@ -85,12 +85,16 @@ turns their transcripts into a compact step log — one line per tool call
 (`Read x`, `Edit y`, `Bash pnpm test`), never the tool output. Two ways to
 use it:
 
-- **In-session** — your watchdog runs `python3 .ralph/watch-steps.py
-  --digest` on each wake (step 4), so worker steps appear in this session as
-  the run proceeds. Each `--digest` call prints only what is new since the
-  last. This costs a little context, by design — a compact line per tool call.
-- **Separate terminal** — run `python3 .ralph/watch-steps.py` (no args) in
-  another terminal for a live tail that costs no agent context at all.
+- **Separate terminal (the live view)** — run `python3
+  .ralph/watch-steps.py` (no args) in another terminal for a live tail
+  that costs no agent context. This is the only *live* view: a foreground
+  wave suspends you (step 3), so you cannot tail from inside the session
+  while workers run.
+- **In-session digest** — between waves (after a dispatch message has
+  returned) you may run `python3 .ralph/watch-steps.py --digest` to log
+  the just-finished wave's worker steps into this session. Each `--digest`
+  call prints only what is new since the last. It is a post-hoc record,
+  not a live feed, and costs a little context by design.
 
 Either way it is a plain transcript reader: it surfaces only the workers'
 tool calls, never the raw transcript's (large) tool output.
@@ -101,6 +105,9 @@ tool calls, never the raw transcript's (large) tool output.
   parallelism entirely (the loop collapses to serial with no code-path
   change — this is the off-switch).
 - `WORKER_TIMEOUT` — per-worker budget. Default **25 min** (from `loop.py`).
+  Advisory only: you have no kill hook (step 4), so it is enforced
+  worker-side — the dispatch template passes it to each worker as a
+  self-limit.
 - `RETRY_BUDGET` — failed-attempt retries per issue. Default **2** (3
   attempts total).
 - `MAX_CONSECUTIVE_FAILS` — exhausted issues in a row before halting.
@@ -137,12 +144,19 @@ Before anything else, every round:
 - Record the integration tip (`git rev-parse HEAD`) — the pre-wave tip,
   needed for revert in step 7.
 
-### 3 — Dispatch workers (background)
+### 3 — Dispatch the wave (foreground, one message)
 
-For each issue in the wave, dispatch one `Agent`:
+Dispatch the wave's workers as `Agent` calls — **all of them in a single
+message**, one tool call per issue. Foreground `Agent` calls issued
+together in one message run concurrently, so the wave is still parallel.
 
-- `run_in_background: true` — **mandatory**. Foreground dispatch blocks you
-  on the slowest worker and gives no kill hook for the timeout.
+- **Do not set `run_in_background`.** `isolation: "worktree"` is honored
+  only on foreground dispatch. With `run_in_background: true` the harness
+  silently drops isolation: the worker runs in *your* integration worktree
+  on the integration branch, its commit lands directly on that branch, and
+  parallel workers collide on the one branch. Foreground is mandatory — it
+  is what makes `isolation` real. (Verified: a background worker reports
+  your own worktree path and branch; a foreground one gets its own.)
 - `isolation: "worktree"` — each worker runs in its own isolated git
   worktree and returns its branch name. **That worktree is branched off
   `main`, not off the integration tip** — `main` is stale and may predate
@@ -154,24 +168,33 @@ For each issue in the wave, dispatch one `Agent`:
   text inlined (including any `## Comments` failure notes from prior
   attempts).
 
-### 4 — Watchdog
+Foreground dispatch **suspends you until every worker in the message has
+returned** — you cannot act mid-wave. That is the accepted trade for
+working isolation; see step 4.
 
-While workers run, enforce `WORKER_TIMEOUT`. Background agents notify you
-on completion, but a *hung* worker never completes — so you must also wake
-periodically (a `Monitor` until-loop, or bounded waits between completion
-notifications) and check each worker's elapsed time. `TaskStop` any worker
-past budget; count it as a **timeout-fail** (step 6).
+### 4 — While the wave runs
 
-On each wake, also run `python3 .ralph/watch-steps.py --digest`. It prints
-the workers' tool calls since your last check — a compact line per call
-(`Read x`, `Edit y`, `Bash pnpm test`), never the tool output — surfacing
-live worker progress in this session. It does not change what you act on
-(step 5 still verifies the durable artifacts); it is visibility only, at a
-small, deliberate context cost.
+A foreground wave suspends you until the whole dispatch message returns —
+you cannot wake, monitor, or kill a worker mid-wave. Two consequences:
 
-### 5 — Collect and merge (rolling)
+- **`WORKER_TIMEOUT` is advisory — you do not enforce it.** You have no
+  `TaskStop` kill hook. Enforcement is worker-side: the dispatch template
+  tells each worker its budget and to write a failure note and stop rather
+  than run indefinitely. A genuinely hung worker (one that does not
+  self-police) stalls only its own wave, until the agent runtime ends it;
+  on return, treat it as a failure (step 6). It cannot corrupt the
+  integration branch — its work is isolated in its own worktree.
+- **Live visibility is out-of-session.** Run `python3
+  .ralph/watch-steps.py` (no args) in a separate terminal for a live tail
+  while you are suspended — it needs nothing from you. The in-session
+  `--digest` is post-hoc only: run it once after the wave returns (step 5)
+  to log the finished wave's worker steps into this session.
 
-As each worker closes its task:
+### 5 — Collect and merge
+
+When the wave's dispatch message returns, all workers have resolved
+together. Optionally run `python3 .ralph/watch-steps.py --digest` to log
+their steps into this session. Then, for each worker:
 
 - Read its result — but **do not trust the self-report**. Verify the
   durable artifacts: the issue's `Status:` line actually flipped to
@@ -193,13 +216,14 @@ As each worker closes its task:
 A worker outcome is one of:
 
 - **Success** (verified in step 5) → done with this issue.
-- **Failure** (gate red, crash, `TaskStop` timeout, or unverified
-  self-report) → a terse failure note belongs in the issue file under a
-  `## Comments` heading, and `Status` stays `ready-for-agent`. A graceful
-  worker writes that note itself; on a hard crash/timeout *you* write a
-  one-line note ("attempt N: timed out"). Next round a **fresh** worker
-  picks the issue up and reads it *including* the prior failure notes — a
-  clean-context retry that can still see what the last attempt hit.
+- **Failure** (gate red, crash, out-of-time, or unverified self-report) →
+  a terse failure note belongs in the issue file under a `## Comments`
+  heading, and `Status` stays `ready-for-agent`. A graceful worker writes
+  that note itself; on a hard crash or a worker that ran out of time *you*
+  write a one-line note ("attempt N: timed out"). Next round a **fresh**
+  worker picks the issue up and reads it *including* the prior failure
+  notes — a clean-context retry that can still see what the last attempt
+  hit.
 - **`needs-info`** (the worker explicitly judged the issue wrong or
   blocked) → **not retried**. That is the worker's considered judgment;
   re-running just re-derives the same blocker. Escalate it (step 8).
@@ -210,7 +234,7 @@ count it once toward `MAX_CONSECUTIVE_FAILS`.
 
 ### 7 — Wave barrier and gate verify
 
-Once **all** workers in the wave have resolved (closed or `TaskStop`ped)
+Once the wave's dispatch message has returned (all workers resolved)
 **and** all merges have run, dispatch **one** gate-verify sub-agent
 (template below; no `isolation` — it runs on your integration worktree).
 
@@ -294,6 +318,10 @@ workflow — **you do not push, and you do not merge outside your worktree.**
 > - Verify before committing — run every check the project defines
 >   (`pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:db`, and for
 >   UI/route/env work `pnpm build`). All must be green.
+> - Budget: aim to finish within `<WORKER_TIMEOUT>`. If you cannot — a
+>   check stays red, or you are stuck — do **not** run indefinitely: take
+>   the failure path below (write the `## Comments` note, leave `Status:`
+>   as `ready-for-agent`) and stop.
 > - On success: tick every acceptance checkbox, flip the issue's `Status:`
 >   line to `done`, and make **one** commit on your branch containing both
 >   the code and the issue-file edit. Commit locally only — never
