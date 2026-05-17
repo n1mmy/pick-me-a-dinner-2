@@ -26,44 +26,38 @@ const mockedAiSearch = vi.mocked(aiSearchAction);
 const mockedDelete = vi.mocked(deleteLogEntry);
 
 /**
- * A deterministic Tonight row with a distinct Explanation chip. `tags` are the
- * Option's Tags, which drive the Tag filter chips in the filter zone.
+ * A deterministic Tonight row. `tags` are the Option's Tags, which drive the
+ * Tag filter chips in the filter zone. Rows are identified in assertions by
+ * their Option name (digit-free, so a whole-string text match is safe).
  */
-function row(
-  id: string,
-  name: string,
-  explanation: string,
-  tags: string[] = [],
-): TonightRow {
+function row(id: string, name: string, tags: string[] = []): TonightRow {
   return {
     option: { id, name, kind: "home", tags, url: null, phone: null },
     score: 10,
-    explanation,
     tags: [],
     recencyDays: 0,
+    neverEaten: false,
   };
 }
 
-// Digit-free Explanation chips: `MonoNumerals` in `tonight-row` splits any run
-// of digits into its own span, which would break a whole-string text match.
 const ROWS: TonightRow[] = [
-  row("o1", "Apple Crumble", "Never eaten yet"),
-  row("o2", "Banana Bread", "Eaten quite recently"),
+  row("o1", "Apple Crumble"),
+  row("o2", "Banana Bread"),
 ];
 
 // Rows that carry a Tag, so the filter zone renders the Tag filter chips
 // alongside the kind segment.
 const TAGGED_ROWS: TonightRow[] = [
-  row("o1", "Apple Crumble", "Never eaten yet", ["dessert"]),
-  row("o2", "Banana Bread", "Eaten quite recently", ["dessert"]),
+  row("o1", "Apple Crumble", ["dessert"]),
+  row("o2", "Banana Bread", ["dessert"]),
 ];
 
 // Two Picked Options — a non-empty `tonightsDinner` puts Tonight in decided
 // mode and renders the "Tonight's dinner" block. `entryId` is the today Log
 // entry id the row's "Remove" deletes.
 const DINNER: TonightsDinnerEntry[] = [
-  { entryId: "e1", row: row("o1", "Apple Crumble", "Never eaten yet") },
-  { entryId: "e2", row: row("o2", "Banana Bread", "Eaten quite recently") },
+  { entryId: "e1", row: row("o1", "Apple Crumble") },
+  { entryId: "e2", row: row("o2", "Banana Bread") },
 ];
 
 afterEach(() => {
@@ -79,17 +73,17 @@ describe("TonightScreen — AI search", () => {
     });
 
     render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
-    // The deterministic list shows its Explanation chips.
-    expect(screen.getByText("Never eaten yet")).toBeTruthy();
+    // The deterministic list shows its rows.
+    expect(screen.getByText("Apple Crumble")).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Search for dinner by intent"), {
       target: { value: "something light" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
-    // The AI rationale appears in place of the Explanation chip.
+    // The AI result swaps in; the unranked deterministic row is gone.
     expect(await screen.findByText("Light and quick")).toBeTruthy();
-    expect(screen.queryByText("Never eaten yet")).toBeNull();
+    expect(screen.queryByText("Apple Crumble")).toBeNull();
     expect(mockedAiSearch).toHaveBeenCalledWith("something light");
   });
 
@@ -105,9 +99,9 @@ describe("TonightScreen — AI search", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
-    // Both Explanation chips are back and the AI rationale is gone.
-    expect(screen.getByText("Never eaten yet")).toBeTruthy();
-    expect(screen.getByText("Eaten quite recently")).toBeTruthy();
+    // Both deterministic rows are back and the AI rationale is gone.
+    expect(screen.getByText("Apple Crumble")).toBeTruthy();
+    expect(screen.getByText("Banana Bread")).toBeTruthy();
     expect(screen.queryByText("Light and quick")).toBeNull();
   });
 
@@ -119,12 +113,12 @@ describe("TonightScreen — AI search", () => {
 
     // The empty result reads as a real answer, not a broken screen.
     expect(await screen.findByText("No Options fit that search.")).toBeTruthy();
-    expect(screen.queryByText("Never eaten yet")).toBeNull();
+    expect(screen.queryByText("Apple Crumble")).toBeNull();
 
     // The inline clear control returns the screen to the deterministic list.
     fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
-    expect(screen.getByText("Never eaten yet")).toBeTruthy();
-    expect(screen.getByText("Eaten quite recently")).toBeTruthy();
+    expect(screen.getByText("Apple Crumble")).toBeTruthy();
+    expect(screen.getByText("Banana Bread")).toBeTruthy();
     expect(screen.queryByText("No Options fit that search.")).toBeNull();
   });
 
@@ -138,8 +132,8 @@ describe("TonightScreen — AI search", () => {
     expect(
       await screen.findByText("Search unavailable — try again"),
     ).toBeTruthy();
-    expect(screen.getByText("Never eaten yet")).toBeTruthy();
-    expect(screen.getByText("Eaten quite recently")).toBeTruthy();
+    expect(screen.getByText("Apple Crumble")).toBeTruthy();
+    expect(screen.getByText("Banana Bread")).toBeTruthy();
   });
 
   it("clears the error when the query is cleared", async () => {
@@ -179,7 +173,7 @@ describe("TonightScreen — AI search", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
     // Clearing restores both the deterministic list and its filter controls.
-    expect(screen.getByText("Never eaten yet")).toBeTruthy();
+    expect(screen.getByText("Apple Crumble")).toBeTruthy();
     expect(
       screen.queryByRole("group", { name: "Filter by kind" }),
     ).toBeTruthy();
@@ -207,7 +201,7 @@ describe("TonightScreen — AI search", () => {
     // runs at a time — and the deterministic list stays visible underneath.
     await screen.findByRole("button", { name: "Searching…" });
     expect(input.disabled).toBe(true);
-    expect(screen.getByText("Never eaten yet")).toBeTruthy();
+    expect(screen.getByText("Apple Crumble")).toBeTruthy();
 
     // The result arrives, swaps in, and re-enables the box.
     resolveSearch({
@@ -243,7 +237,7 @@ describe("TonightScreen — AI search", () => {
     expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
 
     // The deterministic list and its filter zone remain — v1 is unaffected.
-    expect(screen.getByText("Never eaten yet")).toBeTruthy();
+    expect(screen.getByText("Apple Crumble")).toBeTruthy();
     expect(
       screen.queryByRole("group", { name: "Filter by kind" }),
     ).toBeTruthy();
@@ -334,6 +328,6 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
     expect(
       screen.getByRole("group", { name: "Filter by kind" }),
     ).toBeTruthy();
-    expect(screen.getByText("Never eaten yet")).toBeTruthy();
+    expect(screen.getByText("Apple Crumble")).toBeTruthy();
   });
 });

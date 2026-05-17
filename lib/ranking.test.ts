@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { CAP, OVERDUE_THRESHOLD, W_OPTION, W_TAG } from "./ranking.config";
 import {
   daysSince,
-  explanationChip,
   lastEaten,
   lastTagUse,
   optionScore,
@@ -113,52 +112,6 @@ describe("optionScore", () => {
   });
 });
 
-describe("explanationChip", () => {
-  it("names the largest-recency Tag when the Tag term dominates", () => {
-    expect(
-      explanationChip({
-        tagDays: [
-          { tag: "fish", days: 18 },
-          { tag: "pasta", days: 5 },
-        ],
-        antiRepeat: 4,
-        lastEatenIsNull: false,
-      }),
-    ).toBe("No fish in 18 days");
-  });
-
-  it("names the Option's own recency when the option term dominates", () => {
-    expect(
-      explanationChip({
-        tagDays: [{ tag: "pasta", days: 2 }],
-        antiRepeat: 40,
-        lastEatenIsNull: false,
-      }),
-    ).toBe("Last had 40 days ago");
-  });
-
-  it("uses the option branch for a tagless Option even on a score tie", () => {
-    // Regression guard for the §7 rule: no Tag to name, so never the Tag branch.
-    expect(
-      explanationChip({
-        tagDays: [],
-        antiRepeat: 7,
-        lastEatenIsNull: false,
-      }),
-    ).toBe("Last had 7 days ago");
-  });
-
-  it("reads 'Never eaten yet' when lastEaten is null, never a false 'Last had 60 days ago'", () => {
-    expect(
-      explanationChip({
-        tagDays: [],
-        antiRepeat: CAP,
-        lastEatenIsNull: true,
-      }),
-    ).toBe("Never eaten yet");
-  });
-});
-
 describe("rankTonight", () => {
   it("renders per-Tag recency and flags a Tag overdue exactly at the threshold", () => {
     const options = [option("o1", "Fish Tacos", ["fish"])];
@@ -192,6 +145,8 @@ describe("rankTonight", () => {
     ];
     const rows = rankTonight(options, entries, TODAY);
     expect(rows.map((row) => row.option.id)).toEqual(["stale", "recent"]);
+    // Both Options have a non-future Log entry, so neither reads as never eaten.
+    expect(rows.every((row) => row.neverEaten === false)).toBe(true);
   });
 
   it("falls back to alphabetical order on cold start (zero non-future entries)", () => {
@@ -217,7 +172,8 @@ describe("rankTonight", () => {
       TODAY,
     );
     // The only entry is in the future, so the Option reads as never eaten.
-    expect(rows[0].explanation).toBe("Never eaten yet");
+    expect(rows[0].neverEaten).toBe(true);
+    expect(rows[0].recencyDays).toBe(CAP);
     expect(rows[0].score).toBe((W_OPTION + W_TAG) * CAP);
   });
 });

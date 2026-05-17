@@ -84,12 +84,16 @@ list.
 _Avoid_: Anti-repeat, variety enforcer (the two inputs are simply per-Option
 recency and per-Tag recency).
 
-**Explanation chip**:
-The one plain-English line on each Tonight row stating why it ranks where it
-does ("No fish in 18 days", "Never eaten yet"). A product requirement — if the
-ranking cannot explain itself in a line, it is not done. Computed
-deterministically from the Score terms; it is **not** an AI rationale and
-cannot say anything the recency numbers don't support.
+**Recency chip**:
+The small chip on each Tonight row showing the Option's own **per-Option
+recency** — how long since the Household last had that exact Option ("18d",
+"60d+" at the cap, "new" when it has never been eaten). It sits alongside the
+Tag chips and surfaces one Score input as raw data; unlike the Explanation
+chip it replaced, it does not narrate why the Option ranks where it does — the
+Recency chip and the Tag chips together just show the numbers behind the
+Score.
+_Avoid_: Explanation chip (the retired prose line — Tonight no longer carries
+a deterministic "why" sentence).
 
 **Overdue**:
 A Tag whose per-Tag recency has crossed the overdue threshold; rendered in the
@@ -113,9 +117,11 @@ _Avoid_: AI ranking (it is search — there is a query, even when empty).
 **AI rationale**:
 The model-generated line of prose on each AI search result row explaining why
 that Option fits the query ("Light and fast — a soup, and it's been three
-weeks"). The AI search counterpart of the Explanation chip: generative and
-query-aware, where the chip is deterministic and formulaic.
-_Avoid_: Explanation chip (that term is reserved for the deterministic line).
+weeks"). Generative and query-aware, and unique to AI search — the
+deterministic Tonight list has no prose "why" line; it shows the Recency chip
+and Tag chips instead.
+_Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
+not a rationale).
 
 ### Lifecycle & access
 
@@ -152,7 +158,7 @@ single-household — no user accounts, no per-person identity.
 - **Tonight** surfaces **Tonight's dinner** once a **Pick** is made.
 - An Option's **Score** combines its **per-Option recency** with the
   **per-Tag recency** of its **Tags**.
-- Each **Tonight** row carries one **Explanation chip**.
+- Each **Tonight** row carries one **Recency chip**.
 - An **Option** is either **Active** or **Archived**.
 - An **Option** with any **Log entry** cannot be **hard-deleted** — only
   **Archived**.

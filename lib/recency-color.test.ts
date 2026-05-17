@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { CAP } from "./ranking.config";
-import { recencyChipBg, recencyColor } from "./recency-color";
+import {
+  recencyChipBg,
+  recencyChipBgStrong,
+  recencyColor,
+} from "./recency-color";
 
 describe("recencyColor", () => {
   it("returns pure recency-recent at 0 days (just eaten)", () => {
@@ -42,6 +46,14 @@ describe("recencyChipBg", () => {
   it("wraps the heatmap color at low opacity", () => {
     expect(recencyChipBg(0)).toBe(
       `color-mix(in srgb, ${recencyColor(0)}, transparent 86%)`,
+    );
+  });
+});
+
+describe("recencyChipBgStrong", () => {
+  it("wraps the heatmap color at a stronger opacity than recencyChipBg", () => {
+    expect(recencyChipBgStrong(0)).toBe(
+      `color-mix(in srgb, ${recencyColor(0)}, transparent 62%)`,
     );
   });
 });
