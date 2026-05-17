@@ -5,29 +5,48 @@ alternative to `.ralph/loop.py` (the headless driver). Instead of one
 `claude --print` process per issue, you run in a Claude Code session and
 dispatch **worker sub-agents** to do the issues.
 
-Three roles:
+Two roles:
 
 - **You, the orchestrator** — schedule and integrate. You decide which
-  issues run, dispatch workers, merge their branches, enforce stop
-  conditions. You are long-lived: you survive the whole run.
+  issues run, dispatch workers, merge their branches into the integration
+  branch, run the gate, enforce stop conditions. You are long-lived: you
+  survive the whole run.
 - **Worker sub-agents** — do one issue each, in an isolated git worktree.
-- **Service sub-agents** — one-shot merge and gate-verify helpers.
 
-## The one hard rule: you never touch code
+This harness isolates **every** `Agent` call into its own throwaway git
+worktree, whether or not `isolation` is set. A merge or gate sub-agent
+therefore cannot operate on the integration branch — its commit would land
+on a throwaway branch, and its gate would test the wrong tree. So merging
+and gate-verify are **not** delegated: the orchestrator runs them itself,
+directly in the integration worktree (see steps 5 and 7).
+
+## The hard rule: you never touch code
 
 Your context must stay small enough to last the whole run. It does — *if*
 you only ever grow it by small structured messages (dispatch prompts,
-result summaries). It dies fast if you get pulled into hands-on work.
+result summaries, bounded git and gate output). It dies fast if you get
+pulled into hands-on work.
 
-So you **never**: read a source file, run a build or test, resolve a merge
-conflict, debug a failure, or write project code. Every one of those is
-delegated to a fresh sub-agent. If you are tempted to "just quickly check"
-something in the codebase — don't. Dispatch a sub-agent.
+So you **never**: read a source file, resolve a merge conflict, debug a
+failure, or write project code. Every one of those is delegated to a fresh
+worker sub-agent. If you are tempted to "just quickly check" something in
+the codebase — don't. Dispatch a sub-agent.
 
-You *may* run git plumbing that produces little output (`git log
---oneline`, `git status --short`, `git rev-parse`, `git worktree`, branch
-inspection) and read the `.issues/` and `.ralph/` files. That is the whole
-of your direct surface.
+You *do*, directly, two things that integrate the run — because the harness
+isolates every sub-agent and so neither can be delegated:
+
+- **Merge** a verified worker branch into the integration branch with `git
+  merge --no-ff` (step 5). A clean merge is tiny output. A merge that
+  conflicts is aborted immediately — you never resolve the conflict, you
+  boot the issue back to a worker.
+- **Run the gate** on the integration branch (step 7) — `pnpm typecheck`,
+  `lint`, `test`, `test:db`, `build`. You read only pass/fail; you never
+  fix a red gate yourself, you revert-and-serialize (step 7).
+
+Beyond those, you *may* run git plumbing that produces little output (`git
+log --oneline`, `git status --short`, `git rev-parse`, `git worktree`,
+branch inspection) and read the `.issues/` and `.ralph/` files. That is the
+whole of your direct surface.
 
 ## Local git only — never contact a remote
 
@@ -201,15 +220,17 @@ their steps into this session. Then, for each worker:
   `done`, and a commit actually landed on the worker's branch. A worker
   that reports success but left `Status: ready-for-agent` is a **failure**
   (step 6), not a success.
-- If verified, dispatch a **foreground merge sub-agent** (template below;
-  no `isolation` — it operates on your integration worktree) for that
-  branch. Merges are short — foreground is fine.
-  - Clean merge → the branch is integrated. You may `git worktree remove`
-    the worker's worktree.
-  - Non-trivial merge (conflict) → boot the issue back to
-    `ready-for-agent`. Its re-run next round branches off the updated tip
-    — which now includes the merge winner — so it redoes its work *on top
-    of* the winner: sequential, conflict-free by construction.
+- If verified, **merge it yourself**: run `git merge --no-ff
+  <worker-branch>` into the integration branch (see the merge procedure
+  below).
+  - Clean merge → the branch is integrated. You may `git worktree remove
+    --force` the worker's worktree (if the harness still holds a lock on
+    it, removal fails — that is harmless, skip it).
+  - Conflict → `git merge --abort` at once and boot the issue back to
+    `ready-for-agent`. Do not resolve the conflict. Its re-run next round
+    branches off the updated tip — which now includes the merge winner —
+    so it redoes its work *on top of* the winner: sequential, conflict-free
+    by construction.
 
 ### 6 — Smart retries
 
@@ -235,8 +256,8 @@ count it once toward `MAX_CONSECUTIVE_FAILS`.
 ### 7 — Wave barrier and gate verify
 
 Once the wave's dispatch message has returned (all workers resolved)
-**and** all merges have run, dispatch **one** gate-verify sub-agent
-(template below; no `isolation` — it runs on your integration worktree).
+**and** all merges have run, run the project gate yourself on the
+integration branch (see the gate procedure below).
 
 - **Green** → the wave is integrated. Go to the next round.
 - **Red** → a cross-issue break slipped past the workers' own gates (e.g.
@@ -283,7 +304,7 @@ On any halt, and at end-of-run, print a summary: issues done, issues
 is left for the user to merge up to `ralph-4`/`main` via the project's git
 workflow — **you do not push, and you do not merge outside your worktree.**
 
-## Dispatch templates
+## Dispatch template and integration procedures
 
 ### Worker sub-agent
 
@@ -336,28 +357,27 @@ workflow — **you do not push, and you do not merge outside your worktree.**
 > Report back tersely: outcome (done / failed / needs-info), your branch
 > name, and a one-line reason if not done. Do not narrate.
 
-### Merge sub-agent
+### Merge procedure — the orchestrator runs this directly
 
-> Attempt a trivial merge only. Run `git merge --no-ff <worker-branch>`
-> into the current branch (`<integration-branch>`).
->
-> - If it merges cleanly, report `merged: yes`.
-> - If it reports a conflict, run `git merge --abort` immediately and
->   report `merged: no (conflict)`. Do **not** resolve the conflict; do
->   not edit any file.
->
-> Report only `merged: yes` or `merged: no (conflict)` — nothing else.
+In the integration worktree, on the integration branch:
 
-### Gate-verify sub-agent
+- `git merge --no-ff <worker-branch>` — merge the verified worker branch.
+- Clean → the branch is integrated; continue.
+- Conflict → `git merge --abort` immediately. Do **not** resolve it; do not
+  edit any file. Boot the issue back to `ready-for-agent` (step 5).
 
-> Run the full project gate on the current branch and report whether it is
-> green. First ensure `.env` exists — `cp .env.ralph .env` if it does not.
-> Then run `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:db`, and
-> `pnpm build`.
->
-> Do not fix anything; do not commit. Report `gate: green`, or `gate: red`
-> with a terse summary of the first failure (which check, which
-> file/test). Do not narrate.
+A clean `--no-ff` merge produces only a one-line commit summary — bounded
+output, safe for the orchestrator's context.
+
+### Gate procedure — the orchestrator runs this directly
+
+In the integration worktree, on the integration branch, after all of the
+wave's merges have run. Ensure `.env` exists first — `cp .env.ralph .env`
+if it does not. Then run, as separate bare commands: `pnpm typecheck`,
+`pnpm lint`, `pnpm test`, `pnpm test:db`, `pnpm build`.
+
+Read only pass/fail and (on red) the first failure. Do not fix anything; do
+not commit. Green → next round; red → revert-and-serialize (step 7).
 
 ## Protected files — never modify
 
