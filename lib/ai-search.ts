@@ -18,6 +18,10 @@
  * failure to one "unavailable" result. The deterministic Tonight ranking is
  * the fallback, so a failed search costs the Household nothing.
  *
+ * Every model call emits one structured log line — query length, model id,
+ * latency, outcome, and result count — so the external API stays observable
+ * without a separate metrics pipe (PRD §"Observability").
+ *
  * The Anthropic client is constructed lazily — inside `createAiSearchClient`,
  * at call time, never at import time — so importing this module (and therefore
  * `pnpm build`) needs no env vars.
@@ -35,6 +39,16 @@ export type AiSearchResult =
 
 /** The single value every failure mode collapses to. */
 export const AI_SEARCH_UNAVAILABLE: AiSearchResult = { ok: false };
+
+/**
+ * Whether AI search is configured — `ANTHROPIC_API_KEY` is set. Mirrors
+ * `placesEnabled()`: the Tonight page passes the result to the screen, which
+ * hides the search box entirely when it is false, so an unconfigured
+ * deployment is exactly v1 Tonight with no broken feature.
+ */
+export function aiSearchEnabled(): boolean {
+  return Boolean(process.env.ANTHROPIC_API_KEY);
+}
 
 /** An active Catalog Option as the snapshot builder consumes it. */
 export type SnapshotOption = {
@@ -91,6 +105,10 @@ export type ModelSnapshot = {
   log: SnapshotModelLogEntry[];
 };
 
+/** The XML-style delimiters wrapping Household-authored free text. */
+const HOUSEHOLD_TEXT_OPEN = "<household-text>";
+const HOUSEHOLD_TEXT_CLOSE = "</household-text>";
+
 /**
  * Wrap Household-authored free text in an XML-style delimiter so the model
  * reads it as data, never as instructions — the prompt-injection guard. The
@@ -98,7 +116,7 @@ export type ModelSnapshot = {
  * able to steer the model.
  */
 function delimit(text: string): string {
-  return `<household-text>${text}</household-text>`;
+  return `${HOUSEHOLD_TEXT_OPEN}${text}${HOUSEHOLD_TEXT_CLOSE}`;
 }
 
 /** Delimit a nullable note — `null` stays `null`, there is nothing to wrap. */
@@ -316,6 +334,27 @@ type AttemptOutcome =
   | { kind: "fatal" };
 
 /**
+ * Emit one structured log line for a completed model call (PRD §"Observability",
+ * user story 27): query length, model id, latency, outcome, and result count.
+ * One line per call on both the ok and the fallback path, so the external
+ * API's behaviour is observable without a separate metrics pipe. Only the
+ * query's *length* is logged — never its text — so Household-authored intent
+ * stays out of the logs.
+ */
+function logModelCall(fields: {
+  /** Length of the Household's query, delimiters excluded. */
+  queryLength: number;
+  model: string;
+  latencyMs: number;
+  /** `ok`, or `fallback:<class>` for a transient-after-retry or fatal failure. */
+  outcome: string;
+  /** Options returned — `0` on the fallback path. */
+  resultCount: number;
+}): void {
+  console.log(JSON.stringify({ event: "ai_search", ...fields }));
+}
+
+/**
  * Build an `AiSearchClient` bound to `apiKey`. The Anthropic client is
  * constructed here, at call time — never at import time — so the build stays
  * env-free. The model id is `AI_MODEL`, or a current Sonnet by default.
@@ -330,6 +369,8 @@ export function createAiSearchClient(apiKey: string): AiSearchClient {
 
   return {
     async search(snapshot, activeIds) {
+      const startedAt = Date.now();
+
       /**
        * Issue one model call under a ~10-second `AbortController` timeout. A
        * thrown error is classified transient/fatal; a response carrying no
@@ -369,6 +410,20 @@ export function createAiSearchClient(apiKey: string): AiSearchClient {
       // A transient failure earns exactly one retry; a fatal one earns none.
       let outcome = await attempt();
       if (outcome.kind === "transient") outcome = await attempt();
+
+      // One structured log line per model call, on both the ok and the
+      // fallback path. `query` is delimited in the snapshot, so its raw
+      // household length is the field length minus the two delimiters.
+      logModelCall({
+        queryLength:
+          snapshot.query.length -
+          HOUSEHOLD_TEXT_OPEN.length -
+          HOUSEHOLD_TEXT_CLOSE.length,
+        model,
+        latencyMs: Date.now() - startedAt,
+        outcome: outcome.kind === "ok" ? "ok" : `fallback:${outcome.kind}`,
+        resultCount: outcome.kind === "ok" ? outcome.results.length : 0,
+      });
 
       return outcome.kind === "ok"
         ? { ok: true, results: outcome.results }

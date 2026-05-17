@@ -1,4 +1,5 @@
 import { getTonightData } from "../db/queries";
+import { aiSearchEnabled } from "../lib/ai-search";
 import { epochDayFromSqlDate, todaySqlDate } from "../lib/local-day";
 import { rankTonight } from "../lib/ranking";
 import { TonightScreen } from "./tonight-screen";
@@ -22,5 +23,7 @@ export default async function TonightPage() {
   }));
 
   const rows = rankTonight(options, entries, todayEpochDay);
-  return <TonightScreen rows={rows} />;
+  // AI search appears only when `ANTHROPIC_API_KEY` is configured; without it
+  // Tonight is exactly v1.
+  return <TonightScreen rows={rows} searchEnabled={aiSearchEnabled()} />;
 }

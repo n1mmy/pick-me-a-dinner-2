@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The Anthropic SDK is mocked so no live call is ever made — the failure-model
 // tests drive `messages.create` through canned rejections and responses, the
@@ -219,6 +219,12 @@ describe("createAiSearchClient — failure model and fallback", () => {
 
   beforeEach(() => {
     messagesCreate.mockReset();
+    // Every model call emits a structured log line; silence it and capture it.
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("returns the validated ordered result on a tool-use response", async () => {
@@ -271,5 +277,36 @@ describe("createAiSearchClient — failure model and fallback", () => {
     const result = await createAiSearchClient("k").search(snapshot, activeIds);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(messagesCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits one structured log line with outcome ok on success", async () => {
+    messagesCreate.mockResolvedValueOnce(
+      toolUseResponse([{ id: "a1", reason: "fits" }]),
+    );
+    await createAiSearchClient("k").search(snapshot, activeIds);
+
+    expect(console.log).toHaveBeenCalledTimes(1);
+    const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
+    expect(line).toMatchObject({
+      event: "ai_search",
+      queryLength: 0,
+      model: "claude-sonnet-4-6",
+      outcome: "ok",
+      resultCount: 1,
+    });
+    expect(typeof line.latencyMs).toBe("number");
+  });
+
+  it("emits one structured log line with a fallback outcome on failure", async () => {
+    messagesCreate.mockRejectedValue({ status: 400 });
+    await createAiSearchClient("k").search(snapshot, activeIds);
+
+    expect(console.log).toHaveBeenCalledTimes(1);
+    const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
+    expect(line).toMatchObject({
+      event: "ai_search",
+      outcome: "fallback:fatal",
+      resultCount: 0,
+    });
   });
 });

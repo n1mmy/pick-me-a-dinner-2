@@ -64,7 +64,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen rows={ROWS} />);
+    render(<TonightScreen rows={ROWS} searchEnabled />);
     // The deterministic list shows its Explanation chips.
     expect(screen.getByText("Never eaten yet")).toBeTruthy();
 
@@ -85,7 +85,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen rows={ROWS} />);
+    render(<TonightScreen rows={ROWS} searchEnabled />);
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await screen.findByText("Light and quick");
 
@@ -100,7 +100,7 @@ describe("TonightScreen — AI search", () => {
   it("shows a plain empty-state with a clear control on an empty AI result", async () => {
     mockedAiSearch.mockResolvedValue({ ok: true, results: [] });
 
-    render(<TonightScreen rows={ROWS} />);
+    render(<TonightScreen rows={ROWS} searchEnabled />);
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     // The empty result reads as a real answer, not a broken screen.
@@ -117,7 +117,7 @@ describe("TonightScreen — AI search", () => {
   it("leaves the deterministic list intact and shows an error on failure", async () => {
     mockedAiSearch.mockResolvedValue({ ok: false });
 
-    render(<TonightScreen rows={ROWS} />);
+    render(<TonightScreen rows={ROWS} searchEnabled />);
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     // The persistent inline error appears; the deterministic list is untouched.
@@ -131,7 +131,7 @@ describe("TonightScreen — AI search", () => {
   it("clears the error when the query is cleared", async () => {
     mockedAiSearch.mockResolvedValue({ ok: false });
 
-    render(<TonightScreen rows={ROWS} />);
+    render(<TonightScreen rows={ROWS} searchEnabled />);
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await screen.findByText("Search unavailable — try again");
 
@@ -146,7 +146,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen rows={TAGGED_ROWS} />);
+    render(<TonightScreen rows={TAGGED_ROWS} searchEnabled />);
 
     // The kind segment and Tag filter chips are part of the deterministic view.
     expect(
@@ -181,7 +181,7 @@ describe("TonightScreen — AI search", () => {
       }),
     );
 
-    render(<TonightScreen rows={ROWS} />);
+    render(<TonightScreen rows={ROWS} searchEnabled />);
     const input = screen.getByLabelText(
       "Search for dinner by intent",
     ) as HTMLInputElement;
@@ -211,7 +211,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen rows={ROWS} />);
+    render(<TonightScreen rows={ROWS} searchEnabled />);
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await screen.findByText("Search unavailable — try again");
 
@@ -219,5 +219,19 @@ describe("TonightScreen — AI search", () => {
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByText("Light and quick")).toBeTruthy();
     expect(screen.queryByText("Search unavailable — try again")).toBeNull();
+  });
+
+  it("hides the search box when AI search is not enabled", () => {
+    // No ANTHROPIC_API_KEY — Tonight is exactly v1: the search box is absent.
+    render(<TonightScreen rows={ROWS} searchEnabled={false} />);
+
+    expect(screen.queryByLabelText("Search for dinner by intent")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
+
+    // The deterministic list and its filter zone remain — v1 is unaffected.
+    expect(screen.getByText("Never eaten yet")).toBeTruthy();
+    expect(
+      screen.queryByRole("group", { name: "Filter by kind" }),
+    ).toBeTruthy();
   });
 });

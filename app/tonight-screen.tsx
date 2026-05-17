@@ -28,7 +28,10 @@ const focusRing =
  * app supplies the ranking, the human scans the whole list and decides.
  *
  * A sticky zone sits above the list: a search box, an All/Home/Restaurant kind
- * segment, and tri-state tag filter chips. Submitting the search box runs an
+ * segment, and tri-state tag filter chips. The search box appears only when AI
+ * search is configured (`searchEnabled`) — without a key Tonight is exactly v1:
+ * the deterministic list and its filter zone, no search box.
+ * Submitting the search box runs an
  * **AI search** (PRD: AI search) — the deterministic list swaps in place for an
  * AI-ranked result, each row carrying an AI rationale. While an AI result is
  * shown the kind segment and tag chips are hidden, so the query is the single
@@ -43,7 +46,14 @@ const focusRing =
  * Each row carries the `pick = log` write action (§6) in `tonight-row.tsx` and
  * is pickable in either state.
  */
-export function TonightScreen({ rows }: { rows: TonightRow[] }) {
+export function TonightScreen({
+  rows,
+  searchEnabled,
+}: {
+  rows: TonightRow[];
+  /** Whether AI search is configured — gates the search box (`aiSearchEnabled`). */
+  searchEnabled: boolean;
+}) {
   const [kind, setKind] = useState<KindFilter>("all");
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
 
@@ -135,18 +145,24 @@ export function TonightScreen({ rows }: { rows: TonightRow[] }) {
       ) : (
         <>
           <div className="sticky top-0 z-10 -mx-4 flex flex-col gap-2 bg-bg px-4 py-3">
-            <SearchBox
-              query={query}
-              onQueryChange={setQuery}
-              onSubmit={runSearch}
-              onClear={clearSearch}
-              pending={pending}
-              error={aiError}
-              showClear={aiResults !== null || aiError}
-            />
-            <p className="sr-only" role="status" aria-live="polite">
-              {searchStatus}
-            </p>
+            {/* The search box appears only when AI search is configured; with
+                no key Tonight is exactly v1 and the box is absent entirely. */}
+            {searchEnabled && (
+              <>
+                <SearchBox
+                  query={query}
+                  onQueryChange={setQuery}
+                  onSubmit={runSearch}
+                  onClear={clearSearch}
+                  pending={pending}
+                  error={aiError}
+                  showClear={aiResults !== null || aiError}
+                />
+                <p className="sr-only" role="status" aria-live="polite">
+                  {searchStatus}
+                </p>
+              </>
+            )}
             {/* The filter zone — kind segment and Tag chips — is hidden while an
                 AI result is shown so the query alone ranks the list; clearing
                 the search restores it with the deterministic list. */}
