@@ -82,7 +82,9 @@ recency and per-Tag recency).
 **Explanation chip**:
 The one plain-English line on each Tonight row stating why it ranks where it
 does ("No fish in 18 days", "Never eaten yet"). A product requirement — if the
-ranking cannot explain itself in a line, it is not done.
+ranking cannot explain itself in a line, it is not done. Computed
+deterministically from the Score terms; it is **not** an AI rationale and
+cannot say anything the recency numbers don't support.
 
 **Overdue**:
 A Tag whose per-Tag recency has crossed the overdue threshold; rendered in the
@@ -91,6 +93,24 @@ accent color on Tonight.
 **Cold start**:
 Too little Log history to differentiate Options — every Score ties and Tonight
 falls back to alphabetical order.
+
+### AI search
+
+**AI search**:
+A triggered, query-driven re-ranking of Tonight by an AI model. The Household
+types an intent ("something light", "we have guests") — or leaves the query
+empty — and the model returns a ranked set of Options to fit it. Always a
+deliberate action; it never replaces the deterministic ranking as the default
+Tonight view. The model decides how many Options to return, so a narrowing
+query yields a subset of the Catalog, not the whole list.
+_Avoid_: AI ranking (it is search — there is a query, even when empty).
+
+**AI rationale**:
+The model-generated line of prose on each AI search result row explaining why
+that Option fits the query ("Light and fast — a soup, and it's been three
+weeks"). The AI search counterpart of the Explanation chip: generative and
+query-aware, where the chip is deterministic and formulaic.
+_Avoid_: Explanation chip (that term is reserved for the deterministic line).
 
 ### Lifecycle & access
 
