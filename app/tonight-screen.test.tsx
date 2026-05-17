@@ -331,3 +331,45 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
     expect(screen.getByText("Apple Crumble")).toBeTruthy();
   });
 });
+
+describe("TonightScreen — decided-mode picker toggle", () => {
+  it("collapses the picker behind 'Add another option' in decided mode", () => {
+    render(
+      <TonightScreen
+        tonightsDinner={DINNER}
+        pickerRows={ROWS}
+        searchEnabled={false}
+      />,
+    );
+    // Collapsed by default: the picker's filter zone is not rendered.
+    expect(
+      screen.queryByRole("group", { name: "Filter by kind" }),
+    ).toBeNull();
+
+    // Tapping "Add another option" reveals the picker.
+    fireEvent.click(screen.getByRole("button", { name: "Add another option" }));
+    expect(
+      screen.getByRole("group", { name: "Filter by kind" }),
+    ).toBeTruthy();
+
+    // Tapping again hides it.
+    fireEvent.click(screen.getByRole("button", { name: "Hide options" }));
+    expect(
+      screen.queryByRole("group", { name: "Filter by kind" }),
+    ).toBeNull();
+  });
+
+  it("shows the all-picked message when the picker is opened with nothing left", () => {
+    render(
+      <TonightScreen
+        tonightsDinner={DINNER}
+        pickerRows={[]}
+        searchEnabled={false}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add another option" }));
+    expect(
+      screen.getByText("Every Option is already on tonight’s dinner."),
+    ).toBeTruthy();
+  });
+});

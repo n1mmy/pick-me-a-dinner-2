@@ -84,6 +84,16 @@ describe("splitTonight", () => {
     expect(tonightsDinner.map((d) => d.row.option.id)).toEqual(["b"]);
     expect(picker.map((r) => r.option.id)).toEqual(["a", "c"]);
   });
+
+  it("yields an empty dinner and picker when the ranked set is empty", () => {
+    // An empty Catalog with a today entry: every entry is skipped, nothing to
+    // pick from — both sides come out empty rather than throwing.
+    const { tonightsDinner, picker } = splitTonight([], [
+      entry("e1", "a", "2026-05-17T18:00:00Z"),
+    ]);
+    expect(tonightsDinner).toEqual([]);
+    expect(picker).toEqual([]);
+  });
 });
 
 describe("decidedActions", () => {
@@ -145,5 +155,29 @@ describe("decidedActions", () => {
       phone: "+1-555-0100",
     });
     expect(actions.map((a) => a.label)).toEqual(["Recipe"]);
+  });
+
+  it("drops a url with an unsafe scheme — no Menu or Recipe button", () => {
+    // A `javascript:`/`data:` url must never become a clickable action button.
+    expect(
+      decidedActions({
+        kind: "restaurant",
+        url: "javascript:alert(1)",
+        phone: null,
+      }),
+    ).toEqual([]);
+    expect(
+      decidedActions({ kind: "home", url: "data:text/html,<x>", phone: null }),
+    ).toEqual([]);
+  });
+
+  it("keeps the Call button even when the url scheme is unsafe", () => {
+    expect(
+      decidedActions({
+        kind: "restaurant",
+        url: "javascript:alert(1)",
+        phone: "+1-555-0100",
+      }),
+    ).toEqual([{ label: "Call", href: "tel:+1-555-0100" }]);
   });
 });
