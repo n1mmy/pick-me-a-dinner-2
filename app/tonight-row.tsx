@@ -23,16 +23,15 @@ export function kindBarClass(kind: "home" | "restaurant"): string {
 
 /**
  * One Tonight row of the flat ledger (DESIGN.md "Tonight row anatomy"). The
- * name sits above a chip row — the Recency chip then the Tag chips — and the
- * PICK action sits beside it (its own line on mobile, the row's end on desktop
- * via `desktop:contents` on the action wrapper). "Pick tonight" is the one-tap
- * `pick = log` path; the picked button briefly marks "Logged ✓". To log a
- * dinner for any other date, use the Log screen.
+ * name sits above a chip row — the Recency chip then the Tag chips — with the
+ * "Pick" action pinned to the row's right edge on every width. "Pick" is the
+ * one-tap `pick = log` path; the picked button briefly marks "Logged ✓". To
+ * log a dinner for any other date, use the Log screen.
  *
  * On an AI search result row, `aiReason` is the AI rationale — a prose "why"
- * line the deterministic list does not have; it sits in the action row beside
- * PICK on a neutral `raised` surface. The Recency and Tag chips render the
- * same on AI and deterministic rows.
+ * line the deterministic list does not have; it sits below the chip row on a
+ * neutral `raised` surface. The Recency and Tag chips render the same on AI
+ * and deterministic rows.
  */
 export function TonightRowItem({
   row,
@@ -65,11 +64,8 @@ export function TonightRowItem({
 
   return (
     <li className={`border-b border-line py-3 ${kindBarClass(option.kind)}`}>
-      <div
-        className="flex flex-col gap-2 desktop:flex-row desktop:items-center
-          desktop:gap-3"
-      >
-        <div className="desktop:min-w-0 desktop:flex-1">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <span className="w-6 shrink-0 text-right font-mono text-meta tabular-nums text-muted">
               {rank}
@@ -83,29 +79,27 @@ export function TonightRowItem({
             neverEaten={row.neverEaten}
             tags={row.tags}
           />
-        </div>
-        <div className="flex items-center gap-2 desktop:contents">
           {aiReason && (
-            <span className="self-start rounded-badge bg-raised px-2 py-1 text-chip text-muted">
+            <p className="mt-1 rounded-badge bg-raised px-2 py-1 text-chip text-muted">
               <MonoNumerals text={aiReason} />
-            </span>
+            </p>
           )}
-          <button
-            type="button"
-            onClick={pick}
-            disabled={pending}
-            aria-live="polite"
-            className={`min-h-11 rounded-control px-4 text-body font-emphasis
-              transition-colors duration-short disabled:opacity-60
-              desktop:ml-auto ${focusRing} ${
-                justLogged
-                  ? "bg-raised text-success"
-                  : "bg-action text-action-ink hover:bg-action-hover"
-              }`}
-          >
-            {justLogged ? "Logged ✓" : "Pick tonight"}
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={pick}
+          disabled={pending}
+          aria-live="polite"
+          className={`min-h-11 shrink-0 rounded-control px-4 text-body
+            font-emphasis transition-colors duration-short disabled:opacity-60
+            ${focusRing} ${
+              justLogged
+                ? "bg-raised text-success"
+                : "bg-action text-action-ink hover:bg-action-hover"
+            }`}
+        >
+          {justLogged ? "Logged ✓" : "Pick"}
+        </button>
       </div>
       {pickError && (
         <p className="mt-2 text-chip text-danger" aria-live="polite">
