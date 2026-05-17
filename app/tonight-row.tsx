@@ -16,13 +16,19 @@ const focusRing =
  * wrapper. "Pick tonight" is the one-tap `pick = log` path; the picked button
  * briefly marks "Logged ✓". To log a dinner for any other date, use the Log
  * screen.
+ *
+ * On an AI search result row, `aiReason` is the AI rationale and takes the
+ * place of the deterministic Explanation chip — one row never shows two
+ * competing "why" lines.
  */
 export function TonightRowItem({
   row,
   rank,
+  aiReason,
 }: {
   row: TonightRow;
   rank: number;
+  aiReason?: string;
 }) {
   const { option } = row;
   const [justLogged, setJustLogged] = useState(false);
@@ -67,7 +73,7 @@ export function TonightRowItem({
             className="self-start rounded-badge bg-raised px-2 py-1 text-chip
               text-muted"
           >
-            <MonoNumerals text={row.explanation} />
+            <MonoNumerals text={aiReason ?? row.explanation} />
           </span>
           <button
             type="button"

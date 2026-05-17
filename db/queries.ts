@@ -53,8 +53,22 @@ export async function getActiveCatalog(): Promise<{
   };
 }
 
-/** A non-future `dinner_log` row, narrowed to what the ranking engine needs. */
-export type TonightLogRow = { optionId: string; eatenOn: string };
+/**
+ * A ranking Option plus its free-text `notes`. The ranking ignores `notes` —
+ * `rankTonight` still receives exactly a `RankOption` — but the AI search
+ * snapshot builder needs it (PRD: AI search).
+ */
+export type TonightOption = RankOption & { notes: string | null };
+
+/**
+ * A non-future `dinner_log` row, narrowed to what Tonight needs. The ranking
+ * ignores `note`; the AI search snapshot builder uses it.
+ */
+export type TonightLogRow = {
+  optionId: string;
+  eatenOn: string;
+  note: string | null;
+};
 
 /**
  * Everything the Tonight screen needs to rank the Catalog (ADR-0003): the
@@ -62,9 +76,13 @@ export type TonightLogRow = { optionId: string; eatenOn: string };
  * filtered against `todaySqlDate` — the Household's calendar day in `APP_TZ`,
  * computed by the caller — so a Planned dinner never reaches the ranking. The
  * Score itself is computed in the pure `lib/ranking` module, not in SQL.
+ *
+ * Each Option also carries its `notes` and each Log entry its `note` — text the
+ * AI search snapshot builder needs (PRD: AI search). The ranking input is
+ * otherwise unchanged: `rankTonight` reads only the `RankOption` fields.
  */
 export async function getTonightData(todaySqlDate: string): Promise<{
-  options: RankOption[];
+  options: TonightOption[];
   logEntries: TonightLogRow[];
 }> {
   const active = await db
@@ -91,7 +109,11 @@ export async function getTonightData(todaySqlDate: string): Promise<{
   // recency (it is not in the ranked set) nor as per-Tag recency (review fix
   // F5 / review B3). The join makes that exclusion explicit at the query.
   const logEntries = await db
-    .select({ optionId: dinnerLog.optionId, eatenOn: dinnerLog.eatenOn })
+    .select({
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+    })
     .from(dinnerLog)
     .innerJoin(options, eq(dinnerLog.optionId, options.id))
     .where(and(lte(dinnerLog.eatenOn, todaySqlDate), eq(options.active, true)));
@@ -102,6 +124,7 @@ export async function getTonightData(todaySqlDate: string): Promise<{
       name: option.name,
       kind: option.kind,
       tags: tagsByOption.get(option.id) ?? [],
+      notes: option.notes,
     })),
     logEntries,
   };
