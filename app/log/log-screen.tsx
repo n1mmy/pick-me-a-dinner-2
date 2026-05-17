@@ -8,6 +8,7 @@ import {
   useTransition,
 } from "react";
 import type { LogEntryRow, OptionChoice } from "../../db/queries";
+import { PickButton } from "../pick-button";
 import { deleteLogEntry, logForDate, updateLogEntry } from "./actions";
 
 /** The Upcoming strip stays compact — at most this many Planned Dinners show. */
@@ -289,6 +290,7 @@ function EntryRow({
               </button>
             </>
           )}
+          <PickButton optionId={entry.optionId} />
         </div>
       </div>
       {entry.note && <p className="text-chip text-muted">{entry.note}</p>}
