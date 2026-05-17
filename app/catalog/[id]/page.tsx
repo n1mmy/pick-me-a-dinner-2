@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import {
+  getAllTags,
   getOptionById,
   getOptionChoices,
   getOptionLog,
@@ -8,10 +9,12 @@ import {
 } from "../../../db/queries";
 import { formatDinnerDate, splitDinners } from "../../../lib/dinner-grouping";
 import { epochDayFromSqlDate, todaySqlDate } from "../../../lib/local-day";
+import { placesEnabled } from "../../../lib/places";
 import { rankOption, type RankOption } from "../../../lib/ranking";
 import { DinnerGroup } from "../../log/log-entry-row";
 import { kindBarClass, RowChips } from "../../tonight-row";
 import { BringBackButton } from "./bring-back-button";
+import { OptionControls } from "./option-controls";
 
 /**
  * The Option detail page reads the DB on every visit and its recency depends
@@ -53,13 +56,19 @@ export default async function OptionDetailPage({
   // page reads it — so this page's recency matches the Tonight ranking.
   const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
   const todayEpochDay = epochDayFromSqlDate(today);
-  const [{ options, logEntries }, optionLog, optionChoices, optionRejections] =
-    await Promise.all([
-      getTonightData(today),
-      getOptionLog(option.id),
-      getOptionChoices(),
-      getOptionRejections(option.id),
-    ]);
+  const [
+    { options, logEntries },
+    optionLog,
+    optionChoices,
+    optionRejections,
+    allTags,
+  ] = await Promise.all([
+    getTonightData(today),
+    getOptionLog(option.id),
+    getOptionChoices(),
+    getOptionRejections(option.id),
+    getAllTags(),
+  ]);
   const entries = logEntries.map((entry) => ({
     optionId: entry.optionId,
     eatenOn: epochDayFromSqlDate(entry.eatenOn),
@@ -162,6 +171,15 @@ export default async function OptionDetailPage({
           </dl>
         </section>
       )}
+
+      <section className="flex flex-col gap-2">
+        <h2 className={sectionHeading}>Actions</h2>
+        <OptionControls
+          option={option}
+          allTags={allTags}
+          placesEnabled={placesEnabled()}
+        />
+      </section>
 
       <section className="flex flex-col gap-2">
         <h2 className={sectionHeading}>History</h2>

@@ -1,6 +1,6 @@
 # 04 — Option detail page: Option controls
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -34,15 +34,15 @@ issue 05; this slice ships Archive.)
 
 ## Acceptance criteria
 
-- [ ] The detail page can Pick the Option, creating today's Log entry, and updates in place
-- [ ] The detail page can Reject the Option with an optional reason and updates in place
-- [ ] The detail page can edit the Option's fields inline via the reused Option form
-- [ ] The detail page can Archive the Option behind an inline-confirm step
-- [ ] The detail page can Delete the Option behind an inline-confirm step
-- [ ] A successful Delete returns to the Catalog screen
-- [ ] A Delete blocked by existing Log entries shows an inline error and keeps the page
-- [ ] Changes made on the detail page revalidate `/catalog/[id]`
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] The detail page can Pick the Option, creating today's Log entry, and updates in place
+- [x] The detail page can Reject the Option with an optional reason and updates in place
+- [x] The detail page can edit the Option's fields inline via the reused Option form
+- [x] The detail page can Archive the Option behind an inline-confirm step
+- [x] The detail page can Delete the Option behind an inline-confirm step
+- [x] A successful Delete returns to the Catalog screen
+- [x] A Delete blocked by existing Log entries shows an inline error and keeps the page
+- [x] Changes made on the detail page revalidate `/catalog/[id]`
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
 
 ## Blocked by
 

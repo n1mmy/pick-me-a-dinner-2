@@ -75,6 +75,10 @@ export const aiSearchAction = authedAction(
  * the write and nothing else, mirroring `pickTonight`. A Rejection is not a Log
  * entry and carries no Score weight; suppression is a presentation filter the
  * Tonight page applies, never a ranking change (ADR-0003, ADR-0006).
+ *
+ * Revalidates Tonight and the Option detail page: Reject is offered on both —
+ * a Tonight row and the detail page's controls — and the same action must
+ * update whichever screen invoked it in place (PRD: Option detail page).
  */
 export const rejectOption = authedAction(
   async (optionId: string, reason: string): Promise<void> => {
@@ -86,6 +90,7 @@ export const rejectOption = authedAction(
       rejectedOn: today,
     });
     revalidatePath("/");
+    revalidatePath("/catalog/[id]", "page");
   },
 );
 

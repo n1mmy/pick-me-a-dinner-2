@@ -45,11 +45,6 @@ export async function getActiveCatalog(): Promise<{
     tagsByOption.set(link.optionId, list);
   }
 
-  const allTags = await db
-    .select({ name: tags.name })
-    .from(tags)
-    .orderBy(asc(tags.name));
-
   const withTags = (option: Option): OptionWithTags => ({
     ...option,
     tags: tagsByOption.get(option.id) ?? [],
@@ -58,8 +53,21 @@ export async function getActiveCatalog(): Promise<{
   return {
     home: active.filter((o) => o.kind === "home").map(withTags),
     restaurants: active.filter((o) => o.kind === "restaurant").map(withTags),
-    allTags: allTags.map((t) => t.name),
+    allTags: await getAllTags(),
   };
+}
+
+/**
+ * The full Tag vocabulary, ordered by name — the autocomplete source the
+ * Option form suggests from. `getActiveCatalog` returns it for the Catalog
+ * screen; the Option detail page's inline Edit form loads it on its own.
+ */
+export async function getAllTags(): Promise<string[]> {
+  const rows = await db
+    .select({ name: tags.name })
+    .from(tags)
+    .orderBy(asc(tags.name));
+  return rows.map((row) => row.name);
 }
 
 /**
