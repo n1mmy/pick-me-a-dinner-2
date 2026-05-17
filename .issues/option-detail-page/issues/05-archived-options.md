@@ -1,6 +1,6 @@
 # 05 — Option detail page: Archived Options
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -33,14 +33,14 @@ The active Catalog list is unchanged.
 
 ## Acceptance criteria
 
-- [ ] An Archived Option's detail page renders its fields, Log history, and Rejections normally
-- [ ] An Archived Option's Score is replaced with "Archived — not ranked"
-- [ ] An Archived Option's per-Option recency line and Tag heatmap chips still render
-- [ ] The detail page offers Un-archive for an Archived Option via a new `unarchiveOption` action
-- [ ] Un-archiving keeps the member on the page, which becomes a normal ranked detail page
-- [ ] The Catalog screen has a collapsed "Archived" disclosure listing Archived Options as links to their detail pages
-- [ ] The active Catalog list is unchanged
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] An Archived Option's detail page renders its fields, Log history, and Rejections normally
+- [x] An Archived Option's Score is replaced with "Archived — not ranked"
+- [x] An Archived Option's per-Option recency line and Tag heatmap chips still render
+- [x] The detail page offers Un-archive for an Archived Option via a new `unarchiveOption` action
+- [x] Un-archiving keeps the member on the page, which becomes a normal ranked detail page
+- [x] The Catalog screen has a collapsed "Archived" disclosure listing Archived Options as links to their detail pages
+- [x] The active Catalog list is unchanged
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
 
 ## Blocked by
 

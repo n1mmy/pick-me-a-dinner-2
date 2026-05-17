@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import type { OptionWithTags } from "../../../db/queries";
 import { PickButton } from "../../pick-button";
 import { rejectOption } from "../../tonight-actions";
-import { archiveOption, deleteOption } from "../actions";
+import { archiveOption, deleteOption, unarchiveOption } from "../actions";
 import { OptionForm } from "../option-form";
 
 const focusRing =
@@ -21,13 +21,18 @@ const actionButton = `min-h-11 rounded-control px-3 text-body ${focusRing}`;
  *
  * Every control reuses the existing server action: `pickTonight` (via the
  * shared `PickButton`), `rejectOption`, `updateOption` (via the reused
- * `OptionForm`), `archiveOption`, and `deleteOption`. Pick, Reject, and Edit
- * update the page in place — the reused actions revalidate `/catalog/[id]`.
- * A successful Delete navigates back to the Catalog, since the Option no
- * longer exists; a Delete blocked by the Hard-delete rule (ADR-0001, the
- * Option has Log entries) shows the existing inline error and keeps the page.
- * Archive and Delete each take a §17 inline-confirm step, consistent with the
- * Catalog row and `DESIGN.md`.
+ * `OptionForm`), `archiveOption` / `unarchiveOption`, and `deleteOption`.
+ * Pick, Reject, and Edit update the page in place — the reused actions
+ * revalidate `/catalog/[id]`. A successful Delete navigates back to the
+ * Catalog, since the Option no longer exists; a Delete blocked by the
+ * Hard-delete rule (ADR-0001, the Option has Log entries) shows the existing
+ * inline error and keeps the page.
+ *
+ * The Archive control is a toggle: an active Option offers Archive, an Archived
+ * one Un-archive — keeping the member on the page and turning it back into a
+ * normal ranked detail page. Archive and Delete each take a §17 inline-confirm
+ * step, consistent with the Catalog row and `DESIGN.md`; Un-archive is benign
+ * (it only restores the Option) and runs in one tap.
  */
 export function OptionControls({
   option,
@@ -62,6 +67,15 @@ export function OptionControls({
     startTransition(async () => {
       const result = await archiveOption(option.id);
       setConfirm(null);
+      if (!result.ok) setError(result.error);
+    });
+  }
+
+  function runUnarchive() {
+    startTransition(async () => {
+      // Un-archiving revalidates `/catalog/[id]`; the page re-renders as a
+      // normal ranked detail page with this control flipped back to Archive.
+      const result = await unarchiveOption(option.id);
       if (!result.ok) setError(result.error);
     });
   }
@@ -126,17 +140,32 @@ export function OptionControls({
             >
               Edit
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setRejecting(false);
-                setConfirm("archive");
-              }}
-              className={`${actionButton} text-muted`}
-            >
-              Archive
-            </button>
+            {option.active ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setRejecting(false);
+                  setConfirm("archive");
+                }}
+                className={`${actionButton} text-muted`}
+              >
+                Archive
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  setError(null);
+                  setRejecting(false);
+                  runUnarchive();
+                }}
+                className={`${actionButton} text-muted disabled:opacity-60`}
+              >
+                Un-archive
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {

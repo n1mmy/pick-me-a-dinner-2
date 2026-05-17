@@ -210,6 +210,27 @@ export const archiveOption = authedAction(
 );
 
 /**
+ * Un-archive an Option: `active = true`. It returns to the default Catalog list
+ * and Tonight — the mirror of `archiveOption`, so an Archived Option reached via
+ * the Catalog's "Archived" disclosure can be made a normal ranked Option again.
+ */
+export const unarchiveOption = authedAction(
+  async (id: string): Promise<ActionResult> => {
+    try {
+      await db.update(options).set({ active: true }).where(eq(options.id, id));
+    } catch (error) {
+      // 22P02 invalid uuid — a malformed/stale Option id; report, don't 500.
+      if (pgErrorCode(error) === "22P02") {
+        return { ok: false, error: "That option is no longer available" };
+      }
+      throw error;
+    }
+    revalidateCatalog();
+    return { ok: true };
+  },
+);
+
+/**
  * Hard-delete an Option. Allowed only for an Option with zero Log entries; the
  * `ON DELETE RESTRICT` violation for a logged Option is caught and translated
  * into a friendly inline message rather than surfacing as a 500.
