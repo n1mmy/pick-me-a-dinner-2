@@ -49,6 +49,10 @@ that shows it.
 _Avoid_: Choices (too close to Option — the Log is realized history, not
 candidate options).
 
+**Tonight's dinner**:
+Today's Dinner — the Log entries dated today — as surfaced on the Tonight
+screen once the Household has Picked. May be one Option or several.
+
 **Pick** (verb):
 To choose tonight's dinner. Picking creates a Log entry dated today —
 "pick = log". A Pick *is* a Log entry; there is no separate "pick" entity.
@@ -62,8 +66,9 @@ screen section's heading).
 ### Ranking
 
 **Tonight**:
-The ranked list of active Options, and the screen that shows it (the home
-screen). Sorted descending by Score.
+The home screen. It ranks active Options by Score (descending) for the
+Household to choose from, and once a Pick is made it surfaces **Tonight's
+dinner** — the screen has both jobs, deciding and showing what was decided.
 
 **Recency**:
 How long since something was last eaten, measured only from non-future Log
@@ -144,6 +149,7 @@ single-household — no user accounts, no per-person identity.
 - **Picking** creates a **Log entry** dated today.
 - A **Planned dinner** is a **Log entry** dated after today.
 - **Tonight** ranks active **Options** by **Score**.
+- **Tonight** surfaces **Tonight's dinner** once a **Pick** is made.
 - An Option's **Score** combines its **per-Option recency** with the
   **per-Tag recency** of its **Tags**.
 - Each **Tonight** row carries one **Explanation chip**.
@@ -178,3 +184,6 @@ single-household — no user accounts, no per-person identity.
 - "Dinner" was used for both a single log row and a whole evening. Resolved:
   **Log entry** is the single row; **Dinner** is the evening (one or more Log
   entries on a date).
+- "Tonight" was defined as only the ranked picker list. Resolved: the Tonight
+  screen has two jobs — ranking Options to choose from, and showing
+  **Tonight's dinner** once a Pick is made.
