@@ -20,7 +20,7 @@ import {
   type SnapshotOption,
 } from "./ai-search";
 
-const TODAY = 100;
+const TODAY = "2026-05-20"; // a Wednesday
 
 /** An active Catalog Option as the snapshot builder consumes it. */
 function option(
@@ -38,8 +38,8 @@ describe("buildSnapshot", () => {
     option("a1", "Apple Crumble", ["sweet", "fruit"]),
   ];
   const logEntries: SnapshotLogEntry[] = [
-    { optionId: "a1", eatenOn: 90, note: "with cream" },
-    { optionId: "b1", eatenOn: 95, note: null },
+    { optionId: "a1", eatenOn: "2026-05-10", note: "with cream" }, // Sunday
+    { optionId: "b1", eatenOn: "2026-05-15", note: null }, // Friday
   ];
   const snapshot = buildSnapshot({
     options,
@@ -52,13 +52,13 @@ describe("buildSnapshot", () => {
     expect(snapshot.options.map((o) => o.id)).toEqual(["a1", "b1"]);
   });
 
-  it("carries only ranking-relevant fields — the Places fields are absent", () => {
+  it("carries only candidate fields — no recency, no Places fields", () => {
     expect(Object.keys(snapshot.options[0]).sort()).toEqual(
-      ["daysSinceLastEaten", "id", "kind", "name", "notes", "tags"].sort(),
+      ["id", "kind", "name", "notes", "tags"].sort(),
     );
   });
 
-  it("includes Option notes and Log-entry notes", () => {
+  it("includes Option notes and Log-entry notes, delimited", () => {
     const bananaBread = snapshot.options.find((o) => o.id === "b1");
     expect(bananaBread?.notes).toBe("<household-text>freeze half</household-text>");
     const creamEntry = snapshot.log.find((entry) => entry.optionId === "a1");
@@ -75,33 +75,26 @@ describe("buildSnapshot", () => {
     expect(snapshot.options[0].name).toBe(
       "<household-text>Apple Crumble</household-text>",
     );
-    expect(snapshot.options[0].tags[0].name).toBe(
+    expect(snapshot.options[0].tags[0]).toBe(
       "<household-text>sweet</household-text>",
     );
   });
 
-  it("derives correct per-Option recency integers", () => {
-    // a1 last eaten on day 90, b1 on day 95; today is 100.
-    expect(snapshot.options.find((o) => o.id === "a1")?.daysSinceLastEaten).toBe(
-      10,
-    );
-    expect(snapshot.options.find((o) => o.id === "b1")?.daysSinceLastEaten).toBe(
-      5,
-    );
+  it("formats today and each Log date with its weekday", () => {
+    expect(snapshot.today).toBe("2026-05-20 (Wednesday)");
+    const dates = snapshot.log.map((e) => e.date);
+    expect(dates).toContain("2026-05-15 (Friday)");
+    expect(dates).toContain("2026-05-10 (Sunday)");
   });
 
-  it("derives correct per-Tag recency integers across every carrier", () => {
-    const apple = snapshot.options.find((o) => o.id === "a1");
-    // "sweet" is carried by both Options — most recent use is b1 on day 95.
-    const sweet = apple?.tags.find(
-      (t) => t.name === "<household-text>sweet</household-text>",
-    );
-    expect(sweet?.daysSinceTagLastEaten).toBe(5);
-    // "fruit" is carried only by a1, last eaten on day 90.
-    const fruit = apple?.tags.find(
-      (t) => t.name === "<household-text>fruit</household-text>",
-    );
-    expect(fruit?.daysSinceTagLastEaten).toBe(10);
+  it("orders the Log newest dinner first", () => {
+    expect(snapshot.log.map((e) => e.optionId)).toEqual(["b1", "a1"]);
+  });
+
+  it("carries the eaten Option's name and Tags inline on each Log entry", () => {
+    const friday = snapshot.log.find((e) => e.optionId === "b1");
+    expect(friday?.name).toBe("<household-text>Banana Bread</household-text>");
+    expect(friday?.tags).toEqual(["<household-text>sweet</household-text>"]);
   });
 });
 
@@ -158,15 +151,27 @@ describe("parseAndValidate", () => {
     ]);
   });
 
-  it("truncates a rationale over ~80 characters", () => {
-    const longReason = "x".repeat(200);
+  it("truncates a rationale over ~200 characters", () => {
+    const longReason = "x".repeat(400);
     const [row] = parseAndValidate(
       { results: [{ id: "a1", reason: longReason }] },
       activeIds,
     );
     expect(row.reason.length).toBeLessThan(longReason.length);
-    expect(row.reason.length).toBeLessThanOrEqual(81);
+    expect(row.reason.length).toBeLessThanOrEqual(201);
     expect(row.reason.endsWith("…")).toBe(true);
+  });
+
+  it("truncates an over-long rationale at a word boundary", () => {
+    const longReason = "pattern ".repeat(60); // 480 chars, all word breaks
+    const [row] = parseAndValidate(
+      { results: [{ id: "a1", reason: longReason }] },
+      activeIds,
+    );
+    expect(row.reason.length).toBeLessThanOrEqual(201);
+    expect(row.reason.endsWith("…")).toBe(true);
+    // The cut lands after a whole word — never mid-word.
+    expect(row.reason).toMatch(/pattern…$/);
   });
 
   it("leaves a short rationale unchanged", () => {
