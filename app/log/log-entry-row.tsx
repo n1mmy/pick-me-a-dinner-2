@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogEntryRow, OptionChoice } from "../../db/queries";
 import { type Dinner, formatDinnerDate } from "../../lib/dinner-grouping";
@@ -95,9 +96,14 @@ export function EntryRow({
   return (
     <li className="flex flex-col gap-1 border-b border-line py-3">
       <div className="flex items-center justify-between gap-3">
-        <span className="font-display text-name font-name text-ink">
+        <Link
+          href={`/catalog/${entry.optionId}`}
+          className="font-display text-name font-name text-ink underline-offset-2
+            hover:underline focus-visible:outline focus-visible:outline-2
+            focus-visible:outline-offset-2 focus-visible:outline-action"
+        >
           {entry.optionName}
-        </span>
+        </Link>
         <div className="flex shrink-0 items-center gap-1">
           {saved && (
             <span className="text-chip text-success" aria-live="polite">

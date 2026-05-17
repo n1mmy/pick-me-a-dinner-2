@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import {
   decidedActions,
@@ -63,9 +64,13 @@ function DecidedRow({ entry }: { entry: TonightsDinnerEntry }) {
   return (
     <li className={`border-b border-line py-3 ${kindBarClass(row.option.kind)}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="font-display text-name font-name text-ink">
+        <Link
+          href={`/catalog/${row.option.id}`}
+          className={`font-display text-name font-name text-ink
+            underline-offset-2 hover:underline ${focusRing}`}
+        >
           {row.option.name}
-        </span>
+        </Link>
         <RemoveControl entryId={entryId} />
       </div>
       <RowChips
