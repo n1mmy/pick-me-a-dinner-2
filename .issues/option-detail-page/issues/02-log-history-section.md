@@ -1,6 +1,6 @@
 # 02 — Option detail page: Log history section
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -33,15 +33,15 @@ rather than duplicating:
 
 ## Acceptance criteria
 
-- [ ] `lib/dinner-grouping.ts` is a pure module providing the realized/Planned split, the group-by-date, and the date label
-- [ ] `lib/dinner-grouping.test.ts` covers the exact today-boundary split, same-date grouping order, and the date labels
-- [ ] The Log screen consumes `lib/dinner-grouping.ts`; its rendered behavior is unchanged
-- [ ] The Log entry row and inline edit form are extracted into a shared component used by both the Log screen and the detail page
-- [ ] The detail page History section lists the Option's realized Log entries newest first, each with date and note
-- [ ] Planned dinners appear in a separate group above the realized history
-- [ ] An Option with no Log entries shows a quiet empty state
-- [ ] Log entries can be edited and deleted inline from the History section
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] `lib/dinner-grouping.ts` is a pure module providing the realized/Planned split, the group-by-date, and the date label
+- [x] `lib/dinner-grouping.test.ts` covers the exact today-boundary split, same-date grouping order, and the date labels
+- [x] The Log screen consumes `lib/dinner-grouping.ts`; its rendered behavior is unchanged
+- [x] The Log entry row and inline edit form are extracted into a shared component used by both the Log screen and the detail page
+- [x] The detail page History section lists the Option's realized Log entries newest first, each with date and note
+- [x] Planned dinners appear in a separate group above the realized history
+- [x] An Option with no Log entries shows a quiet empty state
+- [x] Log entries can be edited and deleted inline from the History section
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
 
 ## Blocked by
 

@@ -1,7 +1,14 @@
 import { notFound } from "next/navigation";
-import { getOptionById, getTonightData } from "../../../db/queries";
+import {
+  getOptionById,
+  getOptionChoices,
+  getOptionLog,
+  getTonightData,
+} from "../../../db/queries";
+import { splitDinners } from "../../../lib/dinner-grouping";
 import { epochDayFromSqlDate, todaySqlDate } from "../../../lib/local-day";
 import { rankOption, type RankOption } from "../../../lib/ranking";
+import { DinnerGroup } from "../../log/log-entry-row";
 import { kindBarClass, RowChips } from "../../tonight-row";
 
 /**
@@ -44,7 +51,12 @@ export default async function OptionDetailPage({
   // page reads it — so this page's recency matches the Tonight ranking.
   const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
   const todayEpochDay = epochDayFromSqlDate(today);
-  const { options, logEntries } = await getTonightData(today);
+  const [{ options, logEntries }, optionLog, optionChoices] =
+    await Promise.all([
+      getTonightData(today),
+      getOptionLog(option.id),
+      getOptionChoices(),
+    ]);
   const entries = logEntries.map((entry) => ({
     optionId: entry.optionId,
     eatenOn: epochDayFromSqlDate(entry.eatenOn),
@@ -59,6 +71,10 @@ export default async function OptionDetailPage({
     phone: option.phone,
   };
   const ranking = rankOption(target, options, entries, todayEpochDay);
+
+  // The History section: this Option's own Log, split into its realized
+  // history (newest first) and its Planned dinners (the group shown above it).
+  const { planned, realized } = splitDinners(optionLog, today);
 
   const isRestaurant = option.kind === "restaurant";
   const hasDetails =
@@ -143,6 +159,39 @@ export default async function OptionDetailPage({
           </dl>
         </section>
       )}
+
+      <section className="flex flex-col gap-2">
+        <h2 className={sectionHeading}>History</h2>
+        {optionLog.length === 0 ? (
+          <p className="text-body text-muted">
+            No dinners logged yet for this Option.
+          </p>
+        ) : (
+          <>
+            {planned.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <h3 className={sectionHeading}>Planned</h3>
+                {planned.map((dinner) => (
+                  <DinnerGroup
+                    key={dinner.date}
+                    dinner={dinner}
+                    optionChoices={optionChoices}
+                    today={today}
+                  />
+                ))}
+              </div>
+            )}
+            {realized.map((dinner) => (
+              <DinnerGroup
+                key={dinner.date}
+                dinner={dinner}
+                optionChoices={optionChoices}
+                today={today}
+              />
+            ))}
+          </>
+        )}
+      </section>
     </main>
   );
 }
