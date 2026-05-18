@@ -77,7 +77,11 @@ export type SnapshotOption = {
   notes: string | null;
 };
 
-/** A non-future Log entry as the snapshot builder consumes it. */
+/**
+ * A Log entry as the snapshot builder consumes it — any date, past, today, or
+ * future (a Planned dinner). The AI snapshot sees the Household's near future
+ * (ADR-0008); the deterministic ranking still gets a non-future Log of its own.
+ */
 export type SnapshotLogEntry = {
   optionId: string;
   /** `eaten_on` as a SQL date string, `"YYYY-MM-DD"` (see `local-day.ts`). */
@@ -97,7 +101,11 @@ export type SnapshotModelOption = {
   tags: string[];
 };
 
-/** One Log entry in the model-input snapshot — one dinner, as dated history. */
+/**
+ * One Log entry in the model-input snapshot — one dinner, as dated history. Its
+ * `date` may be in the future (a Planned dinner); the snapshot carries today's
+ * date, so the model tells a plan from history itself (ADR-0008).
+ */
 export type SnapshotModelLogEntry = {
   /** The day eaten, with weekday — e.g. `"2026-05-12 (Tuesday)"`. */
   date: string;
@@ -123,30 +131,39 @@ export type ModelSnapshot = {
    * today's-rejected Options dropped (the AI-result side of suppression).
    */
   options: SnapshotModelOption[];
-  /** The full non-future Log as dated history, newest dinner first. */
+  /**
+   * The full Log as dated history, newest dinner first — past entries *and*
+   * future-dated ones (Planned dinners), each carrying its real date so the
+   * model tells a plan from history itself (ADR-0008).
+   */
   log: SnapshotModelLogEntry[];
   /**
    * The Household's Rejections — Options turned down and why — as raw dated
-   * history, split into today's and earlier (PRD: Rejections on Tonight,
-   * ADR-0006). The model judges from each reason what is standing and what was
-   * one-off; this snapshot pre-digests nothing.
+   * history, split into today's and not-today's (PRD: Rejections on Tonight,
+   * ADR-0006, ADR-0008). The not-today group carries past *and* future-dated
+   * (Planned) Rejections. The model judges from each reason and date what is
+   * standing and what was one-off; this snapshot pre-digests nothing.
    */
   rejections: RejectionsBlock;
 };
 
 /**
- * Turn the active Catalog, the non-future Log, the Rejection history, today,
- * and the query into the model-input JSON. Decisions baked in (ADR-0005,
- * ADR-0006):
+ * Turn the active Catalog, the full Log, the Rejection history, today, and the
+ * query into the model-input JSON. Decisions baked in (ADR-0005, ADR-0006,
+ * ADR-0008):
  *
  * - Options come out in **alphabetical order by name**, not Score-rank order —
  *   a pre-ranked list would anchor the model toward the existing order.
  * - **No pre-computed recency.** The snapshot carries plain dated history; the
  *   model re-derives recency itself and spends its reasoning on the patterns
  *   recency misses. Do not re-add recency integers — ADR-0005.
- * - The Log is a **flat chronological list, newest dinner first**, each entry
+ * - The Log is the **full Log — past entries and future-dated ones (Planned
+ *   dinners)** — as a flat chronological list, newest dinner first, each entry
  *   carrying its real date + weekday and the eaten Option's name / kind / Tags
  *   inline, so the model reads eating history directly without joining ids.
+ *   The snapshot carries today's date, so the model tells a plan from history
+ *   itself (ADR-0008); the deterministic ranking still excludes future Log
+ *   rows — only this AI snapshot sees the future.
  * - Options the Household **rejected today** are dropped from the candidate
  *   `options` — the AI-result side of "suppressed for the day" (PRD:
  *   Rejections on Tonight). It is a presentation filter on the snapshot only;
@@ -154,8 +171,10 @@ export type ModelSnapshot = {
  *   suppressed Option's eating history still appears in the Log — only its
  *   candidacy is removed.
  * - The **Rejections block** carries every Rejection of an active Option as
- *   raw dated history (via `lib/rejections`), split into today's and earlier;
- *   the model judges from the reasons what is standing and what was one-off.
+ *   raw dated history (via `lib/rejections`), split into today's and not-today's
+ *   — the not-today group carrying past *and* future-dated (Planned) Rejections;
+ *   the model judges from the reasons and dates what is standing and what was
+ *   one-off.
  * - The Restaurant **Places fields** (`address`, `phone`, `lat`, `lng`,
  *   `googlePlaceId`, `mapsUrl`) never enter — `SnapshotOption` has no slot for
  *   them, so they are excluded by construction.
@@ -357,9 +376,12 @@ const SYSTEM_PROMPT = [
   "",
   "You are given a JSON snapshot: today's date (with weekday), the " +
     "household's free-text query (which may be empty), their Catalog of " +
-    "dinner Options, their full recent dinner Log as dated history " +
-    "(newest first), each entry naming the Option eaten, its kind, and its " +
-    "Tags, and a Rejections block — Options the household has turned down.",
+    "dinner Options, their dinner Log as dated history (newest first), each " +
+    "entry naming the Option eaten, its kind, and its Tags, and a Rejections " +
+    "block — Options the household has turned down. The Log and the " +
+    "Rejections may include future-dated rows — dinners and rejections the " +
+    "household has planned ahead. Compare each row's date against today's " +
+    "date to tell a past event from an upcoming plan.",
   "",
   "Your job is NOT to re-sort the Catalog by how long ago each Option was " +
     "eaten. A separate deterministic ranking already does plain recency, and " +
@@ -381,18 +403,20 @@ const SYSTEM_PROMPT = [
     "Think it through before you answer.",
   "",
   "The Rejections block is the household's record of Options they turned " +
-    "down and why. Each Rejection carries an optional reason and the date it " +
-    "was made; it is raw dated history, not a pre-digested signal — reason " +
-    "over it the way you reason over the Log. Read each reason together with " +
-    "its date and how often it recurs, and decide for YOURSELF which " +
-    "Rejections are standing — a lasting dislike, like \"closed on Sundays\", " +
-    "that should still weigh today — and which were one-off — a passing \"too " +
-    "heavy tonight\" that has since faded. Do not treat every Rejection as a " +
-    "permanent verdict. The block has two groups. \"Rejected tonight\" " +
-    "Options have deliberately been left out of the Catalog above and are NOT " +
-    "candidates to return — but their reasons may still inform how you rank " +
-    "the Options that remain. \"Earlier rejections\" are still candidates: " +
-    "reconsider them on their merits while weighing why they were once passed " +
+    "down and why. Each Rejection carries an optional reason and a date — " +
+    "which may be in the past or upcoming; it is raw dated history, not a " +
+    "pre-digested signal — reason over it the way you reason over the Log. " +
+    "Read each reason together with its date and how often it recurs, and " +
+    "decide for YOURSELF which Rejections are standing — a lasting dislike, " +
+    "like \"closed on Sundays\", that should still weigh today — and which " +
+    "were one-off — a passing \"too heavy tonight\" that has since faded. Do " +
+    "not treat every Rejection as a permanent verdict. The block has two " +
+    "groups. \"Rejected tonight\" Options have deliberately been left out of " +
+    "the Catalog above and are NOT candidates to return — but their reasons " +
+    "may still inform how you rank the Options that remain. \"Other " +
+    "rejections\" are still candidates: they hold rejections from other dates, " +
+    "past or upcoming, each row carrying its own date. Reconsider them on " +
+    "their merits while weighing why they were once — or will be — passed " +
     "over. A Rejection with no reason is a light \"passed on this\" signal, " +
     "nothing more.",
   "",

@@ -108,6 +108,26 @@ describe("buildSnapshot", () => {
     expect(friday?.tags).toEqual(["<household-text>sweet</household-text>"]);
   });
 
+  it("includes a future-dated Log entry (a Planned dinner) with its real date", () => {
+    // The AI snapshot sees the Household's near future — a future-dated Log
+    // entry rides along with its own date, newest first (ADR-0008).
+    const withFuture = buildSnapshot({
+      options,
+      logEntries: [
+        ...logEntries,
+        { optionId: "a1", eatenOn: "2026-05-25", note: "planned" }, // Monday
+      ],
+      rejections: [],
+      today: TODAY,
+      query: "something sweet",
+    });
+    const planned = withFuture.log.find((e) => e.date.startsWith("2026-05-25"));
+    expect(planned).toBeDefined();
+    expect(planned?.date).toBe("2026-05-25 (Monday)");
+    // It is a future date — newest first puts the Planned dinner at the top.
+    expect(withFuture.log[0].date).toBe("2026-05-25 (Monday)");
+  });
+
   it("produces empty option and log arrays for an empty Catalog", () => {
     const empty = buildSnapshot({
       options: [],
@@ -167,7 +187,7 @@ describe("buildSnapshot — Rejections", () => {
     expect(snapshot.options.map((o) => o.id)).toContain("b1");
   });
 
-  it("attaches a Rejections block split into tonight and earlier groups", () => {
+  it("attaches a Rejections block split into tonight and not-today groups", () => {
     const snapshot = buildSnapshot({
       options,
       logEntries: [],
@@ -181,9 +201,37 @@ describe("buildSnapshot — Rejections", () => {
     expect(snapshot.rejections.rejectedTonight.map((r) => r.optionId)).toEqual([
       "b1",
     ]);
-    expect(snapshot.rejections.earlierRejections.map((r) => r.optionId)).toEqual(
+    expect(snapshot.rejections.notTodayRejections.map((r) => r.optionId)).toEqual(
       ["c1"],
     );
+  });
+
+  it("puts a future-dated Planned rejection in the not-today group, with its date", () => {
+    const snapshot = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [rejection("c1", "2026-05-24", "closed this coming Sunday")],
+      today: TODAY,
+      query: "",
+    });
+    // A future-dated Rejection lands in the date-neutral not-today group,
+    // carrying its real future date (ADR-0008).
+    expect(snapshot.rejections.rejectedTonight).toEqual([]);
+    const planned = snapshot.rejections.notTodayRejections[0];
+    expect(planned.optionId).toBe("c1");
+    expect(planned.date).toBe("2026-05-24 (Sunday)");
+  });
+
+  it("keeps an Option whose only Rejection is future-dated as a candidate", () => {
+    const snapshot = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [rejection("c1", "2026-05-24", "closed this coming Sunday")],
+      today: TODAY,
+      query: "",
+    });
+    // A Planned rejection does not suppress today — c1 stays a candidate.
+    expect(snapshot.options.map((o) => o.id)).toContain("c1");
   });
 
   it("carries each Rejection's reason — delimited — and weekday date", () => {
@@ -202,7 +250,7 @@ describe("buildSnapshot — Rejections", () => {
       "<household-text>too heavy tonight</household-text>",
     );
     expect(tonight.date).toBe("2026-05-20 (Wednesday)");
-    const earlier = snapshot.rejections.earlierRejections[0];
+    const earlier = snapshot.rejections.notTodayRejections[0];
     expect(earlier.reason).toBe(
       "<household-text>closed on Sundays</household-text>",
     );
@@ -217,7 +265,7 @@ describe("buildSnapshot — Rejections", () => {
       today: TODAY,
       query: "",
     });
-    expect(snapshot.rejections.earlierRejections[0].reason).toBeNull();
+    expect(snapshot.rejections.notTodayRejections[0].reason).toBeNull();
   });
 
   it("still carries a suppressed Option's eating history in the Log", () => {
