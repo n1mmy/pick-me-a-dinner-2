@@ -18,7 +18,7 @@ worktree, whether or not `isolation` is set. A merge or gate sub-agent
 therefore cannot operate on the integration branch — its commit would land
 on a throwaway branch, and its gate would test the wrong tree. So merging
 and gate-verify are **not** delegated: the orchestrator runs them itself,
-directly in the integration worktree (see steps 5 and 7).
+directly in the integration checkout (see steps 5 and 7).
 
 ## The hard rule: you never touch code
 
@@ -70,49 +70,75 @@ the rule is stated here so you never even attempt it.
 
 ## Setup prerequisites — check before starting
 
-1. **You are in a fresh git worktree.** That worktree's branch is the
-   **integration branch**: workers branch off it, their work merges back
-   into it, and when the run ends you hand that branch to the user. If you
-   are in the main checkout, stop and ask.
-2. **The worker allowlist is in `.claude/settings.local.json`.** Sub-agents
-   inherit this session's permissions; without the allowlist every
-   worker's `pnpm`/`git` call stalls on a prompt. Required entries (ported
-   from `loop.py`):
+1. **You are on a clean integration branch.** The branch you are on *now*
+   is the **integration branch**: workers branch off it, their work merges
+   back into it, and when the run ends you hand that branch to the user.
+   Two setups are valid:
+   - **A fresh git worktree** (path like `.../.claude/worktrees/<name>/`) —
+     its branch is the integration branch.
+   - **The main checkout, on a dedicated branch cut for this run** — not
+     `main` itself, since the run's merges accumulate on the integration
+     branch and you hand it off afterwards for the user to merge into
+     `main`.
 
-   ```
-   Write, Read, Edit, Glob, Grep,
-   Bash(git *), Bash(pnpm *), Bash(npm *), Bash(npx *),
-   Bash(node *), Bash(tsx *), Bash(docker *), Bash(docker-compose *),
-   Bash(curl *), Bash(wget *), Bash(command -v *), Bash(which *),
-   Bash(rg *), Bash(grep *), Bash(find *),
-   Bash(test *), Bash(echo *), Bash(date +%s)
-   ```
+   **Fail and stop** — do not proceed, surface it and ask — if either
+   holds: you are on the `main` branch (integration commits must never
+   accumulate on `main`), or the working tree is not clean
+   (`git status --short` must be empty; a dirty tree means another agent's
+   in-progress work is here).
+2. **`.claude/settings.local.json` must not already exist — the loop
+   installs its own.** Sub-agents inherit this session's permissions;
+   without the allowlist every worker's `pnpm`/`git` call stalls on a
+   prompt. The curated allow/deny set lives committed at
+   `.ralph/settings.local.json.ralph` — setup is a **copy, not a
+   regeneration**. **Fail and stop** if `.claude/settings.local.json` is
+   already present — as it will be in the main checkout, where it holds
+   unrelated local settings (a `PORT` pin, a dev-server allowlist):
+   copying over it would clobber those, and editing around them is exactly
+   the per-run hand-regeneration this committed file exists to avoid.
+   Surface it and ask the user to move it aside. Only once it is confirmed
+   absent, copy the loop's file in wholesale (the same `.ralph`-suffix
+   pattern as `.env.ralph` → `.env`):
+   `cp .ralph/settings.local.json.ralph .claude/settings.local.json`.
 
-   `Glob`/`Grep` are the search tools on npm-installed Claude Code;
-   native macOS/Linux builds drop those tools and fold search into Bash,
-   which is why `Bash(rg *)`, `Bash(grep *)`, and `Bash(find *)` are
-   listed too. A worker uses whichever its tool set actually exposes —
-   keep both kinds of entry so the loop runs on either build.
+   What the file grants: `Write`/`Read`/`Edit`/`Glob`/`Grep` plus
+   `Bash(...)` patterns for git, pnpm/npm/npx, node/tsx, docker, curl/wget,
+   `command -v`/`which`, the `rg`/`grep`/`find` search trio, and
+   `test`/`echo`/`date +%s`. `Glob`/`Grep` are the search tools on
+   npm-installed Claude Code; native macOS/Linux builds drop those tools
+   and fold search into Bash, which is why `Bash(rg *)`, `Bash(grep *)`,
+   and `Bash(find *)` are listed too — a worker uses whichever its tool set
+   actually exposes, so both kinds of entry stay. The `deny` block
+   hard-blocks remote git (`git push`/`fetch`/`pull`/`clone`/`ls-remote`/
+   `remote`) regardless of doctrine — a `deny` rule overrides `allow`.
 
-   And these `deny` entries, so remote git is hard-blocked regardless of
-   doctrine (a `deny` rule overrides `allow`):
-
-   ```
-   Bash(git push:*), Bash(git fetch:*), Bash(git pull:*),
-   Bash(git clone:*), Bash(git ls-remote:*), Bash(git remote:*)
-   ```
-
-   Widening the allowlist is the user's call — if entries are missing,
-   surface them and stop; do not edit the file yourself.
-3. **The worktree carries `.env.ralph`.** A fresh worktree has no `.env`
-   (gitignored), but it does carry the committed, secret-free `.env.ralph`
-   — materialise `.env` by reading `.env.ralph` and writing its contents
+   `.ralph/settings.local.json.ralph` is the single source for these
+   entries: if the loop ever needs a new permission, add it there, so
+   every later run inherits it without hand-editing. Never hand-widen
+   `.claude/settings.local.json` directly — change the committed source
+   and re-copy.
+3. **`.env` must not already exist — the loop materialises its own.** The
+   loop runs on the committed, secret-free `.env.ralph` defaults: the dev
+   Postgres `DATABASE_URL` and no API keys (so AI search stays off, which
+   is fine). **Fail and stop** if an `.env` is already present — as it will
+   be in the main checkout, or any checkout used for normal dev: it may
+   carry real API keys (AI search would fire, metered) or a non-dev
+   `DATABASE_URL`, and the loop must inherit neither. Surface it and ask
+   the user to move their `.env` aside. Only once `.env` is confirmed
+   absent, materialise it by reading `.env.ralph` and writing its contents
    to `.env` with the Read and Write tools (`cp` is not on the loop's
-   allowlist). The gate's
-   `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build` all pass
-   env-free; only `pnpm test:db` needs `DATABASE_URL`, which `.env.ralph`
-   supplies (the dev Postgres). `.env.ralph` holds no API keys, so AI
-   search stays off under the loop — which is fine.
+   allowlist). The gate's `pnpm test:db` needs the `DATABASE_URL` this
+   supplies; `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build`
+   all pass env-free.
+
+**If any prerequisite fails, suggest running in a fresh git worktree.** A
+new `.claude/worktrees/<name>/` checkout satisfies all three by
+construction: it is on its own branch (never `main`) with a clean working
+tree, and — because `.env` and `.claude/settings.local.json` are both
+gitignored — it carries neither file, so nothing has to be moved aside.
+Running from the main checkout is supported, but it always trips
+prerequisites 2 and 3 (its `.env` and `.claude/settings.local.json` exist);
+recommend the worktree before asking the user to relocate those files.
 
 ## Watching the run
 
@@ -201,11 +227,11 @@ together in one message run concurrently, so the wave is still parallel.
 
 - **Do not set `run_in_background`.** `isolation: "worktree"` is honored
   only on foreground dispatch. With `run_in_background: true` the harness
-  silently drops isolation: the worker runs in *your* integration worktree
+  silently drops isolation: the worker runs in *your* integration checkout
   on the integration branch, its commit lands directly on that branch, and
   parallel workers collide on the one branch. Foreground is mandatory — it
   is what makes `isolation` real. (Verified: a background worker reports
-  your own worktree path and branch; a foreground one gets its own.)
+  your own checkout path and branch; a foreground one gets its own.)
 - `isolation: "worktree"` — each worker runs in its own isolated git
   worktree and returns its branch name. **That worktree is branched off
   `main`, not off the integration tip** — `main` is stale and may predate
@@ -427,7 +453,7 @@ workflow — **you do not push, and you do not merge outside your worktree.**
 
 ### Merge procedure — the orchestrator runs this directly
 
-In the integration worktree, on the integration branch:
+In the integration checkout, on the integration branch:
 
 - `git merge --no-ff <worker-branch>` — merge the verified worker branch.
 - Clean → the branch is integrated; continue.
@@ -439,7 +465,7 @@ output, safe for the orchestrator's context.
 
 ### Gate procedure — the orchestrator runs this directly
 
-In the integration worktree, on the integration branch, after all of the
+In the integration checkout, on the integration branch, after all of the
 wave's merges have run. Ensure `.env` exists first — if it does not,
 create it by reading `.env.ralph` and writing its contents to `.env`
 (Read + Write tools; `cp` is not allowlisted). Then run, as separate bare
@@ -452,7 +478,7 @@ not commit. Green → next round; red → revert-and-serialize (step 7).
 ## Protected files — never modify
 
 - `.ralph/` and its contents — `ORCHESTRATOR.md`, `PROMPT.md`, `loop.py`,
-  `loop_state.json`, `watch-steps.py`.
+  `loop_state.json`, `watch-steps.py`, `settings.local.json.ralph`.
 
 Issue files under `.issues/` *are* expected to change — ticking checkboxes
 and advancing `Status:` lines is the loop.
