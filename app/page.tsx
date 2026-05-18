@@ -1,6 +1,6 @@
 import { getTodayRejections, getTonightData } from "../db/queries";
 import { aiSearchEnabled } from "../lib/ai-search";
-import { epochDayFromSqlDate, todaySqlDate } from "../lib/local-day";
+import { epochDayFromSqlDate, today } from "../lib/local-day";
 import { rankTonight } from "../lib/ranking";
 import { splitTonight } from "../lib/tonights-dinner";
 import { TonightScreen } from "./tonight-screen";
@@ -14,11 +14,11 @@ export const dynamic = "force-dynamic";
 export default async function TonightPage() {
   // "Today" is the Household's calendar day in APP_TZ — not the server's UTC
   // day — so all recency is measured from the household's perspective.
-  const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+  const todaySql = today();
   const [{ options, logEntries, todayEntries }, todayRejections] =
-    await Promise.all([getTonightData(today), getTodayRejections(today)]);
+    await Promise.all([getTonightData(todaySql), getTodayRejections(todaySql)]);
 
-  const todayEpochDay = epochDayFromSqlDate(today);
+  const todayEpochDay = epochDayFromSqlDate(todaySql);
   const entries = logEntries.map((entry) => ({
     optionId: entry.optionId,
     eatenOn: epochDayFromSqlDate(entry.eatenOn),

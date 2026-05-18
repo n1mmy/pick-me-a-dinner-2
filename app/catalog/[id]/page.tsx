@@ -8,7 +8,7 @@ import {
   getTonightData,
 } from "../../../db/queries";
 import { splitDinners } from "../../../lib/dinner-grouping";
-import { epochDayFromSqlDate, todaySqlDate } from "../../../lib/local-day";
+import { epochDayFromSqlDate, today } from "../../../lib/local-day";
 import { placesEnabled } from "../../../lib/places";
 import { rankOption, type RankOption } from "../../../lib/ranking";
 import { DinnerGroup } from "../../log/log-entry-row";
@@ -54,8 +54,8 @@ export default async function OptionDetailPage({
 
   // "Today" is the Household's calendar day in APP_TZ, exactly as the Tonight
   // page reads it — so this page's recency matches the Tonight ranking.
-  const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
-  const todayEpochDay = epochDayFromSqlDate(today);
+  const todaySql = today();
+  const todayEpochDay = epochDayFromSqlDate(todaySql);
   const [
     { options, logEntries },
     optionLog,
@@ -63,7 +63,7 @@ export default async function OptionDetailPage({
     optionRejections,
     allTags,
   ] = await Promise.all([
-    getTonightData(today),
+    getTonightData(todaySql),
     getOptionLog(option.id),
     getOptionChoices(),
     getOptionRejections(option.id),
@@ -100,7 +100,7 @@ export default async function OptionDetailPage({
 
   // The History section: this Option's own Log, split into its realized
   // history (newest first) and its Planned dinners (the group shown above it).
-  const { planned, realized } = splitDinners(optionLog, today);
+  const { planned, realized } = splitDinners(optionLog, todaySql);
 
   const isRestaurant = option.kind === "restaurant";
   const hasDetails =
@@ -216,7 +216,7 @@ export default async function OptionDetailPage({
                     key={dinner.date}
                     dinner={dinner}
                     optionChoices={optionChoices}
-                    today={today}
+                    today={todaySql}
                   />
                 ))}
               </div>
@@ -226,7 +226,7 @@ export default async function OptionDetailPage({
                 key={dinner.date}
                 dinner={dinner}
                 optionChoices={optionChoices}
-                today={today}
+                today={todaySql}
               />
             ))}
           </>
@@ -253,7 +253,7 @@ export default async function OptionDetailPage({
                 key={rejection.id}
                 rejection={rejection}
                 optionChoices={optionChoices}
-                today={today}
+                today={todaySql}
                 showDate
               />
             ))}

@@ -5,15 +5,10 @@ import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { dinnerLog } from "../../db/schema";
 import { authedAction } from "../../lib/authed-action";
-import { isValidSqlDate, todaySqlDate } from "../../lib/local-day";
+import { isValidSqlDate, today } from "../../lib/local-day";
 import type { ActionResult } from "../../lib/action-result";
 import { trimToNull } from "../../lib/action-result";
 import { pgErrorMessage } from "../../lib/pg-error";
-
-/** The Household's calendar day in `APP_TZ` — the date a Pick is logged on. */
-function today(): string {
-  return todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
-}
 
 /**
  * Revalidate every screen a Log write changes: Tonight's ranking, the Log, and

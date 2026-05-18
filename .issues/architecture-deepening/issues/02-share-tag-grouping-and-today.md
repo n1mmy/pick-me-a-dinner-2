@@ -1,6 +1,6 @@
 # 02 — Share the Catalog tag-grouping join and the "today" binding
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## What to build
@@ -29,19 +29,26 @@ one impure convenience.
 
 ## Acceptance criteria
 
-- [ ] One private tag-grouping helper in `db/queries.ts` is the single
+- [x] One private tag-grouping helper in `db/queries.ts` is the single
       `option_tags ⋈ tags` join; `getActiveCatalog`, `getTonightData`, and
       `getRejections` all use it
-- [ ] `getOptionById` is left unchanged — its scoped variant is not folded in
-- [ ] `today()` is exported from `lib/local-day.ts`; `app/page.tsx`,
+- [x] `getOptionById` is left unchanged — its scoped variant is not folded in
+- [x] `today()` is exported from `lib/local-day.ts`; `app/page.tsx`,
       `app/catalog/[id]/page.tsx`, `app/log/page.tsx`,
       `app/tonight-actions.ts`, and `app/log/actions.ts` all route through it,
       and the `process.env.APP_TZ ?? "UTC"` fallback appears exactly once
-- [ ] Query results and screen behaviour are unchanged — existing query and
+- [x] Query results and screen behaviour are unchanged — existing query and
       action tests pass without modification
-- [ ] No `CONTEXT.md` or ADR changes are needed
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] No `CONTEXT.md` or ADR changes are needed
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
+
+## Comments
+
+`app/rejection-actions.ts` (created by issue 04, after this issue was
+written) also had the inline `todaySqlDate(new Date(), process.env.APP_TZ ??
+"UTC")` in `rejectOption`. It was routed through `today()` too, so the
+`?? "UTC"` fallback genuinely appears exactly once as the criterion requires.
 
 ## Blocked by
 

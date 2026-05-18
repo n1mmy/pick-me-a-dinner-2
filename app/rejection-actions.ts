@@ -6,7 +6,7 @@ import { db } from "../db";
 import { rejections } from "../db/schema";
 import { authedAction } from "../lib/authed-action";
 import { type ActionResult, trimToNull } from "../lib/action-result";
-import { isValidSqlDate, todaySqlDate } from "../lib/local-day";
+import { isValidSqlDate, today } from "../lib/local-day";
 import { pgErrorMessage } from "../lib/pg-error";
 
 /**
@@ -164,7 +164,6 @@ export const deleteRejection = authedAction(
  */
 export const rejectOption = authedAction(
   async (optionId: string, reason: string): Promise<ActionResult> => {
-    const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
-    return recordRejection(optionId, today, reason);
+    return recordRejection(optionId, today(), reason);
   },
 );
