@@ -41,7 +41,12 @@ call wastes the loop. The fixes that matter most here:
   redirects (`>`, `>>`, `<`, `2>&1`). Split into separate `Bash` calls
   in one message; they run in parallel.
 - **No `cd <path> && …`** — the loop's cwd is already the repo root.
-- **No `cat`/`ls`/`grep`/`find`** — use `Read` / `Glob` / `Grep`.
+- **File contents → `Read`; search → `Glob`/`Grep` if they exist, else
+  `Bash`.** Native macOS/Linux Claude Code builds drop the `Glob`/`Grep`
+  tools and fold search into Bash; npm-installed builds keep them. Use
+  whichever your tool set actually has — `Glob`/`Grep` when present,
+  otherwise `Bash` (`rg`/`grep` for content, `find` for paths,
+  `git ls-files` for tracked files). Never `cat`/`head`/`tail`/`ls`.
 - **No bare `rm`, no `mkdir`** — `git rm` for tracked files, `Write` to
   overwrite or to auto-create a parent directory.
 - **Never run `find /`.**
