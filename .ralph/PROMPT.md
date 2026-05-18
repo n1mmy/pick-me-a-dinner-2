@@ -63,6 +63,13 @@ call wastes the loop. The fixes that matter most here:
 - **Never run `find /`.**
 - **No remote git** — never `git push`, `git fetch`, or `git pull`. The
   loop works the local checkout only; pushing is the user's job.
+- **Don't improvise tools outside the gate and allowlist.** Verify your
+  work only with the project's own checks — `pnpm typecheck`, `lint`,
+  `test`, `test:db`, `build`. Database state is verified by `pnpm
+  test:db`; do not reach for `psql`, or any other tool not on the loop's
+  allowlist, to inspect or debug the DB. If the gate cannot verify the
+  issue, that is a `## Comments` failure note (see "When you're stuck"),
+  not a cue to improvise an un-allowlisted command.
 
 If a command you need is genuinely blocked, stop and leave a note in the
 issue file rather than re-shaping the command. Widening the allowlist is

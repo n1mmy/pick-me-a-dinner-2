@@ -106,7 +106,9 @@ the rule is stated here so you never even attempt it.
    surface them and stop; do not edit the file yourself.
 3. **The worktree carries `.env.ralph`.** A fresh worktree has no `.env`
    (gitignored), but it does carry the committed, secret-free `.env.ralph`
-   — materialise `.env` with `cp .env.ralph .env`. The gate's
+   — materialise `.env` by reading `.env.ralph` and writing its contents
+   to `.env` with the Read and Write tools (`cp` is not on the loop's
+   allowlist). The gate's
    `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build` all pass
    env-free; only `pnpm test:db` needs `DATABASE_URL`, which `.env.ralph`
    supplies (the dev Postgres). `.env.ralph` holds no API keys, so AI
@@ -147,14 +149,31 @@ Repeat the round below until a stop condition fires.
 
 ### 1 — Start of round: take in changes
 
-Before anything else, every round:
+Before anything else, every round — and on every re-entry, whether from a
+user message or a fresh `/orchestrate-ralph` invocation:
 
-- Check for any **queued user message** since the last round. The user may
-  have unblocked an issue, redirected, or answered an escalation.
-  Incorporate it.
-- **Re-scan** `.issues/*/issues/*.md`. The user may have edited an issue
-  file directly (e.g. flipped a `needs-info` issue back to
-  `ready-for-agent`). The files are the source of truth, not your memory.
+- **Recover an interrupted wave first.** A worker's permission denial
+  should not halt you (step 6), but if it does, you re-enter here. Look
+  back at your recent context: if your last action was a wave dispatch
+  whose result block you never processed, recover it now, before
+  anything else. For each worker in that block that completed, run the
+  step-5 verify-and-merge — **idempotent**: skip any whose issue is
+  already `done`/merged. For any worker that returned a
+  permission-rejection error, treat it as a step-6 failure and retry its
+  issue. Then gate (step 7) and continue. This is keyed on *your own
+  state*, not on a keyword — "resume", "retry", "continue", a bare
+  `/orchestrate-ralph` re-invocation all re-enter here and trigger the
+  same check. On a **cold start** (a fresh session with no such context)
+  there is nothing to recover: the interrupted issues are still
+  `ready-for-agent` and a normal round simply redoes them.
+- Check for any **queued user message**. The user may have unblocked an
+  issue, redirected, or answered an escalation. Incorporate it.
+- **Reload issue state.** Re-scan `.issues/*/issues/*.md` and treat what
+  you read as authoritative — your memory of issue state is only a
+  cache; the issue files are the source of truth. The user may have
+  edited a file directly (e.g. flipped a `needs-info` issue back to
+  `ready-for-agent`). Re-derive the eligible set every round, never from
+  memory.
 
 ### 2 — Pick the wave
 
@@ -233,11 +252,15 @@ together. Then, for each worker:
   - Clean merge → the branch is integrated. **Reap the worker's
     worktree** so it does not leak: `git worktree unlock <path>` then
     `git worktree remove --force <path>`. The worker has already
-    returned, so its worktree is done. Unlock first — the harness locked
-    it to this run's pid, so a bare `remove` skips it; an un-reaped
-    worktree is left locked to a dead pid once the run ends, and they
-    pile up. Removal drops only the directory; the worker's branch ref
-    survives.
+    returned, so its worktree is done. Run the unlock and the remove as
+    **separate bare `Bash` calls**, one tool call each — batch several in
+    one message to run them in parallel. Never wrap them in a `for` loop
+    or chain them with `&&`/`;`/redirects: a compound shell is an
+    unrecognised command shape, it prompts, and a prompt can halt the
+    run. Unlock first — the harness locked it to this run's pid, so a
+    bare `remove` skips it; an un-reaped worktree is left locked to a
+    dead pid once the run ends, and they pile up. Removal drops only the
+    directory; the worker's branch ref survives.
   - Conflict → `git merge --abort` at once and boot the issue back to
     `ready-for-agent`. Do not resolve the conflict. Its re-run next round
     branches off the updated tip — which now includes the merge winner —
@@ -249,17 +272,29 @@ together. Then, for each worker:
 A worker outcome is one of:
 
 - **Success** (verified in step 5) → done with this issue.
-- **Failure** (gate red, crash, out-of-time, or unverified self-report) →
-  a terse failure note belongs in the issue file under a `## Comments`
-  heading, and `Status` stays `ready-for-agent`. A graceful worker writes
-  that note itself; on a hard crash or a worker that ran out of time *you*
-  write a one-line note ("attempt N: timed out"). Next round a **fresh**
-  worker picks the issue up and reads it *including* the prior failure
-  notes — a clean-context retry that can still see what the last attempt
-  hit.
+- **Failure** (gate red, crash, out-of-time, permission-denied, or
+  unverified self-report) → a terse failure note belongs in the issue
+  file under a `## Comments` heading, and `Status` stays
+  `ready-for-agent`. A graceful worker writes that note itself; on a hard
+  crash, an out-of-time worker, or a permission-denied worker (none of
+  which can write their own note) *you* write a one-line note ("attempt
+  N: timed out"). Next round a **fresh** worker picks the issue up and
+  reads it *including* the prior failure notes — a clean-context retry
+  that can still see what the last attempt hit.
 - **`needs-info`** (the worker explicitly judged the issue wrong or
   blocked) → **not retried**. That is the worker's considered judgment;
   re-running just re-derives the same blocker. Escalate it (step 8).
+
+**A permission-denied worker does not halt the loop.** If a worker's
+`Agent` call comes back as an error — in particular a permission
+rejection carrying *"STOP what you are doing and wait for the user"* —
+that instruction is addressed to the **worker**, not to you. It means
+that one worker hit a blocked command and stopped; it is an ordinary
+**Failure** (above), nothing more. Do **not** halt the loop on it. Carry
+on: merge the workers that succeeded, write the failed worker's
+`## Comments` note yourself, retry its issue. A denial ends one worker,
+not the run. If a denial *does* halt you anyway, step 1 recovers the
+wave on re-entry.
 
 **Retry budget**: an issue carrying `RETRY_BUDGET + 1` failure notes is
 exhausted — flip its `Status` to `needs-info`, escalate it (step 8), and
@@ -346,8 +381,9 @@ workflow — **you do not push, and you do not merge outside your worktree.**
 >    orchestrator). It is reachable through the shared object store, so
 >    this needs no network. Your worktree has no work yet, so the reset is
 >    safe.
-> 2. `cp .env.ralph .env` — materialise the gitignored `.env` from the
->    committed, secret-free defaults.
+> 2. Materialise the gitignored `.env`: read `.env.ralph` (committed,
+>    secret-free defaults) and write its contents to `.env` with the
+>    Read and Write tools. Do not use `cp` — it is not allowlisted.
 >
 > Then read, this loop: `.ralph/PROMPT.md` (your full doctrine),
 > `CLAUDE.md`, `CONTEXT.md`, and any `docs/adr/` that touch this issue.
@@ -355,8 +391,9 @@ workflow — **you do not push, and you do not merge outside your worktree.**
 >
 > - Implement the issue literally; satisfy every acceptance criterion; use
 >   `CONTEXT.md` glossary terms; keep scope lean.
-> - Your isolated worktree has no `.env` — before `pnpm test`, run
->   `cp .env.ralph .env` (committed, secret-free dev defaults).
+> - Your isolated worktree has no `.env` until you create it in setup
+>   step 2 above (read `.env.ralph`, write `.env`); it must exist before
+>   `pnpm test`.
 > - Verify before committing — run every check the project defines
 >   (`pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:db`, and for
 >   UI/route/env work `pnpm build`). All must be green.
@@ -393,8 +430,10 @@ output, safe for the orchestrator's context.
 ### Gate procedure — the orchestrator runs this directly
 
 In the integration worktree, on the integration branch, after all of the
-wave's merges have run. Ensure `.env` exists first — `cp .env.ralph .env`
-if it does not. Then run, as separate bare commands: `pnpm typecheck`,
+wave's merges have run. Ensure `.env` exists first — if it does not,
+create it by reading `.env.ralph` and writing its contents to `.env`
+(Read + Write tools; `cp` is not allowlisted). Then run, as separate bare
+commands: `pnpm typecheck`,
 `pnpm lint`, `pnpm test`, `pnpm test:db`, `pnpm build`.
 
 Read only pass/fail and (on red) the first failure. Do not fix anything; do
