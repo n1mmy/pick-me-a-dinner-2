@@ -129,7 +129,7 @@ context.
 
 ## Configuration
 
-- `MAX_PARALLEL` — workers per wave. Default **3**. Set **1** to disable
+- `MAX_PARALLEL` — workers per wave. Default **5**. Set **1** to disable
   parallelism entirely (the loop collapses to serial with no code-path
   change — this is the off-switch).
 - `WORKER_TIMEOUT` — per-worker budget. Default **25 min** (from `loop.py`).
@@ -161,12 +161,13 @@ Before anything else, every round:
 - **Candidates**: every issue with `Status: ready-for-agent`.
 - **Eligible**: a candidate whose every `Blocked by` issue is `done`.
   Parse the `Blocked by` field; do not approximate with issue numbers.
-- **Disjoint batch**: from the eligible set, pick up to `MAX_PARALLEL`
-  issues that you estimate touch **non-overlapping files** — read each
-  issue's "What to build" and guess its file set. The estimate need not be
-  exact; a wrong guess is caught and corrected later (steps 5 & 7) at the
-  cost of one re-run. Prefer cross-feature batches — issues in the same
-  feature are usually dependency-chained and rarely parallelisable.
+- **Fill the wave**: take up to `MAX_PARALLEL` issues from the eligible
+  set. When more than `MAX_PARALLEL` are eligible, **prefer a spread
+  across distinct features** (`.issues/<feature>/` directories): different
+  features draw from independent dependency chains, so they rarely touch
+  the same files. Do not estimate file sets — a wrong pick is caught and
+  corrected reactively by the merge (step 5) and gate (step 7) at the cost
+  of one re-run.
 - If no issue is eligible but `ready-for-agent` issues remain (all
   blocked), halt and surface it.
 - Record the integration tip (`git rev-parse HEAD`) — the pre-wave tip,
@@ -277,6 +278,13 @@ integration branch (see the gate procedure below).
      them). Serial re-runs structurally eliminate cross-issue breaks —
      each issue then builds against the previous one's merged change. If a
      serial re-run still fails, ordinary smart-retry (step 6) catches it.
+
+Then, green or red, print a one-line **wave summary**: wave number, wall
+time (dispatch → gate done), issues attempted / done / failed, conflicts
+booted, and the gate outcome (green, or red → revert-and-serialize). These
+per-wave numbers are the run's only telemetry — they are what tells you
+whether `MAX_PARALLEL` is set well and whether the dropped disjoint-batch
+filter is costing enough wasted runs to be worth re-adding.
 
 ### 8 — Escalation (non-blocking)
 
