@@ -29,11 +29,19 @@ function kindLabel(kind: "home" | "restaurant"): string {
  * "×" control clears the pick; blurring with unmatched text reconciles the
  * field back to the last valid pick. A "No matches" row shows when nothing
  * matches — there is no Option-creation affordance.
+ *
+ * The edit forms pre-fill the picker with a Log entry's current Option. When
+ * that Option has since been Archived it is absent from `choices` (which carry
+ * Active Options only); `selectedName` lets the caller seed the displayed name
+ * from the Log entry itself so the current value still shows. The Archived
+ * Option stays out of the dropdown — switching away from it cannot be undone in
+ * the picker, and Cancel restores the entry's original Option.
  */
 export function OptionCombobox({
   id,
   choices,
   value,
+  selectedName,
   onChange,
   placeholder,
 }: {
@@ -43,6 +51,11 @@ export function OptionCombobox({
   choices: OptionChoice[];
   /** The currently picked Option id, or `null` when nothing is picked. */
   value: string | null;
+  /**
+   * The displayed name for `value` when that Option is not in `choices` — a
+   * since-Archived Option on an edited Log entry. Seeded from the Log entry.
+   */
+  selectedName?: string;
   /** Receives the chosen Option id, or `null` when the pick is cleared. */
   onChange: (optionId: string | null) => void;
   placeholder: string;
@@ -51,17 +64,22 @@ export function OptionCombobox({
   const optionDomId = (optionId: string) => `${listId}-${optionId}`;
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const selected = choices.find((choice) => choice.id === value) ?? null;
+  // The picked Option's name: from `choices` when it is Active, else the
+  // caller-seeded `selectedName` for a since-Archived current value.
+  const selectedChoice = choices.find((choice) => choice.id === value) ?? null;
+  const selectedLabel =
+    selectedChoice?.name ?? (value !== null ? (selectedName ?? null) : null);
+  const selected = value !== null && selectedLabel !== null;
 
   // `draft` is the text in the input. `open` tracks whether the list shows.
   // `active` is the highlighted row index within the filtered list.
-  const [draft, setDraft] = useState(selected?.name ?? "");
+  const [draft, setDraft] = useState(selectedLabel ?? "");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
 
   // While the list is closed the input mirrors the picked Option's name; only
   // an open list shows the live `draft` the Household is typing.
-  const inputText = open ? draft : (selected?.name ?? "");
+  const inputText = open ? draft : (selectedLabel ?? "");
 
   const query = draft.trim().toLowerCase();
   const filtered =

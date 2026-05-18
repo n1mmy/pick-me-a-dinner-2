@@ -1,6 +1,6 @@
 # 02 — Type-ahead Option picker on the Edit-a-dinner form
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -28,15 +28,15 @@ unchanged.
 
 ## Acceptance criteria
 
-- [ ] The edit-a-dinner form uses `OptionCombobox` in place of the `<select>`
-- [ ] The picker opens pre-filled with the entry's current Option
-- [ ] A Log entry on a since-Archived Option still shows that Option as the
+- [x] The edit-a-dinner form uses `OptionCombobox` in place of the `<select>`
+- [x] The picker opens pre-filled with the entry's current Option
+- [x] A Log entry on a since-Archived Option still shows that Option as the
       picker's current value, with its name seeded from the entry
-- [ ] That Archived Option does not appear in the dropdown list
-- [ ] Cancel leaves the entry's original Option unchanged
-- [ ] The existing date field, note field, and inline edit/delete behavior are
+- [x] That Archived Option does not appear in the dropdown list
+- [x] Cancel leaves the entry's original Option unchanged
+- [x] The existing date field, note field, and inline edit/delete behavior are
       unchanged
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by
