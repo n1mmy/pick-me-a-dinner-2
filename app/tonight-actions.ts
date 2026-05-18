@@ -4,7 +4,11 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "../db";
 import { rejections } from "../db/schema";
-import { getRejections, getTonightData } from "../db/queries";
+import {
+  getFullLogForSnapshot,
+  getRejections,
+  getTonightData,
+} from "../db/queries";
 import {
   AI_SEARCH_UNAVAILABLE,
   buildSnapshot,
@@ -16,8 +20,14 @@ import { todaySqlDate } from "../lib/local-day";
 
 /**
  * Run an AI search over Tonight: build the model snapshot from the active
- * Catalog and the non-future Log, call `lib/ai-search`, and return the
- * validated ordered result. An empty query is a valid trigger.
+ * Catalog and the full Log — past entries and future-dated ones (Planned
+ * dinners) alike — call `lib/ai-search`, and return the validated ordered
+ * result. An empty query is a valid trigger.
+ *
+ * The Log fed to the snapshot comes from `getFullLogForSnapshot`, not from
+ * `getTonightData` (whose `logEntries` are filtered to non-future for the
+ * deterministic ranking): the AI snapshot sees the Household's near future
+ * (ADR-0008). `getTonightData` is still read for the active Catalog `options`.
  *
  * `authedAction`-wrapped (review fix F1): a Server Action is reachable by id
  * from any route, so without the wrapper an anonymous caller could drive the
@@ -31,8 +41,9 @@ export const aiSearchAction = authedAction(
     if (!apiKey) return AI_SEARCH_UNAVAILABLE;
 
     const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
-    const [{ options, logEntries }, rejections] = await Promise.all([
+    const [{ options }, logEntries, rejections] = await Promise.all([
       getTonightData(today),
+      getFullLogForSnapshot(),
       getRejections(),
     ]);
 

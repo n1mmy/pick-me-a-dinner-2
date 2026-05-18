@@ -8,9 +8,10 @@
  * ADR-0006: every Rejection is stored flat as raw dated history. This module
  * encodes no decay, no query-scoping, and no "standing dislike vs one-off"
  * judgement — that call is the model's. All it does is split today from
- * earlier (today's rejected Options leave the candidate set; earlier ones stay
- * candidates) and shape both groups parallel to the Log block, so the model
- * reasons over Rejections the way it reasons over the Log (ADR-0005).
+ * not-today (today's rejected Options leave the candidate set; not-today ones
+ * — past *or* future-dated — stay candidates) and shape both groups parallel
+ * to the Log block, so the model reasons over Rejections the way it reasons
+ * over the Log (ADR-0005, ADR-0008).
  */
 import {
   delimit,
@@ -60,12 +61,15 @@ export type SnapshotRejection = {
 
 /**
  * The snapshot's Rejections block: today's Rejections — whose Options are off
- * the candidate set — and earlier ones — whose Options stay candidates — each
- * group ordered newest first, parallel to the Log block.
+ * the candidate set — and not-today ones — whose Options stay candidates — each
+ * group ordered newest first, parallel to the Log block. The not-today group
+ * carries both past and future-dated (Planned) Rejections; each row's own date
+ * tells the model which it is, so the group label stays date-neutral
+ * (ADR-0008).
  */
 export type RejectionsBlock = {
   rejectedTonight: SnapshotRejection[];
-  earlierRejections: SnapshotRejection[];
+  notTodayRejections: SnapshotRejection[];
 };
 
 /** The partitioned Rejections: the snapshot block plus the suppression set. */
@@ -93,17 +97,19 @@ function toSnapshotRejection(row: RejectionRow): SnapshotRejection {
 
 /**
  * Partition the Household's Rejection history against today: a row whose
- * `rejectedOn` is exactly today is *rejected tonight*, every other row is
- * *earlier*. Derives the today suppression set — the Option ids rejected today
- * — and shapes both groups for the snapshot: reasons delimited, dates carrying
- * their weekday, each group newest first.
+ * `rejectedOn` is exactly today is *rejected tonight*, every other row —
+ * past-dated *or* future-dated (a Planned rejection) — is *not-today*. Derives
+ * the today suppression set — the Option ids rejected today — and shapes both
+ * groups for the snapshot: reasons delimited, dates carrying their weekday,
+ * each group newest first. The suppression set stays `rejectedOn === today`
+ * only, so a Planned rejection's Option remains a candidate today (ADR-0008).
  */
 export function partitionRejections(
   rows: RejectionRow[],
   today: string,
 ): PartitionedRejections {
   const tonight: RejectionRow[] = [];
-  const earlier: RejectionRow[] = [];
+  const notToday: RejectionRow[] = [];
   const suppressedToday = new Set<string>();
 
   for (const row of rows) {
@@ -111,7 +117,7 @@ export function partitionRejections(
       tonight.push(row);
       suppressedToday.add(row.optionId);
     } else {
-      earlier.push(row);
+      notToday.push(row);
     }
   }
 
@@ -125,7 +131,9 @@ export function partitionRejections(
     suppressedToday,
     block: {
       rejectedTonight: [...tonight].sort(newestFirst).map(toSnapshotRejection),
-      earlierRejections: [...earlier].sort(newestFirst).map(toSnapshotRejection),
+      notTodayRejections: [...notToday]
+        .sort(newestFirst)
+        .map(toSnapshotRejection),
     },
   };
 }

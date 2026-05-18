@@ -222,6 +222,29 @@ export async function getTonightData(todaySqlDate: string): Promise<{
   };
 }
 
+/**
+ * The full Log for the AI search snapshot (PRD: Dated Rejections — AI snapshot,
+ * ADR-0008): every `dinner_log` row of an **active** Option, **regardless of
+ * date** — past entries and future-dated ones (Planned dinners) alike. It is
+ * the AI-snapshot counterpart of `getTonightData`'s `logEntries`, which filters
+ * `eaten_on <= today` for the deterministic ranking. The AI snapshot sees the
+ * Household's near future (ADR-0008); the deterministic ranking still gets the
+ * non-future Log from `getTonightData`, so only the AI path sees the future.
+ * Only active Options are joined, mirroring how `getTonightData` already
+ * excludes Archived Options' Log entries from an AI search.
+ */
+export async function getFullLogForSnapshot(): Promise<TonightLogRow[]> {
+  return db
+    .select({
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(dinnerLog.optionId, options.id))
+    .where(eq(options.active, true));
+}
+
 /** A Log entry joined to its Option, narrowed to what the Log screen renders. */
 export type LogEntryRow = {
   id: string;
