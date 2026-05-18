@@ -79,12 +79,13 @@ export function LogScreen({
       {upcoming.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className={labelClass}>Upcoming</h2>
-          {shownUpcoming.map((record) => (
+          {shownUpcoming.map((record, index) => (
             <DayGroup
               key={record.date}
               record={record}
               optionChoices={optionChoices}
               today={today}
+              isFirst={index === 0}
             />
           ))}
           {hiddenUpcoming > 0 && (
@@ -98,12 +99,13 @@ export function LogScreen({
       {history.length > 0 && (
         <section className="flex flex-col gap-2">
           {upcoming.length > 0 && <h2 className={labelClass}>History</h2>}
-          {history.map((record) => (
+          {history.map((record, index) => (
             <DayGroup
               key={record.date}
               record={record}
               optionChoices={optionChoices}
               today={today}
+              isFirst={index === 0}
             />
           ))}
         </section>
@@ -112,9 +114,18 @@ export function LogScreen({
   );
 }
 
+// Secondary button — bordered, neutral-filled. Reads as a button without the
+// weight of the filled `action` primary (Add / Pick).
 const addButtonClass =
-  "min-h-11 self-start rounded-control px-2 text-body font-emphasis " +
-  "text-action focus-visible:outline focus-visible:outline-2 " +
+  "min-h-11 self-start rounded-control border border-line bg-raised px-3 " +
+  "text-body font-emphasis text-ink transition-colors duration-micro " +
+  "hover:bg-line focus-visible:outline focus-visible:outline-2 " +
+  "focus-visible:outline-offset-2 focus-visible:outline-action";
+
+const groupButtonClass =
+  "min-h-11 self-start rounded-control border border-line bg-raised px-3 " +
+  "text-chip font-emphasis text-ink transition-colors duration-micro " +
+  "hover:bg-line focus-visible:outline focus-visible:outline-2 " +
   "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
@@ -186,15 +197,23 @@ function DayGroup({
   record,
   optionChoices,
   today,
+  isFirst,
 }: {
   record: DayRecord<LogEntryRow, LogRejectionRow>;
   optionChoices: OptionChoice[];
   today: string;
+  isFirst: boolean;
 }) {
   const [open, setOpen] = useState<"none" | "dinner" | "rejection">("none");
 
   return (
-    <div className="flex flex-col gap-1">
+    <div
+      className={
+        isFirst
+          ? "flex flex-col gap-1"
+          : "flex flex-col gap-1 border-t-2 border-line pt-5.5"
+      }
+    >
       <h3 className="text-chip font-emphasis text-muted">
         {formatDinnerDate(record.date, today)}
       </h3>
@@ -236,20 +255,14 @@ function DayGroup({
             <button
               type="button"
               onClick={() => setOpen("dinner")}
-              className="min-h-11 self-start rounded-control px-2 text-chip
-                font-emphasis text-action focus-visible:outline
-                focus-visible:outline-2 focus-visible:outline-offset-2
-                focus-visible:outline-action"
+              className={groupButtonClass}
             >
               + Dinner
             </button>
             <button
               type="button"
               onClick={() => setOpen("rejection")}
-              className="min-h-11 self-start rounded-control px-2 text-chip
-                font-emphasis text-action focus-visible:outline
-                focus-visible:outline-2 focus-visible:outline-offset-2
-                focus-visible:outline-action"
+              className={groupButtonClass}
             >
               + Rejection
             </button>

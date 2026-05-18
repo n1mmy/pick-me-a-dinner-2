@@ -284,7 +284,7 @@ export function RejectionRow({
 
   if (editing) {
     return (
-      <li className="border-b border-line py-3">
+      <li className="border-b border-line bg-danger-wash px-3 py-3">
         <RejectionForm
           optionChoices={optionChoices}
           initialOptionId={rejection.optionId}
@@ -303,7 +303,7 @@ export function RejectionRow({
   }
 
   return (
-    <li className="flex flex-col gap-1 border-b border-line py-3">
+    <li className="flex flex-col gap-1 border-b border-line bg-danger-wash px-3 py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-meta font-emphasis uppercase tracking-wide text-danger">
