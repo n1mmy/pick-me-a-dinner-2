@@ -45,8 +45,8 @@ isolates every sub-agent and so neither can be delegated:
 
 Beyond those, you *may* run git plumbing that produces little output (`git
 log --oneline`, `git status --short`, `git rev-parse`, `git worktree`,
-branch inspection) and read the `.issues/` and `.ralph/` files. That is the
-whole of your direct surface.
+branch inspection), `date +%s` for wave timing (step 7), and read the
+`.issues/` and `.ralph/` files. That is the whole of your direct surface.
 
 Read those files the same way a worker does — `CLAUDE.md` "Tool &
 permissions discipline" binds you, not just the sub-agents. Use `Read`,
@@ -54,8 +54,8 @@ permissions discipline" binds you, not just the sub-agents. Use `Read`,
 `.issues/` or `.ralph/`. The Bash matcher treats every `cat .issues/...`
 shape as unrecognised and prompts the user — `Glob` for
 `.issues/*/issues/*.md` and `Read` per file never do. The git plumbing
-above is the *only* `Bash` you run; everything else is the dedicated
-file tools.
+above and `date +%s` are the *only* `Bash` you run; everything else is
+the dedicated file tools.
 
 ## Local git only — never contact a remote
 
@@ -85,7 +85,7 @@ the rule is stated here so you never even attempt it.
    Bash(node *), Bash(tsx *), Bash(docker *), Bash(docker-compose *),
    Bash(curl *), Bash(wget *), Bash(command -v *), Bash(which *),
    Bash(rg *), Bash(grep *), Bash(find *),
-   Bash(test *), Bash(echo *)
+   Bash(test *), Bash(echo *), Bash(date +%s)
    ```
 
    `Glob`/`Grep` are the search tools on npm-installed Claude Code;
@@ -190,7 +190,8 @@ user message or a fresh `/orchestrate-ralph` invocation:
 - If no issue is eligible but `ready-for-agent` issues remain (all
   blocked), halt and surface it.
 - Record the integration tip (`git rev-parse HEAD`) — the pre-wave tip,
-  needed for revert in step 7.
+  needed for revert in step 7 — and the wave start time (`date +%s`),
+  for the step-7 wall-time figure.
 
 ### 3 — Dispatch the wave (foreground, one message)
 
@@ -319,10 +320,19 @@ integration branch (see the gate procedure below).
      each issue then builds against the previous one's merged change. If a
      serial re-run still fails, ordinary smart-retry (step 6) catches it.
 
-Then, green or red, print a one-line **wave summary**: wave number, wall
-time (dispatch → gate done), issues attempted / done / failed, conflicts
-booted, and the gate outcome (green, or red → revert-and-serialize). These
-per-wave numbers are the run's only telemetry — they are what tells you
+Then, green or red, print the **wave summary**:
+
+- **Wall time** — run `date +%s` and subtract the wave start time
+  recorded in step 2: that is the dispatch → gate-done elapsed.
+- **Per worker** — one line each: the issue, the outcome, and the
+  `duration_ms`, `total_tokens`, and `tool_uses` from that worker's
+  `Agent` result `<usage>` block. A denied or crashed worker returns no
+  `<usage>` block — just record its outcome.
+- **Aggregate** — wave number, issues attempted / done / failed,
+  conflicts booted, and the gate outcome (green, or red →
+  revert-and-serialize).
+
+These per-wave numbers are the run's only telemetry — they tell you
 whether `MAX_PARALLEL` is set well and whether the dropped disjoint-batch
 filter is costing enough wasted runs to be worth re-adding.
 
