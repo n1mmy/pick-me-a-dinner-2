@@ -1,9 +1,5 @@
 "use server";
 
-import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { db } from "../db";
-import { rejections } from "../db/schema";
 import {
   getFullLogForSnapshot,
   getRejections,
@@ -16,7 +12,7 @@ import {
   type AiSearchResult,
 } from "../lib/ai-search";
 import { authedAction } from "../lib/authed-action";
-import { todaySqlDate } from "../lib/local-day";
+import { today } from "../lib/local-day";
 
 /**
  * Run an AI search over Tonight: build the model snapshot from the active
@@ -40,9 +36,9 @@ export const aiSearchAction = authedAction(
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return AI_SEARCH_UNAVAILABLE;
 
-    const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+    const todaySql = today();
     const [{ options }, logEntries, rejections] = await Promise.all([
-      getTonightData(today),
+      getTonightData(todaySql),
       getFullLogForSnapshot(),
       getRejections(),
     ]);
@@ -61,7 +57,7 @@ export const aiSearchAction = authedAction(
         note: entry.note,
       })),
       rejections,
-      today,
+      today: todaySql,
       query,
     });
 
@@ -71,61 +67,5 @@ export const aiSearchAction = authedAction(
     // search for the rest of the day (PRD: Rejections on Tonight).
     const activeIds = new Set(snapshot.options.map((option) => option.id));
     return createAiSearchClient(apiKey).search(snapshot, activeIds);
-  },
-);
-
-/**
- * Reject an Option for tonight's decision (PRD: Rejections on Tonight). Inserts
- * a `rejections` row dated the Household's calendar day in `APP_TZ`, with the
- * optional short reason — an empty or whitespace-only reason is stored as
- * `null` — then revalidates Tonight so the Option drops out of the picker on
- * the next render.
- *
- * `authedAction`-wrapped: a Server Action is reachable by id from any route, so
- * the shared-password session check is not optional. Thin by design — it does
- * the write and nothing else, mirroring `pickTonight`. A Rejection is not a Log
- * entry and carries no Score weight; suppression is a presentation filter the
- * Tonight page applies, never a ranking change (ADR-0003, ADR-0006).
- *
- * Revalidates Tonight and the Option detail page: Reject is offered on both —
- * a Tonight row and the detail page's controls — and the same action must
- * update whichever screen invoked it in place (PRD: Option detail page).
- */
-export const rejectOption = authedAction(
-  async (optionId: string, reason: string): Promise<void> => {
-    const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
-    const trimmed = reason.trim();
-    await db.insert(rejections).values({
-      optionId,
-      reason: trimmed.length === 0 ? null : trimmed,
-      rejectedOn: today,
-    });
-    revalidatePath("/");
-    revalidatePath("/catalog/[id]", "page");
-  },
-);
-
-/**
- * Bring back a Rejection the Household made today (PRD: Rejections on Tonight,
- * the "Bring back" action). Deletes the `rejections` row by id, then
- * revalidates Tonight so the Option returns to the picker on the next render.
- *
- * `authedAction`-wrapped: a Server Action is reachable by id from any route, so
- * the shared-password session check is not optional. Deleting the row outright
- * — rather than expiring it — is the point: the Rejection is gone entirely, so
- * a mis-tapped Rejection never reaches AI search and never teaches the model
- * anything (ADR-0006). Thin by design — it does the delete and nothing else,
- * mirroring `rejectOption` and `pickTonight`.
- *
- * Revalidates Tonight and the Option detail page: Bring back is offered on
- * both — Tonight's "Rejected tonight" disclosure and the detail page's
- * Rejection history section — and the same action must update whichever screen
- * it was invoked from in place (PRD: Option detail page).
- */
-export const bringBackRejection = authedAction(
-  async (rejectionId: string): Promise<void> => {
-    await db.delete(rejections).where(eq(rejections.id, rejectionId));
-    revalidatePath("/");
-    revalidatePath("/catalog/[id]", "page");
   },
 );

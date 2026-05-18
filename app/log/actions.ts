@@ -5,22 +5,10 @@ import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { dinnerLog } from "../../db/schema";
 import { authedAction } from "../../lib/authed-action";
-import { isValidSqlDate, todaySqlDate } from "../../lib/local-day";
-import { pgErrorCode } from "../../lib/pg-error";
-
-/** A Log mutation either succeeds or carries a message to show inline. */
-export type LogActionResult = { ok: true } | { ok: false; error: string };
-
-/** Trim a free-text field, storing `null` rather than an empty string. */
-function trimToNull(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? null : trimmed;
-}
-
-/** The Household's calendar day in `APP_TZ` — the date a Pick is logged on. */
-function today(): string {
-  return todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
-}
+import { isValidSqlDate, today } from "../../lib/local-day";
+import type { ActionResult } from "../../lib/action-result";
+import { trimToNull } from "../../lib/action-result";
+import { pgErrorMessage } from "../../lib/pg-error";
 
 /**
  * Revalidate every screen a Log write changes: Tonight's ranking, the Log, and
@@ -40,12 +28,12 @@ function revalidateLogViews(): void {
  * double-tap is a harmless no-op. Picking a *different* Option the same evening
  * is a separate row — a multi-Option Dinner.
  *
- * Returns a `LogActionResult` so a write failure (e.g. the Option was deleted
+ * Returns an `ActionResult` so a write failure (e.g. the Option was deleted
  * out from under the row) is reported, never flashed as a false "Logged ✓" —
  * the optimistic success label depends on `ok` (review fix F4).
  */
 export const pickTonight = authedAction(
-  async (optionId: string): Promise<LogActionResult> => {
+  async (optionId: string): Promise<ActionResult> => {
     try {
       await db
         .insert(dinnerLog)
@@ -72,7 +60,7 @@ export const logForDate = authedAction(
     optionId: string,
     eatenOn: string,
     note?: string,
-  ): Promise<LogActionResult> => {
+  ): Promise<ActionResult> => {
     if (!isValidSqlDate(eatenOn)) {
       return { ok: false, error: "Pick a valid date" };
     }
@@ -81,15 +69,10 @@ export const logForDate = authedAction(
         .insert(dinnerLog)
         .values({ optionId, eatenOn, note: trimToNull(note ?? "") });
     } catch (error) {
-      const code = pgErrorCode(error);
-      if (code === "23505") {
-        return { ok: false, error: "Already logged for that date" };
-      }
-      // 22P02 invalid uuid / 23503 FK violation — a malformed or stale Option.
-      if (code === "22P02" || code === "23503") {
-        return { ok: false, error: "That option is no longer available" };
-      }
-      throw error;
+      return pgErrorMessage(error, {
+        duplicate: "Already logged for that date",
+        missingOption: "That option is no longer available",
+      });
     }
     revalidateLogViews();
     return { ok: true };
@@ -105,7 +88,7 @@ export const updateLogEntry = authedAction(
   async (
     id: string,
     values: { optionId: string; eatenOn: string; note: string },
-  ): Promise<LogActionResult> => {
+  ): Promise<ActionResult> => {
     if (!isValidSqlDate(values.eatenOn)) {
       return { ok: false, error: "Pick a valid date" };
     }
@@ -119,15 +102,10 @@ export const updateLogEntry = authedAction(
         })
         .where(eq(dinnerLog.id, id));
     } catch (error) {
-      const code = pgErrorCode(error);
-      if (code === "23505") {
-        return { ok: false, error: "Already logged for that date" };
-      }
-      // 22P02 invalid uuid / 23503 FK violation — a malformed or stale Option.
-      if (code === "22P02" || code === "23503") {
-        return { ok: false, error: "That option is no longer available" };
-      }
-      throw error;
+      return pgErrorMessage(error, {
+        duplicate: "Already logged for that date",
+        missingOption: "That option is no longer available",
+      });
     }
     revalidateLogViews();
     return { ok: true };

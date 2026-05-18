@@ -180,6 +180,11 @@ describe("rankTonight", () => {
 });
 
 describe("rankOption", () => {
+  /** This Option's own Log entries — the `targetLog` `rankOption` expects. */
+  function logFor(entries: LogEntry[], optionId: string): LogEntry[] {
+    return entries.filter((entry) => entry.optionId === optionId);
+  }
+
   it("matches that Option's rankTonight row for an active Option", () => {
     const options = [
       option("o1", "Salmon", ["fish"]),
@@ -197,7 +202,13 @@ describe("rankOption", () => {
     // recency internals, so every field must agree for every active Option.
     for (const target of options) {
       const row = rows.find((r) => r.option.id === target.id);
-      const ranked = rankOption(target, options, entries, TODAY);
+      const ranked = rankOption({
+        target,
+        activeOptions: options,
+        activeLog: entries,
+        targetLog: logFor(entries, target.id),
+        today: TODAY,
+      });
       expect(ranked.score).toBe(row?.score);
       expect(ranked.recencyDays).toBe(row?.recencyDays);
       expect(ranked.neverEaten).toBe(row?.neverEaten);
@@ -207,11 +218,49 @@ describe("rankOption", () => {
 
   it("reports the never-eaten flag and CAP recency for an Option with no Log history", () => {
     const options = [option("o1", "Tofu Stir Fry", ["soy"])];
-    const ranked = rankOption(options[0], options, [], TODAY);
+    const ranked = rankOption({
+      target: options[0],
+      activeOptions: options,
+      activeLog: [],
+      targetLog: [],
+      today: TODAY,
+    });
     expect(ranked.neverEaten).toBe(true);
     expect(ranked.recencyDays).toBe(CAP);
     // A tagged but never-used Option ties at the cold-start Score.
     expect(ranked.score).toBe((W_OPTION + W_TAG) * CAP);
     expect(ranked.tags[0]).toEqual({ tag: "soy", days: CAP, overdue: true });
+  });
+
+  it("ranks an Archived Option with a null Score but factual per-Option recency", () => {
+    // The active Catalog excludes the Archived `target`, so its own Log is
+    // absent from `activeLog` — `rankOption` reads per-Option recency from
+    // `targetLog` instead.
+    const activeOptions = [
+      option("o1", "Salmon", ["fish"]),
+      option("o2", "Cod", ["fish"]),
+    ];
+    const target = option("archived", "Old Roast", ["roast"]);
+    const activeLog: LogEntry[] = [{ optionId: "o1", eatenOn: TODAY - 5 }];
+    const targetLog: LogEntry[] = [{ optionId: "archived", eatenOn: TODAY - 12 }];
+
+    const ranked = rankOption({
+      target,
+      activeOptions,
+      activeLog,
+      targetLog,
+      today: TODAY,
+    });
+    // An Archived Option takes no part in the ranking — no Score.
+    expect(ranked.score).toBe(null);
+    // Per-Option recency still comes from the Option's own history.
+    expect(ranked.recencyDays).toBe(12);
+    expect(ranked.neverEaten).toBe(false);
+    // No active carrier of "roast", so its per-Tag recency caps at CAP.
+    expect(ranked.tags[0]).toEqual({
+      tag: "roast",
+      days: CAP,
+      overdue: true,
+    });
   });
 });

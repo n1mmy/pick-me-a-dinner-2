@@ -6,7 +6,9 @@ import { db } from "../../db";
 import { optionTags, options, tags } from "../../db/schema";
 import { authedAction } from "../../lib/authed-action";
 import { normalizeTag } from "../../lib/normalize-tag";
-import { pgErrorCode } from "../../lib/pg-error";
+import type { ActionResult } from "../../lib/action-result";
+import { trimToNull } from "../../lib/action-result";
+import { pgErrorMessage } from "../../lib/pg-error";
 
 /** Which kind of Option a form is editing. */
 export type OptionKind = "home" | "restaurant";
@@ -34,15 +36,6 @@ export type OptionFormValues = {
   googlePlaceId: string;
   tags: string[];
 };
-
-/** A Catalog mutation either succeeds or carries a message to show inline. */
-export type ActionResult = { ok: true } | { ok: false; error: string };
-
-/** Trim a free-text field, storing `null` rather than an empty string. */
-function trimToNull(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? null : trimmed;
-}
 
 /** Parse a latitude/longitude form field to a number, or `null` when blank or non-numeric. */
 function parseCoord(value: string): number | null {
@@ -178,11 +171,9 @@ export const updateOption = authedAction(
         await syncOptionTags(tx, id, values.tags);
       });
     } catch (error) {
-      // 22P02 invalid uuid — a malformed/stale Option id; report, don't 500.
-      if (pgErrorCode(error) === "22P02") {
-        return { ok: false, error: "That option is no longer available" };
-      }
-      throw error;
+      return pgErrorMessage(error, {
+        missingOption: "That option is no longer available",
+      });
     }
     revalidateCatalog();
     return { ok: true };
@@ -198,11 +189,9 @@ export const archiveOption = authedAction(
     try {
       await db.update(options).set({ active: false }).where(eq(options.id, id));
     } catch (error) {
-      // 22P02 invalid uuid — a malformed/stale Option id; report, don't 500.
-      if (pgErrorCode(error) === "22P02") {
-        return { ok: false, error: "That option is no longer available" };
-      }
-      throw error;
+      return pgErrorMessage(error, {
+        missingOption: "That option is no longer available",
+      });
     }
     revalidateCatalog();
     return { ok: true };
@@ -219,11 +208,9 @@ export const unarchiveOption = authedAction(
     try {
       await db.update(options).set({ active: true }).where(eq(options.id, id));
     } catch (error) {
-      // 22P02 invalid uuid — a malformed/stale Option id; report, don't 500.
-      if (pgErrorCode(error) === "22P02") {
-        return { ok: false, error: "That option is no longer available" };
-      }
-      throw error;
+      return pgErrorMessage(error, {
+        missingOption: "That option is no longer available",
+      });
     }
     revalidateCatalog();
     return { ok: true };
@@ -240,16 +227,10 @@ export const deleteOption = authedAction(
     try {
       await db.delete(options).where(eq(options.id, id));
     } catch (error) {
-      const code = pgErrorCode(error);
-      // 23503 FK violation — the Option has Log history; archive it instead.
-      if (code === "23503") {
-        return { ok: false, error: "In your log — archive instead" };
-      }
-      // 22P02 invalid uuid — a malformed/stale Option id; report, don't 500.
-      if (code === "22P02") {
-        return { ok: false, error: "That option is no longer available" };
-      }
-      throw error;
+      return pgErrorMessage(error, {
+        restricted: "In your log — archive instead",
+        missingOption: "That option is no longer available",
+      });
     }
     revalidateCatalog();
     return { ok: true };

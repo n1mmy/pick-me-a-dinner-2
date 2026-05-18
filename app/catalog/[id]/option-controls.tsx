@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { OptionWithTags } from "../../../db/queries";
 import { PickButton } from "../../pick-button";
-import { rejectOption } from "../../tonight-actions";
+import { rejectOption } from "../../rejection-actions";
 import { archiveOption, deleteOption, unarchiveOption } from "../actions";
 import { OptionForm } from "../option-form";
 
@@ -54,8 +54,15 @@ export function OptionControls({
   const boxId = `reject-box-${option.id}`;
 
   function submitReject() {
+    setError(null);
     startTransition(async () => {
-      await rejectOption(option.id, reason);
+      const result = await rejectOption(option.id, reason);
+      if (!result.ok) {
+        // A today-dated Rejection for this Option already exists — surface the
+        // collision inline rather than letting it 500.
+        setError(result.error);
+        return;
+      }
       // The Rejection revalidates the detail page; the Rejection history
       // section re-renders with the new entry under it.
       setRejecting(false);
