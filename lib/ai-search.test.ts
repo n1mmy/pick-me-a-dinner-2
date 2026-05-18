@@ -1,12 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// The Anthropic SDK is mocked so no live call is ever made — the failure-model
-// tests drive `messages.create` through canned rejections and responses, the
-// way `places.test.ts` drives the Places client through a stubbed `fetch`.
-const { messagesCreate } = vi.hoisted(() => ({ messagesCreate: vi.fn() }));
+// The Anthropic SDK is mocked so no live call is ever made — the tests drive
+// `messages.create` (the Sonnet/Haiku budget path) and `messages.stream` (the
+// Opus 4.7 adaptive path) through canned rejections and responses, the way
+// `places.test.ts` drives the Places client through a stubbed `fetch`.
+const { messagesCreate, messagesStream } = vi.hoisted(() => ({
+  messagesCreate: vi.fn(),
+  messagesStream: vi.fn(),
+}));
 vi.mock("@anthropic-ai/sdk", () => ({
   default: class {
-    messages = { create: messagesCreate };
+    messages = { create: messagesCreate, stream: messagesStream };
   },
 }));
 
@@ -450,23 +454,23 @@ describe("parseAndValidate", () => {
 
 describe("resolveTailMode", () => {
   afterEach(() => {
-    delete process.env.AI_SEARCH_TAIL_MODE;
+    delete process.env.AI_TAIL_MODE;
   });
 
-  it("defaults to pithy when AI_SEARCH_TAIL_MODE is unset", () => {
-    delete process.env.AI_SEARCH_TAIL_MODE;
+  it("defaults to pithy when AI_TAIL_MODE is unset", () => {
+    delete process.env.AI_TAIL_MODE;
     expect(resolveTailMode()).toBe("pithy");
   });
 
   it("falls back to pithy for an unrecognized value", () => {
-    process.env.AI_SEARCH_TAIL_MODE = "nonsense";
+    process.env.AI_TAIL_MODE = "nonsense";
     expect(resolveTailMode()).toBe("pithy");
   });
 
   it("honors full and drop when set explicitly", () => {
-    process.env.AI_SEARCH_TAIL_MODE = "full";
+    process.env.AI_TAIL_MODE = "full";
     expect(resolveTailMode()).toBe("full");
-    process.env.AI_SEARCH_TAIL_MODE = "drop";
+    process.env.AI_TAIL_MODE = "drop";
     expect(resolveTailMode()).toBe("drop");
   });
 });
@@ -504,24 +508,27 @@ describe("createAiSearchClient — failure model and fallback", () => {
       content: [
         { type: "tool_use", name: "rank_options", input: { results: rows } },
       ],
+      usage: { input_tokens: 12000, output_tokens: 2000 },
     };
   }
 
   beforeEach(() => {
     messagesCreate.mockReset();
+    messagesStream.mockReset();
     // Every model call emits a structured log line; silence it and capture it.
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    delete process.env.AI_EFFORT;
   });
 
   it("returns the validated ordered result, mapping numbers back to ids", async () => {
     messagesCreate.mockResolvedValueOnce(
       toolUseResponse([{ id: 1, reason: "fits" }]),
     );
-    const result = await createAiSearchClient("k").search(snapshot, idByIndex);
+    const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
     expect(result).toEqual({
       ok: true,
       results: [{ id: "opt-a", reason: "fits" }],
@@ -541,7 +548,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
     for (const failure of failures) {
       messagesCreate.mockReset();
       messagesCreate.mockRejectedValue(failure);
-      const result = await createAiSearchClient("k").search(snapshot, idByIndex);
+      const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
       expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
       // No retry — the model is called exactly once, whatever the failure.
       expect(messagesCreate).toHaveBeenCalledTimes(1);
@@ -551,8 +558,9 @@ describe("createAiSearchClient — failure model and fallback", () => {
   it("collapses a response with no tool-use block to the fallback", async () => {
     messagesCreate.mockResolvedValue({
       content: [{ type: "text", text: "no tool call here" }],
+      usage: { input_tokens: 12000, output_tokens: 2000 },
     });
-    const result = await createAiSearchClient("k").search(snapshot, idByIndex);
+    const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(messagesCreate).toHaveBeenCalledTimes(1);
   });
@@ -562,8 +570,9 @@ describe("createAiSearchClient — failure model and fallback", () => {
     // unparseable output, which PRD §5 treats as a Failure, not an empty result.
     messagesCreate.mockResolvedValue({
       content: [{ type: "tool_use", name: "rank_options", input: { wrong: 1 } }],
+      usage: { input_tokens: 12000, output_tokens: 2000 },
     });
-    const result = await createAiSearchClient("k").search(snapshot, idByIndex);
+    const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(messagesCreate).toHaveBeenCalledTimes(1);
   });
@@ -575,8 +584,9 @@ describe("createAiSearchClient — failure model and fallback", () => {
       content: [
         { type: "tool_use", name: "rank_options", input: { results: [] } },
       ],
+      usage: { input_tokens: 12000, output_tokens: 2000 },
     });
-    const result = await createAiSearchClient("k").search(snapshot, idByIndex);
+    const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
     expect(result).toEqual({ ok: true, results: [] });
   });
 
@@ -584,7 +594,10 @@ describe("createAiSearchClient — failure model and fallback", () => {
     messagesCreate.mockResolvedValueOnce(
       toolUseResponse([{ id: 1, reason: "fits" }]),
     );
-    await createAiSearchClient("k").search(snapshot, idByIndex);
+    await createAiSearchClient("k", {
+      model: "claude-sonnet-4-6",
+      thinking: { type: "budget", budgetTokens: 4000 },
+    }).search(snapshot, idByIndex);
 
     expect(console.log).toHaveBeenCalledTimes(1);
     const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
@@ -593,6 +606,9 @@ describe("createAiSearchClient — failure model and fallback", () => {
       queryLength: 0,
       model: "claude-sonnet-4-6",
       tailMode: "pithy",
+      thinking: "budget:4000",
+      inputTokens: 12000,
+      outputTokens: 2000,
       outcome: "ok",
       resultCount: 1,
     });
@@ -601,7 +617,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
 
   it("emits one structured log line with a fallback outcome on failure", async () => {
     messagesCreate.mockRejectedValue({ status: 400 });
-    await createAiSearchClient("k").search(snapshot, idByIndex);
+    await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
 
     expect(console.log).toHaveBeenCalledTimes(1);
     const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
@@ -610,5 +626,80 @@ describe("createAiSearchClient — failure model and fallback", () => {
       outcome: "fallback",
       resultCount: 0,
     });
+  });
+
+  it("runs the Opus path through messages.stream with adaptive thinking", async () => {
+    messagesStream.mockReturnValue({
+      finalMessage: () =>
+        Promise.resolve(toolUseResponse([{ id: 1, reason: "fits" }])),
+    });
+    const result = await createAiSearchClient("k", {
+      model: "claude-opus-4-7",
+      thinking: { type: "effort", effort: "medium" },
+    }).search(snapshot, idByIndex);
+
+    expect(result).toEqual({
+      ok: true,
+      results: [{ id: "opt-a", reason: "fits" }],
+    });
+    // Opus must use the streaming method, never plain `create`.
+    expect(messagesStream).toHaveBeenCalledTimes(1);
+    expect(messagesCreate).not.toHaveBeenCalled();
+    // …and with the adaptive request shape Opus 4.7 requires — a budget-style
+    // `thinking.type: "enabled"` would be rejected by the API.
+    const params = messagesStream.mock.calls[0][0];
+    expect(params.thinking).toEqual({ type: "adaptive" });
+    expect(params.output_config).toEqual({ effort: "medium" });
+  });
+
+  it("collapses an Opus streaming failure to the fallback", async () => {
+    messagesStream.mockReturnValue({
+      finalMessage: () => Promise.reject(new Error("stream broke")),
+    });
+    const result = await createAiSearchClient("k", {
+      model: "claude-opus-4-7",
+      thinking: { type: "effort", effort: "high" },
+    }).search(snapshot, idByIndex);
+
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    expect(messagesStream).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs the Opus model id and effort thinking descriptor", async () => {
+    messagesStream.mockReturnValue({
+      finalMessage: () =>
+        Promise.resolve(toolUseResponse([{ id: 1, reason: "fits" }])),
+    });
+    await createAiSearchClient("k", {
+      model: "claude-opus-4-7",
+      thinking: { type: "effort", effort: "low" },
+    }).search(snapshot, idByIndex);
+
+    const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
+    expect(line).toMatchObject({
+      model: "claude-opus-4-7",
+      thinking: "effort:low",
+      outcome: "ok",
+    });
+  });
+
+  it("reads a numeric AI_EFFORT as an explicit budget for a budget model", async () => {
+    process.env.AI_EFFORT = "3000";
+    messagesCreate.mockResolvedValueOnce(
+      toolUseResponse([{ id: 1, reason: "fits" }]),
+    );
+    await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
+
+    const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
+    expect(line.thinking).toBe("budget:3000");
+  });
+
+  it("throws when a numeric AI_EFFORT is paired with an Opus model", () => {
+    process.env.AI_EFFORT = "3000";
+    // The misconfiguration must fail loudly at client construction, not be
+    // silently swallowed into a default effort.
+    expect(() =>
+      createAiSearchClient("k", { model: "claude-opus-4-7" }),
+    ).toThrow(/adaptive/i);
   });
 });

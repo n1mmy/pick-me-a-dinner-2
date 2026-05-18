@@ -19,7 +19,7 @@
  * cheap in the snapshot and, above all, in every result row the model writes;
  * the snapshot body is sent in a `cache_control` block so a burst of searches
  * over unchanged data reads the prefix from cache; and the empty/open-query
- * result shape is tunable via `AI_SEARCH_TAIL_MODE` (see `resolveTailMode`).
+ * result shape is tunable via `AI_TAIL_MODE` (see `resolveTailMode`).
  *
  * The module is **fail-safe**: the single model call carries a per-request
  * `AbortController` timeout, and every failure mode — a timeout, an HTTP error,
@@ -33,8 +33,9 @@
  * nothing.
  *
  * Every model call emits one structured log line — query length, model id,
- * tail mode, latency, outcome, result count, and token usage — so the external
- * API stays observable without a separate metrics pipe (PRD §"Observability").
+ * tail mode, thinking config, latency, outcome, result count, and token usage
+ * — so the external API stays observable without a separate metrics pipe
+ * (PRD §"Observability").
  *
  * The Anthropic client is constructed lazily — inside `createAiSearchClient`,
  * at call time, never at import time — so importing this module (and therefore
@@ -375,8 +376,8 @@ export function parseAndValidate(
   return rows;
 }
 
-/** The default model when `AI_MODEL` is unset — a current Claude Sonnet. */
-const MODEL_DEFAULT = "claude-sonnet-4-6";
+/** The default model when `AI_MODEL` is unset — a current Claude Opus. */
+const MODEL_DEFAULT = "claude-opus-4-7";
 
 /**
  * Per-request timeout. The model call is aborted via an `AbortController` if it
@@ -389,21 +390,148 @@ const MODEL_DEFAULT = "claude-sonnet-4-6";
 const REQUEST_TIMEOUT_MS = 90_000;
 
 /**
- * Extended-thinking budget. The model is given room to reason over the Log —
- * spotting cadence, day-of-week rhythm, streaks, drift — before it ranks
- * (ADR-0005); without it the model can only re-sort recency. The budget is a
- * cap, not a target: a focused pass over a household-sized Log typically uses
- * well under this. Raising it buys deeper reasoning at the cost of latency.
- * Tuned down from an initial 6000 — that ran calls near a 60s timeout with no
- * visible quality gain over this.
+ * Extended thinking lets the model reason over the Log — cadence, day-of-week
+ * rhythm, streaks, drift — before it ranks (ADR-0005); without it the model can
+ * only re-sort recency. How hard it thinks is one knob, `AI_EFFORT`
+ * (`off` | `low` | `medium` | `high`), uniform across every supported model.
+ * The two model families take that effort through different APIs (see
+ * `planThinking`): the budget-API models (Sonnet 4.6, Haiku 4.5) get a
+ * `budget_tokens` cap mapped from the effort level; the adaptive-API model
+ * (Opus 4.7) gets an `output_config.effort` level directly. For the
+ * budget-API models `AI_EFFORT` also accepts a bare integer — used directly
+ * as `budget_tokens`, for finer control than the three named levels give (the
+ * API floor is 1024; `0` is off). A positive number has no meaning for Opus,
+ * which has no token budget, so pairing one with an Opus model is rejected —
+ * `createAiSearchClient` throws.
  */
-const THINKING_BUDGET_TOKENS = 4000;
+type AiEffort = "off" | "low" | "medium" | "high";
+
+/** `AI_EFFORT` when unset — `low`, the lightest thinking level. */
+const EFFORT_DEFAULT: Exclude<AiEffort, "off"> = "low";
 
 /**
- * Output cap. Thinking tokens count against `max_tokens`, so this must exceed
- * `THINKING_BUDGET_TOKENS` with headroom left for the ranked tool-use result.
+ * Effort → `budget_tokens` for the budget-API models. `low` is the API minimum;
+ * `medium` (4000) was tuned down from an earlier 6000 that ran calls near the
+ * timeout with no quality gain; `high` buys deeper reasoning for more latency.
+ * A budget is a cap, not a target — a household-sized Log uses well under it.
  */
+const EFFORT_BUDGETS: Record<Exclude<AiEffort, "off">, number> = {
+  low: 1024,
+  medium: 4000,
+  high: 6144,
+};
+
+/**
+ * Whether a model takes the adaptive-thinking API. Opus 4.7 rejects the
+ * `thinking.type: "enabled"` budget scheme — it takes `thinking.type:
+ * "adaptive"` plus an `output_config.effort` level instead. Sonnet 4.6 and
+ * Haiku 4.5 use the budget scheme.
+ */
+function usesAdaptiveThinking(model: string): boolean {
+  return model.includes("opus");
+}
+
+/**
+ * An explicit thinking choice, bypassing `AI_EFFORT` — for the eval harness
+ * (`scripts/ai-search-eval.ts`) sweeping levels. A `budget` choice is valid
+ * only for a budget-API model and an `effort` choice only for the adaptive
+ * model; the caller pairs the choice to its model.
+ */
+export type ThinkingChoice =
+  | { type: "off" }
+  | { type: "budget"; budgetTokens: number }
+  | { type: "effort"; effort: Exclude<AiEffort, "off"> };
+
+/**
+ * The thinking choice for `model` derived from `AI_EFFORT`, when the caller
+ * gives no explicit override. `AI_EFFORT` accepts `off` / `low` / `medium` /
+ * `high`, or — for the budget-API models — a bare integer used directly as
+ * `budget_tokens` (the API floor is 1024; `0` is off). A positive number has
+ * no meaning for the adaptive-API model — pairing one with an Opus model is a
+ * misconfiguration and throws, rather than silently running at some default.
+ * An unset or unrecognized value falls back to the default effort.
+ */
+function envThinkingChoice(model: string): ThinkingChoice {
+  const adaptive = usesAdaptiveThinking(model);
+  const raw = process.env.AI_EFFORT?.trim().toLowerCase();
+
+  if (raw === "off") return { type: "off" };
+  if (raw === "low" || raw === "medium" || raw === "high") {
+    return adaptive
+      ? { type: "effort", effort: raw }
+      : { type: "budget", budgetTokens: EFFORT_BUDGETS[raw] };
+  }
+  // A bare integer is an explicit `budget_tokens` for the budget-API models.
+  if (raw !== undefined && /^\d+$/.test(raw)) {
+    const budget = Number.parseInt(raw, 10);
+    if (budget === 0) return { type: "off" };
+    if (!adaptive) return { type: "budget", budgetTokens: budget };
+    // A positive numeric AI_EFFORT is a token budget — meaningless for an
+    // adaptive model. Fail loudly on the misconfiguration rather than
+    // silently running at some default effort.
+    throw new Error(
+      `AI_EFFORT=${budget} is a token budget, but AI_MODEL (${model}) uses ` +
+        `the adaptive-thinking API, which has no token budget — set AI_EFFORT ` +
+        `to off/low/medium/high for an Opus model.`,
+    );
+  }
+  return adaptive
+    ? { type: "effort", effort: EFFORT_DEFAULT }
+    : { type: "budget", budgetTokens: EFFORT_BUDGETS[EFFORT_DEFAULT] };
+}
+
+/** A compact descriptor of a thinking choice for the structured log line. */
+function describeThinking(choice: ThinkingChoice): string {
+  if (choice.type === "off") return "off";
+  if (choice.type === "budget") return `budget:${choice.budgetTokens}`;
+  return `effort:${choice.effort}`;
+}
+
+/** Output cap for a no-thinking call — thinking choices size their own below. */
 const MAX_TOKENS = 10_000;
+/** Headroom over a token budget for the ranked tool-use result it precedes. */
+const OUTPUT_HEADROOM_TOKENS = 6_000;
+/** Output cap for an adaptive-thinking call — adaptive spends against this. */
+const ADAPTIVE_MAX_TOKENS = 32_000;
+
+/**
+ * The per-call request fields a thinking choice contributes — the `max_tokens`
+ * cap, whether the call must be streamed, and the `thinking` / `output_config`
+ * params to merge into the request.
+ */
+type ThinkingRequest = {
+  maxTokens: number;
+  /**
+   * Adaptive-thinking calls must be streamed — their high `max_tokens` trips
+   * the SDK's long-request guard on a plain `create`. Budget / off calls do not.
+   */
+  stream: boolean;
+  extra: Record<string, unknown>;
+};
+
+/** Turn a thinking choice into its per-call request fields. */
+function planThinking(choice: ThinkingChoice): ThinkingRequest {
+  if (choice.type === "off") {
+    return { maxTokens: MAX_TOKENS, stream: false, extra: {} };
+  }
+  if (choice.type === "budget") {
+    return {
+      maxTokens: choice.budgetTokens + OUTPUT_HEADROOM_TOKENS,
+      stream: false,
+      extra: {
+        thinking: { type: "enabled", budget_tokens: choice.budgetTokens },
+      },
+    };
+  }
+  return {
+    maxTokens: ADAPTIVE_MAX_TOKENS,
+    stream: true,
+    extra: {
+      thinking: { type: "adaptive" },
+      output_config: { effort: choice.effort },
+    },
+  };
+}
 
 /**
  * The single tool the model must call: its input is an ordered array of
@@ -455,7 +583,7 @@ const RANK_TOOL: Anthropic.Tool = {
 export type TailMode = "full" | "pithy" | "drop";
 
 /**
- * Resolve the tail mode from `AI_SEARCH_TAIL_MODE`. It governs only the
+ * Resolve the tail mode from `AI_TAIL_MODE`. It governs only the
  * empty/open-query branch of the prompt (a narrowing query returns a focused
  * shortlist in every mode):
  *
@@ -474,7 +602,7 @@ export type TailMode = "full" | "pithy" | "drop";
  * An unset or unrecognized value resolves to `pithy`.
  */
 export function resolveTailMode(): TailMode {
-  const value = process.env.AI_SEARCH_TAIL_MODE;
+  const value = process.env.AI_TAIL_MODE;
   return value === "full" || value === "drop" ? value : "pithy";
 }
 
@@ -614,6 +742,8 @@ function logModelCall(fields: {
   model: string;
   /** The open-query result shape the prompt asked for. */
   tailMode: TailMode;
+  /** The thinking choice in effect — `off`, `budget:N`, or `effort:level`. */
+  thinking: string;
   latencyMs: number;
   /** `ok`, or `fallback` when the call yielded no usable result. */
   outcome: string;
@@ -638,8 +768,13 @@ function logModelCall(fields: {
 /**
  * Build an `AiSearchClient` bound to `apiKey`. The Anthropic client is
  * constructed here, at call time — never at import time — so the build stays
- * env-free. The model id is `AI_MODEL`, or a current Sonnet by default; the
- * open-query result shape is `AI_SEARCH_TAIL_MODE` (see `resolveTailMode`).
+ * env-free.
+ *
+ * The model is `AI_MODEL` (a current Opus by default), the thinking effort
+ * is `AI_EFFORT` (see `AiEffort`), and the open-query result shape is
+ * `AI_TAIL_MODE` (see `resolveTailMode`). `overrides` lets the eval
+ * harness pin the model and an explicit `ThinkingChoice`, bypassing the
+ * model/effort env vars.
  *
  * `search` is fail-safe: the single model call carries a 90-second
  * `AbortController` timeout, is not retried, and every non-`ok` outcome
@@ -647,9 +782,14 @@ function logModelCall(fields: {
  * `cache_control` block — only the query trails it uncached — so a burst of
  * searches over unchanged Catalog/Log data reads the prefix from cache.
  */
-export function createAiSearchClient(apiKey: string): AiSearchClient {
+export function createAiSearchClient(
+  apiKey: string,
+  overrides?: { model?: string; thinking?: ThinkingChoice },
+): AiSearchClient {
   const anthropic = new Anthropic({ apiKey });
-  const model = process.env.AI_MODEL || MODEL_DEFAULT;
+  const model = overrides?.model || process.env.AI_MODEL || MODEL_DEFAULT;
+  const choice = overrides?.thinking ?? envThinkingChoice(model);
+  const plan = planThinking(choice);
   const tailMode = resolveTailMode();
   const systemPrompt = buildSystemPrompt(tailMode);
 
@@ -675,40 +815,50 @@ export function createAiSearchClient(apiKey: string): AiSearchClient {
       let result: AiSearchResult = AI_SEARCH_UNAVAILABLE;
       let usage: Anthropic.Usage | undefined;
       try {
-        const response = await anthropic.messages.create(
-          {
-            model,
-            max_tokens: MAX_TOKENS,
-            thinking: {
-              type: "enabled",
-              budget_tokens: THINKING_BUDGET_TOKENS,
+        // `thinking` / `output_config` for the adaptive path are not in this
+        // SDK version's typings — build the params loosely and cast (the API
+        // accepts the extra fields).
+        const params: Record<string, unknown> = {
+          model,
+          max_tokens: plan.maxTokens,
+          system: systemPrompt,
+          tools: [RANK_TOOL],
+          // Extended thinking cannot run with a forced tool choice, so the
+          // tool is offered, not forced; the prompt directs the model to call
+          // it, and a response that never does collapses to the fallback.
+          tool_choice: { type: "auto" },
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(snapshotBody),
+                  cache_control: { type: "ephemeral" },
+                },
+                {
+                  type: "text",
+                  text: `The household's query for this search (may be empty):\n${query}`,
+                },
+              ],
             },
-            system: systemPrompt,
-            tools: [RANK_TOOL],
-            // Extended thinking cannot run with a forced tool choice, so the
-            // tool is offered, not forced; the prompt directs the model to
-            // call it, and a response that never does collapses to the
-            // fallback below like any other failure.
-            tool_choice: { type: "auto" },
-            messages: [
-              {
-                role: "user",
-                content: [
-                  {
-                    type: "text",
-                    text: JSON.stringify(snapshotBody),
-                    cache_control: { type: "ephemeral" },
-                  },
-                  {
-                    type: "text",
-                    text: `The household's query for this search (may be empty):\n${query}`,
-                  },
-                ],
-              },
-            ],
-          },
-          { signal: controller.signal },
-        );
+          ],
+          ...plan.extra,
+        };
+        // Adaptive thinking must be streamed (see `ThinkingRequest.stream`);
+        // `finalMessage()` then yields the same assembled Message a plain
+        // `create` would.
+        const response = plan.stream
+          ? await anthropic.messages
+              .stream(
+                params as unknown as Anthropic.MessageStreamParams,
+                { signal: controller.signal },
+              )
+              .finalMessage()
+          : await anthropic.messages.create(
+              params as unknown as Anthropic.MessageCreateParamsNonStreaming,
+              { signal: controller.signal },
+            );
         usage = response.usage;
         const toolUse = response.content.find(
           (block) => block.type === "tool_use",
@@ -738,6 +888,7 @@ export function createAiSearchClient(apiKey: string): AiSearchClient {
           HOUSEHOLD_TEXT_CLOSE.length,
         model,
         tailMode,
+        thinking: describeThinking(choice),
         latencyMs: Date.now() - startedAt,
         outcome: result.ok ? "ok" : "fallback",
         resultCount: result.ok ? result.results.length : 0,
