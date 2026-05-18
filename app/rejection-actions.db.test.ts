@@ -1,12 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { db } from "../../db";
-import { options, rejections } from "../../db/schema";
-import { getLogRejections, getOptionRejections } from "../../db/queries";
-import { truncateAll } from "../../db/test-support";
+import { db } from "../db";
+import { options, rejections } from "../db/schema";
+import { getLogRejections, getOptionRejections } from "../db/queries";
+import { truncateAll } from "../db/test-support";
+import { todaySqlDate } from "../lib/local-day";
 import {
   createRejection,
   deleteRejection,
+  rejectOption,
   updateRejection,
 } from "./rejection-actions";
 
@@ -16,7 +18,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 // The actions are authedAction-wrapped; stub the session check so the tests
 // drive the action bodies directly. requireSession itself is covered by the
 // auth-by-default tests.
-vi.mock("../../lib/require-session", () => ({
+vi.mock("../lib/require-session", () => ({
   requireSession: vi.fn(async () => {}),
 }));
 
@@ -205,6 +207,67 @@ describe("deleteRejection", () => {
 
     await deleteRejection(id);
 
+    expect(await db.select().from(rejections)).toHaveLength(0);
+  });
+});
+
+describe("rejectOption", () => {
+  afterEach(() => {
+    delete process.env.APP_TZ;
+  });
+
+  it("creates a Rejection dated the Household's calendar day", async () => {
+    process.env.APP_TZ = "America/Los_Angeles";
+    const today = todaySqlDate(new Date(), process.env.APP_TZ);
+    const pizza = await makeOption("Pizza");
+
+    const result = await rejectOption(pizza, "too heavy tonight");
+
+    expect(result).toEqual({ ok: true });
+    const rows = await db.select().from(rejections);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].optionId).toBe(pizza);
+    expect(rows[0].rejectedOn).toBe(today);
+    expect(rows[0].reason).toBe("too heavy tonight");
+  });
+
+  it("stores an empty or whitespace-only reason as null", async () => {
+    const pizza = await makeOption("Pizza");
+
+    await rejectOption(pizza, "   ");
+
+    const [row] = await db.select().from(rejections);
+    expect(row.reason).toBeNull();
+  });
+
+  it("returns the inline collision error when the Option is already rejected today — no uncaught 500", async () => {
+    process.env.APP_TZ = "America/Los_Angeles";
+    const today = todaySqlDate(new Date(), process.env.APP_TZ);
+    const pizza = await makeOption("Pizza");
+    // A today-dated Rejection for this Option already exists — a Reject from
+    // the Option detail page, or a double-tap race on Tonight's Reject.
+    await makeRejection(pizza, today);
+
+    const result = await rejectOption(pizza, "again");
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Already rejected for that date",
+    });
+    // The collision is reported inline, not thrown — still one row.
+    expect(await db.select().from(rejections)).toHaveLength(1);
+  });
+
+  it("reports a stale Option id inline rather than throwing", async () => {
+    const result = await rejectOption(
+      "00000000-0000-0000-0000-000000000000",
+      "",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "That option is no longer available",
+    });
     expect(await db.select().from(rejections)).toHaveLength(0);
   });
 });

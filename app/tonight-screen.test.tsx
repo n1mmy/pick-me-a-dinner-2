@@ -16,6 +16,13 @@ import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 vi.mock("./tonight-actions", () => ({
   aiSearchAction: vi.fn(),
 }));
+// The Rejection-write actions live in `rejection-actions`; the screen calls
+// `deleteRejection` for Bring back and `tonight-row` calls `rejectOption`.
+// Stub both so importing them never pulls in the database client.
+vi.mock("./rejection-actions", () => ({
+  rejectOption: vi.fn(async () => ({ ok: true })),
+  deleteRejection: vi.fn(async () => {}),
+}));
 // `tonight-row` calls `pickTonight` and the decided block calls
 // `deleteLogEntry`; stub both so importing them never pulls in the database
 // client, and so the Remove flow can be asserted on the mock.

@@ -1,6 +1,6 @@
 # 04 — Consolidate Rejection writes into one module (fixes the rejectOption 500)
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## What to build
@@ -51,25 +51,25 @@ today-collision path — the 500 this issue exists to fix.
 
 ## Acceptance criteria
 
-- [ ] All `rejections`-table writes live in one module,
+- [x] All `rejections`-table writes live in one module,
       `app/rejection-actions.ts`; `app/log/rejection-actions.ts` is removed
-- [ ] `rejectOption` returns `ActionResult` and handles a
+- [x] `rejectOption` returns `ActionResult` and handles a
       `(option_id, rejected_on)` `23505` collision as the inline "Already
       rejected for that date" — no uncaught 500
-- [ ] The Tonight reject affordance and the Option detail Reject control
+- [x] The Tonight reject affordance and the Option detail Reject control
       display a Rejection-write failure inline
-- [ ] `bringBackRejection` is removed; "Bring back" on Tonight calls
+- [x] `bringBackRejection` is removed; "Bring back" on Tonight calls
       `deleteRejection` and the Option returns to the picker as before
-- [ ] Every Rejection write revalidates `/`, `/log`, and `/catalog/[id]`
-- [ ] `app/tonight-actions.ts` contains only `aiSearchAction`
-- [ ] Rejection writes use the shared `ActionResult` / `trimToNull` /
+- [x] Every Rejection write revalidates `/`, `/log`, and `/catalog/[id]`
+- [x] `app/tonight-actions.ts` contains only `aiSearchAction`
+- [x] Rejection writes use the shared `ActionResult` / `trimToNull` /
       `pgErrorMessage`
-- [ ] The rejection-actions `.db.test.ts` is at
+- [x] The rejection-actions `.db.test.ts` is at
       `app/rejection-actions.db.test.ts` and covers the `rejectOption`
       today-collision path
-- [ ] "Bring back" remains the `CONTEXT.md` term — no glossary change; no ADR
+- [x] "Bring back" remains the `CONTEXT.md` term — no glossary change; no ADR
       change
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by
