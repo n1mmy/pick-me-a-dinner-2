@@ -6,7 +6,7 @@ import { CAP } from "../lib/ranking.config";
 import type { TagRecency, TonightRow } from "../lib/ranking";
 import { recencyChipBg, recencyChipBgStrong } from "../lib/recency-color";
 import { pickTonight } from "./log/actions";
-import { rejectOption } from "./tonight-actions";
+import { rejectOption } from "./rejection-actions";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
@@ -35,7 +35,9 @@ export function kindBarClass(kind: "home" | "restaurant"): string {
  * inline-expands a reason box on the row: an autofocused text input with
  * Submit and Cancel. The reason is optional; Submit records the Rejection dated
  * today and the row drops out on revalidation, Cancel collapses the box with
- * nothing recorded. The two-step (reject → Submit) is the mis-tap guard.
+ * nothing recorded. The two-step (reject → Submit) is the mis-tap guard. A
+ * write that fails — a double-tap race that collides with today's existing
+ * Rejection — shows the inline error rather than silently dropping the row.
  *
  * On an AI search result row, `aiReason` is the AI rationale — a prose "why"
  * line the deterministic list does not have; it sits below the chip row on a
@@ -57,7 +59,7 @@ export function TonightRowItem({
 }) {
   const { option } = row;
   const [justLogged, setJustLogged] = useState(false);
-  const [pickError, setPickError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   // Reject affordance: `rejecting` toggles the inline reason box; `reason` is
@@ -68,12 +70,12 @@ export function TonightRowItem({
   const boxId = `reject-box-${option.id}`;
 
   function pick() {
-    setPickError(null);
+    setActionError(null);
     startTransition(async () => {
       const result = await pickTonight(option.id);
       if (!result.ok) {
         // Never flash a false "Logged ✓" — show the failure on the row instead.
-        setPickError(result.error);
+        setActionError(result.error);
         return;
       }
       // Hold "Logged ✓" briefly; the revalidation re-sorts the list under it.
@@ -83,8 +85,15 @@ export function TonightRowItem({
   }
 
   function submitReject() {
+    setActionError(null);
     startTransition(async () => {
-      await rejectOption(option.id, reason);
+      const result = await rejectOption(option.id, reason);
+      if (!result.ok) {
+        // A double-tap race collided with today's Rejection — surface the
+        // failure inline rather than silently leaving the row in place.
+        setActionError(result.error);
+        return;
+      }
       // The Rejection dropped this Option from the picker; the parent's live
       // region announces the removal before this row unmounts on revalidation.
       onRejected?.(option.name);
@@ -94,6 +103,7 @@ export function TonightRowItem({
   function cancelReject() {
     setRejecting(false);
     setReason("");
+    setActionError(null);
   }
 
   return (
@@ -195,9 +205,9 @@ export function TonightRowItem({
           </button>
         </form>
       )}
-      {pickError && (
+      {actionError && (
         <p className="mt-2 text-chip text-danger" aria-live="polite">
-          {pickError}
+          {actionError}
         </p>
       )}
     </li>

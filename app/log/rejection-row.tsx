@@ -8,7 +8,7 @@ import {
   createRejection,
   deleteRejection,
   updateRejection,
-} from "./rejection-actions";
+} from "../rejection-actions";
 
 /**
  * The Rejection row and its inline forms — shared by the Log screen and the

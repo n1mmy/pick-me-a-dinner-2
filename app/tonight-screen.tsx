@@ -16,7 +16,8 @@ import {
   type TagFilters,
 } from "../lib/tonight-filter";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
-import { aiSearchAction, bringBackRejection } from "./tonight-actions";
+import { deleteRejection } from "./rejection-actions";
+import { aiSearchAction } from "./tonight-actions";
 import { TonightRowItem } from "./tonight-row";
 import { TonightsDinnerBlock } from "./tonights-dinner-block";
 
@@ -204,7 +205,7 @@ export function TonightScreen({
  *
  * Expanded, it lists each of today's Rejections — the Option name, and the
  * reason when one was given — each with a "Bring back" control. "Bring back"
- * calls `bringBackRejection`, which **deletes** the Rejection record: the
+ * calls `deleteRejection`, which **deletes** the Rejection record: the
  * Option returns to tonight's list immediately and — because the record is
  * gone, not merely expired — a mis-tapped Rejection never reaches AI search.
  * Only today's Rejections appear here; managing the historical Rejection log
@@ -220,7 +221,7 @@ function RejectedTonightDisclosure({
 
   function bringBack(rejectionId: string) {
     startTransition(async () => {
-      await bringBackRejection(rejectionId);
+      await deleteRejection(rejectionId);
     });
   }
 
