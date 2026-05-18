@@ -82,6 +82,27 @@ export function TonightScreen({
   // then, since an AI result is ranked by the query alone.
   const [aiActive, setAiActive] = useState(false);
 
+  // A Pick grows `tonightsDinner`; when it does, animate the page up to the
+  // "Tonight's dinner" block so the Household sees the Option land there. The
+  // effect runs after the Pick's revalidation has committed, so the scroll
+  // animates against the settled layout — scrolling on the tap instead races
+  // that reflow and gets jolted. The previous count is held in `sessionStorage`,
+  // not a ref or state, so the comparison survives the revalidation even if it
+  // remounts this component; a Remove (which shrinks the count) never scrolls.
+  const dinnerCount = tonightsDinner.length;
+  useEffect(() => {
+    const key = "pmad:tonightDinnerCount";
+    const stored = sessionStorage.getItem(key);
+    const previous = stored === null ? dinnerCount : Number(stored);
+    sessionStorage.setItem(key, String(dinnerCount));
+    if (dinnerCount > previous) {
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+    }
+  }, [dinnerCount]);
+
   // The mode restated for assistive tech. A live region voices only changes, so
   // a fresh load is silent; a Pick that flips picker → decided (or a Remove
   // that flips back) is announced.

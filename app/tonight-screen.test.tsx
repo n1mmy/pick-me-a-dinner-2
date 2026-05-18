@@ -70,6 +70,10 @@ const DINNER: TonightsDinnerEntry[] = [
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
+  // The scroll-to-top effect keeps the last dinner count here; clear it so a
+  // prior test's count never leaks into the next render.
+  sessionStorage.clear();
 });
 
 /**
@@ -443,5 +447,76 @@ describe("TonightScreen — decided-mode picker", () => {
     expect(
       screen.queryByRole("region", { name: "Add another option" }),
     ).toBeNull();
+  });
+});
+
+describe("TonightScreen — scroll to top on Pick", () => {
+  // jsdom implements neither; stub them so the scroll on Pick can be observed.
+  function stubScroll(reduceMotion: boolean) {
+    const scrollTo = vi.fn();
+    vi.stubGlobal("scrollTo", scrollTo);
+    vi.stubGlobal("matchMedia", () => ({ matches: reduceMotion }));
+    return scrollTo;
+  }
+
+  it("scrolls to the top when a Pick grows Tonight's dinner", () => {
+    const scrollTo = stubScroll(false);
+    const { rerender } = render(
+      <TonightScreen
+        tonightsDinner={[DINNER[0]]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+      />,
+    );
+    // Mount alone never scrolls — only a later growth in the count does.
+    expect(scrollTo).not.toHaveBeenCalled();
+
+    // A Pick revalidates the page with another Option in Tonight's dinner.
+    rerender(
+      <TonightScreen
+        tonightsDinner={DINNER}
+        pickerRows={ROWS}
+        searchEnabled={false}
+      />,
+    );
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+  });
+
+  it("does not scroll when a Remove shrinks Tonight's dinner", () => {
+    const scrollTo = stubScroll(false);
+    const { rerender } = render(
+      <TonightScreen
+        tonightsDinner={DINNER}
+        pickerRows={ROWS}
+        searchEnabled={false}
+      />,
+    );
+    rerender(
+      <TonightScreen
+        tonightsDinner={[DINNER[0]]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+      />,
+    );
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("honors prefers-reduced-motion with an instant jump", () => {
+    const scrollTo = stubScroll(true);
+    const { rerender } = render(
+      <TonightScreen
+        tonightsDinner={[DINNER[0]]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+      />,
+    );
+    rerender(
+      <TonightScreen
+        tonightsDinner={DINNER}
+        pickerRows={ROWS}
+        searchEnabled={false}
+      />,
+    );
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "auto" });
   });
 });
