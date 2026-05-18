@@ -395,6 +395,42 @@ export async function getRejections(): Promise<RejectionRow[]> {
   }));
 }
 
+/** A Rejection joined to its Option, narrowed to what the Log screen renders. */
+export type LogRejectionRow = {
+  id: string;
+  optionId: string;
+  optionName: string;
+  kind: "home" | "restaurant";
+  /** `rejected_on` as a SQL `date` string (`"YYYY-MM-DD"`); may be past or future. */
+  rejectedOn: string;
+  /** The optional short reason; `null` when the Household gave none. */
+  reason: string | null;
+};
+
+/**
+ * The full Rejection history for the Log screen (PRD: Dated Rejections): every
+ * `rejections` row — past, today, and future (Planned rejections) — joined to
+ * its Option, ordered newest `rejected_on` first. It is the counterpart of
+ * `getLog`: the Log screen interleaves these into its date-groups, splitting
+ * future from non-future. Unlike `getRejections` (the AI-snapshot feed) it is
+ * not filtered to active Options — the Log shows an Archived Option's
+ * Rejections in its history too.
+ */
+export async function getLogRejections(): Promise<LogRejectionRow[]> {
+  return db
+    .select({
+      id: rejections.id,
+      optionId: rejections.optionId,
+      optionName: options.name,
+      kind: options.kind,
+      rejectedOn: rejections.rejectedOn,
+      reason: rejections.reason,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(rejections.optionId, options.id))
+    .orderBy(desc(rejections.rejectedOn), asc(options.name));
+}
+
 /**
  * One Rejection in an Option's history, narrowed to what the Option detail
  * page's Rejection history section renders (PRD: Option detail page).

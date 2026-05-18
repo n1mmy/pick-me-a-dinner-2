@@ -1,0 +1,229 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
+import { db } from "../../db";
+import { options, rejections } from "../../db/schema";
+import { getLogRejections } from "../../db/queries";
+import { truncateAll } from "../../db/test-support";
+import {
+  createRejection,
+  deleteRejection,
+  updateRejection,
+} from "./rejection-actions";
+
+// revalidatePath needs a Next request scope; tests exercise the DB writes only.
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+
+// The actions are authedAction-wrapped; stub the session check so the tests
+// drive the action bodies directly. requireSession itself is covered by the
+// auth-by-default tests.
+vi.mock("../../lib/require-session", () => ({
+  requireSession: vi.fn(async () => {}),
+}));
+
+/** Insert an Option directly — Catalog CRUD is covered by its own suite. */
+async function makeOption(
+  name: string,
+  kind: "home" | "restaurant" = "home",
+): Promise<string> {
+  const [row] = await db
+    .insert(options)
+    .values({ name, kind })
+    .returning({ id: options.id });
+  return row.id;
+}
+
+/** Insert a `rejections` row directly and return its id. */
+async function makeRejection(
+  optionId: string,
+  rejectedOn: string,
+  reason?: string,
+): Promise<string> {
+  const [row] = await db
+    .insert(rejections)
+    .values({ optionId, rejectedOn, reason: reason ?? null })
+    .returning({ id: rejections.id });
+  return row.id;
+}
+
+beforeEach(async () => {
+  await truncateAll();
+});
+
+describe("createRejection", () => {
+  it("inserts a dated rejections row", async () => {
+    const pizza = await makeOption("Pizza");
+
+    const result = await createRejection(pizza, "2026-01-10", "too heavy");
+
+    expect(result).toEqual({ ok: true });
+    const rows = await db.select().from(rejections);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].optionId).toBe(pizza);
+    expect(rows[0].rejectedOn).toBe("2026-01-10");
+    expect(rows[0].reason).toBe("too heavy");
+  });
+
+  it("stores an empty or whitespace-only reason as null", async () => {
+    const pizza = await makeOption("Pizza");
+
+    await createRejection(pizza, "2026-01-10", "   ");
+
+    const [row] = await db.select().from(rejections);
+    expect(row.reason).toBeNull();
+  });
+
+  it("rejects a blank or malformed date with an inline error", async () => {
+    const pizza = await makeOption("Pizza");
+
+    expect(await createRejection(pizza, "", "")).toEqual({
+      ok: false,
+      error: "Pick a valid date",
+    });
+    expect(await createRejection(pizza, "2026-02-30", "")).toEqual({
+      ok: false,
+      error: "Pick a valid date",
+    });
+    expect(await db.select().from(rejections)).toHaveLength(0);
+  });
+
+  it("reports a malformed or stale Option id inline rather than throwing", async () => {
+    // A well-formed but non-existent Option id — the FK insert fails (23503).
+    const result = await createRejection(
+      "00000000-0000-0000-0000-000000000000",
+      "2026-01-10",
+      "",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "That option is no longer available",
+    });
+    expect(await db.select().from(rejections)).toHaveLength(0);
+  });
+
+  it("returns the inline collision error on a duplicate (option_id, rejected_on)", async () => {
+    const pizza = await makeOption("Pizza");
+    await makeRejection(pizza, "2026-01-10");
+
+    const result = await createRejection(pizza, "2026-01-10", "again");
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Already rejected for that date",
+    });
+    // The collision is reported, not thrown — still one row.
+    expect(await db.select().from(rejections)).toHaveLength(1);
+  });
+});
+
+describe("updateRejection", () => {
+  it("changes the Option, date, and reason of a Rejection", async () => {
+    const pizza = await makeOption("Pizza");
+    const tacos = await makeOption("Tacos", "restaurant");
+    const id = await makeRejection(pizza, "2026-05-01", "too heavy");
+
+    const result = await updateRejection(id, {
+      optionId: tacos,
+      rejectedOn: "2026-05-08",
+      reason: "closed",
+    });
+
+    expect(result).toEqual({ ok: true });
+    const [row] = await db
+      .select()
+      .from(rejections)
+      .where(eq(rejections.id, id));
+    expect(row.optionId).toBe(tacos);
+    expect(row.rejectedOn).toBe("2026-05-08");
+    expect(row.reason).toBe("closed");
+  });
+
+  it("stores a cleared reason as null", async () => {
+    const pizza = await makeOption("Pizza");
+    const id = await makeRejection(pizza, "2026-05-01", "too heavy");
+
+    await updateRejection(id, {
+      optionId: pizza,
+      rejectedOn: "2026-05-01",
+      reason: "   ",
+    });
+
+    const [row] = await db
+      .select()
+      .from(rejections)
+      .where(eq(rejections.id, id));
+    expect(row.reason).toBeNull();
+  });
+
+  it("rejects a blank date with an inline error, leaving the row untouched", async () => {
+    const pizza = await makeOption("Pizza");
+    const id = await makeRejection(pizza, "2026-05-01");
+
+    const result = await updateRejection(id, {
+      optionId: pizza,
+      rejectedOn: "",
+      reason: "",
+    });
+
+    expect(result).toEqual({ ok: false, error: "Pick a valid date" });
+    const [row] = await db
+      .select()
+      .from(rejections)
+      .where(eq(rejections.id, id));
+    expect(row.rejectedOn).toBe("2026-05-01");
+  });
+
+  it("returns the inline collision error on a duplicate (option_id, rejected_on)", async () => {
+    const pizza = await makeOption("Pizza");
+    await makeRejection(pizza, "2026-05-01");
+    const second = await makeRejection(pizza, "2026-05-02");
+
+    // Moving the 05-02 Rejection onto 05-01 would duplicate (pizza, 2026-05-01).
+    const result = await updateRejection(second, {
+      optionId: pizza,
+      rejectedOn: "2026-05-01",
+      reason: "",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Already rejected for that date",
+    });
+    // The rejected edit is untouched — never silently merged.
+    const [row] = await db
+      .select()
+      .from(rejections)
+      .where(eq(rejections.id, second));
+    expect(row.rejectedOn).toBe("2026-05-02");
+  });
+});
+
+describe("deleteRejection", () => {
+  it("removes the rejections row entirely", async () => {
+    const pizza = await makeOption("Pizza");
+    const id = await makeRejection(pizza, "2026-05-01");
+
+    await deleteRejection(id);
+
+    expect(await db.select().from(rejections)).toHaveLength(0);
+  });
+});
+
+describe("getLogRejections", () => {
+  it("returns Rejections newest rejected_on first, each joined to its Option", async () => {
+    const pizza = await makeOption("Pizza");
+    const tacos = await makeOption("Tacos", "restaurant");
+    await makeRejection(pizza, "2026-05-01", "too heavy");
+    await makeRejection(tacos, "2026-05-10");
+
+    const log = await getLogRejections();
+
+    expect(log.map((row) => row.rejectedOn)).toEqual([
+      "2026-05-10",
+      "2026-05-01",
+    ]);
+    expect(log[0].optionName).toBe("Tacos");
+    expect(log[0].kind).toBe("restaurant");
+    expect(log[1].reason).toBe("too heavy");
+  });
+});
