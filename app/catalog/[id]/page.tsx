@@ -69,24 +69,18 @@ export default async function OptionDetailPage({
     getOptionRejections(option.id),
     getAllTags(),
   ]);
-  const entries = logEntries.map((entry) => ({
+  // The active Catalog's non-future Log entries feed per-Tag recency; the
+  // target Option's own Log feeds its per-Option recency. `rankOption` handles
+  // the Active/Archived distinction internally, so the page passes both
+  // straight through without splicing an Archived Option's history in itself.
+  const activeLog = logEntries.map((entry) => ({
     optionId: entry.optionId,
     eatenOn: epochDayFromSqlDate(entry.eatenOn),
   }));
-  // `getTonightData` feeds the ranking only active Options' Log entries, so an
-  // Archived Option's own history is absent above. Add it back here — the
-  // detail page's per-Option recency line is factual recency data, computed
-  // from the Option's own Log regardless of Active/Archived state (see
-  // `rankOption`). It still takes no part in the Score: an Archived Option is
-  // not an active per-Tag carrier, so this never moves another Option's rank.
-  if (!option.active) {
-    for (const entry of optionLog) {
-      entries.push({
-        optionId: entry.optionId,
-        eatenOn: epochDayFromSqlDate(entry.eatenOn),
-      });
-    }
-  }
+  const targetLog = optionLog.map((entry) => ({
+    optionId: entry.optionId,
+    eatenOn: epochDayFromSqlDate(entry.eatenOn),
+  }));
 
   const target: RankOption = {
     id: option.id,
@@ -96,7 +90,13 @@ export default async function OptionDetailPage({
     url: option.url,
     phone: option.phone,
   };
-  const ranking = rankOption(target, options, entries, todayEpochDay);
+  const ranking = rankOption({
+    target,
+    activeOptions: options,
+    activeLog,
+    targetLog,
+    today: todayEpochDay,
+  });
 
   // The History section: this Option's own Log, split into its realized
   // history (newest first) and its Planned dinners (the group shown above it).

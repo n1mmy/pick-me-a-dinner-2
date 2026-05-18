@@ -190,31 +190,52 @@ export function rankTonight(
 }
 
 /**
- * Rank one Option in isolation for its detail page (PRD: Option detail page).
- * `activeOptions` is the active Catalog — the per-Tag recency carriers, exactly
- * as `rankTonight` reads them — and `entries` the non-future Log entries that
- * feed recency. For an Archived `target` (one not in `activeOptions`) pass its
- * own Log entries in `entries` too, so per-Option recency is still computed
- * from the Option's own history regardless of Active/Archived state.
- *
- * The Score is returned only when `target` is in `activeOptions`: an Archived
- * Option is excluded from the ranking, so its `score` is `null`. Per-Option and
- * per-Tag recency are returned either way — they are factual recency data, not
- * a Score. For an active Option every field equals that Option's `rankTonight`
- * row over the same inputs, since the recency internals are the very same.
+ * The input to `rankOption` — everything the single-Option ranking view needs,
+ * with the Active/Archived distinction handled inside the module so no caller
+ * has to pre-massage Log entries.
  */
-export function rankOption(
-  target: RankOption,
-  activeOptions: RankOption[],
-  entries: LogEntry[],
-  today: number,
-): OptionRanking {
-  const lastEatenDay = lastEaten(entries, target.id, today);
+export type RankOptionInput = {
+  /** The Option being ranked. */
+  target: RankOption;
+  /** The active Catalog — the per-Tag Recency carriers, as `rankTonight` reads them. */
+  activeOptions: RankOption[];
+  /** The active Catalog's non-future Log entries (per-Tag recency draws on these). */
+  activeLog: LogEntry[];
+  /** The `target` Option's own Log entries (per-Option recency always draws on these). */
+  targetLog: LogEntry[];
+  /** Today as an epoch-day (see `local-day.ts`). */
+  today: number;
+};
+
+/**
+ * Rank one Option in isolation for its detail page (PRD: Option detail page).
+ *
+ * Per-Option **Recency** always derives from `targetLog` — the `target`
+ * Option's own Log history — so an Archived Option still gets factual recency
+ * from its own past. Per-Tag recency derives from `activeLog` over
+ * `activeOptions`, exactly as `rankTonight` reads it. The **Score** is `null`
+ * unless `target` is among `activeOptions`: an Archived Option is excluded from
+ * the ranking, though its factual recency fields are still computed.
+ *
+ * For an active Option the result is unchanged from a `rankTonight` row over
+ * the same inputs — its own entries are present in `activeLog` either way, and
+ * `targetLog` is just its own history — so the detail page and Tonight never
+ * disagree. The caller passes the active Catalog and its Log straight through;
+ * the Archived case is handled here, not in the page.
+ */
+export function rankOption({
+  target,
+  activeOptions,
+  activeLog,
+  targetLog,
+  today,
+}: RankOptionInput): OptionRanking {
+  const lastEatenDay = lastEaten(targetLog, target.id, today);
   const antiRepeat = daysSince(lastEatenDay, today);
 
   const tags: TagRecency[] = target.tags.map((tag) => {
     const days = daysSince(
-      lastTagUse(entries, activeOptions, tag, today),
+      lastTagUse(activeLog, activeOptions, tag, today),
       today,
     );
     return { tag, days, overdue: days >= OVERDUE_THRESHOLD };

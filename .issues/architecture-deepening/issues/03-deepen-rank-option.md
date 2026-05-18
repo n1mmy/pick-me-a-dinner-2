@@ -1,6 +1,6 @@
 # 03 — Deepen rankOption so the Archived-Option rule lives behind its interface
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## What to build
@@ -35,17 +35,17 @@ This does not touch ADR-0003: the ranking stays a pure TypeScript function.
 
 ## Acceptance criteria
 
-- [ ] `rankOption` takes one input object and handles the active/archived
+- [x] `rankOption` takes one input object and handles the active/archived
       distinction internally — no caller pre-massages its input
-- [ ] The Option detail page no longer splices an Archived Option's history
+- [x] The Option detail page no longer splices an Archived Option's history
       into the ranking input; the `if (!option.active)` block is removed
-- [ ] For an active Option, `rankOption` still equals that Option's
+- [x] For an active Option, `rankOption` still equals that Option's
       `rankTonight` row over the same inputs (the existing equivalence test
       holds, adapted to the new interface)
-- [ ] `lib/ranking.test.ts` adds a direct Archived-Option case — Score
+- [x] `lib/ranking.test.ts` adds a direct Archived-Option case — Score
       `null`, per-Option Recency computed from the Option's own history
-- [ ] No `CONTEXT.md` or ADR changes are needed (ADR-0003 is untouched)
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] No `CONTEXT.md` or ADR changes are needed (ADR-0003 is untouched)
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by
