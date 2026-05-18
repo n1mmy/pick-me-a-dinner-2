@@ -1,6 +1,6 @@
 # 02 — Pure module: interleaved day-grouping of the Log
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -29,15 +29,15 @@ consumes it is issue 05.
 
 ## Acceptance criteria
 
-- [ ] Log entries and Rejections sharing a date are grouped into one per-date
+- [x] Log entries and Rejections sharing a date are grouped into one per-date
       record
-- [ ] A date with only Rejections produces its own record
-- [ ] The Upcoming / History split is exact at the today boundary
-- [ ] Upcoming is soonest-first; History is newest-first
-- [ ] The existing date-label behavior is unchanged
-- [ ] Full unit tests cover the above, modelled on `lib/dinner-grouping.test.ts`
-- [ ] The module is pure — no React or DB import
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] A date with only Rejections produces its own record
+- [x] The Upcoming / History split is exact at the today boundary
+- [x] Upcoming is soonest-first; History is newest-first
+- [x] The existing date-label behavior is unchanged
+- [x] Full unit tests cover the above, modelled on `lib/dinner-grouping.test.ts`
+- [x] The module is pure — no React or DB import
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by
