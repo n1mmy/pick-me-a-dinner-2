@@ -43,8 +43,8 @@ export type RejectionRow = {
 export type SnapshotRejection = {
   /** The day rejected, with weekday — e.g. `"2026-05-12 (Tuesday)"`. */
   date: string;
-  /** The rejected Option, by id — ties the Rejection to a candidate exactly. */
-  optionId: string;
+  /** The rejected Option, by its snapshot number — ties the Rejection to it. */
+  optionId: number;
   /** That Option's name — Household-authored and delimited. */
   name: string;
   kind: "home" | "restaurant";
@@ -83,11 +83,19 @@ export type PartitionedRejections = {
   block: RejectionsBlock;
 };
 
-/** Shape one Rejection row into a snapshot entry — delimited, weekday-dated. */
-function toSnapshotRejection(row: RejectionRow): SnapshotRejection {
+/**
+ * Shape one Rejection row into a snapshot entry — delimited, weekday-dated, the
+ * Option referred to by its snapshot number. Every Rejection is of an active
+ * Option (`getRejections` joins `active = true`), and the snapshot numbers the
+ * whole active Catalog, so the lookup always resolves.
+ */
+function toSnapshotRejection(
+  row: RejectionRow,
+  indexByOptionId: ReadonlyMap<string, number>,
+): SnapshotRejection {
   return {
     date: formatDateWithWeekday(row.rejectedOn),
-    optionId: row.optionId,
+    optionId: indexByOptionId.get(row.optionId)!,
     name: delimit(row.optionName),
     kind: row.kind,
     tags: row.tags.map((tag) => delimit(tag)),
@@ -101,12 +109,15 @@ function toSnapshotRejection(row: RejectionRow): SnapshotRejection {
  * past-dated *or* future-dated (a Planned rejection) — is *not-today*. Derives
  * the today suppression set — the Option ids rejected today — and shapes both
  * groups for the snapshot: reasons delimited, dates carrying their weekday,
- * each group newest first. The suppression set stays `rejectedOn === today`
- * only, so a Planned rejection's Option remains a candidate today (ADR-0008).
+ * the Option referred to by its snapshot number (`indexByOptionId`, keyed by
+ * UUID), each group newest first. The suppression set stays `rejectedOn ===
+ * today` only, so a Planned rejection's Option remains a candidate today
+ * (ADR-0008).
  */
 export function partitionRejections(
   rows: RejectionRow[],
   today: string,
+  indexByOptionId: ReadonlyMap<string, number>,
 ): PartitionedRejections {
   const tonight: RejectionRow[] = [];
   const notToday: RejectionRow[] = [];
@@ -130,10 +141,12 @@ export function partitionRejections(
   return {
     suppressedToday,
     block: {
-      rejectedTonight: [...tonight].sort(newestFirst).map(toSnapshotRejection),
+      rejectedTonight: [...tonight]
+        .sort(newestFirst)
+        .map((row) => toSnapshotRejection(row, indexByOptionId)),
       notTodayRejections: [...notToday]
         .sort(newestFirst)
-        .map(toSnapshotRejection),
+        .map((row) => toSnapshotRejection(row, indexByOptionId)),
     },
   };
 }

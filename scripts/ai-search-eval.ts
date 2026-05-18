@@ -4,13 +4,18 @@
  *
  * This is the iteration loop for the AI search prompt and snapshot
  * (`lib/ai-search.ts`): edit the system prompt or the snapshot shape, re-run
- * this, and read the ranked result and its rationales. No browser, no React,
- * one model call.
+ * this, and read the ranked result, its rationales, and the token usage.
+ * No browser, no React, one model call.
  *
  *   npx tsx scripts/ai-search-eval.ts "something light"
  *   npx tsx scripts/ai-search-eval.ts                      # empty query
  *   npx tsx scripts/ai-search-eval.ts --snapshot "guests"  # also dump the
  *                                                            JSON sent to the model
+ *   npx tsx scripts/ai-search-eval.ts --mode=drop ""       # force a tail mode
+ *
+ * The `--mode` flag (`full` | `pithy` | `drop`) overrides `AI_SEARCH_TAIL_MODE`
+ * for the run, so the three open-query result shapes can be compared on the
+ * same data — each run prints its input / output / cache token counts.
  *
  * `DATABASE_URL`, `APP_TZ`, and `ANTHROPIC_API_KEY` are read from `.env`. The
  * snapshot is built exactly as the `aiSearchAction` server action builds it,
@@ -22,6 +27,8 @@ import { getRejections, getTonightData } from "../db/queries";
 import { buildSnapshot, createAiSearchClient } from "../lib/ai-search";
 import { todaySqlDate } from "../lib/local-day";
 
+const TAIL_MODES = ["full", "pithy", "drop"] as const;
+
 async function main(): Promise<void> {
   // Re-load `.env` with `override`, so the key in `.env` wins over an empty
   // `ANTHROPIC_API_KEY` the shell may export (the Claude Code harness does);
@@ -32,6 +39,18 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const dumpSnapshot = args.includes("--snapshot");
   const query = args.find((arg) => !arg.startsWith("--")) ?? "";
+
+  // `--mode=X` overrides the tail mode for this run by setting the env var
+  // `createAiSearchClient` reads, so a `full` / `pithy` / `drop` comparison
+  // needs no `.env` edit between runs.
+  const modeArg = args.find((arg) => arg.startsWith("--mode="))?.slice(7);
+  if (modeArg !== undefined) {
+    if (!(TAIL_MODES as readonly string[]).includes(modeArg)) {
+      console.error(`--mode must be one of: ${TAIL_MODES.join(", ")}`);
+      process.exit(1);
+    }
+    process.env.AI_SEARCH_TAIL_MODE = modeArg;
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -45,7 +64,7 @@ async function main(): Promise<void> {
     getRejections(),
   ]);
 
-  const snapshot = buildSnapshot({
+  const { snapshot, idByIndex } = buildSnapshot({
     options: options.map((option) => ({
       id: option.id,
       name: option.name,
@@ -65,6 +84,7 @@ async function main(): Promise<void> {
 
   console.log(`today: ${snapshot.today}`);
   console.log(`query: ${query ? JSON.stringify(query) : "(empty)"}`);
+  console.log(`tail mode: ${process.env.AI_SEARCH_TAIL_MODE ?? "pithy"}`);
   console.log(
     `catalog: ${snapshot.options.length} Options   ` +
       `log: ${snapshot.log.length} dinners\n`,
@@ -76,13 +96,35 @@ async function main(): Promise<void> {
     console.log("--- end snapshot ---\n");
   }
 
-  // `buildSnapshot` has already dropped today's-rejected Options from the
-  // candidate `options`; derive `activeIds` from those so the result set is
-  // suppressed to match, exactly as `aiSearchAction` does.
-  const activeIds = new Set(snapshot.options.map((option) => option.id));
   const nameById = new Map(options.map((option) => [option.id, option.name]));
 
-  const result = await createAiSearchClient(apiKey).search(snapshot, activeIds);
+  // `search` emits one structured `ai_search` log line to stdout; capture it
+  // so the token counts can be reprinted as a tidy summary instead of a raw
+  // JSON blob in the middle of the output.
+  let modelCall: Record<string, unknown> | undefined;
+  const passThroughLog = console.log.bind(console);
+  console.log = ((...logArgs: unknown[]): void => {
+    const [first] = logArgs;
+    if (typeof first === "string" && first.includes('"event":"ai_search"')) {
+      modelCall = JSON.parse(first) as Record<string, unknown>;
+    } else {
+      passThroughLog(...(logArgs as Parameters<typeof console.log>));
+    }
+  }) as typeof console.log;
+
+  const result = await createAiSearchClient(apiKey).search(snapshot, idByIndex);
+  console.log = passThroughLog;
+
+  if (modelCall) {
+    const cell = (value: unknown) => (value === undefined ? "—" : String(value));
+    console.log(
+      `tokens — input ${cell(modelCall.inputTokens)} · ` +
+        `output ${cell(modelCall.outputTokens)} · ` +
+        `cache read ${cell(modelCall.cacheReadTokens)} · ` +
+        `cache write ${cell(modelCall.cacheCreationTokens)}`,
+    );
+    console.log(`latency: ${cell(modelCall.latencyMs)}ms`);
+  }
 
   if (!result.ok) {
     console.log(
