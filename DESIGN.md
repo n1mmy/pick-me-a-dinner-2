@@ -100,6 +100,8 @@ Every Tonight row carries exactly two color signals:
 | `line` | `#d8dade` | Hairline rules and borders |
 | `kind-home` | `#2c6e6e` | Meal-kind left bar — home-cooked (teal) |
 | `kind-restaurant` | `#7a4f6b` | Meal-kind left bar — restaurant (plum) |
+| `kind-home-wash` | `#dde8e8` | Decided-row background — much-lighter home wash |
+| `kind-restaurant-wash` | `#e7e0e6` | Decided-row background — much-lighter restaurant wash |
 | `recency-overdue` | `#3f8a4a` | Recency heatmap — green end, long overdue |
 | `recency-mid` | `#c8b78f` | Recency heatmap — muted tan midpoint |
 | `recency-recent` | `#c4453a` | Recency heatmap — red end, eaten recently |
@@ -137,6 +139,8 @@ check before relying on it.
 | `line` | `#383b40` |
 | `kind-home` | `#4a9a9a` |
 | `kind-restaurant` | `#a87d99` |
+| `kind-home-wash` | `#212e30` |
+| `kind-restaurant-wash` | `#2e2a30` |
 | `recency-overdue` | `#5aa863` |
 | `recency-mid` | `#bdae89` |
 | `recency-recent` | `#d65a4f` |
@@ -173,6 +177,11 @@ check before relying on it.
   Geist Mono. PICK as a filled `action` (charcoal-ink) button with
   `action-ink` label. The uniform flat list is intentional and locked — no
   lead-item prominence, no collapsed long tail, no per-row background tint.
+- **Decided block ("Tonight's dinner"):** unlike the picker ledger above, each
+  decided row carries a much-lighter wash of its meal-kind hue
+  (`kind-home-wash` / `kind-restaurant-wash`) as its background, so the
+  decided area reads as a distinct, settled panel above the picker. The
+  "no per-row background tint" rule applies to the *ranked picker*, not here.
 - **Border radius:** badge/chip 3px, inputs 6px, buttons/controls 6px. Sharp
   crisp corners suit a sharp tool — no pill shapes except where a control is
   genuinely circular.
