@@ -2,70 +2,67 @@
 
 import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
-import type { LogEntryRow, OptionChoice } from "../../db/queries";
-import { splitDinners } from "../../lib/dinner-grouping";
+import type {
+  LogEntryRow,
+  LogRejectionRow,
+  OptionChoice,
+} from "../../db/queries";
+import {
+  type DayRecord,
+  formatDinnerDate,
+  groupByDay,
+} from "../../lib/dinner-grouping";
 import { logForDate } from "./actions";
-import { DinnerGroup, inputClass, labelClass } from "./log-entry-row";
+import { EntryRow, inputClass, labelClass } from "./log-entry-row";
+import { AddRejectionForm, RejectionRow } from "./rejection-row";
 
-/** The Upcoming strip stays compact — at most this many Planned Dinners show. */
+/** The Upcoming strip stays compact — at most this many future date-groups show. */
 const UPCOMING_CAP = 5;
 
 /**
- * The Log screen (plan §9, §16) — past and Planned dinners. A compact, capped
- * "Upcoming" strip of future-dated Dinners sits on top so a plan never buries
- * today; below it, reverse-chronological history grouped by date. Every entry
- * is editable and deletable inline.
+ * The Log screen (plan §9, §16; PRD: Dated Rejections on the Log) — the
+ * Household's full nightly record. Each date-group shows that date's Dinner
+ * (its Log entries) interleaved with that date's Rejections; a Rejection-only
+ * date still forms its own group. A compact, capped "Upcoming" strip of
+ * future-dated groups — Planned dinners and Planned rejections — sits on top;
+ * below it, reverse-chronological history. Every entry and Rejection is
+ * editable and deletable inline.
  *
- * The realized/Planned split, the date grouping, and the date label live in
- * the pure `lib/dinner-grouping` module; the Log entry row and its inline edit
- * form live in `log-entry-row` — both shared with the Option detail page so
- * the two screens render a Dinner identically.
+ * The realized/Planned split, the interleaved day grouping, and the date label
+ * live in the pure `lib/dinner-grouping` module; the Log entry row lives in
+ * `log-entry-row` and the Rejection row in `rejection-row` — both shared with
+ * the Option detail page so the two screens render a Dinner and a Rejection
+ * identically.
  */
 export function LogScreen({
   entries,
+  rejections,
   optionChoices,
   today,
 }: {
   entries: LogEntryRow[];
+  rejections: LogRejectionRow[];
   optionChoices: OptionChoice[];
   today: string;
 }) {
-  // `entries` arrive newest-`eaten_on` first; `splitDinners` keeps the realized
-  // history in that order and returns the Planned dinners soonest-first.
-  const { planned, realized } = splitDinners(entries, today);
-  const shownUpcoming = planned.slice(0, UPCOMING_CAP);
-  const hiddenUpcoming = planned.length - shownUpcoming.length;
+  // `entries` and `rejections` both arrive newest-date first; `groupByDay`
+  // interleaves them into per-date records, Upcoming soonest-first and History
+  // newest-first.
+  const { upcoming, history } = groupByDay(entries, rejections, today);
+  const shownUpcoming = upcoming.slice(0, UPCOMING_CAP);
+  const hiddenUpcoming = upcoming.length - shownUpcoming.length;
 
-  const [adding, setAdding] = useState(false);
+  const isEmpty = entries.length === 0 && rejections.length === 0;
 
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
       <h1 className="font-display text-h1 font-h1 text-ink">Log</h1>
 
-      {optionChoices.length > 0 &&
-        (adding ? (
-          <div className="border-b border-line py-3">
-            <AddEntryForm
-              optionChoices={optionChoices}
-              today={today}
-              onCancel={() => setAdding(false)}
-              onSaved={() => setAdding(false)}
-            />
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="min-h-11 self-start rounded-control px-2 text-body
-              font-emphasis text-action focus-visible:outline
-              focus-visible:outline-2 focus-visible:outline-offset-2
-              focus-visible:outline-action"
-          >
-            + Add a dinner
-          </button>
-        ))}
+      {optionChoices.length > 0 && (
+        <TopAddControls optionChoices={optionChoices} today={today} />
+      )}
 
-      {entries.length === 0 && (
+      {isEmpty && (
         <p className="text-body text-muted">
           No dinners logged yet —{" "}
           <Link
@@ -79,13 +76,13 @@ export function LogScreen({
         </p>
       )}
 
-      {planned.length > 0 && (
+      {upcoming.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className={labelClass}>Upcoming</h2>
-          {shownUpcoming.map((dinner) => (
-            <DinnerGroup
-              key={dinner.date}
-              dinner={dinner}
+          {shownUpcoming.map((record) => (
+            <DayGroup
+              key={record.date}
+              record={record}
               optionChoices={optionChoices}
               today={today}
             />
@@ -98,13 +95,13 @@ export function LogScreen({
         </section>
       )}
 
-      {realized.length > 0 && (
+      {history.length > 0 && (
         <section className="flex flex-col gap-2">
-          {planned.length > 0 && <h2 className={labelClass}>History</h2>}
-          {realized.map((dinner) => (
-            <DinnerGroup
-              key={dinner.date}
-              dinner={dinner}
+          {upcoming.length > 0 && <h2 className={labelClass}>History</h2>}
+          {history.map((record) => (
+            <DayGroup
+              key={record.date}
+              record={record}
               optionChoices={optionChoices}
               today={today}
             />
@@ -115,26 +112,174 @@ export function LogScreen({
   );
 }
 
+const addButtonClass =
+  "min-h-11 self-start rounded-control px-2 text-body font-emphasis " +
+  "text-action focus-visible:outline focus-visible:outline-2 " +
+  "focus-visible:outline-offset-2 focus-visible:outline-action";
+
+/**
+ * The two top-of-Log add controls (PRD: Dated Dinners — two add controls):
+ * separate "Add a dinner" and "Add a rejection" buttons — each one direct
+ * action, no mode toggle. Each opens its inline form below the buttons.
+ */
+function TopAddControls({
+  optionChoices,
+  today,
+}: {
+  optionChoices: OptionChoice[];
+  today: string;
+}) {
+  const [open, setOpen] = useState<"none" | "dinner" | "rejection">("none");
+
+  if (open === "dinner") {
+    return (
+      <div className="border-b border-line py-3">
+        <AddEntryForm
+          optionChoices={optionChoices}
+          defaultDate={today}
+          onCancel={() => setOpen("none")}
+          onSaved={() => setOpen("none")}
+        />
+      </div>
+    );
+  }
+  if (open === "rejection") {
+    return (
+      <div className="border-b border-line py-3">
+        <AddRejectionForm
+          optionChoices={optionChoices}
+          defaultDate={today}
+          onCancel={() => setOpen("none")}
+          onSaved={() => setOpen("none")}
+        />
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={() => setOpen("dinner")}
+        className={addButtonClass}
+      >
+        + Add a dinner
+      </button>
+      <button
+        type="button"
+        onClick={() => setOpen("rejection")}
+        className={addButtonClass}
+      >
+        + Add a rejection
+      </button>
+    </div>
+  );
+}
+
+/**
+ * One date-group: a date header above that date's interleaved Log entry rows
+ * and Rejection rows, plus per-group "Add a dinner" / "Add a rejection"
+ * controls with the date pre-filled to this group's date (PRD: Dated
+ * Rejections — per-date-group add controls). Log entries render first, then
+ * Rejections; a Rejection-only group shows just its Rejections.
+ */
+function DayGroup({
+  record,
+  optionChoices,
+  today,
+}: {
+  record: DayRecord<LogEntryRow, LogRejectionRow>;
+  optionChoices: OptionChoice[];
+  today: string;
+}) {
+  const [open, setOpen] = useState<"none" | "dinner" | "rejection">("none");
+
+  return (
+    <div className="flex flex-col gap-1">
+      <h3 className="text-chip font-emphasis text-muted">
+        {formatDinnerDate(record.date, today)}
+      </h3>
+      <ul className="flex flex-col">
+        {record.entries.map((entry) => (
+          <EntryRow key={entry.id} entry={entry} optionChoices={optionChoices} />
+        ))}
+        {record.rejections.map((rejection) => (
+          <RejectionRow
+            key={rejection.id}
+            rejection={rejection}
+            optionChoices={optionChoices}
+            today={today}
+          />
+        ))}
+      </ul>
+
+      {optionChoices.length > 0 &&
+        (open === "dinner" ? (
+          <div className="py-2">
+            <AddEntryForm
+              optionChoices={optionChoices}
+              defaultDate={record.date}
+              onCancel={() => setOpen("none")}
+              onSaved={() => setOpen("none")}
+            />
+          </div>
+        ) : open === "rejection" ? (
+          <div className="py-2">
+            <AddRejectionForm
+              optionChoices={optionChoices}
+              defaultDate={record.date}
+              onCancel={() => setOpen("none")}
+              onSaved={() => setOpen("none")}
+            />
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setOpen("dinner")}
+              className="min-h-11 self-start rounded-control px-2 text-chip
+                font-emphasis text-action focus-visible:outline
+                focus-visible:outline-2 focus-visible:outline-offset-2
+                focus-visible:outline-action"
+            >
+              + Dinner
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen("rejection")}
+              className="min-h-11 self-start rounded-control px-2 text-chip
+                font-emphasis text-action focus-visible:outline
+                focus-visible:outline-2 focus-visible:outline-offset-2
+                focus-visible:outline-action"
+            >
+              + Rejection
+            </button>
+          </div>
+        ))}
+    </div>
+  );
+}
+
 /**
  * The inline "Add a dinner" form (plan §6) — create a new Log entry from the
  * Log screen for any Option (Active or Archived) on any date: a past date
  * backfills a forgotten dinner, a future date plans one. A date the Option is
- * already logged for is rejected inline, the same as an edit.
+ * already logged for is rejected inline, the same as an edit. `defaultDate`
+ * lets a date-group pre-fill the group's own date.
  */
 function AddEntryForm({
   optionChoices,
-  today,
+  defaultDate,
   onCancel,
   onSaved,
 }: {
   optionChoices: OptionChoice[];
-  today: string;
+  defaultDate: string;
   onCancel: () => void;
   onSaved: () => void;
 }) {
   const fieldId = useId();
   const [optionId, setOptionId] = useState(optionChoices[0]?.id ?? "");
-  const [eatenOn, setEatenOn] = useState(today);
+  const [eatenOn, setEatenOn] = useState(defaultDate);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -206,7 +351,7 @@ function AddEntryForm({
           aria-describedby={error ? `${fieldId}-error` : undefined}
         />
         {error && (
-          <p id={`${fieldId}-error`} className="text-chip text-danger">
+          <p id={`${fieldId}-error`} className="text-chip text-danger" role="alert">
             {error}
           </p>
         )}

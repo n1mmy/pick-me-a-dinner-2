@@ -1,6 +1,6 @@
 # 05 — Log screen Rejection management UI
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -36,24 +36,24 @@ The **Log** screen UI for dated **Rejections**, end to end. Visual styling is
 
 ## Acceptance criteria
 
-- [ ] The Log interleaves Rejections into reverse-chronological date-groups; a
+- [x] The Log interleaves Rejections into reverse-chronological date-groups; a
       Rejection-only date forms its own group
-- [ ] Future-dated Rejections appear in the "Upcoming" strip
-- [ ] Rejections are visually distinct from Log entries and show their reason
-- [ ] Separate "Add a dinner" and "Add a rejection" controls; the rejection
+- [x] Future-dated Rejections appear in the "Upcoming" strip
+- [x] Rejections are visually distinct from Log entries and show their reason
+- [x] Separate "Add a dinner" and "Add a rejection" controls; the rejection
       form takes Option, any date, and an optional reason, with a Cancel
-- [ ] Each date-group offers add-Dinner and add-Rejection with the date
+- [x] Each date-group offers add-Dinner and add-Rejection with the date
       pre-filled
-- [ ] Every Rejection is inline-editable (Option, date, reason) and deletable
+- [x] Every Rejection is inline-editable (Option, date, reason) and deletable
       with an inline-confirm, regardless of age
-- [ ] A duplicate Rejection on add or edit shows the inline error
-- [ ] A Rejection added/edited to today drops its Option off Tonight; a
+- [x] A duplicate Rejection on add or edit shows the inline error
+- [x] A Rejection added/edited to today drops its Option off Tonight; a
       past-dated one leaves Tonight unchanged
-- [ ] A failed write is reported inline, not shown as success
-- [ ] Add, edit, delete, and confirm controls are keyboard-operable with
+- [x] A failed write is reported inline, not shown as success
+- [x] Add, edit, delete, and confirm controls are keyboard-operable with
       visible focus and adequate touch targets; action results are announced to
       assistive tech
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by
