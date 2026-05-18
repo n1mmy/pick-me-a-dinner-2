@@ -3,7 +3,7 @@ import {
   getLogRejections,
   getOptionChoices,
 } from "../../db/queries";
-import { todaySqlDate } from "../../lib/local-day";
+import { today } from "../../lib/local-day";
 import { LogScreen } from "./log-screen";
 
 /**
@@ -13,7 +13,7 @@ import { LogScreen } from "./log-screen";
 export const dynamic = "force-dynamic";
 
 export default async function LogPage() {
-  const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+  const todaySql = today();
   const [entries, rejections, optionChoices] = await Promise.all([
     getLog(),
     getLogRejections(),
@@ -24,7 +24,7 @@ export default async function LogPage() {
       entries={entries}
       rejections={rejections}
       optionChoices={optionChoices}
-      today={today}
+      today={todaySql}
     />
   );
 }

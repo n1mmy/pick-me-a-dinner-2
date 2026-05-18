@@ -16,6 +16,31 @@ import type { TodayLogEntry } from "../lib/tonights-dinner";
 export type OptionWithTags = Option & { tags: string[] };
 
 /**
+ * The whole-Catalog `option_tags ⋈ tags` join, reduced to a `Map` of Tag names
+ * keyed by Option id. The Tag names of each Option come out ordered by name —
+ * the join is sorted by `tags.name` — and an Option with no Tags is simply
+ * absent from the Map. `getActiveCatalog`, `getTonightData`, and `getRejections`
+ * all need exactly this whole-Catalog grouping, so it lives here once;
+ * `getOptionById`'s single-Option variant is a deliberately narrower query and
+ * is left separate.
+ */
+async function tagNamesByOption(): Promise<Map<string, string[]>> {
+  const links = await db
+    .select({ optionId: optionTags.optionId, name: tags.name })
+    .from(optionTags)
+    .innerJoin(tags, eq(optionTags.tagId, tags.id))
+    .orderBy(asc(tags.name));
+
+  const tagsByOption = new Map<string, string[]>();
+  for (const link of links) {
+    const list = tagsByOption.get(link.optionId) ?? [];
+    list.push(link.name);
+    tagsByOption.set(link.optionId, list);
+  }
+  return tagsByOption;
+}
+
+/**
  * The default Catalog list: active Options only (Archived ones drop out), split
  * into the two kinds and ordered by name. Each Option carries its attached Tag
  * names, and `allTags` is the full Tag vocabulary the form's autocomplete
@@ -32,18 +57,7 @@ export async function getActiveCatalog(): Promise<{
     .where(eq(options.active, true))
     .orderBy(asc(options.name));
 
-  const links = await db
-    .select({ optionId: optionTags.optionId, name: tags.name })
-    .from(optionTags)
-    .innerJoin(tags, eq(optionTags.tagId, tags.id))
-    .orderBy(asc(tags.name));
-
-  const tagsByOption = new Map<string, string[]>();
-  for (const link of links) {
-    const list = tagsByOption.get(link.optionId) ?? [];
-    list.push(link.name);
-    tagsByOption.set(link.optionId, list);
-  }
+  const tagsByOption = await tagNamesByOption();
 
   const withTags = (option: Option): OptionWithTags => ({
     ...option,
@@ -168,18 +182,7 @@ export async function getTonightData(todaySqlDate: string): Promise<{
     .where(eq(options.active, true))
     .orderBy(asc(options.name));
 
-  const links = await db
-    .select({ optionId: optionTags.optionId, name: tags.name })
-    .from(optionTags)
-    .innerJoin(tags, eq(optionTags.tagId, tags.id))
-    .orderBy(asc(tags.name));
-
-  const tagsByOption = new Map<string, string[]>();
-  for (const link of links) {
-    const list = tagsByOption.get(link.optionId) ?? [];
-    list.push(link.name);
-    tagsByOption.set(link.optionId, list);
-  }
+  const tagsByOption = await tagNamesByOption();
 
   // Only active Options' Log rows feed the ranking. Archiving an Option is rare
   // and must not move the ranking — its history neither counts as per-Option
@@ -372,18 +375,7 @@ export async function getRejections(): Promise<RejectionRow[]> {
     .where(eq(options.active, true))
     .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
 
-  const links = await db
-    .select({ optionId: optionTags.optionId, name: tags.name })
-    .from(optionTags)
-    .innerJoin(tags, eq(optionTags.tagId, tags.id))
-    .orderBy(asc(tags.name));
-
-  const tagsByOption = new Map<string, string[]>();
-  for (const link of links) {
-    const list = tagsByOption.get(link.optionId) ?? [];
-    list.push(link.name);
-    tagsByOption.set(link.optionId, list);
-  }
+  const tagsByOption = await tagNamesByOption();
 
   return rows.map((row) => ({
     optionId: row.optionId,

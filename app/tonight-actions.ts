@@ -12,7 +12,7 @@ import {
   type AiSearchResult,
 } from "../lib/ai-search";
 import { authedAction } from "../lib/authed-action";
-import { todaySqlDate } from "../lib/local-day";
+import { today } from "../lib/local-day";
 
 /**
  * Run an AI search over Tonight: build the model snapshot from the active
@@ -36,9 +36,9 @@ export const aiSearchAction = authedAction(
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return AI_SEARCH_UNAVAILABLE;
 
-    const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+    const todaySql = today();
     const [{ options }, logEntries, rejections] = await Promise.all([
-      getTonightData(today),
+      getTonightData(todaySql),
       getFullLogForSnapshot(),
       getRejections(),
     ]);
@@ -57,7 +57,7 @@ export const aiSearchAction = authedAction(
         note: entry.note,
       })),
       rejections,
-      today,
+      today: todaySql,
       query,
     });
 
