@@ -38,9 +38,9 @@ const sectionHeading =
  * per-Option screen a member of the Household lands on by tapping an Option's
  * name on the Catalog. This slice shows one Option's identity (name, kind,
  * notes, link, and — for a Restaurant — address / phone / Google Maps link)
- * and its ranking data (Score, per-Option recency line, Tag heatmap chips).
+ * and its recency data (per-Option recency chip, Tag heatmap chips).
  *
- * The ranking is computed by `rankOption` over the same inputs the Tonight
+ * The recency is computed by `rankOption` over the same inputs the Tonight
  * page assembles, so the two screens never disagree. An id matching no Option
  * — a stale link, a Deleted Option, or junk — renders Next's `notFound()`.
  */
@@ -124,24 +124,7 @@ export default async function OptionDetailPage({
       </header>
 
       <section className="flex flex-col gap-2">
-        <h2 className={sectionHeading}>Ranking</h2>
-        {ranking.score !== null ? (
-          <div className="flex flex-col gap-0.5">
-            <p className="font-mono text-h1 tabular-nums text-ink">
-              {Math.round(ranking.score)}
-            </p>
-            <p className="text-meta text-muted">
-              Score — a point-in-time, comparative figure: how strongly the
-              ranking favors this Option against the rest right now, not a
-              fixed property of it.
-            </p>
-          </div>
-        ) : (
-          // An Archived Option is excluded from the ranking, so it has no
-          // Score; its per-Option recency and Tag chips below are still
-          // factual recency data, not a Score.
-          <p className="text-body text-muted">Archived — not ranked</p>
-        )}
+        <h2 className={sectionHeading}>Recency</h2>
         <RowChips
           recencyDays={ranking.recencyDays}
           neverEaten={ranking.neverEaten}
@@ -198,6 +181,7 @@ export default async function OptionDetailPage({
           option={option}
           allTags={allTags}
           placesEnabled={placesEnabled()}
+          canDelete={optionLog.length === 0}
         />
       </section>
 
