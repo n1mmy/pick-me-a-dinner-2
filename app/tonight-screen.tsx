@@ -566,6 +566,11 @@ function SearchBox({
   // `showClear`, so the badge falls back to the plain "Search".
   const completed = !pending && !error && showClear && doneElapsed !== null;
 
+  // The in-field ✕ shows whenever there is something to clear — typed query
+  // text, or an AI result/error already on screen — not only after a search
+  // has run.
+  const canClear = query.length > 0 || showClear;
+
   return (
     <form
       onSubmit={(event) => {
@@ -588,9 +593,9 @@ function SearchBox({
             aria-label="Search for dinner by intent"
             // Extra right padding only when the ✕ is shown, so query text
             // never runs under it.
-            className={`${inputClass} w-full ${showClear ? "pr-11" : ""}`}
+            className={`${inputClass} w-full ${canClear ? "pr-11" : ""}`}
           />
-          {showClear && (
+          {canClear && (
             <button
               type="button"
               onClick={onClear}

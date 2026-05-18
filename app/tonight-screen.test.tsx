@@ -173,6 +173,21 @@ describe("TonightScreen — AI search", () => {
     expect(container.querySelectorAll("p.bg-raised")).toHaveLength(1);
   });
 
+  it("shows the in-field clear control once the query has text", () => {
+    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+
+    // No text and no search run yet — nothing to clear, so no ✕.
+    expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
+
+    fireEvent.change(searchInput(), { target: { value: "something light" } });
+
+    // Typing reveals the in-field ✕; clicking it empties the query, and the
+    // ✕ goes away again.
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(searchInput().value).toBe("");
+    expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
+  });
+
   it("restores the deterministic list when the search is cleared", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,
