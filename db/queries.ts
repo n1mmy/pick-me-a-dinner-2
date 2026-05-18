@@ -432,36 +432,29 @@ export async function getLogRejections(): Promise<LogRejectionRow[]> {
 }
 
 /**
- * One Rejection in an Option's history, narrowed to what the Option detail
- * page's Rejection history section renders (PRD: Option detail page).
- */
-export type OptionRejectionRow = {
-  /** The `rejections` row id — the handle the "Bring back" action deletes by. */
-  id: string;
-  /** The optional short reason; `null` when the Household gave none. */
-  reason: string | null;
-  /** `rejected_on` as a SQL `date` string (`"YYYY-MM-DD"`). */
-  rejectedOn: string;
-};
-
-/**
  * Every Rejection ever made for one Option — `rejections` rows scoped to the
  * given Option id, ordered newest `rejected_on` first (`created_at` breaks a
- * same-day tie). The Option detail page's Rejection history section lists
- * these (PRD: Option detail page). Unlike `getRejections` it is scoped to one
- * Option and unlike the Tonight queries it is not filtered to active Options —
- * the detail page serves an Archived Option's Rejection history too.
+ * same-day tie). The Option detail page's Rejections section lists these (PRD:
+ * Dated Rejections — Option detail page parity), reusing the Log screen's
+ * `RejectionRow` — so this returns the same `LogRejectionRow` shape, each row
+ * joined to its Option. Unlike `getRejections` it is scoped to one Option, and
+ * unlike the Tonight queries it is not filtered to active Options — the detail
+ * page serves an Archived Option's Rejection history too.
  */
 export async function getOptionRejections(
   optionId: string,
-): Promise<OptionRejectionRow[]> {
+): Promise<LogRejectionRow[]> {
   return db
     .select({
       id: rejections.id,
-      reason: rejections.reason,
+      optionId: rejections.optionId,
+      optionName: options.name,
+      kind: options.kind,
       rejectedOn: rejections.rejectedOn,
+      reason: rejections.reason,
     })
     .from(rejections)
+    .innerJoin(options, eq(rejections.optionId, options.id))
     .where(eq(rejections.optionId, optionId))
     .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
 }

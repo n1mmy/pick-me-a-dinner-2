@@ -1,6 +1,6 @@
 # 06 — Option detail page Rejection management
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -23,19 +23,19 @@ stays the today-only quick-undo.
 
 ## Acceptance criteria
 
-- [ ] The Option detail page's Rejections section offers inline edit and delete
+- [x] The Option detail page's Rejections section offers inline edit and delete
       on every Rejection row, regardless of age
-- [ ] Edit changes the Option, date, or reason; a duplicate shows the inline
+- [x] Edit changes the Option, date, or reason; a duplicate shows the inline
       "Already rejected for that date" error
-- [ ] Delete uses the inline-confirm and removes the Rejection entirely
-- [ ] The today-only "Bring back" button on the detail page is replaced by the
+- [x] Delete uses the inline-confirm and removes the Rejection entirely
+- [x] The today-only "Bring back" button on the detail page is replaced by the
       always-available Delete
-- [ ] Editing or deleting updates the detail page in place
-- [ ] Tonight's "Rejected tonight" disclosure and its "Bring back" are
+- [x] Editing or deleting updates the detail page in place
+- [x] Tonight's "Rejected tonight" disclosure and its "Bring back" are
       unchanged
-- [ ] Controls are keyboard-operable with visible focus and adequate touch
+- [x] Controls are keyboard-operable with visible focus and adequate touch
       targets; action results are announced to assistive tech
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by

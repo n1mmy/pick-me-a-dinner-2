@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { options, rejections } from "../../db/schema";
-import { getLogRejections } from "../../db/queries";
+import { getLogRejections, getOptionRejections } from "../../db/queries";
 import { truncateAll } from "../../db/test-support";
 import {
   createRejection,
@@ -225,5 +225,29 @@ describe("getLogRejections", () => {
     expect(log[0].optionName).toBe("Tacos");
     expect(log[0].kind).toBe("restaurant");
     expect(log[1].reason).toBe("too heavy");
+  });
+});
+
+describe("getOptionRejections", () => {
+  it("returns one Option's Rejections newest first, each joined to its Option", async () => {
+    const pizza = await makeOption("Pizza", "restaurant");
+    const tacos = await makeOption("Tacos");
+    await makeRejection(pizza, "2026-05-01", "too heavy");
+    await makeRejection(pizza, "2026-05-10");
+    // A Rejection of another Option must not leak into Pizza's history.
+    await makeRejection(tacos, "2026-05-12");
+
+    const history = await getOptionRejections(pizza);
+
+    expect(history).toHaveLength(2);
+    expect(history.map((row) => row.rejectedOn)).toEqual([
+      "2026-05-10",
+      "2026-05-01",
+    ]);
+    // Joined to its Option — the row carries the same shape RejectionRow needs.
+    expect(history[0].optionId).toBe(pizza);
+    expect(history[0].optionName).toBe("Pizza");
+    expect(history[0].kind).toBe("restaurant");
+    expect(history[1].reason).toBe("too heavy");
   });
 });
