@@ -340,6 +340,8 @@ function toIndex(id: unknown): number | null {
  * - A repeated Option is deduped, the **first** occurrence kept — a model that
  *   lists the same Option twice never produces a duplicate result row.
  * - An AI rationale over ~200 characters is truncated (see `truncateRationale`).
+ *   An empty-string rationale is kept as-is — in `pithy` mode the model
+ *   deliberately returns one for an obviously bad pick.
  *
  * The model's array order is preserved: it *is* the result ranking. Each
  * returned row carries the real UUID, so callers downstream never see the
@@ -435,7 +437,8 @@ const RANK_TOOL: Anthropic.Tool = {
                 'reason behind this Option\'s rank — e.g. "Sushi runs about ' +
                 'weekly and it\'s been 9 days" — not a generic "fits your ' +
                 'query". For an Option low in the ranking it may instead ' +
-                "say why it is a weaker fit or not really suggested.",
+                "say why it is a weaker fit, or be an empty string when the " +
+                "instructions call for no rationale at all.",
             },
           },
           required: ["id", "reason"],
@@ -458,10 +461,11 @@ export type TailMode = "full" | "pithy" | "drop";
  *
  * - `full`  — every candidate Option is returned, each with a full one-line
  *   rationale. The pre-pithy baseline.
- * - `pithy` — every candidate Option is returned, but the model gives Options
- *   it judges clearly weak picks a terse few-word note instead of a full line.
- *   The default — it preserves ADR-0005's whole-Catalog result while trimming
- *   the output the model has to generate.
+ * - `pithy` — every candidate Option is returned, but the rationale shrinks
+ *   with the pick: a genuine pick gets a short one-line rationale, a clearly
+ *   weak pick a terse few-word note, an obviously bad pick an empty string —
+ *   no rationale at all. The default — it preserves ADR-0005's whole-Catalog
+ *   result while trimming the output the model has to generate.
  * - `drop`  — the model omits Options it judges clearly bad picks and returns
  *   only a short shortlist. This departs from ADR-0005's "return the whole
  *   Catalog on an open query", so it is kept behind the env var, not made the
@@ -484,13 +488,16 @@ const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
     "rationale is one short line, roughly 140 characters at most.",
   pithy:
     "- If the query is empty or does not narrow the Catalog, return every " +
-    "candidate Option from the snapshot, ranked best first. For an Option " +
-    "that is a genuine pick tonight, give a full one-line rationale (roughly " +
-    "140 characters at most) naming the pattern behind its rank. For an " +
-    "Option you judge a clearly weak pick tonight, give only a terse " +
-    'few-word note instead — e.g. "eaten yesterday" or "monthly food, not ' +
-    'due" — never a full sentence. You decide which Options are weak enough ' +
-    "for the terse note, and the weaker the pick the shorter the note.",
+    "candidate Option from the snapshot, ranked best first, varying how " +
+    "much you write by how strong the pick is. For an Option that is a " +
+    "genuine pick tonight, give a one-line rationale (roughly 100 " +
+    "characters at most) naming the pattern behind its rank. For an Option " +
+    "you judge a clearly weak pick, give only a terse few-word note " +
+    'instead — e.g. "eaten yesterday" — never a full sentence. For an ' +
+    "Option you judge an obviously bad pick tonight (just eaten, plainly " +
+    "not due, a standing reason against it), give an empty string as the " +
+    "reason — no text at all. You decide which tier each Option falls in; " +
+    "the weaker the pick, the less needs to be said.",
   drop:
     "- If the query is empty or does not narrow the Catalog, return only the " +
     "Options genuinely worth considering for tonight, ranked best first, and " +

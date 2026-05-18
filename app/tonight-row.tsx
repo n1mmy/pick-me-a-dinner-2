@@ -31,8 +31,11 @@ const focusRing =
  *
  * On an AI search result row, `aiReason` is the AI rationale — a prose "why"
  * line the deterministic list does not have; it sits below the chip row on a
- * neutral `raised` surface. The Recency and Tag chips render the same on AI
- * and deterministic rows.
+ * neutral `raised` surface. It may be an empty string — in `pithy` mode the
+ * model deliberately returns no rationale for an obviously bad pick — and an
+ * empty `aiReason` renders no line at all, so that row reads like a
+ * deterministic one. The Recency and Tag chips render the same on AI and
+ * deterministic rows.
  */
 export function TonightRowItem({
   row,
