@@ -13,7 +13,8 @@ import { placesEnabled } from "../../../lib/places";
 import { rankOption, type RankOption } from "../../../lib/ranking";
 import { DinnerGroup } from "../../log/log-entry-row";
 import { RejectionRow } from "../../log/rejection-row";
-import { kindBarClass, RowChips } from "../../tonight-row";
+import { kindBarClass } from "../../kind-bar";
+import { RowChips } from "../../tonight-row";
 import { OptionControls } from "./option-controls";
 
 /**
