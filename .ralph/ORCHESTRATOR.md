@@ -230,9 +230,14 @@ together. Then, for each worker:
 - If verified, **merge it yourself**: run `git merge --no-ff
   <worker-branch>` into the integration branch (see the merge procedure
   below).
-  - Clean merge → the branch is integrated. You may `git worktree remove
-    --force` the worker's worktree (if the harness still holds a lock on
-    it, removal fails — that is harmless, skip it).
+  - Clean merge → the branch is integrated. **Reap the worker's
+    worktree** so it does not leak: `git worktree unlock <path>` then
+    `git worktree remove --force <path>`. The worker has already
+    returned, so its worktree is done. Unlock first — the harness locked
+    it to this run's pid, so a bare `remove` skips it; an un-reaped
+    worktree is left locked to a dead pid once the run ends, and they
+    pile up. Removal drops only the directory; the worker's branch ref
+    survives.
   - Conflict → `git merge --abort` at once and boot the issue back to
     `ready-for-agent`. Do not resolve the conflict. Its re-run next round
     branches off the updated tip — which now includes the merge winner —
