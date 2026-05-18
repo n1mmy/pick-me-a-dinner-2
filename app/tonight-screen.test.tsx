@@ -97,10 +97,10 @@ afterEach(() => {
  * assertion reads the not-yet-flushed value. That race is what made this block
  * flaky.
  *
- * Waiting for the Search button's label to revert from "Searching…" to
- * "Search" pins `pending` back to `false` — and, because the AI result and the
- * label revert land in the same transition commit, also guarantees the result
- * (or the inline error) has rendered.
+ * Waiting for the Search button to revert from its in-flight spinner (named
+ * "Searching — …") to "Search" pins `pending` back to `false` — and, because
+ * the AI result and the revert land in the same transition commit, also
+ * guarantees the result (or the inline error) has rendered.
  */
 async function submitSearchAndSettle() {
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
@@ -296,7 +296,9 @@ describe("TonightScreen — AI search", () => {
 
     // While the search is in flight the box is disabled — so only one search
     // runs at a time — and the deterministic list stays visible underneath.
-    await screen.findByRole("button", { name: "Searching…" });
+    // In flight the Search button is a spinner; its accessible name carries
+    // the elapsed-second count, so it is matched by prefix.
+    await screen.findByRole("button", { name: /^Searching/ });
     expect(searchInput().disabled).toBe(true);
     expect(screen.getByText("Apple Crumble")).toBeTruthy();
 

@@ -523,6 +523,23 @@ function SearchBox({
   error: boolean;
   showClear: boolean;
 }) {
+  // Elapsed whole seconds of the in-flight search. An AI search runs ~50–90s,
+  // so a live counter reassures the Household the request is still working.
+  // It is wall-clock based (not a tick count) so it stays accurate if a timer
+  // fires late, and resets to 0 whenever no search is in flight.
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!pending) {
+      setElapsed(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [pending]);
+
   return (
     <form
       onSubmit={(event) => {
@@ -541,14 +558,34 @@ function SearchBox({
           aria-label="Search for dinner by intent"
           className={`${inputClass} flex-1`}
         />
+        {/* Width is pinned hard — `min-w` defeats the flex item's default
+            `min-width: auto`, which would otherwise let the in-flight content
+            grow the button. So neither the label → spinner swap nor the
+            ticking timer ever resizes the button or the flex-1 input. */}
         <button
           type="submit"
           disabled={pending}
-          className={`min-h-11 rounded-control bg-action px-4 text-body
-            font-emphasis text-action-ink transition-colors duration-short
-            hover:bg-action-hover disabled:opacity-60 ${focusRing}`}
+          aria-label={
+            pending ? `Searching — ${elapsed} seconds elapsed` : undefined
+          }
+          className={`flex min-h-11 w-[7rem] min-w-[7rem] shrink-0
+            items-center justify-center gap-1.5 rounded-control bg-action px-4
+            text-body font-emphasis text-action-ink transition-colors
+            duration-short hover:bg-action-hover disabled:opacity-60
+            ${focusRing}`}
         >
-          {pending ? "Searching…" : "Search"}
+          {pending ? (
+            <>
+              <Spinner />
+              {/* Fixed-width, centered slot so the spinner stays put as the
+                  second count gains digits. */}
+              <span className="w-10 text-center font-mono tabular-nums">
+                {elapsed}s
+              </span>
+            </>
+          ) : (
+            "Search"
+          )}
         </button>
         {showClear && (
           <button
@@ -568,6 +605,22 @@ function SearchBox({
         </p>
       )}
     </form>
+  );
+}
+
+/**
+ * A small indeterminate spinner — a single arc rotating on a transparent ring.
+ * Shown on the Search button while a search is in flight; the rotation is
+ * gated on `motion-safe` (DESIGN.md Motion), with the live second count
+ * carrying the progress signal for reduced-motion users.
+ */
+function Spinner() {
+  return (
+    <span
+      aria-hidden
+      className="h-4 w-4 shrink-0 rounded-full border-2 border-transparent
+        border-t-action-ink motion-safe:animate-spin"
+    />
   );
 }
 
