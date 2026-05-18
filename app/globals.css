@@ -37,7 +37,13 @@
   --color-action-hover: #3c4049;
   --color-action-ink: #ffffff;
   --color-success: #3f8a4a;
+  /* Much-lighter wash of the success green — the tinted background of a logged
+   * (accepted) Dinner row in the Log, mirroring the rejected-row danger wash. */
+  --color-success-wash: #dee9db;
   --color-danger: #c4453a;
+  /* Much-lighter wash of the danger red — the tinted background of a rejected
+   * row in the Log, so a Rejection reads as distinct from a logged Dinner. */
+  --color-danger-wash: #f3ddda;
   --color-planned: #b9822b;
   /* Muted clay-brown — the "exclude" tag-filter chip. Carried over from the
    * prior warm palette; to be re-tuned when the tag filters get their own
@@ -97,7 +103,9 @@
     --color-action-hover: #d0d2d6;
     --color-action-ink: #1a1c1f;
     --color-success: #5aa863;
+    --color-success-wash: #26312a;
     --color-danger: #d65a4f;
+    --color-danger-wash: #33272a;
     --color-planned: #cf9a45;
   }
 }

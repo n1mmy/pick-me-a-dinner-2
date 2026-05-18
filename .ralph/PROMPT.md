@@ -41,6 +41,17 @@ call wastes the loop. The fixes that matter most here:
   redirects (`>`, `>>`, `<`, `2>&1`). Split into separate `Bash` calls
   in one message; they run in parallel.
 - **No `cd <path> && …`** — the loop's cwd is already the repo root.
+- **Run every command bare — no wrapper, no prefix.** The allowlist
+  matches on the command's first word (`pnpm *`, `git *`, …), so the
+  matcher reads any wrapper as the command. `env -i … pnpm build`,
+  `env VAR=x pnpm build`, `VAR=x pnpm build`, `/abs/path/to/pnpm build`,
+  `xargs`, `time`, `nice`, `sh -c '…'` are all *unrecognized shapes*
+  that prompt — and a denied prompt halts the loop. Run `pnpm build`,
+  `pnpm typecheck`, etc. exactly as written. The gate "passes env-free"
+  means the build needs **no extra env vars** — running `pnpm build`
+  bare already proves that. Do **not** strip or rebuild the environment
+  with `env -i` / `env VAR=…` to "test" env-free behaviour: it is the
+  wrong shape *and* it removes the `PATH` that finds `pnpm` itself.
 - **File contents → `Read`; search → `Glob`/`Grep` if they exist, else
   `Bash`.** Native macOS/Linux Claude Code builds drop the `Glob`/`Grep`
   tools and fold search into Bash; npm-installed builds keep them. Use
@@ -52,6 +63,13 @@ call wastes the loop. The fixes that matter most here:
 - **Never run `find /`.**
 - **No remote git** — never `git push`, `git fetch`, or `git pull`. The
   loop works the local checkout only; pushing is the user's job.
+- **Don't improvise tools outside the gate and allowlist.** Verify your
+  work only with the project's own checks — `pnpm typecheck`, `lint`,
+  `test`, `test:db`, `build`. Database state is verified by `pnpm
+  test:db`; do not reach for `psql`, or any other tool not on the loop's
+  allowlist, to inspect or debug the DB. If the gate cannot verify the
+  issue, that is a `## Comments` failure note (see "When you're stuck"),
+  not a cue to improvise an un-allowlisted command.
 
 If a command you need is genuinely blocked, stop and leave a note in the
 issue file rather than re-shaping the command. Widening the allowlist is

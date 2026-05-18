@@ -49,7 +49,8 @@ v1 does not).
 **Dinner**:
 A whole evening's eating: one calendar date, composed of one or more Log
 entries (e.g. takeout plus some home cooking). The app never stores a Dinner
-as a row — it is the date-grouping the Log screen renders.
+as a row — it is the eating on a date. The Log screen groups by date and shows
+each date's Dinner together with that date's Rejections.
 
 **Log**:
 The full history of Log entries — both the `dinner_log` table and the screen
@@ -70,6 +71,32 @@ A Log entry dated after today. Excluded from the ranking until its date
 arrives; shown in the Log screen's "Upcoming" section.
 _Avoid_: Plan, Upcoming entry (as the domain term — "Upcoming" is only the
 screen section's heading).
+
+**Rejection**:
+A record that the Household passed an Option over for one night's dinner,
+carrying an optional short reason ("closed on Sundays", "too heavy for
+tonight"). It is created two ways: live on a Tonight row in the moment, or
+entered by hand on the Log screen or the Option detail page for a deliberately
+chosen date — a past date backfills a Rejection never recorded live, a future
+date is a **Planned rejection**. On the date it carries, a Rejection removes
+its Option from Tonight's list for that day (the Option returns on its own the
+next day); it is also kept as dated history fed into future AI searches, where
+the model judges from the reason which Rejections are a standing dislike and
+which were one-off. A Rejection can be edited or deleted at any time from the
+Log screen or the Option detail page. **Bring back** is the narrower same-day
+quick-undo on Tonight's "Rejected tonight" disclosure. A Rejection is not a Log
+entry and does not affect any Score.
+_Avoid_: Archive (a Rejection covers one night; Archive removes an Option from
+the Catalog until un-archived). Avoid "reject" for declining a whole AI result.
+
+**Planned rejection**:
+A Rejection dated after today — the mirror of a Planned dinner. Entered by hand
+to turn an Option down in advance for a known future night ("Aji Ichi is closed
+this coming Sunday"); when that date arrives it suppresses the Option from
+Tonight just as a same-day Rejection does. Shown in the Log screen's "Upcoming"
+section alongside Planned dinners. One specific date only — a recurring closure
+is left for the AI model to infer from Rejection history.
+_Avoid_: Recurring rejection (a Planned rejection is a single date).
 
 ### Ranking
 
@@ -135,21 +162,6 @@ prose "why" line; it shows the Recency chip and Tag chips instead.
 _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).
 
-**Rejection**:
-A Household action recording that an Option was passed over for tonight's
-dinner, carrying an optional short reason ("closed on Sundays", "too heavy for
-tonight"). A Rejection is tied to one night's decision — not to a particular AI
-search query. It does two things: it removes the Option from Tonight's list for
-the rest of that day (the Option returns on its own the next day), and it is
-kept as dated history fed into future AI searches — where the model judges from
-the reason which Rejections reflect a standing dislike and which were one-off.
-The Household can undo a Rejection made today (the **Bring back** action),
-which deletes it entirely, so a mis-tapped Rejection never reaches the AI; once
-the day passes a Rejection is settled history. A Rejection is not a Log entry
-and does not affect any Score.
-_Avoid_: Archive (a Rejection lasts one night; Archive removes an Option from
-the Catalog until un-archived). Avoid "reject" for declining a whole AI result.
-
 ### Lifecycle & access
 
 **Active**:
@@ -187,8 +199,11 @@ single-household — no user accounts, no per-person identity.
   **per-Tag recency** of its **Tags**.
 - Each **Tonight** row carries one **Recency chip**.
 - An **Option** is either **Active** or **Archived**.
-- A **Household** may **Reject** an Option for one night's decision; the
-  **Rejection** is kept as history and feeds future **AI searches**.
+- A **Household** may **Reject** an Option for one night — live on **Tonight**,
+  or entered by hand on the **Log** for any past, present, or future date.
+- A **Rejection** is kept as dated history and feeds future **AI searches**; a
+  **Rejection** dated after today is a **Planned rejection** and suppresses its
+  Option from **Tonight** when that date arrives.
 - An **Option** with any **Log entry** cannot be **hard-deleted** — only
   **Archived**.
 - The **Household** shares one password; there are no user accounts.

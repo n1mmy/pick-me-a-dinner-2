@@ -2,16 +2,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The mock factories below are hoisted above these declarations, so the spies
 // they close over must be created with `vi.hoisted` to exist in time.
-const { getTonightData, getRejections, search } = vi.hoisted(() => ({
-  getTonightData: vi.fn(),
-  getRejections: vi.fn(),
-  search: vi.fn(),
-}));
+const { getTonightData, getFullLogForSnapshot, getRejections, search } =
+  vi.hoisted(() => ({
+    getTonightData: vi.fn(),
+    getFullLogForSnapshot: vi.fn(),
+    getRejections: vi.fn(),
+    search: vi.fn(),
+  }));
 
-// `getTonightData` and `getRejections` are the DB reads `aiSearchAction` makes
-// — stub them so the test never touches a database, and so the snapshot wiring
-// can be asserted.
-vi.mock("../db/queries", () => ({ getTonightData, getRejections }));
+// `getTonightData`, `getFullLogForSnapshot`, and `getRejections` are the DB
+// reads `aiSearchAction` makes — stub them so the test never touches a
+// database, and so the snapshot wiring can be asserted.
+vi.mock("../db/queries", () => ({
+  getTonightData,
+  getFullLogForSnapshot,
+  getRejections,
+}));
 
 // `authedAction` wraps the action with the shared-password session check;
 // that check has its own coverage, so here it is a pass-through and the test
@@ -45,15 +51,22 @@ const TONIGHT_DATA = {
       phone: null,
     },
   ],
+  // `getTonightData`'s own non-future Log — `aiSearchAction` no longer reads
+  // it; the AI snapshot's Log comes from `getFullLogForSnapshot` instead.
   logEntries: [{ optionId: "o1", eatenOn: "2026-05-10", note: null }],
   todayEntries: [],
 };
 
+/** The full Log `getFullLogForSnapshot` feeds the AI snapshot — any date. */
+const FULL_LOG = [{ optionId: "o1", eatenOn: "2026-05-10", note: null }];
+
 beforeEach(() => {
   getTonightData.mockReset();
+  getFullLogForSnapshot.mockReset();
   getRejections.mockReset();
   search.mockReset();
   getTonightData.mockResolvedValue(TONIGHT_DATA);
+  getFullLogForSnapshot.mockResolvedValue(FULL_LOG);
   getRejections.mockResolvedValue([]);
   delete process.env.ANTHROPIC_API_KEY;
 });
@@ -130,5 +143,23 @@ describe("aiSearchAction", () => {
 
     const [snapshot] = search.mock.calls[0];
     expect(snapshot.query).toBe("<household-text></household-text>");
+  });
+
+  it("feeds the snapshot the full Log including a future-dated Planned dinner", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    // The full-Log feed carries a future-dated entry the deterministic Log
+    // (`getTonightData`) would have filtered out — the AI snapshot sees it.
+    getFullLogForSnapshot.mockResolvedValue([
+      { optionId: "o1", eatenOn: "2026-05-10", note: null },
+      { optionId: "o1", eatenOn: "2099-01-01", note: null },
+    ]);
+    search.mockResolvedValue({ ok: true, results: [] });
+
+    await aiSearchAction("");
+
+    const [snapshot] = search.mock.calls[0];
+    expect(snapshot.log.map((e: { date: string }) => e.date)).toContain(
+      "2099-01-01 (Thursday)",
+    );
   });
 });

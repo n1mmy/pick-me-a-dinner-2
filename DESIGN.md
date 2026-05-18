@@ -109,7 +109,9 @@ Every Tonight row carries exactly two color signals:
 | `action-hover` | `#3c4049` | PICK hover / pressed |
 | `action-ink` | `#ffffff` | Text/label on the PICK fill |
 | `success` | `#3f8a4a` | Confirmation, success feedback (shares the green) |
+| `success-wash` | `#dee9db` | Logged-dinner-row background — much-lighter success wash |
 | `danger` | `#c4453a` | Destructive actions, errors (shares the red) |
+| `danger-wash` | `#f3ddda` | Rejected-row background — much-lighter danger wash |
 | `planned` | `#b9822b` | Amber — the Upcoming planned-dinner section |
 
 `recency-overdue` / `recency-mid` / `recency-recent` are the three anchor
@@ -144,6 +146,8 @@ check before relying on it.
 | `recency-overdue` | `#5aa863` |
 | `recency-mid` | `#bdae89` |
 | `recency-recent` | `#d65a4f` |
+| `success-wash` | `#26312a` |
+| `danger-wash` | `#33272a` |
 | `action` | `#e6e7ea` |
 | `action-ink` | `#1a1c1f` |
 | `planned` | `#cf9a45` |

@@ -26,22 +26,36 @@ describe("partitionRejections — partition", () => {
       TODAY,
     );
     expect(ids(block.rejectedTonight)).toEqual(["a"]);
-    expect(block.earlierRejections).toEqual([]);
+    expect(block.notTodayRejections).toEqual([]);
   });
 
-  it("puts a Rejection dated before today in earlier", () => {
+  it("puts a Rejection dated before today in not-today", () => {
     const { block } = partitionRejections(
       [rejection("a", "2026-05-19")],
       TODAY,
     );
-    expect(ids(block.earlierRejections)).toEqual(["a"]);
+    expect(ids(block.notTodayRejections)).toEqual(["a"]);
     expect(block.rejectedTonight).toEqual([]);
   });
 
-  it("splits a mixed history on an exact today boundary", () => {
-    // Yesterday is earlier, today is tonight — the boundary is the date string.
+  it("puts a future-dated Planned rejection in not-today, with its real date", () => {
+    // A Rejection dated after today is not "tonight" — it lands in the
+    // date-neutral not-today group, carrying its own future date (ADR-0008).
+    const { block } = partitionRejections(
+      [rejection("a", "2026-05-24")], // a Sunday, after today
+      TODAY,
+    );
+    expect(ids(block.notTodayRejections)).toEqual(["a"]);
+    expect(block.rejectedTonight).toEqual([]);
+    expect(block.notTodayRejections[0].date).toBe("2026-05-24 (Sunday)");
+  });
+
+  it("splits a mixed history — past, today, and future — on the today boundary", () => {
+    // Only the exact-today row is "tonight"; past and future rows alike land
+    // in not-today, ordered newest first.
     const { block } = partitionRejections(
       [
+        rejection("future", "2026-05-30"),
         rejection("today", TODAY),
         rejection("yesterday", "2026-05-19"),
         rejection("old", "2026-01-02"),
@@ -49,13 +63,17 @@ describe("partitionRejections — partition", () => {
       TODAY,
     );
     expect(ids(block.rejectedTonight)).toEqual(["today"]);
-    expect(ids(block.earlierRejections)).toEqual(["yesterday", "old"]);
+    expect(ids(block.notTodayRejections)).toEqual([
+      "future",
+      "yesterday",
+      "old",
+    ]);
   });
 
   it("produces two empty groups for an empty history", () => {
     const { block } = partitionRejections([], TODAY);
     expect(block.rejectedTonight).toEqual([]);
-    expect(block.earlierRejections).toEqual([]);
+    expect(block.notTodayRejections).toEqual([]);
   });
 });
 
@@ -79,6 +97,16 @@ describe("partitionRejections — suppression set", () => {
   it("is empty when nothing was rejected today", () => {
     const { suppressedToday } = partitionRejections(
       [rejection("earlier", "2026-05-19")],
+      TODAY,
+    );
+    expect(suppressedToday.size).toBe(0);
+  });
+
+  it("excludes a future-dated Planned rejection — it does not suppress today", () => {
+    // A Planned rejection only suppresses its Option when its date becomes
+    // today; until then the Option stays a candidate (ADR-0008).
+    const { suppressedToday } = partitionRejections(
+      [rejection("planned", "2026-05-24")],
       TODAY,
     );
     expect(suppressedToday.size).toBe(0);
@@ -130,7 +158,7 @@ describe("partitionRejections — snapshot block shape", () => {
       TODAY,
     );
     expect(block.rejectedTonight[0].date).toBe("2026-05-20 (Wednesday)");
-    expect(block.earlierRejections[0].date).toBe("2026-05-15 (Friday)");
+    expect(block.notTodayRejections[0].date).toBe("2026-05-15 (Friday)");
   });
 
   it("orders each group newest first", () => {
@@ -142,7 +170,7 @@ describe("partitionRejections — snapshot block shape", () => {
       ],
       TODAY,
     );
-    expect(ids(block.earlierRejections)).toEqual(["newest", "mid", "oldest"]);
+    expect(ids(block.notTodayRejections)).toEqual(["newest", "mid", "oldest"]);
   });
 
   it("carries the Option id through so it ties to a candidate", () => {
@@ -150,7 +178,7 @@ describe("partitionRejections — snapshot block shape", () => {
       [rejection("a", "2026-05-19")],
       TODAY,
     );
-    expect(block.earlierRejections[0].optionId).toBe("a");
-    expect(block.earlierRejections[0].kind).toBe("home");
+    expect(block.notTodayRejections[0].optionId).toBe("a");
+    expect(block.notTodayRejections[0].kind).toBe("home");
   });
 });

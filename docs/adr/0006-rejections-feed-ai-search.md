@@ -60,3 +60,8 @@ our own.
 - A Rejection made today can be undone ("Bring back"), which deletes the record
   so a mis-tap never reaches the model. Once the day turns a Rejection is
   settled history; pruning the historical log is left to a future feature.
+
+_Extended by ADR-0008: Rejections become manually creatable, editable, and
+freely dated (past or future) from the Log and Option detail pages. That
+supersedes the reasoning here that no `(option_id, rejected_on)` constraint is
+needed, and extends the snapshot to carry future-dated rows._

@@ -82,7 +82,7 @@ export function EntryRow({
 
   if (editing) {
     return (
-      <li className="border-b border-line py-3">
+      <li className="border-b border-line bg-success-wash px-3 py-3">
         <EntryEditForm
           entry={entry}
           optionChoices={optionChoices}
@@ -94,7 +94,7 @@ export function EntryRow({
   }
 
   return (
-    <li className="flex flex-col gap-1 border-b border-line py-3">
+    <li className="flex flex-col gap-1 border-b border-line bg-success-wash px-3 py-3">
       <div className="flex items-center justify-between gap-3">
         <Link
           href={`/catalog/${entry.optionId}`}
