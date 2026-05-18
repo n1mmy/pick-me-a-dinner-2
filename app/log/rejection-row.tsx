@@ -1,8 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogRejectionRow, OptionChoice } from "../../db/queries";
-import { formatDinnerDate } from "../../lib/dinner-grouping";
 import { inputClass, labelClass } from "./log-entry-row";
 import {
   createRejection,
@@ -237,26 +237,21 @@ export function AddRejectionForm({
 
 /**
  * One Rejection row (PRD: Dated Rejections — inline-editable rejection row).
- * Shows the Option name and the optional reason, with Edit / Delete actions.
- * Edit expands the row in place into the form (Option, date, reason); Delete
- * uses the §17 inline-confirm — the row reveals a confirm/cancel rather than a
- * modal. Every Rejection is editable and deletable regardless of age.
+ * Shows the Option name (linked to its detail page) and the optional reason,
+ * with Edit / Delete actions. Edit expands the row in place into the form
+ * (Option, date, reason); Delete uses the §17 inline-confirm — the row reveals
+ * a confirm/cancel rather than a modal. Every Rejection is editable and
+ * deletable regardless of age.
  *
- * `showDate` adds the Rejection's date to the row: the Log screen leaves it
- * off — its date-group header already carries the date — while the Option
- * detail page (issue 06), which groups by Option not date, turns it on. Built
- * here so the detail page reuses the component unchanged.
+ * Both screens that render it — the Log screen and the Option detail page —
+ * group Rejections under a date header, so the row itself carries no date.
  */
 export function RejectionRow({
   rejection,
   optionChoices,
-  today,
-  showDate = false,
 }: {
   rejection: LogRejectionRow;
   optionChoices: OptionChoice[];
-  today: string;
-  showDate?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -307,13 +302,16 @@ export function RejectionRow({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-meta font-emphasis uppercase tracking-wide text-danger">
-            {showDate
-              ? `Rejected · ${formatDinnerDate(rejection.rejectedOn, today)}`
-              : "Rejected"}
+            Rejected
           </span>
-          <span className="font-display text-name font-name text-ink">
+          <Link
+            href={`/catalog/${rejection.optionId}`}
+            className="font-display text-name font-name text-ink underline-offset-2
+              hover:underline focus-visible:outline focus-visible:outline-2
+              focus-visible:outline-offset-2 focus-visible:outline-action"
+          >
             {rejection.optionName}
-          </span>
+          </Link>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {saved && (

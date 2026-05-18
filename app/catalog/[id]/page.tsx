@@ -7,11 +7,11 @@ import {
   getOptionRejections,
   getTonightData,
 } from "../../../db/queries";
-import { splitDinners } from "../../../lib/dinner-grouping";
+import { formatDinnerDate, groupByDay } from "../../../lib/dinner-grouping";
 import { epochDayFromSqlDate, today } from "../../../lib/local-day";
 import { placesEnabled } from "../../../lib/places";
 import { rankOption, type RankOption } from "../../../lib/ranking";
-import { DinnerGroup } from "../../log/log-entry-row";
+import { EntryRow } from "../../log/log-entry-row";
 import { RejectionRow } from "../../log/rejection-row";
 import { kindBarClass } from "../../kind-bar";
 import { RowChips } from "../../tonight-row";
@@ -99,9 +99,11 @@ export default async function OptionDetailPage({
     today: todayEpochDay,
   });
 
-  // The History section: this Option's own Log, split into its realized
-  // history (newest first) and its Planned dinners (the group shown above it).
-  const { planned, realized } = splitDinners(optionLog, todaySql);
+  // History interleaves this Option's logged dinners and its Rejections into
+  // one date-sorted list — future-dated groups (Planned dinners and Planned
+  // rejections) first, then realized history newest-first.
+  const { upcoming, history } = groupByDay(optionLog, optionRejections, todaySql);
+  const activity = [...upcoming].reverse().concat(history);
 
   const isRestaurant = option.kind === "restaurant";
   const hasDetails =
@@ -187,62 +189,39 @@ export default async function OptionDetailPage({
 
       <section className="flex flex-col gap-2">
         <h2 className={sectionHeading}>History</h2>
-        {optionLog.length === 0 ? (
+        {activity.length === 0 ? (
           <p className="text-body text-muted">
-            No dinners logged yet for this Option.
+            Nothing logged or rejected yet for this Option.
           </p>
         ) : (
-          <>
-            {planned.length > 0 && (
-              <div className="flex flex-col gap-2">
-                <h3 className={sectionHeading}>Planned</h3>
-                {planned.map((dinner) => (
-                  <DinnerGroup
-                    key={dinner.date}
-                    dinner={dinner}
+          // Each date-group interleaves that day's logged dinners and
+          // Rejections, reusing the Log screen's `EntryRow` / `RejectionRow`
+          // so the two screens manage a Dinner and a Rejection identically
+          // (PRD: Option detail page parity). Their actions revalidate
+          // `/catalog/[id]`, so an edit or delete refreshes this page in place.
+          activity.map((record) => (
+            <div key={record.date} className="flex flex-col gap-1">
+              <h3 className="text-chip font-emphasis text-muted">
+                {formatDinnerDate(record.date, todaySql)}
+              </h3>
+              <ul className="flex flex-col">
+                {record.entries.map((entry) => (
+                  <EntryRow
+                    key={entry.id}
+                    entry={entry}
                     optionChoices={optionChoices}
-                    today={todaySql}
                   />
                 ))}
-              </div>
-            )}
-            {realized.map((dinner) => (
-              <DinnerGroup
-                key={dinner.date}
-                dinner={dinner}
-                optionChoices={optionChoices}
-                today={todaySql}
-              />
-            ))}
-          </>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className={sectionHeading}>Rejections</h2>
-        {optionRejections.length === 0 ? (
-          <p className="text-body text-muted">
-            This Option has never been rejected.
-          </p>
-        ) : (
-          // Every Rejection — past, today, or future — is inline-editable and
-          // deletable through the Log screen's `RejectionRow`, reused here so
-          // the two screens manage a Rejection identically (PRD: Dated
-          // Rejections — Option detail page parity). `showDate` adds the date
-          // since this section groups by Option, not by date; Delete subsumes
-          // the old today-only "Bring back". The issue-04 actions revalidate
-          // `/catalog/[id]`, so an edit or delete refreshes this page in place.
-          <ul className="flex flex-col">
-            {optionRejections.map((rejection) => (
-              <RejectionRow
-                key={rejection.id}
-                rejection={rejection}
-                optionChoices={optionChoices}
-                today={todaySql}
-                showDate
-              />
-            ))}
-          </ul>
+                {record.rejections.map((rejection) => (
+                  <RejectionRow
+                    key={rejection.id}
+                    rejection={rejection}
+                    optionChoices={optionChoices}
+                  />
+                ))}
+              </ul>
+            </div>
+          ))
         )}
       </section>
     </main>
