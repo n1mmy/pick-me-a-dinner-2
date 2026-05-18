@@ -85,11 +85,15 @@ expressions as separate patterns from their constituents, so a compound
 prompts even when each piece is allowlisted.
 
 - **Prefer dedicated tools over `Bash`.** `Read` for file contents (it takes
-  `offset`/`limit` for ranged reads), `Glob` for path patterns, `Grep` for
-  content searches, `Edit`/`Write` for changes. Reach for `Bash` only when
-  shell semantics are actually required (git, package manager, docker, curl).
-  `cat`/`ls`/`grep`/`find` from Bash prompt where the dedicated tool would
-  not.
+  `offset`/`limit` for ranged reads), `Edit`/`Write` for changes. For search,
+  use whichever your tool set actually exposes: the `Glob`/`Grep` tools if
+  present, otherwise `Bash` — `rg`/`grep` for content, `find` for paths,
+  `git ls-files` for tracked files. Native macOS/Linux Claude Code builds
+  drop the `Glob`/`Grep` tools and fold search into Bash; npm-installed
+  builds keep them. Reach for `Bash` for everything else only when shell
+  semantics are genuinely required (git, package manager, docker, curl).
+  `cat`/`ls`/`head`/`tail` from Bash prompt where `Read` would not — use
+  `Read` for file contents.
 - **No compound shell in `Bash` calls** — no `&&`, `||`, `|`, `;`,
   subshells, or redirects (`>`, `>>`, `<`, `2>&1`). Split into separate
   `Bash` tool uses in the same message (they run in parallel) rather than
@@ -110,12 +114,13 @@ prompts even when each piece is allowlisted.
   `/opt/homebrew/bin`). If a tool isn't on `PATH`, treat it as not
   installed.
 - **Brief subagents with this discipline — they don't inherit it.** An
-  `Explore` / `general-purpose` subagent reaches for `sed`, `grep`, `cat`,
-  `find` by reflex, and each prompts the user from inside the run. For
-  read-only exploration, tell the agent to use only `Read`/`Glob`/`Grep`,
-  note that `Read` takes `offset`/`limit` for ranged reads, and forbid the
-  `Bash` tool outright. If a subagent genuinely needs Bash, still pass the
-  no-compound-shell / no-`cd` rules.
+  `Explore` / `general-purpose` subagent reaches for `sed`, `cat`, `head`
+  by reflex, and each prompts the user from inside the run. For read-only
+  exploration, tell the agent to use `Read` (note it takes `offset`/`limit`
+  for ranged reads) plus the search rule above — `Glob`/`Grep` if present,
+  otherwise `Bash` search. On an npm build where `Glob`/`Grep` exist you can
+  forbid the `Bash` tool outright; on a native build the agent needs `Bash`
+  for search, so pass it the no-compound-shell / no-`cd` rules instead.
 
 Widening the allowlist in `.claude/settings.local.json` is the user's call,
 not Claude's.

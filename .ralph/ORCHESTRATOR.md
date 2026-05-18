@@ -84,8 +84,15 @@ the rule is stated here so you never even attempt it.
    Bash(git *), Bash(pnpm *), Bash(npm *), Bash(npx *),
    Bash(node *), Bash(tsx *), Bash(docker *), Bash(docker-compose *),
    Bash(curl *), Bash(wget *), Bash(command -v *), Bash(which *),
+   Bash(rg *), Bash(grep *), Bash(find *),
    Bash(test *), Bash(echo *)
    ```
+
+   `Glob`/`Grep` are the search tools on npm-installed Claude Code;
+   native macOS/Linux builds drop those tools and fold search into Bash,
+   which is why `Bash(rg *)`, `Bash(grep *)`, and `Bash(find *)` are
+   listed too. A worker uses whichever its tool set actually exposes —
+   keep both kinds of entry so the loop runs on either build.
 
    And these `deny` entries, so remote git is hard-blocked regardless of
    doctrine (a `deny` rule overrides `allow`):
