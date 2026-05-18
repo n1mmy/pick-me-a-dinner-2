@@ -370,13 +370,14 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
         searchEnabled={false}
       />,
     );
-    // Decided mode: the "Tonight's dinner" block is shown, the picker collapsed.
+    // Decided mode: the "Tonight's dinner" block sits above the open
+    // "Add another option" picker.
     expect(
       screen.getByRole("region", { name: "Tonight's dinner" }),
     ).toBeTruthy();
     expect(
-      screen.queryByRole("group", { name: "Filter by kind" }),
-    ).toBeNull();
+      screen.getByRole("region", { name: "Add another option" }),
+    ).toBeTruthy();
 
     rerender(
       <TonightScreen
@@ -386,9 +387,13 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
       />,
     );
 
-    // Picker mode: the decided block is gone and the ranked picker is back.
+    // Picker mode: the decided block and its "Add another option" divider
+    // are gone, and the ranked picker is the whole screen.
     expect(
       screen.queryByRole("region", { name: "Tonight's dinner" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("region", { name: "Add another option" }),
     ).toBeNull();
     expect(
       screen.getByRole("group", { name: "Filter by kind" }),
@@ -397,8 +402,8 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
   });
 });
 
-describe("TonightScreen — decided-mode picker toggle", () => {
-  it("collapses the picker behind 'Add another option' in decided mode", () => {
+describe("TonightScreen — decided-mode picker", () => {
+  it("keeps the ranked picker open below the decided block, under a divider", () => {
     render(
       <TonightScreen
         tonightsDinner={DINNER}
@@ -406,25 +411,24 @@ describe("TonightScreen — decided-mode picker toggle", () => {
         searchEnabled={false}
       />,
     );
-    // Collapsed by default: the picker's filter zone is not rendered.
+    // No collapse toggle: the picker is on screen straight away, under an
+    // "Add another option" divider whose hint says picking adds a second
+    // dinner rather than replacing the first.
     expect(
-      screen.queryByRole("group", { name: "Filter by kind" }),
+      screen.queryByRole("button", { name: "Add another option" }),
     ).toBeNull();
-
-    // Tapping "Add another option" reveals the picker.
-    fireEvent.click(screen.getByRole("button", { name: "Add another option" }));
+    expect(
+      screen.getByRole("region", { name: "Add another option" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/won.t replace what.s already chosen/i),
+    ).toBeTruthy();
     expect(
       screen.getByRole("group", { name: "Filter by kind" }),
     ).toBeTruthy();
-
-    // Tapping again hides it.
-    fireEvent.click(screen.getByRole("button", { name: "Hide options" }));
-    expect(
-      screen.queryByRole("group", { name: "Filter by kind" }),
-    ).toBeNull();
   });
 
-  it("shows the all-picked message when the picker is opened with nothing left", () => {
+  it("shows the all-picked message when nothing is left to pick", () => {
     render(
       <TonightScreen
         tonightsDinner={DINNER}
@@ -432,9 +436,12 @@ describe("TonightScreen — decided-mode picker toggle", () => {
         searchEnabled={false}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Add another option" }));
     expect(
       screen.getByText("Every Option is already on tonight’s dinner."),
     ).toBeTruthy();
+    // With nothing left to rank there is no picker and no divider section.
+    expect(
+      screen.queryByRole("region", { name: "Add another option" }),
+    ).toBeNull();
   });
 });
