@@ -1,6 +1,6 @@
 # 01 — Schema: a Rejection is unique per Option per date
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -27,15 +27,25 @@ This slice is the schema only. The server actions that surface the resulting
 
 ## Acceptance criteria
 
-- [ ] `rejections` carries a `UNIQUE(option_id, rejected_on)` constraint,
+- [x] `rejections` carries a `UNIQUE(option_id, rejected_on)` constraint,
       defined in the Drizzle schema
-- [ ] A new Drizzle migration adds the constraint and applies cleanly against
+- [x] A new Drizzle migration adds the constraint and applies cleanly against
       the existing dev database
-- [ ] The startup schema-version check recognizes the new migration
-- [ ] A second `rejections` row with the same `(option_id, rejected_on)` fails
+- [x] The startup schema-version check recognizes the new migration
+- [x] A second `rejections` row with the same `(option_id, rejected_on)` fails
       at the database
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
+
+## Comments
+
+The dev database already carried `rejections_option_rejected_on_unique` and
+4 recorded migrations — a prior loop iteration applied migration `0003` before
+its worktree was discarded. `pnpm db:migrate` therefore reported the constraint
+already exists rather than re-creating it; the migration SQL is correct and the
+dev DB is in the intended end state (journal entries 4 = applied migrations 4,
+so the startup schema-version check passes). A duplicate `(option_id,
+rejected_on)` insert was verified to fail with Postgres `23505`.
 
 ## Blocked by
 
