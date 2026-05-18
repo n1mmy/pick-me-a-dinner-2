@@ -108,6 +108,9 @@ Every Tonight row carries exactly two color signals:
 | `action` | `#2c2f36` | PICK button fill (charcoal-ink) |
 | `action-hover` | `#3c4049` | PICK hover / pressed |
 | `action-ink` | `#ffffff` | Text/label on the PICK fill |
+| `accent` | `#6d4ed6` | AI search button fill — vivid violet, set apart from `action` |
+| `accent-hover` | `#5c3ec4` | AI search button hover / pressed |
+| `accent-ink` | `#ffffff` | Text/label on the `accent` fill |
 | `success` | `#3f8a4a` | Confirmation, success feedback (shares the green) |
 | `success-wash` | `#dee9db` | Logged-dinner-row background — much-lighter success wash |
 | `danger` | `#c4453a` | Destructive actions, errors (shares the red) |
@@ -119,6 +122,12 @@ stops of a continuous scale; the implementation interpolates between them,
 applying the result at low opacity for Explanation chip backgrounds and at
 higher strength for Tag text. The PICK button is a neutral charcoal so it
 never collides with the green end of the heatmap.
+
+`accent` is the one deliberate exception to the neutral-everything-else rule:
+the Tonight AI-search button is a vivid violet so the smart-search affordance
+is unmistakably its own thing, not a second PICK. It is a UI-action accent,
+not a third data channel — it never appears on a dinner row, so it does not
+compete with the meal-kind or recency signals.
 
 The earlier excluded-tag-filter chip token (`exclude`) is carried over from
 the prior warm system and should be re-tuned against this cool base when the
@@ -150,6 +159,9 @@ check before relying on it.
 | `danger-wash` | `#33272a` |
 | `action` | `#e6e7ea` |
 | `action-ink` | `#1a1c1f` |
+| `accent` | `#8b73ee` |
+| `accent-hover` | `#7a60e3` |
+| `accent-ink` | `#ffffff` |
 | `planned` | `#cf9a45` |
 
 ## Spacing
@@ -234,3 +246,4 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-05-16 | PICK = filled clay button; Tonight rows compact | User decisions. PICK is the app's single primary action — must be unmissable; compact density serves the data-density brief. |
 | 2026-05-17 | Color system revised via `/design-shotgun`: cool-grey base, two-channel kind-bar + red→green recency heatmap | The prior warm palette read as too monochrome to parse quickly. Six rounds of Tonight-screen mockups; user chose the cool-slate base with teal/plum meal-kind left bars and a red→green recency heatmap on the Explanation chip and per-tag text. PICK moved from clay to neutral charcoal so it never collides with the heatmap's green. Spec only — not yet in code. |
 | 2026-05-17 | Interaction principle: expose every sensible control, don't enforce a journey (ADR-0007) | Each item-representation carries every control that makes sense for it, trading off only for space. Surfaced while designing the Option detail page. |
+| 2026-05-18 | Added `accent` (vivid violet) for the Tonight AI-search button | User asked for an "exciting" search button distinct from PICK. A dedicated UI-action accent keeps functional color intact — it never lands on a dinner row, so it does not collide with the kind or recency channels. |

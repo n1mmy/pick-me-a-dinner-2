@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { TonightRow } from "../lib/ranking";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
@@ -84,8 +85,7 @@ afterEach(() => {
 });
 
 /**
- * Click "Search" and wait for the in-flight AI-search transition to *fully*
- * settle before returning.
+ * Wait for the in-flight AI-search transition to *fully* settle.
  *
  * The search runs inside an async `useTransition` (`startTransition(async …)`).
  * Under React 19 the transition's `pending` flag does not flip back to `false`
@@ -97,14 +97,25 @@ afterEach(() => {
  * assertion reads the not-yet-flushed value. That race is what made this block
  * flaky.
  *
- * Waiting for the Search button's label to revert from "Searching…" to
- * "Search" pins `pending` back to `false` — and, because the AI result and the
- * label revert land in the same transition commit, also guarantees the result
- * (or the inline error) has rendered.
+ * The submit button is `disabled` only while `pending`, so waiting for it to
+ * be enabled again pins `pending` back to `false` — and the AI result (or the
+ * inline error) lands in that same transition commit. The button is matched by
+ * the `/^Search/` prefix so the wait rides out its label cycling through
+ * "Search" → "Searching — …" → "Search complete …".
  */
+async function waitForSearchSettled() {
+  await waitFor(() => {
+    const button = screen.getByRole("button", {
+      name: /^Search/,
+    }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+  });
+}
+
+/** Click the Search button and wait for the transition to fully settle. */
 async function submitSearchAndSettle() {
-  fireEvent.click(screen.getByRole("button", { name: "Search" }));
-  await screen.findByRole("button", { name: "Search" });
+  fireEvent.click(screen.getByRole("button", { name: /^Search/ }));
+  await waitForSearchSettled();
 }
 
 /** Re-query the search input — never reuse a captured ref across re-renders. */
@@ -162,6 +173,21 @@ describe("TonightScreen — AI search", () => {
     expect(container.querySelectorAll("p.bg-raised")).toHaveLength(1);
   });
 
+  it("shows the in-field clear control once the query has text", () => {
+    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+
+    // No text and no search run yet — nothing to clear, so no ✕.
+    expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
+
+    fireEvent.change(searchInput(), { target: { value: "something light" } });
+
+    // Typing reveals the in-field ✕; clicking it empties the query, and the
+    // ✕ goes away again.
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(searchInput().value).toBe("");
+    expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
+  });
+
   it("restores the deterministic list when the search is cleared", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,
@@ -171,11 +197,8 @@ describe("TonightScreen — AI search", () => {
     render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
     await submitSearchAndSettle();
     await screen.findByText("Light and quick");
-    // Wait for the in-flight transition to settle — the Clear control is
-    // disabled while `pending`, so clicking it sooner is a silent no-op.
-    await screen.findByRole("button", { name: "Search" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
 
     // Both deterministic rows are back and the AI rationale is gone.
     await waitFor(() => {
@@ -195,8 +218,14 @@ describe("TonightScreen — AI search", () => {
     expect(await screen.findByText("No Options fit that search.")).toBeTruthy();
     expect(screen.queryByText("Apple Crumble")).toBeNull();
 
-    // The inline clear control returns the screen to the deterministic list.
-    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    // The empty-state's own inline clear control returns the screen to the
+    // deterministic list. Scope to the empty-state block — the in-field ✕
+    // shares the "Clear search" name and is also on screen here.
+    const emptyState = screen.getByText("No Options fit that search.")
+      .parentElement as HTMLElement;
+    fireEvent.click(
+      within(emptyState).getByRole("button", { name: "Clear search" }),
+    );
     await waitFor(() => {
       expect(screen.getByText("Apple Crumble")).toBeTruthy();
     });
@@ -224,11 +253,8 @@ describe("TonightScreen — AI search", () => {
     render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
     await submitSearchAndSettle();
     await screen.findByText("Search unavailable — try again");
-    // Wait for the in-flight transition to settle — the Clear control is
-    // disabled while `pending`, so clicking it sooner is a silent no-op.
-    await screen.findByRole("button", { name: "Search" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
 
     await waitFor(() => {
       expect(
@@ -265,10 +291,7 @@ describe("TonightScreen — AI search", () => {
     });
     expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeNull();
 
-    // Wait for the in-flight transition to settle — the Clear control is
-    // disabled while `pending`, so clicking it sooner is a silent no-op.
-    await screen.findByRole("button", { name: "Search" });
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
 
     // Clearing restores both the deterministic list and its filter controls.
     await waitFor(() => {
@@ -296,7 +319,9 @@ describe("TonightScreen — AI search", () => {
 
     // While the search is in flight the box is disabled — so only one search
     // runs at a time — and the deterministic list stays visible underneath.
-    await screen.findByRole("button", { name: "Searching…" });
+    // In flight the Search button is a spinner; its accessible name carries
+    // the elapsed-second count, so it is matched by prefix.
+    await screen.findByRole("button", { name: /^Searching/ });
     expect(searchInput().disabled).toBe(true);
     expect(screen.getByText("Apple Crumble")).toBeTruthy();
 
@@ -310,7 +335,7 @@ describe("TonightScreen — AI search", () => {
       });
     });
     await screen.findByText("Light and quick");
-    await screen.findByRole("button", { name: "Search" });
+    await waitForSearchSettled();
     expect(searchInput().disabled).toBe(false);
   });
 
@@ -329,6 +354,23 @@ describe("TonightScreen — AI search", () => {
     await submitSearchAndSettle();
     expect(await screen.findByText("Light and quick")).toBeTruthy();
     expect(screen.queryByText("Search unavailable — try again")).toBeNull();
+  });
+
+  it("marks the search button complete after a successful search", async () => {
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o2", reason: "Light and quick" }],
+    });
+
+    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    await submitSearchAndSettle();
+
+    // The button drops "Search" for a done badge — a check plus the elapsed
+    // time — once the result lands; its accessible name reflects the state.
+    expect(
+      await screen.findByRole("button", { name: /^Search complete/ }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
   });
 
   it("hides the search box when AI search is not enabled", () => {
