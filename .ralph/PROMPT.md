@@ -41,6 +41,17 @@ call wastes the loop. The fixes that matter most here:
   redirects (`>`, `>>`, `<`, `2>&1`). Split into separate `Bash` calls
   in one message; they run in parallel.
 - **No `cd <path> && …`** — the loop's cwd is already the repo root.
+- **Run every command bare — no wrapper, no prefix.** The allowlist
+  matches on the command's first word (`pnpm *`, `git *`, …), so the
+  matcher reads any wrapper as the command. `env -i … pnpm build`,
+  `env VAR=x pnpm build`, `VAR=x pnpm build`, `/abs/path/to/pnpm build`,
+  `xargs`, `time`, `nice`, `sh -c '…'` are all *unrecognized shapes*
+  that prompt — and a denied prompt halts the loop. Run `pnpm build`,
+  `pnpm typecheck`, etc. exactly as written. The gate "passes env-free"
+  means the build needs **no extra env vars** — running `pnpm build`
+  bare already proves that. Do **not** strip or rebuild the environment
+  with `env -i` / `env VAR=…` to "test" env-free behaviour: it is the
+  wrong shape *and* it removes the `PATH` that finds `pnpm` itself.
 - **File contents → `Read`; search → `Glob`/`Grep` if they exist, else
   `Bash`.** Native macOS/Linux Claude Code builds drop the `Glob`/`Grep`
   tools and fold search into Bash; npm-installed builds keep them. Use
