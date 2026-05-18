@@ -19,6 +19,8 @@ const config: Config = {
         line: "var(--color-line)",
         "kind-home": "var(--color-kind-home)",
         "kind-restaurant": "var(--color-kind-restaurant)",
+        "kind-home-wash": "var(--color-kind-home-wash)",
+        "kind-restaurant-wash": "var(--color-kind-restaurant-wash)",
         "recency-overdue": "var(--color-recency-overdue)",
         "recency-mid": "var(--color-recency-mid)",
         "recency-recent": "var(--color-recency-recent)",

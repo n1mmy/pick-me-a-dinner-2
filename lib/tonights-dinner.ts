@@ -39,23 +39,29 @@ export type SplitTonight = {
 };
 
 /**
- * Split the Tonight screen given the ranked rows and today's Log entries.
+ * Split the Tonight screen given the live ranked rows, today's Log entries, and
+ * `decidedRows`.
  *
  * `tonightsDinner` is the Picked Options ordered by pick order, oldest first,
  * so a multi-Option Dinner reads as how the evening came together and never
- * reshuffles when another Option is added. `picker` is the ranked rows minus
- * every Picked Option, so the picker only ever offers what is not yet Picked.
+ * reshuffles when another Option is added. Each Option's row is taken from
+ * `decidedRows` — the same Catalog ranked over the Log *before today* — so a
+ * just-Picked Option's Recency and Tag chips show how overdue it was when it
+ * was Picked rather than a meaningless "0d". `picker` is the live `rankedRows`
+ * minus every Picked Option, so the picker only ever offers what is not yet
+ * Picked, ranked as it is now.
  *
- * A today Log entry whose Option is not in the ranked set — e.g. the Option was
+ * A today Log entry whose Option is not in `decidedRows` — e.g. the Option was
  * Archived after it was Picked — has no row to render; it is skipped without
  * error rather than crashing the screen.
  */
 export function splitTonight(
   rankedRows: TonightRow[],
   todayEntries: TodayLogEntry[],
+  decidedRows: TonightRow[],
 ): SplitTonight {
-  const rowByOptionId = new Map(
-    rankedRows.map((row) => [row.option.id, row]),
+  const decidedByOptionId = new Map(
+    decidedRows.map((row) => [row.option.id, row]),
   );
 
   const ordered = [...todayEntries].sort(
@@ -65,7 +71,7 @@ export function splitTonight(
   const tonightsDinner: TonightsDinnerEntry[] = [];
   const pickedOptionIds = new Set<string>();
   for (const entry of ordered) {
-    const row = rowByOptionId.get(entry.optionId);
+    const row = decidedByOptionId.get(entry.optionId);
     if (!row) continue;
     pickedOptionIds.add(entry.optionId);
     tonightsDinner.push({ entryId: entry.id, row });

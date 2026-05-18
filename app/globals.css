@@ -21,6 +21,11 @@
   /* Meal-kind left bar — teal for home-cooked, plum for restaurant. */
   --color-kind-home: #2c6e6e;
   --color-kind-restaurant: #7a4f6b;
+  /* Much-lighter washes of the two kind hues — the tinted background of each
+   * row in the decided "Tonight's dinner" block, so the decided area reads as
+   * distinct from the picker below it. */
+  --color-kind-home-wash: #dde8e8;
+  --color-kind-restaurant-wash: #e7e0e6;
   /* Recency heatmap — three anchor stops of a continuous red->green scale;
    * lib/recency-color.ts interpolates between them. */
   --color-recency-overdue: #3f8a4a;
@@ -83,6 +88,8 @@
     --color-line: #383b40;
     --color-kind-home: #4a9a9a;
     --color-kind-restaurant: #a87d99;
+    --color-kind-home-wash: #212e30;
+    --color-kind-restaurant-wash: #2e2a30;
     --color-recency-overdue: #5aa863;
     --color-recency-mid: #bdae89;
     --color-recency-recent: #d65a4f;
@@ -112,6 +119,12 @@
     font-family: var(--font-geist-sans), -apple-system, system-ui, sans-serif;
     font-size: var(--text-body);
     line-height: 1.5;
+    /* When a Pick grows the "Tonight's dinner" block at the top of the page,
+     * scroll anchoring would otherwise push the viewport down to keep the old
+     * content in place — fighting the scroll-to-top in app/tonight-screen.tsx.
+     * The app has no above-the-fold async content that benefits from
+     * anchoring, so turning it off is safe. */
+    overflow-anchor: none;
   }
 
   body {

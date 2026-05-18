@@ -61,8 +61,17 @@ export function TonightsDinnerBlock({
 function DecidedRow({ entry }: { entry: TonightsDinnerEntry }) {
   const { entryId, row } = entry;
   const actions = decidedActions(row.option);
+  // A light wash of the Option's kind hue tints each decided row, so the
+  // "Tonight's dinner" block reads as a distinct shaded area above the picker.
+  const washClass =
+    row.option.kind === "home"
+      ? "bg-kind-home-wash"
+      : "bg-kind-restaurant-wash";
   return (
-    <li className={`border-b border-line py-3 ${kindBarClass(row.option.kind)}`}>
+    <li
+      className={`border-b border-line py-3 last:border-b-0 ${washClass}
+        ${kindBarClass(row.option.kind)}`}
+    >
       <div className="flex items-center justify-between gap-2">
         <Link
           href={`/catalog/${row.option.id}`}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import type { TodayRejection } from "../db/queries";
 import type { AiRankingRow } from "../lib/ai-search";
@@ -33,9 +33,10 @@ const focusRing =
  * flat ranked list.
  *
  * **Decided mode** — one or more Log entries dated today — surfaces a "Tonight's
- * dinner" block of what was Picked and collapses the picker behind an "Add
- * another option" control. Picking from the re-opened picker appends the Option
- * to Tonight's dinner and auto-collapses the picker again. The heading stays
+ * dinner" block of what was Picked, then keeps the ranked picker open below it
+ * under an "Add another option" divider. Picking from that picker appends the
+ * Option to Tonight's dinner — a deliberate second dinner, not a replacement,
+ * which the divider's heading and hint make explicit. The heading stays
  * "Tonight" in both modes; a visually-hidden live region announces the switch.
  *
  * The mode is not client state: it follows `tonightsDinner`, which the server
@@ -74,11 +75,6 @@ export function TonightScreen({
   // and not "all rejected" (both of which are real states with their own copy).
   const catalogEmpty = !decided && pickerRows.length === 0 && !allRejected;
 
-  // In decided mode the picker is collapsed by default behind "Add another
-  // option"; picker mode shows it outright, so this flag only governs decided
-  // mode.
-  const [pickerOpen, setPickerOpen] = useState(false);
-
   // The All/Home/Restaurant kind filter lives here so its segment can sit in
   // the page header beside "Tonight"; the Picker still owns the filtering.
   const [kind, setKind] = useState<KindFilter>("all");
@@ -86,16 +82,24 @@ export function TonightScreen({
   // then, since an AI result is ranked by the query alone.
   const [aiActive, setAiActive] = useState(false);
 
-  // Auto-collapse: a Pick revalidates the page, so `tonightsDinner` grows and
-  // the re-opened picker should drop back to the settled view without a tap.
-  // Keying off the count catches the new entry without re-collapsing on every
-  // unrelated re-render.
+  // A Pick grows `tonightsDinner`; when it does, animate the page up to the
+  // "Tonight's dinner" block so the Household sees the Option land there. The
+  // effect runs after the Pick's revalidation has committed, so the scroll
+  // animates against the settled layout — scrolling on the tap instead races
+  // that reflow and gets jolted. The previous count is held in `sessionStorage`,
+  // not a ref or state, so the comparison survives the revalidation even if it
+  // remounts this component; a Remove (which shrinks the count) never scrolls.
   const dinnerCount = tonightsDinner.length;
-  const lastDinnerCount = useRef(dinnerCount);
   useEffect(() => {
-    if (dinnerCount !== lastDinnerCount.current) {
-      lastDinnerCount.current = dinnerCount;
-      setPickerOpen(false);
+    const key = "pmad:tonightDinnerCount";
+    const stored = sessionStorage.getItem(key);
+    const previous = stored === null ? dinnerCount : Number(stored);
+    sessionStorage.setItem(key, String(dinnerCount));
+    if (dinnerCount > previous) {
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
     }
   }, [dinnerCount]);
 
@@ -106,15 +110,10 @@ export function TonightScreen({
     ? "Tonight's dinner is decided."
     : "Choosing tonight's dinner.";
 
-  // The "Rejected tonight" disclosure is pinned to the bottom of the picker, so
-  // it shows wherever the picker shows: always in picker mode, and in decided
-  // mode only once the picker has been re-opened. Collapsed mode keeps it off
-  // the screen entirely, so it costs nothing until the picker is in view.
-  const showDisclosure = !decided || pickerOpen;
-
   // The kind segment shows only when a Picker is actually on screen and not
-  // overridden by an AI result.
-  const pickerRendered = pickerRows.length > 0 && (!decided || pickerOpen);
+  // overridden by an AI result. The picker is on screen whenever there are rows
+  // to rank — in picker mode, and below the divider in decided mode.
+  const pickerRendered = pickerRows.length > 0;
   const showKindSegment = pickerRendered && !aiActive;
 
   return (
@@ -147,31 +146,35 @@ export function TonightScreen({
       ) : decided ? (
         <>
           <TonightsDinnerBlock entries={tonightsDinner} />
-          <button
-            type="button"
-            aria-expanded={pickerOpen}
-            onClick={() => setPickerOpen((open) => !open)}
-            className={`min-h-11 self-start rounded-control border border-line
-              px-4 text-body font-emphasis text-action transition-colors
-              duration-short hover:bg-raised ${focusRing}`}
-          >
-            {pickerOpen ? "Hide options" : "Add another option"}
-          </button>
-          {pickerOpen &&
-            (pickerRows.length === 0 ? (
-              <p className="text-body text-muted">
-                {allRejected
-                  ? "Every remaining Option has been rejected for tonight."
-                  : "Every Option is already on tonight’s dinner."}
+          {pickerRows.length === 0 ? (
+            <p className="border-t border-line pt-5.5 text-body text-muted">
+              {allRejected
+                ? "Every remaining Option has been rejected for tonight."
+                : "Every Option is already on tonight’s dinner."}
+            </p>
+          ) : (
+            // The ranked picker stays open below the decided block, under a
+            // divider. Picking from it Picks a *second* dinner for tonight
+            // rather than replacing the first — the heading and hint say so.
+            <section
+              aria-label="Add another option"
+              className="flex flex-col gap-2 border-t border-line pt-5.5"
+            >
+              <h2 className="text-meta uppercase tracking-wide text-muted">
+                Add another option
+              </h2>
+              <p className="text-meta text-muted">
+                Picking one adds it to tonight&rsquo;s dinner — it won&rsquo;t
+                replace what&rsquo;s already chosen.
               </p>
-            ) : (
               <Picker
                 rows={pickerRows}
                 searchEnabled={searchEnabled}
                 kind={kind}
                 onAiActiveChange={setAiActive}
               />
-            ))}
+            </section>
+          )}
         </>
       ) : (
         <Picker
@@ -182,11 +185,11 @@ export function TonightScreen({
         />
       )}
 
-      {/* Pinned to the bottom of the picker list, after the ranked rows —
-          collapsed by default, so it costs no screen space until scrolled to.
-          Rendered only when the picker is in view and something was rejected
-          today; it then lists today's Rejections with a "Bring back" undo. */}
-      {showDisclosure && rejectedTonight.length > 0 && (
+      {/* Pinned to the bottom of the page, after the ranked rows — collapsed
+          by default, so it costs no screen space until scrolled to. Rendered
+          whenever something was rejected today; it then lists today's
+          Rejections with a "Bring back" undo. */}
+      {rejectedTonight.length > 0 && (
         <RejectedTonightDisclosure rejections={rejectedTonight} />
       )}
     </main>
@@ -196,9 +199,8 @@ export function TonightScreen({
 /**
  * The "Rejected tonight (N)" disclosure (PRD: Rejections on Tonight) — pinned
  * at the bottom of the picker list, collapsed by default so it costs no screen
- * space until the Household scrolls to it; the pattern mirrors decided mode's
- * "Add another option" disclosure. The heading carries a count of today's
- * Rejections.
+ * space until the Household scrolls to it. The heading carries a count of
+ * today's Rejections.
  *
  * Expanded, it lists each of today's Rejections — the Option name, and the
  * reason when one was given — each with a "Bring back" control. "Bring back"
