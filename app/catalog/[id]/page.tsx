@@ -7,13 +7,13 @@ import {
   getOptionRejections,
   getTonightData,
 } from "../../../db/queries";
-import { formatDinnerDate, splitDinners } from "../../../lib/dinner-grouping";
+import { splitDinners } from "../../../lib/dinner-grouping";
 import { epochDayFromSqlDate, todaySqlDate } from "../../../lib/local-day";
 import { placesEnabled } from "../../../lib/places";
 import { rankOption, type RankOption } from "../../../lib/ranking";
 import { DinnerGroup } from "../../log/log-entry-row";
+import { RejectionRow } from "../../log/rejection-row";
 import { kindBarClass, RowChips } from "../../tonight-row";
-import { BringBackButton } from "./bring-back-button";
 import { OptionControls } from "./option-controls";
 
 /**
@@ -240,33 +240,23 @@ export default async function OptionDetailPage({
             This Option has never been rejected.
           </p>
         ) : (
+          // Every Rejection — past, today, or future — is inline-editable and
+          // deletable through the Log screen's `RejectionRow`, reused here so
+          // the two screens manage a Rejection identically (PRD: Dated
+          // Rejections — Option detail page parity). `showDate` adds the date
+          // since this section groups by Option, not by date; Delete subsumes
+          // the old today-only "Bring back". The issue-04 actions revalidate
+          // `/catalog/[id]`, so an edit or delete refreshes this page in place.
           <ul className="flex flex-col">
-            {optionRejections.map((rejection) => {
-              // Today vs settled history — the same `rejected_on === today`
-              // split `lib/rejections.ts` partitions on. A Rejection made
-              // today is still undoable and carries Bring back; an earlier
-              // one is settled history and renders plain.
-              const undoable = rejection.rejectedOn === today;
-              return (
-                <li
-                  key={rejection.id}
-                  className="flex items-start justify-between gap-3
-                    border-b border-line py-3"
-                >
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="text-body text-ink">
-                      {formatDinnerDate(rejection.rejectedOn, today)}
-                    </span>
-                    {rejection.reason && (
-                      <p className="text-meta text-muted">
-                        {rejection.reason}
-                      </p>
-                    )}
-                  </div>
-                  {undoable && <BringBackButton rejectionId={rejection.id} />}
-                </li>
-              );
-            })}
+            {optionRejections.map((rejection) => (
+              <RejectionRow
+                key={rejection.id}
+                rejection={rejection}
+                optionChoices={optionChoices}
+                today={today}
+                showDate
+              />
+            ))}
           </ul>
         )}
       </section>

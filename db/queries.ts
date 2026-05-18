@@ -222,6 +222,29 @@ export async function getTonightData(todaySqlDate: string): Promise<{
   };
 }
 
+/**
+ * The full Log for the AI search snapshot (PRD: Dated Rejections — AI snapshot,
+ * ADR-0008): every `dinner_log` row of an **active** Option, **regardless of
+ * date** — past entries and future-dated ones (Planned dinners) alike. It is
+ * the AI-snapshot counterpart of `getTonightData`'s `logEntries`, which filters
+ * `eaten_on <= today` for the deterministic ranking. The AI snapshot sees the
+ * Household's near future (ADR-0008); the deterministic ranking still gets the
+ * non-future Log from `getTonightData`, so only the AI path sees the future.
+ * Only active Options are joined, mirroring how `getTonightData` already
+ * excludes Archived Options' Log entries from an AI search.
+ */
+export async function getFullLogForSnapshot(): Promise<TonightLogRow[]> {
+  return db
+    .select({
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(dinnerLog.optionId, options.id))
+    .where(eq(options.active, true));
+}
+
 /** A Log entry joined to its Option, narrowed to what the Log screen renders. */
 export type LogEntryRow = {
   id: string;
@@ -372,37 +395,66 @@ export async function getRejections(): Promise<RejectionRow[]> {
   }));
 }
 
-/**
- * One Rejection in an Option's history, narrowed to what the Option detail
- * page's Rejection history section renders (PRD: Option detail page).
- */
-export type OptionRejectionRow = {
-  /** The `rejections` row id — the handle the "Bring back" action deletes by. */
+/** A Rejection joined to its Option, narrowed to what the Log screen renders. */
+export type LogRejectionRow = {
   id: string;
+  optionId: string;
+  optionName: string;
+  kind: "home" | "restaurant";
+  /** `rejected_on` as a SQL `date` string (`"YYYY-MM-DD"`); may be past or future. */
+  rejectedOn: string;
   /** The optional short reason; `null` when the Household gave none. */
   reason: string | null;
-  /** `rejected_on` as a SQL `date` string (`"YYYY-MM-DD"`). */
-  rejectedOn: string;
 };
+
+/**
+ * The full Rejection history for the Log screen (PRD: Dated Rejections): every
+ * `rejections` row — past, today, and future (Planned rejections) — joined to
+ * its Option, ordered newest `rejected_on` first. It is the counterpart of
+ * `getLog`: the Log screen interleaves these into its date-groups, splitting
+ * future from non-future. Unlike `getRejections` (the AI-snapshot feed) it is
+ * not filtered to active Options — the Log shows an Archived Option's
+ * Rejections in its history too.
+ */
+export async function getLogRejections(): Promise<LogRejectionRow[]> {
+  return db
+    .select({
+      id: rejections.id,
+      optionId: rejections.optionId,
+      optionName: options.name,
+      kind: options.kind,
+      rejectedOn: rejections.rejectedOn,
+      reason: rejections.reason,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(rejections.optionId, options.id))
+    .orderBy(desc(rejections.rejectedOn), asc(options.name));
+}
 
 /**
  * Every Rejection ever made for one Option — `rejections` rows scoped to the
  * given Option id, ordered newest `rejected_on` first (`created_at` breaks a
- * same-day tie). The Option detail page's Rejection history section lists
- * these (PRD: Option detail page). Unlike `getRejections` it is scoped to one
- * Option and unlike the Tonight queries it is not filtered to active Options —
- * the detail page serves an Archived Option's Rejection history too.
+ * same-day tie). The Option detail page's Rejections section lists these (PRD:
+ * Dated Rejections — Option detail page parity), reusing the Log screen's
+ * `RejectionRow` — so this returns the same `LogRejectionRow` shape, each row
+ * joined to its Option. Unlike `getRejections` it is scoped to one Option, and
+ * unlike the Tonight queries it is not filtered to active Options — the detail
+ * page serves an Archived Option's Rejection history too.
  */
 export async function getOptionRejections(
   optionId: string,
-): Promise<OptionRejectionRow[]> {
+): Promise<LogRejectionRow[]> {
   return db
     .select({
       id: rejections.id,
-      reason: rejections.reason,
+      optionId: rejections.optionId,
+      optionName: options.name,
+      kind: options.kind,
       rejectedOn: rejections.rejectedOn,
+      reason: rejections.reason,
     })
     .from(rejections)
+    .innerJoin(options, eq(rejections.optionId, options.id))
     .where(eq(rejections.optionId, optionId))
     .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
 }

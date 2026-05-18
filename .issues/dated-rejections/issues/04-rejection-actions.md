@@ -1,6 +1,6 @@
 # 04 — Rejection server actions + Log Rejections query
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -39,21 +39,21 @@ both create and update — the inline error is returned, not thrown. Prior art:
 
 ## Acceptance criteria
 
-- [ ] Create / update / delete dated-Rejection actions, all
+- [x] Create / update / delete dated-Rejection actions, all
       `authedAction`-wrapped, rejecting an unauthenticated caller
-- [ ] Create and update store an empty/whitespace reason as `null` and reject
+- [x] Create and update store an empty/whitespace reason as `null` and reject
       an invalid date
-- [ ] A duplicate `(option_id, rejected_on)` on create or update returns the
+- [x] A duplicate `(option_id, rejected_on)` on create or update returns the
       inline "Already rejected for that date" error rather than throwing
-- [ ] A malformed or stale Option id returns "That option is no longer
+- [x] A malformed or stale Option id returns "That option is no longer
       available"
-- [ ] Delete removes the `rejections` row entirely
-- [ ] Each action revalidates `/`, `/log`, and `/catalog/[id]`
-- [ ] A Log-screen Rejections query returns Rejections joined to their Option,
+- [x] Delete removes the `rejections` row entirely
+- [x] Each action revalidates `/`, `/log`, and `/catalog/[id]`
+- [x] A Log-screen Rejections query returns Rejections joined to their Option,
       newest `rejected_on` first
-- [ ] A `.db.test.ts` covers the create and update collision paths, modelled on
+- [x] A `.db.test.ts` covers the create and update collision paths, modelled on
       `app/log/actions.db.test.ts`
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by

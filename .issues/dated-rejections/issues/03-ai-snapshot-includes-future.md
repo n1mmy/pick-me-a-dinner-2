@@ -1,6 +1,6 @@
 # 03 — AI snapshot includes the future
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -34,18 +34,18 @@ behavior. No live Anthropic call is made in any test.
 
 ## Acceptance criteria
 
-- [ ] `buildSnapshot` includes future-dated Log entries in the snapshot `log`,
+- [x] `buildSnapshot` includes future-dated Log entries in the snapshot `log`,
       each with its real date
-- [ ] The deterministic ranking (`lib/ranking.ts`) still excludes future Log
+- [x] The deterministic ranking (`lib/ranking.ts`) still excludes future Log
       rows
-- [ ] The not-today Rejections group carries future-dated rows and is labelled
+- [x] The not-today Rejections group carries future-dated rows and is labelled
       date-neutrally in the snapshot type and the system prompt
-- [ ] An Option whose only Rejection is future-dated stays in the candidate
+- [x] An Option whose only Rejection is future-dated stays in the candidate
       `options`
-- [ ] The suppression set remains `rejected_on = today` only
-- [ ] `lib/rejections.test.ts` and `lib/ai-search.test.ts` are extended for the
+- [x] The suppression set remains `rejected_on = today` only
+- [x] `lib/rejections.test.ts` and `lib/ai-search.test.ts` are extended for the
       above
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by

@@ -116,9 +116,11 @@ export const dinnerLog = pgTable(
  * with the Option. A Rejection is *not* a Log entry and carries no Score
  * weight. `rejected_on` is the Household's calendar day in `APP_TZ`; the index
  * on it serves the today's-Rejections query that derives the per-day
- * suppression set. No `(option_id, rejected_on)` unique constraint is needed —
- * a rejected Option leaves the picker, so it cannot be re-rejected the same
- * day.
+ * suppression set. `(option_id, rejected_on)` is unique so the same Option
+ * cannot be rejected twice on one date — manual dated entry (ADR-0008) means
+ * the same date can be revisited, so this constraint is required (it supersedes
+ * ADR-0006's note that no such constraint was needed when Rejections were
+ * live-only).
  */
 export const rejections = pgTable(
   "rejections",
@@ -135,7 +137,10 @@ export const rejections = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("rejections_rejected_on_idx").on(t.rejectedOn)],
+  (t) => [
+    index("rejections_rejected_on_idx").on(t.rejectedOn),
+    unique("rejections_option_rejected_on_unique").on(t.optionId, t.rejectedOn),
+  ],
 );
 
 /** A Rejection row as stored. */
