@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import type { TodayRejection } from "../db/queries";
 import type { AiRankingRow } from "../lib/ai-search";
@@ -498,13 +498,17 @@ const inputClass =
 
 /**
  * The AI search box above the list. Submitting — by Enter or the Search button,
- * an empty query allowed — runs an AI search; a Clear control (shown once an AI
- * result is on screen, or once a search has failed) restores the deterministic
- * list and clears the query. The box is disabled while a search is in flight so
- * only one search runs at a time.
+ * an empty query allowed — runs an AI search; an in-field Clear (✕) control
+ * (shown once an AI result is on screen, or once a search has failed) restores
+ * the deterministic list and clears the query. The box is disabled while a
+ * search is in flight so only one search runs at a time.
  *
  * On failure a persistent inline error sits under the box: the deterministic
  * list is left untouched, and the Household can retry or just keep using it.
+ *
+ * The Search button tracks the search through three states: `accent` violet at
+ * rest, a spinner with a live elapsed-second timer in flight, and a `success`
+ * green check with the final duration once a result lands.
  */
 function SearchBox({
   query,
@@ -526,19 +530,41 @@ function SearchBox({
   // Elapsed whole seconds of the in-flight search. An AI search runs ~50–90s,
   // so a live counter reassures the Household the request is still working.
   // It is wall-clock based (not a tick count) so it stays accurate if a timer
-  // fires late, and resets to 0 whenever no search is in flight.
+  // fires late.
   const [elapsed, setElapsed] = useState(0);
+  // The frozen duration of the last *successful* search — drives the "done"
+  // badge (a check + the time) the button shows once a result lands. Null
+  // until a search completes successfully.
+  const [doneElapsed, setDoneElapsed] = useState<number | null>(null);
+  const searchStartRef = useRef(0);
+  const wasPendingRef = useRef(false);
   useEffect(() => {
-    if (!pending) {
+    if (pending) {
+      wasPendingRef.current = true;
+      searchStartRef.current = Date.now();
       setElapsed(0);
-      return;
+      const id = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - searchStartRef.current) / 1000));
+      }, 1000);
+      return () => clearInterval(id);
     }
-    const startedAt = Date.now();
-    const id = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [pending]);
+    // `pending` just went false. If a search was in flight, freeze its
+    // duration — a successful search shows it as the done badge; a failed one
+    // is dropped (the inline error speaks for it instead).
+    if (wasPendingRef.current) {
+      wasPendingRef.current = false;
+      if (!error) {
+        setDoneElapsed(
+          Math.floor((Date.now() - searchStartRef.current) / 1000),
+        );
+      }
+    }
+  }, [pending, error]);
+
+  // The done badge shows only while a successful AI result is on screen —
+  // `showClear && !error`, no search in flight. Clearing the search drops
+  // `showClear`, so the badge falls back to the plain "Search".
+  const completed = !pending && !error && showClear && doneElapsed !== null;
 
   return (
     <form
@@ -549,30 +575,59 @@ function SearchBox({
       className="flex flex-col gap-1"
     >
       <div className="flex items-center gap-1.5">
-        <input
-          type="text"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          disabled={pending}
-          placeholder="Ask for dinner — something light, quick, fancy…"
-          aria-label="Search for dinner by intent"
-          className={`${inputClass} flex-1`}
-        />
+        {/* The input and its inline Clear (✕) share a relative wrapper so the
+            ✕ sits *inside* the box. With no third control in the row, nothing
+            can overflow the right edge when the viewport narrows. */}
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            disabled={pending}
+            placeholder="leave empty for recommendations"
+            aria-label="Search for dinner by intent"
+            // Extra right padding only when the ✕ is shown, so query text
+            // never runs under it.
+            className={`${inputClass} w-full ${showClear ? "pr-11" : ""}`}
+          />
+          {showClear && (
+            <button
+              type="button"
+              onClick={onClear}
+              disabled={pending}
+              aria-label="Clear search"
+              className={`absolute inset-y-0 right-0 flex w-11 items-center
+                justify-center rounded-input text-muted transition-colors
+                duration-short hover:text-ink disabled:opacity-60
+                ${focusRing}`}
+            >
+              <ClearIcon />
+            </button>
+          )}
+        </div>
         {/* Width is pinned hard — `min-w` defeats the flex item's default
             `min-width: auto`, which would otherwise let the in-flight content
-            grow the button. So neither the label → spinner swap nor the
-            ticking timer ever resizes the button or the flex-1 input. */}
+            grow the button. So none of the three states — "Search", the
+            in-flight spinner + timer, the done check + time — ever resizes the
+            button or the flex-1 input. `accent` violet sets the AI search
+            apart from the charcoal PICK; the done badge turns `success`
+            green. */}
         <button
           type="submit"
           disabled={pending}
           aria-label={
-            pending ? `Searching — ${elapsed} seconds elapsed` : undefined
+            pending
+              ? `Searching — ${elapsed} seconds elapsed`
+              : completed
+                ? `Search complete in ${doneElapsed} seconds`
+                : undefined
           }
           className={`flex min-h-11 w-[7rem] min-w-[7rem] shrink-0
-            items-center justify-center gap-1.5 rounded-control bg-action px-4
-            text-body font-emphasis text-action-ink transition-colors
-            duration-short hover:bg-action-hover disabled:opacity-60
-            ${focusRing}`}
+            items-center justify-center gap-1.5 rounded-control px-4 text-body
+            font-emphasis text-accent-ink transition-colors duration-short
+            disabled:opacity-60 ${
+              completed ? "bg-success" : "bg-accent hover:bg-accent-hover"
+            } ${focusRing}`}
         >
           {pending ? (
             <>
@@ -583,21 +638,17 @@ function SearchBox({
                 {elapsed}s
               </span>
             </>
+          ) : completed ? (
+            <>
+              <CheckIcon />
+              <span className="w-10 text-center font-mono tabular-nums">
+                {doneElapsed}s
+              </span>
+            </>
           ) : (
             "Search"
           )}
         </button>
-        {showClear && (
-          <button
-            type="button"
-            onClick={onClear}
-            disabled={pending}
-            className={`min-h-11 rounded-control px-3 text-body text-muted
-              transition-colors duration-short disabled:opacity-60 ${focusRing}`}
-          >
-            Clear
-          </button>
-        )}
       </div>
       {error && (
         <p role="status" aria-live="polite" className="text-meta text-danger">
@@ -619,8 +670,43 @@ function Spinner() {
     <span
       aria-hidden
       className="h-4 w-4 shrink-0 rounded-full border-2 border-transparent
-        border-t-action-ink motion-safe:animate-spin"
+        border-t-accent-ink motion-safe:animate-spin"
     />
+  );
+}
+
+/** The ✕ glyph for the in-field Clear-search control. */
+function ClearIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+    >
+      <path d="M4 4l8 8M12 4l-8 8" />
+    </svg>
+  );
+}
+
+/** The ✓ glyph for the search button's "done" badge. */
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3.5 8.5l3 3 6.5-7.5" />
+    </svg>
   );
 }
 

@@ -353,10 +353,13 @@ function AddEntryForm({
         <label htmlFor={`${fieldId}-date`} className={labelClass}>
           Date
         </label>
+        {/* Content-width, not full-bleed, so the native calendar picker sits
+            right next to the printed date instead of stranded at the far
+            right of a stretched input. */}
         <input
           id={`${fieldId}-date`}
           type="date"
-          className={inputClass}
+          className={`${inputClass} self-start`}
           value={eatenOn}
           onChange={(event) => setEatenOn(event.target.value)}
           aria-invalid={error !== null}

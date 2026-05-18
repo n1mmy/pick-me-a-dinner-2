@@ -36,6 +36,12 @@
   --color-action: #2c2f36;
   --color-action-hover: #3c4049;
   --color-action-ink: #ffffff;
+  /* AI search action — a vivid violet, deliberately set apart from the
+   * neutral charcoal `action` so the smart-search button reads as its own
+   * distinct affordance rather than a second PICK. */
+  --color-accent: #6d4ed6;
+  --color-accent-hover: #5c3ec4;
+  --color-accent-ink: #ffffff;
   --color-success: #3f8a4a;
   /* Much-lighter wash of the success green — the tinted background of a logged
    * (accepted) Dinner row in the Log, mirroring the rejected-row danger wash. */
@@ -102,6 +108,9 @@
     --color-action: #e6e7ea;
     --color-action-hover: #d0d2d6;
     --color-action-ink: #1a1c1f;
+    --color-accent: #8b73ee;
+    --color-accent-hover: #7a60e3;
+    --color-accent-ink: #ffffff;
     --color-success: #5aa863;
     --color-success-wash: #26312a;
     --color-danger: #d65a4f;
