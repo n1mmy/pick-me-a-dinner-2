@@ -1,6 +1,6 @@
 # 01 — Concentrate Postgres-error translation and the action-result type
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## What to build
@@ -45,23 +45,23 @@ edit it here.
 
 ## Acceptance criteria
 
-- [ ] `lib/action-result.ts` exports `ActionResult` and `trimToNull`; the
+- [x] `lib/action-result.ts` exports `ActionResult` and `trimToNull`; the
       local copies in `app/catalog/actions.ts` and `app/log/actions.ts` are
       removed in favour of imports
-- [ ] `pgErrorMessage(error, messages)` is added to `lib/pg-error.ts`,
+- [x] `pgErrorMessage(error, messages)` is added to `lib/pg-error.ts`,
       translating `23505` / `22P02` / `23503` per the concept-keyed map and
       re-throwing any unlisted code
-- [ ] Every mutating action in `app/catalog/actions.ts` and
+- [x] Every mutating action in `app/catalog/actions.ts` and
       `app/log/actions.ts` maps its expected errors through `pgErrorMessage`;
       no raw SQLSTATE string literal remains in either file
-- [ ] No `dbWrite` / thunk-wrapper abstraction is introduced — each action
+- [x] No `dbWrite` / thunk-wrapper abstraction is introduced — each action
       keeps its `try/catch`
-- [ ] Behaviour is unchanged: `app/catalog/actions.db.test.ts` and
+- [x] Behaviour is unchanged: `app/catalog/actions.db.test.ts` and
       `app/log/actions.db.test.ts` pass with the same inline messages
-- [ ] A unit test covers `pgErrorMessage` — each concept mapping and the
+- [x] A unit test covers `pgErrorMessage` — each concept mapping and the
       re-throw of an unlisted code
-- [ ] No `CONTEXT.md` or ADR changes are needed
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] No `CONTEXT.md` or ADR changes are needed
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by
