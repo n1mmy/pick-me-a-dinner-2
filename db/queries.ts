@@ -455,13 +455,16 @@ export async function getOptionRejections(
 export type OptionChoice = { id: string; name: string; kind: "home" | "restaurant" };
 
 /**
- * Every Option — Active and Archived alike — as picker choices for the Log
- * edit form. Archived Options are included so an entry already logged against
- * one stays selectable when its row is edited.
+ * The **Active** Options as picker choices for the Log's `OptionCombobox` —
+ * Archived Options drop out, so the picker only ever offers Options the
+ * Household still uses. The edit forms seed an entry's displayed Option name
+ * from the Log entry itself, so a now-Archived current value still renders
+ * without this query carrying Archived rows.
  */
 export async function getOptionChoices(): Promise<OptionChoice[]> {
   return db
     .select({ id: options.id, name: options.name, kind: options.kind })
     .from(options)
+    .where(eq(options.active, true))
     .orderBy(asc(options.name));
 }

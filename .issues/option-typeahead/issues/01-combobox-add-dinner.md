@@ -1,6 +1,6 @@
 # 01 — Type-ahead Option picker on the Add-a-dinner form
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -40,27 +40,27 @@ date check.
 
 ## Acceptance criteria
 
-- [ ] `OptionCombobox` opens showing every Active Option, flat and
+- [x] `OptionCombobox` opens showing every Active Option, flat and
       alphabetical, each row indicating Home meal / Restaurant kind
-- [ ] Typing filters the list by case-insensitive substring match
-- [ ] ↑/↓ moves the highlight, Enter selects it, Escape closes the list, and
+- [x] Typing filters the list by case-insensitive substring match
+- [x] ↑/↓ moves the highlight, Enter selects it, Escape closes the list, and
       clicking/tapping a row selects that Option
-- [ ] After a pick the input shows the Option name; the "×" control clears the
+- [x] After a pick the input shows the Option name; the "×" control clears the
       pick; re-focusing re-opens the list
-- [ ] Blurring with text that matches no Option reconciles the field to the
+- [x] Blurring with text that matches no Option reconciles the field to the
       last valid pick
-- [ ] A "No matches" row renders when nothing matches; there is no create
+- [x] A "No matches" row renders when nothing matches; there is no create
       affordance
-- [ ] The picker is an accessible combobox — combobox/listbox/option roles,
+- [x] The picker is an accessible combobox — combobox/listbox/option roles,
       `aria-activedescendant`, visible focus
-- [ ] `getOptionChoices()` returns Active Options only; Archived Options never
+- [x] `getOptionChoices()` returns Active Options only; Archived Options never
       appear in the picker
-- [ ] The add-a-dinner form opens with no Option selected and blocks submit
+- [x] The add-a-dinner form opens with no Option selected and blocks submit
       with an inline "Pick an Option" error
-- [ ] RTL tests cover `OptionCombobox` behavior — open, filter, keyboard,
+- [x] RTL tests cover `OptionCombobox` behavior — open, filter, keyboard,
       click, clear, blur-reconcile, no-match, archived-excluded — modelled on
       `app/tonight-screen.test.tsx`
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by

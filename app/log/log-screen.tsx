@@ -12,6 +12,7 @@ import {
   formatDinnerDate,
   groupByDay,
 } from "../../lib/dinner-grouping";
+import { OptionCombobox } from "../option-combobox";
 import { logForDate } from "./actions";
 import { EntryRow, inputClass, labelClass } from "./log-entry-row";
 import { AddRejectionForm, RejectionRow } from "./rejection-row";
@@ -290,18 +291,20 @@ function AddEntryForm({
   onSaved: () => void;
 }) {
   const fieldId = useId();
-  const [optionId, setOptionId] = useState(optionChoices[0]?.id ?? "");
+  // The add form opens with no Option selected — the Household must choose one.
+  const [optionId, setOptionId] = useState<string | null>(null);
   const [eatenOn, setEatenOn] = useState(defaultDate);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const homeChoices = optionChoices.filter((o) => o.kind === "home");
-  const restChoices = optionChoices.filter((o) => o.kind === "restaurant");
-
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    if (!optionId) {
+      setError("Pick an Option");
+      return;
+    }
     if (!eatenOn) {
       setError("Pick a valid date");
       return;
@@ -322,31 +325,21 @@ function AddEntryForm({
         <label htmlFor={`${fieldId}-option`} className={labelClass}>
           Option
         </label>
-        <select
+        <OptionCombobox
           id={`${fieldId}-option`}
-          className={inputClass}
+          choices={optionChoices}
           value={optionId}
-          onChange={(event) => setOptionId(event.target.value)}
-        >
-          {homeChoices.length > 0 && (
-            <optgroup label="Home meals">
-              {homeChoices.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.name}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {restChoices.length > 0 && (
-            <optgroup label="Restaurants">
-              {restChoices.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.name}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
+          onChange={(id) => {
+            setOptionId(id);
+            if (id) setError(null);
+          }}
+          placeholder="Search for an Option"
+        />
+        {error === "Pick an Option" && (
+          <p id={`${fieldId}-error`} className="text-chip text-danger" role="alert">
+            {error}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-1">
@@ -362,10 +355,12 @@ function AddEntryForm({
           className={`${inputClass} self-start`}
           value={eatenOn}
           onChange={(event) => setEatenOn(event.target.value)}
-          aria-invalid={error !== null}
-          aria-describedby={error ? `${fieldId}-error` : undefined}
+          aria-invalid={error !== null && error !== "Pick an Option"}
+          aria-describedby={
+            error && error !== "Pick an Option" ? `${fieldId}-error` : undefined
+          }
         />
-        {error && (
+        {error && error !== "Pick an Option" && (
           <p id={`${fieldId}-error`} className="text-chip text-danger" role="alert">
             {error}
           </p>
