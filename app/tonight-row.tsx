@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { CAP } from "../lib/ranking.config";
 import type { TagRecency, TonightRow } from "../lib/ranking";
 import { recencyChipBg, recencyChipBgStrong } from "../lib/recency-color";
 import { pickTonight } from "./log/actions";
+import { rejectOption } from "./tonight-actions";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
@@ -28,6 +30,13 @@ export function kindBarClass(kind: "home" | "restaurant"): string {
  * one-tap `pick = log` path; the picked button briefly marks "Logged ✓". To
  * log a dinner for any other date, use the Log screen.
  *
+ * Below "Pick" sits a secondary, low-emphasis "Reject" control (PRD: Rejections
+ * on Tonight) — deliberately subordinate to the primary Pick button. Tapping it
+ * inline-expands a reason box on the row: an autofocused text input with
+ * Submit and Cancel. The reason is optional; Submit records the Rejection dated
+ * today and the row drops out on revalidation, Cancel collapses the box with
+ * nothing recorded. The two-step (reject → Submit) is the mis-tap guard.
+ *
  * On an AI search result row, `aiReason` is the AI rationale — a prose "why"
  * line the deterministic list does not have; it sits below the chip row on a
  * neutral `raised` surface. The Recency and Tag chips render the same on AI
@@ -37,15 +46,26 @@ export function TonightRowItem({
   row,
   rank,
   aiReason,
+  onRejected,
 }: {
   row: TonightRow;
   rank: number;
   aiReason?: string;
+  /** Called with the Option name once a Rejection is recorded — drives the
+   *  list's live-region "removed" announcement (the row itself then unmounts). */
+  onRejected?: (optionName: string) => void;
 }) {
   const { option } = row;
   const [justLogged, setJustLogged] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Reject affordance: `rejecting` toggles the inline reason box; `reason` is
+  // the optional text. The box is keyed open server-side nowhere — it is purely
+  // local until Submit writes the Rejection.
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("");
+  const boxId = `reject-box-${option.id}`;
 
   function pick() {
     setPickError(null);
@@ -62,6 +82,20 @@ export function TonightRowItem({
     });
   }
 
+  function submitReject() {
+    startTransition(async () => {
+      await rejectOption(option.id, reason);
+      // The Rejection dropped this Option from the picker; the parent's live
+      // region announces the removal before this row unmounts on revalidation.
+      onRejected?.(option.name);
+    });
+  }
+
+  function cancelReject() {
+    setRejecting(false);
+    setReason("");
+  }
+
   return (
     <li className={`border-b border-line py-3 ${kindBarClass(option.kind)}`}>
       <div className="flex items-start gap-3">
@@ -70,9 +104,13 @@ export function TonightRowItem({
             <span className="w-6 shrink-0 text-right font-mono text-meta tabular-nums text-muted">
               {rank}
             </span>
-            <span className="font-display text-name font-name text-ink">
+            <Link
+              href={`/catalog/${option.id}`}
+              className={`font-display text-name font-name text-ink
+                underline-offset-2 hover:underline ${focusRing}`}
+            >
               {option.name}
-            </span>
+            </Link>
           </div>
           <RowChips
             recencyDays={row.recencyDays}
@@ -85,22 +123,78 @@ export function TonightRowItem({
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={pick}
-          disabled={pending}
-          aria-live="polite"
-          className={`min-h-11 shrink-0 rounded-control px-4 text-body
-            font-emphasis transition-colors duration-short disabled:opacity-60
-            ${focusRing} ${
-              justLogged
-                ? "bg-raised text-success"
-                : "bg-action text-action-ink hover:bg-action-hover"
-            }`}
-        >
-          {justLogged ? "Logged ✓" : "Pick"}
-        </button>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <button
+            type="button"
+            onClick={pick}
+            disabled={pending}
+            aria-live="polite"
+            className={`min-h-11 rounded-control px-4 text-body font-emphasis
+              transition-colors duration-short disabled:opacity-60
+              ${focusRing} ${
+                justLogged
+                  ? "bg-raised text-success"
+                  : "bg-action text-action-ink hover:bg-action-hover"
+              }`}
+          >
+            {justLogged ? "Logged ✓" : "Pick"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setRejecting((open) => !open)}
+            disabled={pending}
+            aria-expanded={rejecting}
+            aria-controls={boxId}
+            className={`min-h-11 rounded-control px-3 text-meta text-muted
+              transition-colors duration-short hover:text-ink
+              disabled:opacity-60 ${focusRing}`}
+          >
+            Reject
+          </button>
+        </div>
       </div>
+      {rejecting && (
+        <form
+          id={boxId}
+          onSubmit={(event) => {
+            event.preventDefault();
+            submitReject();
+          }}
+          className="mt-2 flex items-center gap-2"
+        >
+          <input
+            type="text"
+            autoFocus
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            disabled={pending}
+            placeholder="Reason (optional)"
+            aria-label={`Reason for rejecting ${option.name} (optional)`}
+            className={`min-h-11 min-w-0 flex-1 rounded-input border border-line
+              bg-surface px-3 text-body text-ink placeholder:text-muted
+              disabled:opacity-60 ${focusRing}`}
+          />
+          <button
+            type="submit"
+            disabled={pending}
+            className={`min-h-11 shrink-0 rounded-control border border-line
+              px-4 text-body font-emphasis text-action transition-colors
+              duration-short hover:bg-raised disabled:opacity-60 ${focusRing}`}
+          >
+            Submit
+          </button>
+          <button
+            type="button"
+            onClick={cancelReject}
+            disabled={pending}
+            className={`min-h-11 shrink-0 rounded-control px-3 text-body
+              text-muted transition-colors duration-short disabled:opacity-60
+              ${focusRing}`}
+          >
+            Cancel
+          </button>
+        </form>
+      )}
       {pickError && (
         <p className="mt-2 text-chip text-danger" aria-live="polite">
           {pickError}

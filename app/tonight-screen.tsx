@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import type { TodayRejection } from "../db/queries";
 import type { AiRankingRow } from "../lib/ai-search";
 import type { TonightRow } from "../lib/ranking";
 import {
@@ -15,7 +16,7 @@ import {
   type TagFilters,
 } from "../lib/tonight-filter";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
-import { aiSearchAction } from "./tonight-actions";
+import { aiSearchAction, bringBackRejection } from "./tonight-actions";
 import { TonightRowItem } from "./tonight-row";
 import { TonightsDinnerBlock } from "./tonights-dinner-block";
 
@@ -32,9 +33,10 @@ const focusRing =
  * flat ranked list.
  *
  * **Decided mode** — one or more Log entries dated today — surfaces a "Tonight's
- * dinner" block of what was Picked and collapses the picker behind an "Add
- * another option" control. Picking from the re-opened picker appends the Option
- * to Tonight's dinner and auto-collapses the picker again. The heading stays
+ * dinner" block of what was Picked, then keeps the ranked picker open below it
+ * under an "Add another option" divider. Picking from that picker appends the
+ * Option to Tonight's dinner — a deliberate second dinner, not a replacement,
+ * which the divider's heading and hint make explicit. The heading stays
  * "Tonight" in both modes; a visually-hidden live region announces the switch.
  *
  * The mode is not client state: it follows `tonightsDinner`, which the server
@@ -46,33 +48,58 @@ export function TonightScreen({
   tonightsDinner,
   pickerRows,
   searchEnabled,
+  allRejected = false,
+  rejectedTonight = [],
 }: {
   /** The Picked Options, in pick order — non-empty puts Tonight in decided mode. */
   tonightsDinner: TonightsDinnerEntry[];
-  /** The ranked picker rows, with every already-Picked Option removed. */
+  /** The ranked picker rows, with Picked and today-rejected Options removed. */
   pickerRows: TonightRow[];
   /** Whether AI search is configured — gates the search box (`aiSearchEnabled`). */
   searchEnabled: boolean;
+  /**
+   * True when the picker had rows but every one was rejected for tonight (PRD:
+   * Rejections). It separates an all-rejected empty list — a real state, with
+   * the Options back tomorrow — from a genuinely empty Catalog.
+   */
+  allRejected?: boolean;
+  /**
+   * Today's Rejections (PRD: Rejections on Tonight) — what the "Rejected
+   * tonight" disclosure lists and lets the Household bring back. Empty by
+   * default, so the disclosure costs nothing until something is rejected.
+   */
+  rejectedTonight?: TodayRejection[];
 }) {
   const decided = tonightsDinner.length > 0;
-  // Picker mode with nothing to rank at all — an empty Catalog, not "all Picked".
-  const catalogEmpty = !decided && pickerRows.length === 0;
+  // Picker mode with nothing to rank at all — an empty Catalog, not "all Picked"
+  // and not "all rejected" (both of which are real states with their own copy).
+  const catalogEmpty = !decided && pickerRows.length === 0 && !allRejected;
 
-  // In decided mode the picker is collapsed by default behind "Add another
-  // option"; picker mode shows it outright, so this flag only governs decided
-  // mode.
-  const [pickerOpen, setPickerOpen] = useState(false);
+  // The All/Home/Restaurant kind filter lives here so its segment can sit in
+  // the page header beside "Tonight"; the Picker still owns the filtering.
+  const [kind, setKind] = useState<KindFilter>("all");
+  // The Picker reports when an AI result is on screen — the kind segment hides
+  // then, since an AI result is ranked by the query alone.
+  const [aiActive, setAiActive] = useState(false);
 
-  // Auto-collapse: a Pick revalidates the page, so `tonightsDinner` grows and
-  // the re-opened picker should drop back to the settled view without a tap.
-  // Keying off the count catches the new entry without re-collapsing on every
-  // unrelated re-render.
+  // A Pick grows `tonightsDinner`; when it does, animate the page up to the
+  // "Tonight's dinner" block so the Household sees the Option land there. The
+  // effect runs after the Pick's revalidation has committed, so the scroll
+  // animates against the settled layout — scrolling on the tap instead races
+  // that reflow and gets jolted. The previous count is held in `sessionStorage`,
+  // not a ref or state, so the comparison survives the revalidation even if it
+  // remounts this component; a Remove (which shrinks the count) never scrolls.
   const dinnerCount = tonightsDinner.length;
-  const lastDinnerCount = useRef(dinnerCount);
   useEffect(() => {
-    if (dinnerCount !== lastDinnerCount.current) {
-      lastDinnerCount.current = dinnerCount;
-      setPickerOpen(false);
+    const key = "pmad:tonightDinnerCount";
+    const stored = sessionStorage.getItem(key);
+    const previous = stored === null ? dinnerCount : Number(stored);
+    sessionStorage.setItem(key, String(dinnerCount));
+    if (dinnerCount > previous) {
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
     }
   }, [dinnerCount]);
 
@@ -83,9 +110,18 @@ export function TonightScreen({
     ? "Tonight's dinner is decided."
     : "Choosing tonight's dinner.";
 
+  // The kind segment shows only when a Picker is actually on screen and not
+  // overridden by an AI result. The picker is on screen whenever there are rows
+  // to rank — in picker mode, and below the divider in decided mode.
+  const pickerRendered = pickerRows.length > 0;
+  const showKindSegment = pickerRendered && !aiActive;
+
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
-      <h1 className="font-display text-h1 font-h1 text-ink">Tonight</h1>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h1 className="font-display text-h1 font-h1 text-ink">Tonight</h1>
+        {showKindSegment && <KindSegment kind={kind} onChange={setKind} />}
+      </div>
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}
       </p>
@@ -100,40 +136,150 @@ export function TonightScreen({
             Add your first meals →
           </Link>
         </p>
+      ) : !decided && allRejected ? (
+        // Every Option was rejected for tonight — a real state, not a broken
+        // screen. A Rejection means "not tonight": the Options return tomorrow.
+        <p className="text-body text-muted">
+          Every Option has been rejected for tonight. They&rsquo;ll be back
+          tomorrow.
+        </p>
       ) : decided ? (
         <>
           <TonightsDinnerBlock entries={tonightsDinner} />
-          <button
-            type="button"
-            aria-expanded={pickerOpen}
-            onClick={() => setPickerOpen((open) => !open)}
-            className={`min-h-11 self-start rounded-control border border-line
-              px-4 text-body font-emphasis text-action transition-colors
-              duration-short hover:bg-raised ${focusRing}`}
-          >
-            {pickerOpen ? "Hide options" : "Add another option"}
-          </button>
-          {pickerOpen &&
-            (pickerRows.length === 0 ? (
-              <p className="text-body text-muted">
-                Every Option is already on tonight&rsquo;s dinner.
+          {pickerRows.length === 0 ? (
+            <p className="border-t border-line pt-5.5 text-body text-muted">
+              {allRejected
+                ? "Every remaining Option has been rejected for tonight."
+                : "Every Option is already on tonight’s dinner."}
+            </p>
+          ) : (
+            // The ranked picker stays open below the decided block, under a
+            // divider. Picking from it Picks a *second* dinner for tonight
+            // rather than replacing the first — the heading and hint say so.
+            <section
+              aria-label="Add another option"
+              className="flex flex-col gap-2 border-t border-line pt-5.5"
+            >
+              <h2 className="text-meta uppercase tracking-wide text-muted">
+                Add another option
+              </h2>
+              <p className="text-meta text-muted">
+                Picking one adds it to tonight&rsquo;s dinner — it won&rsquo;t
+                replace what&rsquo;s already chosen.
               </p>
-            ) : (
-              <Picker rows={pickerRows} searchEnabled={searchEnabled} />
-            ))}
+              <Picker
+                rows={pickerRows}
+                searchEnabled={searchEnabled}
+                kind={kind}
+                onAiActiveChange={setAiActive}
+              />
+            </section>
+          )}
         </>
       ) : (
-        <Picker rows={pickerRows} searchEnabled={searchEnabled} />
+        <Picker
+          rows={pickerRows}
+          searchEnabled={searchEnabled}
+          kind={kind}
+          onAiActiveChange={setAiActive}
+        />
+      )}
+
+      {/* Pinned to the bottom of the page, after the ranked rows — collapsed
+          by default, so it costs no screen space until scrolled to. Rendered
+          whenever something was rejected today; it then lists today's
+          Rejections with a "Bring back" undo. */}
+      {rejectedTonight.length > 0 && (
+        <RejectedTonightDisclosure rejections={rejectedTonight} />
       )}
     </main>
   );
 }
 
 /**
+ * The "Rejected tonight (N)" disclosure (PRD: Rejections on Tonight) — pinned
+ * at the bottom of the picker list, collapsed by default so it costs no screen
+ * space until the Household scrolls to it. The heading carries a count of
+ * today's Rejections.
+ *
+ * Expanded, it lists each of today's Rejections — the Option name, and the
+ * reason when one was given — each with a "Bring back" control. "Bring back"
+ * calls `bringBackRejection`, which **deletes** the Rejection record: the
+ * Option returns to tonight's list immediately and — because the record is
+ * gone, not merely expired — a mis-tapped Rejection never reaches AI search.
+ * Only today's Rejections appear here; managing the historical Rejection log
+ * is out of scope (PRD: Out of Scope).
+ */
+function RejectedTonightDisclosure({
+  rejections,
+}: {
+  rejections: TodayRejection[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  function bringBack(rejectionId: string) {
+    startTransition(async () => {
+      await bringBackRejection(rejectionId);
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((isOpen) => !isOpen)}
+        className={`min-h-11 self-start rounded-control border border-line
+          px-4 text-body font-emphasis text-action transition-colors
+          duration-short hover:bg-raised ${focusRing}`}
+      >
+        {`Rejected tonight (${rejections.length})`}
+      </button>
+      {open && (
+        <ul className="flex flex-col">
+          {rejections.map((rejection) => (
+            <li
+              key={rejection.id}
+              className="flex items-start gap-3 border-b border-line py-3"
+            >
+              <div className="min-w-0 flex-1">
+                <span className="font-display text-name font-name text-ink">
+                  {rejection.optionName}
+                </span>
+                {rejection.reason && (
+                  <p className="mt-0.5 text-meta text-muted">
+                    {rejection.reason}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => bringBack(rejection.id)}
+                disabled={pending}
+                className={`min-h-11 shrink-0 rounded-control border
+                  border-line px-3 text-body font-emphasis text-action
+                  transition-colors duration-short hover:bg-raised
+                  disabled:opacity-60 ${focusRing}`}
+              >
+                Bring back
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
  * The ranked picker: a sticky filter zone — optional AI search box, the
- * All/Home/Restaurant kind segment, the tri-state Tag filter chips — above the
- * flat ranked `<ol>`. It is the whole screen in picker mode and the collapsible
- * body in decided mode; its behavior is identical either way.
+ * tri-state Tag filter chips — above the flat ranked `<ol>`. It is the whole
+ * screen in picker mode and the collapsible body in decided mode; its behavior
+ * is identical either way. The All/Home/Restaurant kind segment lives in the
+ * page header (`TonightScreen`) and scrolls away with it; the picker only reads
+ * the resulting `kind` and reports AI-result state back via `onAiActiveChange`
+ * so the header can hide the segment.
  *
  * The search box appears only when AI search is configured (`searchEnabled`).
  * Submitting it runs an **AI search** (PRD: AI search) — the deterministic list
@@ -146,11 +292,14 @@ export function TonightScreen({
 function Picker({
   rows,
   searchEnabled,
+  kind,
+  onAiActiveChange,
 }: {
   rows: TonightRow[];
   searchEnabled: boolean;
+  kind: KindFilter;
+  onAiActiveChange: (active: boolean) => void;
 }) {
-  const [kind, setKind] = useState<KindFilter>("all");
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
 
   // AI search state. `aiResults === null` is the default deterministic view;
@@ -159,6 +308,11 @@ function Picker({
   const [aiResults, setAiResults] = useState<AiRankingRow[] | null>(null);
   const [aiError, setAiError] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  // A submitted Rejection removes its row from the list on revalidation; this
+  // live region — stable across that re-render, unlike the row itself —
+  // announces the removal to assistive tech (PRD: Rejections, story 33).
+  const [rejectNotice, setRejectNotice] = useState("");
 
   const tags = useMemo(() => distinctTags(rows), [rows]);
   // Rank reflects each Option's position in the picker ranking, so a filtered
@@ -196,6 +350,12 @@ function Picker({
       return row ? [{ row, reason: result.reason }] : [];
     });
   }, [aiResults, rows]);
+
+  // Surface the AI-result state to the page header so its kind segment hides
+  // while an AI result is on screen.
+  useEffect(() => {
+    onAiActiveChange(aiRows !== null);
+  }, [aiRows, onAiActiveChange]);
 
   function cycleTag(tag: string) {
     setTagFilters((prev) => ({
@@ -251,7 +411,6 @@ function Picker({
             the search restores it with the deterministic list. */}
         {aiRows === null && (
           <>
-            <KindSegment kind={kind} onChange={setKind} />
             {tags.length > 0 && (
               <div
                 role="group"
@@ -274,6 +433,9 @@ function Picker({
           </>
         )}
       </div>
+      <p className="sr-only" role="status" aria-live="polite">
+        {rejectNotice}
+      </p>
       {aiRows !== null ? (
         aiRows.length === 0 ? (
           // An empty AI result is a real answer — the model legitimately
@@ -300,6 +462,9 @@ function Picker({
                 row={row}
                 rank={index + 1}
                 aiReason={reason}
+                onRejected={(name) =>
+                  setRejectNotice(`Rejected ${name}, removed from the list.`)
+                }
               />
             ))}
           </ol>
@@ -315,6 +480,9 @@ function Picker({
               key={row.option.id}
               row={row}
               rank={rankOf.get(row.option.id) ?? 0}
+              onRejected={(name) =>
+                setRejectNotice(`Rejected ${name}, removed from the list.`)
+              }
             />
           ))}
         </ol>

@@ -355,6 +355,8 @@ workflow — **you do not push, and you do not merge outside your worktree.**
 >
 > - Implement the issue literally; satisfy every acceptance criterion; use
 >   `CONTEXT.md` glossary terms; keep scope lean.
+> - Your isolated worktree has no `.env` — before `pnpm test`, run
+>   `cp .env.ralph .env` (committed, secret-free dev defaults).
 > - Verify before committing — run every check the project defines
 >   (`pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:db`, and for
 >   UI/route/env work `pnpm build`). All must be green.

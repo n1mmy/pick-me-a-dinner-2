@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { OptionWithTags } from "../../db/queries";
+import { PickButton } from "../pick-button";
 import { archiveOption, deleteOption } from "./actions";
 import { OptionForm } from "./option-form";
 
@@ -62,9 +64,14 @@ export function OptionRow({
   return (
     <li className="flex flex-col gap-1 border-b border-line py-3">
       <div className="flex items-center justify-between gap-3">
-        <span className="font-display text-name font-name text-ink">
+        <Link
+          href={`/catalog/${option.id}`}
+          className="font-display text-name font-name text-ink underline-offset-2
+            hover:underline focus-visible:outline focus-visible:outline-2
+            focus-visible:outline-offset-2 focus-visible:outline-action"
+        >
           {option.name}
-        </span>
+        </Link>
         <div className="flex shrink-0 items-center gap-1">
           {confirm === null ? (
             <>
@@ -124,6 +131,7 @@ export function OptionRow({
               </button>
             </>
           )}
+          <PickButton optionId={option.id} />
         </div>
       </div>
       {error && <p className="text-chip text-danger">{error}</p>}

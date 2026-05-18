@@ -123,6 +123,17 @@ async function syncOptionTags(
 }
 
 /**
+ * Revalidate every screen a Catalog mutation changes: the Catalog list and the
+ * Option detail page. An Edit, Archive, or Delete invoked from the detail page
+ * must refresh it in place there too — a control behaves identically wherever
+ * it is invoked (PRD: Option detail page, ADR-0007).
+ */
+function revalidateCatalog(): void {
+  revalidatePath("/catalog");
+  revalidatePath("/catalog/[id]", "page");
+}
+
+/**
  * Add a Home meal or Restaurant to the Catalog. The Option insert and its Tag
  * sync run in one transaction, so a mid-write failure rolls back rather than
  * leaving an Option with missing Tags.
@@ -173,7 +184,7 @@ export const updateOption = authedAction(
       }
       throw error;
     }
-    revalidatePath("/catalog");
+    revalidateCatalog();
     return { ok: true };
   },
 );
@@ -193,7 +204,28 @@ export const archiveOption = authedAction(
       }
       throw error;
     }
-    revalidatePath("/catalog");
+    revalidateCatalog();
+    return { ok: true };
+  },
+);
+
+/**
+ * Un-archive an Option: `active = true`. It returns to the default Catalog list
+ * and Tonight — the mirror of `archiveOption`, so an Archived Option reached via
+ * the Catalog's "Archived" disclosure can be made a normal ranked Option again.
+ */
+export const unarchiveOption = authedAction(
+  async (id: string): Promise<ActionResult> => {
+    try {
+      await db.update(options).set({ active: true }).where(eq(options.id, id));
+    } catch (error) {
+      // 22P02 invalid uuid — a malformed/stale Option id; report, don't 500.
+      if (pgErrorCode(error) === "22P02") {
+        return { ok: false, error: "That option is no longer available" };
+      }
+      throw error;
+    }
+    revalidateCatalog();
     return { ok: true };
   },
 );
@@ -219,7 +251,7 @@ export const deleteOption = authedAction(
       }
       throw error;
     }
-    revalidatePath("/catalog");
+    revalidateCatalog();
     return { ok: true };
   },
 );

@@ -1,25 +1,33 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import type { OptionWithTags } from "../../db/queries";
+import type { ArchivedOption, OptionWithTags } from "../../db/queries";
 import type { OptionKind } from "./actions";
 import { OptionForm } from "./option-form";
 import { OptionRow } from "./option-row";
+
+const focusRing =
+  "focus-visible:outline focus-visible:outline-2 " +
+  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
  * The Catalog screen: Home meals and Restaurants in two sections, each row
  * showing the name. Adding and editing happen inline — an "add" affordance or a
  * row expands in place into the form. `allTags` feeds every form's Tag
- * autocomplete.
+ * autocomplete. Archived Options are reachable again from a collapsed
+ * "Archived" disclosure pinned below the two active sections.
  */
 export function CatalogScreen({
   home,
   restaurants,
+  archived,
   allTags,
   placesEnabled,
 }: {
   home: OptionWithTags[];
   restaurants: OptionWithTags[];
+  archived: ArchivedOption[];
   allTags: string[];
   placesEnabled: boolean;
 }) {
@@ -49,7 +57,50 @@ export function CatalogScreen({
         allTags={allTags}
         placesEnabled={placesEnabled}
       />
+      {archived.length > 0 && <ArchivedDisclosure archived={archived} />}
     </main>
+  );
+}
+
+/**
+ * The "Archived (N)" disclosure pinned at the bottom of the Catalog, after the
+ * active sections — collapsed by default so it costs no screen space until the
+ * Household scrolls to it; the pattern mirrors Tonight's "Rejected tonight"
+ * disclosure. Expanded, it lists Archived Options as links to their detail
+ * pages, the place an Archived Option can be Un-archived. It is rendered only
+ * when something is Archived, so the active Catalog reads exactly as before.
+ */
+function ArchivedDisclosure({ archived }: { archived: ArchivedOption[] }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((isOpen) => !isOpen)}
+        className={`min-h-11 self-start rounded-control border border-line
+          px-4 text-body font-emphasis text-action transition-colors
+          duration-short hover:bg-raised ${focusRing}`}
+      >
+        {`Archived (${archived.length})`}
+      </button>
+      {open && (
+        <ul className="flex flex-col">
+          {archived.map((option) => (
+            <li key={option.id} className="flex border-b border-line py-3">
+              <Link
+                href={`/catalog/${option.id}`}
+                className={`font-display text-name font-name text-ink
+                  underline-offset-2 hover:underline ${focusRing}`}
+              >
+                {option.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

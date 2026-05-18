@@ -33,6 +33,14 @@ the numbers, and functional color so the dense list parses at a glance.
   Quiet, dense, slightly austere — the relief of a tool that is just *right*
   rather than trying to delight.
 
+## Interaction principle
+
+Every place an item is shown carries every control that makes sense for that
+item — the Household flows through the app freely and no screen assumes
+intent. The only bound is screen space: where a row cannot fit every control,
+the cut is deliberate. See ADR-0007. This governs control *placement*; the
+visual sections below govern how those controls look.
+
 ## Typography
 
 All three faces are free, open-source, and loaded via `next/font` (self-hosted,
@@ -92,6 +100,8 @@ Every Tonight row carries exactly two color signals:
 | `line` | `#d8dade` | Hairline rules and borders |
 | `kind-home` | `#2c6e6e` | Meal-kind left bar — home-cooked (teal) |
 | `kind-restaurant` | `#7a4f6b` | Meal-kind left bar — restaurant (plum) |
+| `kind-home-wash` | `#dde8e8` | Decided-row background — much-lighter home wash |
+| `kind-restaurant-wash` | `#e7e0e6` | Decided-row background — much-lighter restaurant wash |
 | `recency-overdue` | `#3f8a4a` | Recency heatmap — green end, long overdue |
 | `recency-mid` | `#c8b78f` | Recency heatmap — muted tan midpoint |
 | `recency-recent` | `#c4453a` | Recency heatmap — red end, eaten recently |
@@ -129,6 +139,8 @@ check before relying on it.
 | `line` | `#383b40` |
 | `kind-home` | `#4a9a9a` |
 | `kind-restaurant` | `#a87d99` |
+| `kind-home-wash` | `#212e30` |
+| `kind-restaurant-wash` | `#2e2a30` |
 | `recency-overdue` | `#5aa863` |
 | `recency-mid` | `#bdae89` |
 | `recency-recent` | `#d65a4f` |
@@ -165,6 +177,11 @@ check before relying on it.
   Geist Mono. PICK as a filled `action` (charcoal-ink) button with
   `action-ink` label. The uniform flat list is intentional and locked — no
   lead-item prominence, no collapsed long tail, no per-row background tint.
+- **Decided block ("Tonight's dinner"):** unlike the picker ledger above, each
+  decided row carries a much-lighter wash of its meal-kind hue
+  (`kind-home-wash` / `kind-restaurant-wash`) as its background, so the
+  decided area reads as a distinct, settled panel above the picker. The
+  "no per-row background tint" rule applies to the *ranked picker*, not here.
 - **Border radius:** badge/chip 3px, inputs 6px, buttons/controls 6px. Sharp
   crisp corners suit a sharp tool — no pill shapes except where a control is
   genuinely circular.
@@ -212,3 +229,4 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-05-16 | Desktop = persistent left rail, not a wider column | User chose to include it: desktop gets its own identity and more density instead of feeling like a stretched phone. |
 | 2026-05-16 | PICK = filled clay button; Tonight rows compact | User decisions. PICK is the app's single primary action — must be unmissable; compact density serves the data-density brief. |
 | 2026-05-17 | Color system revised via `/design-shotgun`: cool-grey base, two-channel kind-bar + red→green recency heatmap | The prior warm palette read as too monochrome to parse quickly. Six rounds of Tonight-screen mockups; user chose the cool-slate base with teal/plum meal-kind left bars and a red→green recency heatmap on the Explanation chip and per-tag text. PICK moved from clay to neutral charcoal so it never collides with the heatmap's green. Spec only — not yet in code. |
+| 2026-05-17 | Interaction principle: expose every sensible control, don't enforce a journey (ADR-0007) | Each item-representation carries every control that makes sense for it, trading off only for space. Surfaced while designing the Option detail page. |

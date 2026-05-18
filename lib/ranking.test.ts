@@ -5,6 +5,7 @@ import {
   lastEaten,
   lastTagUse,
   optionScore,
+  rankOption,
   rankTonight,
   type LogEntry,
   type RankOption,
@@ -175,5 +176,42 @@ describe("rankTonight", () => {
     expect(rows[0].neverEaten).toBe(true);
     expect(rows[0].recencyDays).toBe(CAP);
     expect(rows[0].score).toBe((W_OPTION + W_TAG) * CAP);
+  });
+});
+
+describe("rankOption", () => {
+  it("matches that Option's rankTonight row for an active Option", () => {
+    const options = [
+      option("o1", "Salmon", ["fish"]),
+      option("o2", "Cod", ["fish"]),
+      option("o3", "Pasta", ["pasta", "comfort"]),
+    ];
+    const entries: LogEntry[] = [
+      { optionId: "o1", eatenOn: TODAY - 20 },
+      { optionId: "o2", eatenOn: TODAY - 5 },
+      { optionId: "o3", eatenOn: TODAY - 30 },
+    ];
+    const rows = rankTonight(options, entries, TODAY);
+
+    // The detail page and Tonight read the same inputs through the same
+    // recency internals, so every field must agree for every active Option.
+    for (const target of options) {
+      const row = rows.find((r) => r.option.id === target.id);
+      const ranked = rankOption(target, options, entries, TODAY);
+      expect(ranked.score).toBe(row?.score);
+      expect(ranked.recencyDays).toBe(row?.recencyDays);
+      expect(ranked.neverEaten).toBe(row?.neverEaten);
+      expect(ranked.tags).toEqual(row?.tags);
+    }
+  });
+
+  it("reports the never-eaten flag and CAP recency for an Option with no Log history", () => {
+    const options = [option("o1", "Tofu Stir Fry", ["soy"])];
+    const ranked = rankOption(options[0], options, [], TODAY);
+    expect(ranked.neverEaten).toBe(true);
+    expect(ranked.recencyDays).toBe(CAP);
+    // A tagged but never-used Option ties at the cold-start Score.
+    expect(ranked.score).toBe((W_OPTION + W_TAG) * CAP);
+    expect(ranked.tags[0]).toEqual({ tag: "soy", days: CAP, overdue: true });
   });
 });

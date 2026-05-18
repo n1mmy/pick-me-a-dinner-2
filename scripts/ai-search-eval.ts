@@ -18,7 +18,7 @@
  */
 import "dotenv/config";
 import { config } from "dotenv";
-import { getTonightData } from "../db/queries";
+import { getRejections, getTonightData } from "../db/queries";
 import { buildSnapshot, createAiSearchClient } from "../lib/ai-search";
 import { todaySqlDate } from "../lib/local-day";
 
@@ -40,7 +40,10 @@ async function main(): Promise<void> {
   }
 
   const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
-  const { options, logEntries } = await getTonightData(today);
+  const [{ options, logEntries }, rejections] = await Promise.all([
+    getTonightData(today),
+    getRejections(),
+  ]);
 
   const snapshot = buildSnapshot({
     options: options.map((option) => ({
@@ -55,6 +58,7 @@ async function main(): Promise<void> {
       eatenOn: entry.eatenOn,
       note: entry.note,
     })),
+    rejections,
     today,
     query,
   });
@@ -72,7 +76,10 @@ async function main(): Promise<void> {
     console.log("--- end snapshot ---\n");
   }
 
-  const activeIds = new Set(options.map((option) => option.id));
+  // `buildSnapshot` has already dropped today's-rejected Options from the
+  // candidate `options`; derive `activeIds` from those so the result set is
+  // suppressed to match, exactly as `aiSearchAction` does.
+  const activeIds = new Set(snapshot.options.map((option) => option.id));
   const nameById = new Map(options.map((option) => [option.id, option.name]));
 
   const result = await createAiSearchClient(apiKey).search(snapshot, activeIds);

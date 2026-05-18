@@ -1,7 +1,15 @@
 import { and, asc, desc, eq, lte } from "drizzle-orm";
 import { db } from "./index";
-import { dinnerLog, optionTags, options, tags, type Option } from "./schema";
+import {
+  dinnerLog,
+  optionTags,
+  options,
+  rejections,
+  tags,
+  type Option,
+} from "./schema";
 import type { RankOption } from "../lib/ranking";
+import type { RejectionRow } from "../lib/rejections";
 import type { TodayLogEntry } from "../lib/tonights-dinner";
 
 /** An Option together with the names of the Tags attached to it. */
@@ -37,11 +45,6 @@ export async function getActiveCatalog(): Promise<{
     tagsByOption.set(link.optionId, list);
   }
 
-  const allTags = await db
-    .select({ name: tags.name })
-    .from(tags)
-    .orderBy(asc(tags.name));
-
   const withTags = (option: Option): OptionWithTags => ({
     ...option,
     tags: tagsByOption.get(option.id) ?? [],
@@ -50,8 +53,72 @@ export async function getActiveCatalog(): Promise<{
   return {
     home: active.filter((o) => o.kind === "home").map(withTags),
     restaurants: active.filter((o) => o.kind === "restaurant").map(withTags),
-    allTags: allTags.map((t) => t.name),
+    allTags: await getAllTags(),
   };
+}
+
+/** An Archived Option reduced to what the Catalog's "Archived" disclosure links. */
+export type ArchivedOption = { id: string; name: string };
+
+/**
+ * The Archived Options for the Catalog screen's "Archived" disclosure (PRD:
+ * Option detail page) — `active = false` Options ordered by name, narrowed to
+ * the id and name the disclosure renders as links to each detail page. It is
+ * the counterpart of `getActiveCatalog`'s active list: the disclosure is pinned
+ * collapsed below it, so an Archived Option stays reachable again.
+ */
+export async function getArchivedOptions(): Promise<ArchivedOption[]> {
+  return db
+    .select({ id: options.id, name: options.name })
+    .from(options)
+    .where(eq(options.active, false))
+    .orderBy(asc(options.name));
+}
+
+/**
+ * The full Tag vocabulary, ordered by name — the autocomplete source the
+ * Option form suggests from. `getActiveCatalog` returns it for the Catalog
+ * screen; the Option detail page's inline Edit form loads it on its own.
+ */
+export async function getAllTags(): Promise<string[]> {
+  const rows = await db
+    .select({ name: tags.name })
+    .from(tags)
+    .orderBy(asc(tags.name));
+  return rows.map((row) => row.name);
+}
+
+/**
+ * A SQL `uuid` column rejects a non-UUID string at the database, so a junk
+ * route param must be screened before it reaches a query — `getOptionById`
+ * turns one into a clean `null` (a not-found page) instead of a 500.
+ */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * One Option by id with its Tag names, or `null` when no `options` row matches
+ * — the not-found case the Option detail page's route renders as a 404 (a
+ * stale link to a Deleted Option, or a malformed id). Unlike `getActiveCatalog`
+ * this is not filtered to active Options: the detail page serves an Archived
+ * Option too.
+ */
+export async function getOptionById(
+  id: string,
+): Promise<OptionWithTags | null> {
+  if (!UUID_RE.test(id)) return null;
+
+  const [row] = await db.select().from(options).where(eq(options.id, id));
+  if (!row) return null;
+
+  const links = await db
+    .select({ name: tags.name })
+    .from(optionTags)
+    .innerJoin(tags, eq(optionTags.tagId, tags.id))
+    .where(eq(optionTags.optionId, id))
+    .orderBy(asc(tags.name));
+
+  return { ...row, tags: links.map((link) => link.name) };
 }
 
 /**
@@ -184,6 +251,160 @@ export async function getLog(): Promise<LogEntryRow[]> {
     .from(dinnerLog)
     .innerJoin(options, eq(dinnerLog.optionId, options.id))
     .orderBy(desc(dinnerLog.eatenOn), asc(options.name));
+}
+
+/**
+ * Every Log entry for one Option — past, today, and future (its Planned
+ * dinners) — joined to its Option, ordered newest `eaten_on` first. The Option
+ * detail page's History section splits and groups this with
+ * `lib/dinner-grouping`. Unlike `getLog` it is scoped to a single Option id,
+ * and unlike the Tonight queries it is not filtered to active Options — the
+ * detail page serves an Archived Option's history too.
+ */
+export async function getOptionLog(optionId: string): Promise<LogEntryRow[]> {
+  return db
+    .select({
+      id: dinnerLog.id,
+      optionId: dinnerLog.optionId,
+      optionName: options.name,
+      kind: options.kind,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(dinnerLog.optionId, options.id))
+    .where(eq(dinnerLog.optionId, optionId))
+    .orderBy(desc(dinnerLog.eatenOn));
+}
+
+/**
+ * A Rejection the Household made today, narrowed to what the "Rejected
+ * tonight" disclosure renders and to the per-day suppression set the Tonight
+ * page derives from it (PRD: Rejections on Tonight).
+ */
+export type TodayRejection = {
+  /** The `rejections` row id — the handle the "Bring back" action deletes by. */
+  id: string;
+  optionId: string;
+  optionName: string;
+  /** The optional short reason; `null` when the Household gave none. */
+  reason: string | null;
+};
+
+/**
+ * The Household's Rejections made *today* — `rejections` rows whose
+ * `rejected_on` equals `todaySqlDate`, the Household's calendar day in
+ * `APP_TZ` — joined to their Option, newest first (PRD: Rejections on
+ * Tonight). The Tonight page uses one result for both jobs: the per-day
+ * suppression set — Options dropped from the deterministic picker, a
+ * presentation filter that leaves `lib/ranking` and the Score untouched
+ * (ADR-0003, ADR-0006) — and the "Rejected tonight" disclosure list. Only
+ * active Options are joined, mirroring how the Log already excludes Archived
+ * Options. Because the query is keyed on today's date, a new calendar day
+ * empties the result on its own and a rejected Option reappears with no
+ * day-boundary logic.
+ */
+export async function getTodayRejections(
+  todaySqlDate: string,
+): Promise<TodayRejection[]> {
+  return db
+    .select({
+      id: rejections.id,
+      optionId: rejections.optionId,
+      optionName: options.name,
+      reason: rejections.reason,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(rejections.optionId, options.id))
+    .where(
+      and(eq(rejections.rejectedOn, todaySqlDate), eq(options.active, true)),
+    )
+    .orderBy(desc(rejections.createdAt));
+}
+
+/**
+ * The Household's full Rejection history for the AI search snapshot (PRD:
+ * Rejections on Tonight, ADR-0006) — every `rejections` row joined to its
+ * Option, with the Option's name / kind / Tags carried for snapshot
+ * readability, ordered newest `rejected_on` first (`created_at` breaks a
+ * same-day tie). Only Rejections of **active** Options are returned, mirroring
+ * how `getTonightData` already excludes Archived Options' Log entries: an
+ * Archived Option is off Tonight, so its Rejections must not shape an AI
+ * search either. `lib/rejections.ts` partitions the result into today's
+ * Rejections — dropped from the candidate set — and earlier ones — still
+ * candidates. Uncapped by choice: the table is single-household-small and
+ * ADR-0006 stores Rejections flat; revisit only if a prompt genuinely bloats.
+ */
+export async function getRejections(): Promise<RejectionRow[]> {
+  const rows = await db
+    .select({
+      optionId: rejections.optionId,
+      reason: rejections.reason,
+      rejectedOn: rejections.rejectedOn,
+      optionName: options.name,
+      kind: options.kind,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(rejections.optionId, options.id))
+    .where(eq(options.active, true))
+    .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
+
+  const links = await db
+    .select({ optionId: optionTags.optionId, name: tags.name })
+    .from(optionTags)
+    .innerJoin(tags, eq(optionTags.tagId, tags.id))
+    .orderBy(asc(tags.name));
+
+  const tagsByOption = new Map<string, string[]>();
+  for (const link of links) {
+    const list = tagsByOption.get(link.optionId) ?? [];
+    list.push(link.name);
+    tagsByOption.set(link.optionId, list);
+  }
+
+  return rows.map((row) => ({
+    optionId: row.optionId,
+    reason: row.reason,
+    rejectedOn: row.rejectedOn,
+    optionName: row.optionName,
+    kind: row.kind,
+    tags: tagsByOption.get(row.optionId) ?? [],
+  }));
+}
+
+/**
+ * One Rejection in an Option's history, narrowed to what the Option detail
+ * page's Rejection history section renders (PRD: Option detail page).
+ */
+export type OptionRejectionRow = {
+  /** The `rejections` row id — the handle the "Bring back" action deletes by. */
+  id: string;
+  /** The optional short reason; `null` when the Household gave none. */
+  reason: string | null;
+  /** `rejected_on` as a SQL `date` string (`"YYYY-MM-DD"`). */
+  rejectedOn: string;
+};
+
+/**
+ * Every Rejection ever made for one Option — `rejections` rows scoped to the
+ * given Option id, ordered newest `rejected_on` first (`created_at` breaks a
+ * same-day tie). The Option detail page's Rejection history section lists
+ * these (PRD: Option detail page). Unlike `getRejections` it is scoped to one
+ * Option and unlike the Tonight queries it is not filtered to active Options —
+ * the detail page serves an Archived Option's Rejection history too.
+ */
+export async function getOptionRejections(
+  optionId: string,
+): Promise<OptionRejectionRow[]> {
+  return db
+    .select({
+      id: rejections.id,
+      reason: rejections.reason,
+      rejectedOn: rejections.rejectedOn,
+    })
+    .from(rejections)
+    .where(eq(rejections.optionId, optionId))
+    .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
 }
 
 /** An Option reduced to a choice for the Log edit form's Option picker. */

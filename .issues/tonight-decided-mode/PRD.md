@@ -10,6 +10,20 @@ the relevant one; this PRD adds no ADR.
 This PRD covers a focused redesign of the **Tonight** screen. It builds on the
 shipped v1 app and does not change the ranking, the Log, or the Catalog.
 
+> **Post-facto amendment — 2026-05-17.** Decided mode no longer *collapses*
+> the picker. After the feature shipped, hiding the ranked list behind an
+> "Add another option" toggle proved to hide it too well — adding a second
+> Option is a normal thing to want, and the toggle made it feel like a
+> detour. The picker now stays **open** in decided mode, below the "Tonight's
+> dinner" block and under an "Add another option" divider: a sub-label
+> heading plus a hint that Picking again adds a *second* dinner rather than
+> replacing the first. The "Tonight's dinner" block also gained a light
+> kind-tinted background so the decided area reads as distinct from the
+> picker below it. This supersedes the collapse behavior throughout — the
+> Solution paragraph below, user stories 16–19, and the "The collapsible
+> picker" implementation section describe the as-built v2 design; the
+> picker-stays-open behavior is what `app/tonight-screen.tsx` now implements.
+
 ---
 
 ## Problem Statement
@@ -201,20 +215,23 @@ decided view. Two functions:
   practice hold an order or delivery page rather than a menu; that is
   acceptable — "Menu" is the chosen label regardless.
 
-### The collapsible picker
+### The picker in decided mode
+
+> Superseded post-facto (2026-05-17) — see the amendment note at the top. The
+> picker no longer collapses. The original text described it as "collapsed
+> behind an 'Add another option' control" with an **auto-collapse** on Pick;
+> the behavior below is what now ships.
 
 - In decided mode the picker — the All/Home/Restaurant segment, the Tag filter
-  chips, and the ranked `<ol>` — is collapsed behind an "Add another option"
-  control. Tapping it re-opens the picker; Picking an Option from it inserts
-  the Log entry as today and the picker **auto-collapses** back to decided
-  mode, with the new Option appended to Tonight's dinner.
-- An already-picked Option does not appear in the re-opened picker; this
-  exclusion is `splitTonight`'s job, so the picker is correct without per-row
-  logic.
-- AI search (see `CONTEXT.md`) is a separate, not-yet-built feature. When it
-  ships it belongs **inside** this collapsible picker — it is a way to re-rank
-  the candidate list, so it collapses along with the rest of the picker in
-  decided mode. This PRD does not implement AI search.
+  chips, and the ranked `<ol>` — stays **open** below the "Tonight's dinner"
+  block, under an "Add another option" divider: a sub-label heading and a hint
+  making clear that Picking from it adds a second dinner rather than replacing
+  the first. Picking an Option inserts the Log entry as today and appends it
+  to Tonight's dinner; the picker stays open.
+- An already-picked Option does not appear in the picker; this exclusion is
+  `splitTonight`'s job, so the picker is correct without per-row logic.
+- AI search (see `CONTEXT.md`) renders inside this picker — a way to re-rank
+  the candidate list — the same as it does in picker mode.
 
 ### Picking — unchanged
 
@@ -264,7 +281,8 @@ view is verified by hand.
 ## Out of Scope
 
 - **AI search** itself — it is a separate feature in `CONTEXT.md`. This PRD
-  only fixes its *place* (inside the collapsible picker); it does not build it.
+  only fixes its *place* (inside the decided-mode picker); it does not build
+  it.
 - A "Directions" button from a Restaurant's `mapsUrl` — considered and
   deliberately left out; only "Menu" and "Call" were requested.
 - Any change to the ranking Score, the Explanation chip logic, or

@@ -71,7 +71,17 @@ absent entirely — Tonight is exactly v1.
    list in place, so that I read the answer on the same screen I asked on.
 9. As a member of the Household, I want the AI to return a ranked set sized to
    my query, so that a narrowing query ("light") gives me a focused shortlist
-   rather than the whole Catalog re-sorted.
+   rather than the whole Catalog re-sorted — and an open or empty query
+   ("recommend something", or no text at all) gives me the whole Catalog
+   ranked instead, each row's rationale reading as a positive reason near the
+   top and as a "why this is a weaker pick tonight" note near the bottom.
+
+   > **Post-facto amendment — 2026-05-17.** Everything from "— and an open or
+   > empty query" onward was added *after* the feature shipped. The original
+   > story covered only the narrowing-query case; use showed an open query
+   > reads better as the full ranked Catalog (with negative reasons low down)
+   > than as a short list. This records the behavior `lib/ai-search.ts` now
+   > implements; it was not part of the as-built v2 spec.
 10. As a member of the Household, I want AI result rows to be pickable exactly
     like deterministic rows, so that I can Pick straight from a search result.
 11. As a member of the Household, I want the AI result to be ephemeral, so that
