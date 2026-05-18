@@ -1,6 +1,12 @@
 "use client";
 
-import { type FormEvent, useId, useState, useTransition } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useId,
+  useState,
+  useTransition,
+} from "react";
 import type { OptionWithTags } from "../../db/queries";
 import {
   createOption,
@@ -44,6 +50,9 @@ export function OptionForm({
   const fieldId = useId();
   const [name, setName] = useState(initial?.name ?? "");
   const [url, setUrl] = useState(initial?.url ?? "");
+  // A Places autofill leaves an already-filled URL untouched; this flags that
+  // so the URL field can disclose it was kept rather than overwritten.
+  const [urlKept, setUrlKept] = useState(false);
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [address, setAddress] = useState(initial?.address ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
@@ -59,14 +68,24 @@ export function OptionForm({
 
   const isRestaurant = kind === "restaurant";
 
-  /** Apply a Google place's detail to every field — all stay editable after. */
+  /**
+   * Apply a Google place's detail to the fields — all stay editable after. An
+   * already-filled URL is kept, not overwritten: a hand-picked menu link is
+   * usually better than the Place's generic website, so a match flags
+   * `urlKept` instead of clobbering it.
+   */
   function applyAutofill(autofill: PlaceAutofill) {
     setName(autofill.name);
     setAddress(autofill.address);
     setPhone(autofill.phone);
     setLat(autofill.lat);
     setLng(autofill.lng);
-    setUrl(autofill.url);
+    if (url) {
+      setUrlKept(true);
+    } else {
+      setUrl(autofill.url);
+      setUrlKept(false);
+    }
     setMapsUrl(autofill.mapsUrl);
     setGooglePlaceId(autofill.googlePlaceId);
   }
@@ -144,7 +163,15 @@ export function OptionForm({
         id={`${fieldId}-url`}
         label={isRestaurant ? "Website or menu link" : "Recipe link"}
         value={url}
-        onChange={setUrl}
+        onChange={(value) => {
+          setUrl(value);
+          setUrlKept(false);
+        }}
+        note={
+          urlKept
+            ? "Kept your existing link — not updated from the Google match."
+            : undefined
+        }
       />
 
       {isRestaurant && (
@@ -218,17 +245,19 @@ export function OptionForm({
   );
 }
 
-/** A labeled single-line text field. */
+/** A labeled single-line text field, with an optional note below the input. */
 function TextField({
   id,
   label,
   value,
   onChange,
+  note,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
+  note?: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -241,6 +270,7 @@ function TextField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
+      {note && <p className="text-chip text-muted">{note}</p>}
     </div>
   );
 }
