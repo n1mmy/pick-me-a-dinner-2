@@ -8,6 +8,6 @@ import { db } from "./index";
  */
 export async function truncateAll(): Promise<void> {
   await db.execute(
-    sql`truncate table "dinner_log", "option_tags", "options", "tags" restart identity cascade`,
+    sql`truncate table "dinner_log", "option_tags", "options", "rejections", "tags" restart identity cascade`,
   );
 }
