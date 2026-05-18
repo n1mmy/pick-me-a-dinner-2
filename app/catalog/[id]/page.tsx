@@ -134,9 +134,18 @@ export default async function OptionDetailPage({
         />
       </section>
 
+      <section className="flex flex-col gap-2">
+        <h2 className={sectionHeading}>Actions</h2>
+        <OptionControls
+          option={option}
+          allTags={allTags}
+          placesEnabled={placesEnabled()}
+          canDelete={optionLog.length === 0}
+        />
+      </section>
+
       {hasDetails && (
         <section className="flex flex-col gap-2">
-          <h2 className={sectionHeading}>Details</h2>
           <dl className="flex flex-col">
             {option.notes && <Field label="Notes">{option.notes}</Field>}
             {option.url && (
@@ -176,16 +185,6 @@ export default async function OptionDetailPage({
           </dl>
         </section>
       )}
-
-      <section className="flex flex-col gap-2">
-        <h2 className={sectionHeading}>Actions</h2>
-        <OptionControls
-          option={option}
-          allTags={allTags}
-          placesEnabled={placesEnabled()}
-          canDelete={optionLog.length === 0}
-        />
-      </section>
 
       <section className="flex flex-col gap-2">
         <h2 className={sectionHeading}>History</h2>
