@@ -25,9 +25,21 @@ export default async function TonightPage() {
   }));
 
   const rows = rankTonight(options, entries, todayEpochDay);
+  // The decided block shows each Picked Option's recency as it stood *before*
+  // tonight — "5d", not "0d" — and its Tag chips keep that pre-Pick context
+  // (PRD: Tonight — decided mode). So rank the Catalog a second time over the
+  // Log with today's entries dropped, and feed those rows to the decided side.
+  const entriesBeforeToday = entries.filter(
+    (entry) => entry.eatenOn < todayEpochDay,
+  );
+  const decidedRows = rankTonight(options, entriesBeforeToday, todayEpochDay);
   // Tonight's mode is decided server-side: today's Log entries split the ranked
   // list into Tonight's dinner (decided mode) and the still-pickable picker.
-  const { tonightsDinner, picker } = splitTonight(rows, todayEntries);
+  const { tonightsDinner, picker } = splitTonight(
+    rows,
+    todayEntries,
+    decidedRows,
+  );
 
   // Suppression (PRD: Rejections on Tonight) — Options rejected today drop out
   // of the deterministic picker. This is a presentation filter only: it is
