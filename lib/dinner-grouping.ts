@@ -74,18 +74,23 @@ function dateMs(sqlDate: string): number {
   );
 }
 
-/** A Dinner's date header — "Today" / "Tomorrow" / "Yesterday", else "Fri, May 16". */
+/**
+ * A Dinner's date header — "Today" / "Tomorrow" / "Yesterday", else the
+ * "Fri, May 16" form, with a "· N days ago" suffix on past dates (a future
+ * date stays plain).
+ */
 export function formatDinnerDate(sqlDate: string, today: string): string {
   const diff = Math.round((dateMs(sqlDate) - dateMs(today)) / DAY_MS);
   if (diff === 0) return "Today";
   if (diff === 1) return "Tomorrow";
   if (diff === -1) return "Yesterday";
-  return new Intl.DateTimeFormat("en-US", {
+  const label = new Intl.DateTimeFormat("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
     timeZone: "UTC",
   }).format(new Date(dateMs(sqlDate)));
+  return diff < 0 ? `${label} · ${-diff} days ago` : label;
 }
 
 /**

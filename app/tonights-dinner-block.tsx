@@ -7,8 +7,9 @@ import {
   type DecidedAction,
   type TonightsDinnerEntry,
 } from "../lib/tonights-dinner";
+import { kindBarClass } from "./kind-bar";
 import { deleteLogEntry } from "./log/actions";
-import { kindBarClass, RowChips } from "./tonight-row";
+import { RowChips } from "./tonight-row";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +

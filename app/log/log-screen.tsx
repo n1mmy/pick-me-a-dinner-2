@@ -226,7 +226,6 @@ function DayGroup({
             key={rejection.id}
             rejection={rejection}
             optionChoices={optionChoices}
-            today={today}
           />
         ))}
       </ul>

@@ -102,13 +102,13 @@ describe("formatDinnerDate", () => {
     expect(formatDinnerDate("2026-05-16", today)).toBe("Yesterday");
   });
 
-  it("falls back to the weekday-month-day form for any other date", () => {
-    expect(formatDinnerDate("2026-05-15", today)).toBe("Fri, May 15");
+  it("suffixes a past date with 'N days ago', leaves a future date plain", () => {
+    expect(formatDinnerDate("2026-05-15", today)).toBe("Fri, May 15 · 2 days ago");
     expect(formatDinnerDate("2026-05-22", today)).toBe("Fri, May 22");
   });
 
   it("crosses a month boundary correctly", () => {
-    expect(formatDinnerDate("2026-04-30", today)).toBe("Thu, Apr 30");
+    expect(formatDinnerDate("2026-04-30", today)).toBe("Thu, Apr 30 · 17 days ago");
   });
 });
 

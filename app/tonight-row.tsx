@@ -5,23 +5,13 @@ import { useState, useTransition } from "react";
 import { CAP } from "../lib/ranking.config";
 import type { TagRecency, TonightRow } from "../lib/ranking";
 import { recencyChipBg, recencyChipBgStrong } from "../lib/recency-color";
+import { kindBarClass } from "./kind-bar";
 import { pickTonight } from "./log/actions";
 import { rejectOption } from "./rejection-actions";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
   "focus-visible:outline-offset-2 focus-visible:outline-action";
-
-/**
- * The 3px meal-kind bar on a Tonight/decided row's left edge (DESIGN.md "Two
- * color channels") — teal for a home-cooked Option, plum for a restaurant.
- * Pair with `pl-2` so the row content clears the bar.
- */
-export function kindBarClass(kind: "home" | "restaurant"): string {
-  return kind === "home"
-    ? "border-l-[3px] border-l-kind-home pl-2"
-    : "border-l-[3px] border-l-kind-restaurant pl-2";
-}
 
 /**
  * One Tonight row of the flat ledger (DESIGN.md "Tonight row anatomy"). The

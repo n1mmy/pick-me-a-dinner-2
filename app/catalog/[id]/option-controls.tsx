@@ -14,6 +14,12 @@ const focusRing =
 
 const actionButton = `min-h-11 rounded-control px-3 text-body ${focusRing}`;
 
+// Edit reads as a real button — bordered, neutral-filled — matching the Log
+// screen's "Add a dinner" control.
+const editButton =
+  "min-h-11 rounded-control border border-line bg-raised px-3 text-body " +
+  `font-emphasis text-ink transition-colors duration-micro hover:bg-line ${focusRing}`;
+
 /**
  * The Option-level controls on the Option detail page (PRD: Option detail
  * page, ADR-0007) — so a member of the Household can act on the Option from
@@ -23,10 +29,12 @@ const actionButton = `min-h-11 rounded-control px-3 text-body ${focusRing}`;
  * shared `PickButton`), `rejectOption`, `updateOption` (via the reused
  * `OptionForm`), `archiveOption` / `unarchiveOption`, and `deleteOption`.
  * Pick, Reject, and Edit update the page in place — the reused actions
- * revalidate `/catalog/[id]`. A successful Delete navigates back to the
- * Catalog, since the Option no longer exists; a Delete blocked by the
- * Hard-delete rule (ADR-0001, the Option has Log entries) shows the existing
- * inline error and keeps the page.
+ * revalidate `/catalog/[id]`. Delete is offered only when the Option has no
+ * Log entries (`canDelete`): the Hard-delete rule (ADR-0001) would otherwise
+ * block it, so the control is hidden rather than shown to fail. A successful
+ * Delete navigates back to the Catalog, since the Option no longer exists;
+ * `runDelete` still keeps its inline-error path as a guard against a Log
+ * entry being added between page load and the click.
  *
  * The Archive control is a toggle: an active Option offers Archive, an Archived
  * one Un-archive — keeping the member on the page and turning it back into a
@@ -38,10 +46,12 @@ export function OptionControls({
   option,
   allTags,
   placesEnabled,
+  canDelete,
 }: {
   option: OptionWithTags;
   allTags: string[];
   placesEnabled: boolean;
+  canDelete: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -121,29 +131,15 @@ export function OptionControls({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-1">
-        <PickButton optionId={option.id} />
         {confirm === null ? (
           <>
             <button
               type="button"
               onClick={() => {
                 setError(null);
-                setRejecting((open) => !open);
-              }}
-              disabled={pending}
-              aria-expanded={rejecting}
-              aria-controls={boxId}
-              className={`${actionButton} text-muted disabled:opacity-60`}
-            >
-              Reject
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
                 setEditing(true);
               }}
-              className={`${actionButton} text-muted`}
+              className={editButton}
             >
               Edit
             </button>
@@ -173,17 +169,19 @@ export function OptionControls({
                 Un-archive
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setRejecting(false);
-                setConfirm("delete");
-              }}
-              className={`${actionButton} text-danger`}
-            >
-              Delete
-            </button>
+            {canDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setRejecting(false);
+                  setConfirm("delete");
+                }}
+                className={`${actionButton} text-danger`}
+              >
+                Delete
+              </button>
+            )}
           </>
         ) : (
           <>
@@ -210,6 +208,24 @@ export function OptionControls({
             </button>
           </>
         )}
+        <div className="ml-auto flex items-center gap-1">
+          {confirm === null && (
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setRejecting((open) => !open);
+              }}
+              disabled={pending}
+              aria-expanded={rejecting}
+              aria-controls={boxId}
+              className={`${actionButton} text-muted disabled:opacity-60`}
+            >
+              Reject
+            </button>
+          )}
+          <PickButton optionId={option.id} />
+        </div>
       </div>
 
       {rejecting && confirm === null && (
