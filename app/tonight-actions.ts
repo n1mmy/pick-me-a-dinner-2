@@ -43,7 +43,7 @@ export const aiSearchAction = authedAction(
       getRejections(),
     ]);
 
-    const snapshot = buildSnapshot({
+    const { snapshot, idByIndex } = buildSnapshot({
       options: options.map((option) => ({
         id: option.id,
         name: option.name,
@@ -62,10 +62,10 @@ export const aiSearchAction = authedAction(
     });
 
     // `buildSnapshot` has already dropped today's-rejected Options from the
-    // snapshot's candidate `options`; deriving `activeIds` from those leaves a
-    // rejected Option out of the result set too, so it stays absent from AI
-    // search for the rest of the day (PRD: Rejections on Tonight).
-    const activeIds = new Set(snapshot.options.map((option) => option.id));
-    return createAiSearchClient(apiKey).search(snapshot, activeIds);
+    // snapshot's candidate `options`; `idByIndex` covers only those candidates,
+    // so a rejected Option cannot be resurfaced as a result either — it stays
+    // absent from AI search for the rest of the day (PRD: Rejections on
+    // Tonight).
+    return createAiSearchClient(apiKey).search(snapshot, idByIndex);
   },
 );

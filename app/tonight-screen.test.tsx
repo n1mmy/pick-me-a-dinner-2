@@ -136,6 +136,32 @@ describe("TonightScreen — AI search", () => {
     expect(mockedAiSearch).toHaveBeenCalledWith("something light");
   });
 
+  it("renders an AI row with an empty reason as a deterministic-style row", async () => {
+    // `pithy` mode returns an empty reason for an obviously bad pick; that row
+    // must render with no rationale paragraph — just the name and chips, the
+    // way a deterministic row reads.
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [
+        { id: "o1", reason: "Strong Monday pick" },
+        { id: "o2", reason: "" },
+      ],
+    });
+
+    const { container } = render(
+      <TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+    );
+    await submitSearchAndSettle();
+
+    // Both Options render as AI rows...
+    expect(await screen.findByText("Apple Crumble")).toBeTruthy();
+    expect(screen.getByText("Banana Bread")).toBeTruthy();
+    // ...but only the pick with a reason carries a rationale paragraph — the
+    // empty-reason row renders none.
+    expect(screen.getByText("Strong Monday pick")).toBeTruthy();
+    expect(container.querySelectorAll("p.bg-raised")).toHaveLength(1);
+  });
+
   it("restores the deterministic list when the search is cleared", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,

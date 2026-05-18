@@ -35,7 +35,6 @@ vi.mock("../lib/ai-search", async (importOriginal) => ({
 }));
 
 import { aiSearchAction } from "./tonight-actions";
-import type { TodayRejection } from "../db/queries";
 import { AI_SEARCH_UNAVAILABLE } from "../lib/ai-search";
 import { todaySqlDate } from "../lib/local-day";
 
@@ -94,16 +93,16 @@ describe("aiSearchAction", () => {
       results: [{ id: "o1", reason: "fits" }],
     });
     expect(search).toHaveBeenCalledTimes(1);
-    const [snapshot, activeIds] = search.mock.calls[0];
+    const [snapshot, idByIndex] = search.mock.calls[0];
     // The query is wrapped in the prompt-injection delimiter...
     expect(snapshot.query).toBe(
       "<household-text>something sweet</household-text>",
     );
-    // ...and only the real active Option ids form the validation set.
-    expect([...activeIds]).toEqual(["o1"]);
+    // ...and `idByIndex` maps each candidate number back to the real id.
+    expect([...idByIndex.values()]).toEqual(["o1"]);
   });
 
-  it("drops a today-rejected Option from the candidate set and activeIds", async () => {
+  it("drops a today-rejected Option from the candidate set and idByIndex", async () => {
     process.env.ANTHROPIC_API_KEY = "test-key";
     const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
     getRejections.mockResolvedValue([
@@ -120,19 +119,18 @@ describe("aiSearchAction", () => {
 
     await aiSearchAction("something sweet");
 
-    const [snapshot, activeIds] = search.mock.calls[0];
-    // o1 was rejected today — gone from the candidate options and the
-    // validation set, so an AI search cannot resurface it for the rest of the
-    // day. Its Rejection still rides along in the snapshot's Rejections block.
+    const [snapshot, idByIndex] = search.mock.calls[0];
+    // o1 was rejected today — gone from the candidate options and absent from
+    // `idByIndex`, so an AI search cannot resurface it for the rest of the day.
+    // Its Rejection still rides along in the snapshot's Rejections block,
+    // carrying o1's number (1).
     expect(snapshot.options).toEqual([]);
-    expect([...activeIds]).toEqual([]);
+    expect([...idByIndex.values()]).toEqual([]);
     expect(
       snapshot.rejections.rejectedTonight.map(
-        (r: TodayRejection) => r.optionId,
+        (r: { optionId: number }) => r.optionId,
       ),
-    ).toEqual([
-      "o1",
-    ]);
+    ).toEqual([1]);
   });
 
   it("passes an empty query straight through — an empty search is valid", async () => {
