@@ -335,6 +335,7 @@ function AddEntryForm({
             if (id) setError(null);
           }}
           placeholder="Search Options"
+          autoFocus
         />
         {error === "Pick an Option" && (
           <p

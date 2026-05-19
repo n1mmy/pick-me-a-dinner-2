@@ -43,6 +43,7 @@ export function OptionCombobox({
   valueName,
   onChange,
   placeholder = "Search Options",
+  autoFocus = false,
 }: {
   /** Associates an external `<label htmlFor>` with the combobox input. */
   id: string;
@@ -55,6 +56,8 @@ export function OptionCombobox({
   /** Called with the chosen Option id, or `null` when the "×" clears the pick. */
   onChange: (optionId: string | null) => void;
   placeholder?: string;
+  /** Focus the input on mount — for a form that opens with this as its field. */
+  autoFocus?: boolean;
 }) {
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -150,6 +153,7 @@ export function OptionCombobox({
       <input
         ref={inputRef}
         id={id}
+        autoFocus={autoFocus}
         type="text"
         className={inputClass}
         value={query}
