@@ -87,7 +87,10 @@ function RejectionForm({
           id={`${fieldId}-option`}
           choices={optionChoices}
           value={optionId}
-          onChange={setOptionId}
+          onChange={(id) => {
+            setOptionId(id);
+            if (id) setError(null);
+          }}
           placeholder="Search Options"
         />
         {error === "Pick an Option" && (

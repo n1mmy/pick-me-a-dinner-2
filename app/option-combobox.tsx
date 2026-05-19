@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState, type KeyboardEvent } from "react";
+import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { OptionChoice } from "../db/queries";
 import { kindBarClass } from "./kind-bar";
 
@@ -57,6 +57,7 @@ export function OptionCombobox({
   placeholder?: string;
 }) {
   const listId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   /** The name of the picked Option — the field's reconcile target. */
   const pickedName = useMemo(() => {
@@ -98,6 +99,9 @@ export function OptionCombobox({
     setQuery("");
     setSyncedName("");
     setOpen(false);
+    // Pull focus back to the input — its `onFocus` re-opens the list for a
+    // fresh search rather than stranding focus on the dismissed "×" button.
+    inputRef.current?.focus();
   }
 
   /** On blur, reconcile unmatched text back to the last valid pick. */
@@ -144,6 +148,7 @@ export function OptionCombobox({
   return (
     <div className="relative">
       <input
+        ref={inputRef}
         id={id}
         type="text"
         className={inputClass}

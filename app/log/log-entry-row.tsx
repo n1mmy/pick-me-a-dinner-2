@@ -222,7 +222,10 @@ function EntryEditForm({
           choices={optionChoices}
           value={optionId}
           valueName={entry.optionName}
-          onChange={setOptionId}
+          onChange={(id) => {
+            setOptionId(id);
+            if (id) setError(null);
+          }}
           placeholder="Search Options"
         />
         {error === "Pick an Option" && (
