@@ -21,11 +21,22 @@ export const SESSION_TTL_SECONDS = 180 * 24 * 60 * 60;
 
 /**
  * iron-session configuration. `password` seals (encrypts + signs) the cookie
- * and comes from `APP_SECRET`, which must be at least 32 characters. The cookie
- * flags happen to be iron-session's defaults but are set explicitly so the §4
- * contract is legible: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`. TLS
- * terminates at the ingress and the app trusts `X-Forwarded-Proto`, so the
- * `Secure` cookie survives behind the proxy.
+ * and comes from `APP_SECRET`, which must be at least 32 characters. The §4
+ * cookie flags are set explicitly so the contract is legible: `HttpOnly`,
+ * `SameSite=Lax`, `Path=/`, and `Secure` — the last gated on `NODE_ENV`.
+ *
+ * `Secure` must be conditional. In production TLS terminates at the ingress,
+ * the browser sees HTTPS, and the `Secure` cookie holds. But a browser
+ * silently drops a `Secure` cookie set over plain HTTP unless the origin is
+ * `localhost` — so an unconditional `Secure` breaks a `next dev` server
+ * reached over HTTP by host IP: login appears to succeed but the cookie is
+ * never stored, and every following request is unauthenticated.
+ *
+ * The gate is `NODE_ENV !== "development"`, not `=== "production"`, so it
+ * **fails closed**: only `next dev` — which always sets exactly
+ * `"development"` — drops `Secure`; an unset or unexpected `NODE_ENV` still
+ * yields a `Secure` cookie rather than silently shipping the session over
+ * plain HTTP in production.
  */
 export function sessionOptions(): SessionOptions {
   const password = process.env.APP_SECRET;
@@ -36,7 +47,7 @@ export function sessionOptions(): SessionOptions {
     ttl: SESSION_TTL_SECONDS,
     cookieOptions: {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV !== "development",
       sameSite: "lax",
       path: "/",
     },
