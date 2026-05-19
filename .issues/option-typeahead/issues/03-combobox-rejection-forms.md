@@ -1,6 +1,6 @@
 # 03 — Type-ahead Option picker on the Rejection forms
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -29,19 +29,27 @@ inline edit/delete behavior are unchanged.
 
 ## Acceptance criteria
 
-- [ ] The shared rejection form uses `OptionCombobox` in place of the
+- [x] The shared rejection form uses `OptionCombobox` in place of the
       `<select>`, covering both adding and editing a Rejection
-- [ ] Adding a Rejection opens with no Option selected and blocks submit with
+- [x] Adding a Rejection opens with no Option selected and blocks submit with
       an inline "Pick an Option" error
-- [ ] Editing a Rejection opens the picker pre-filled with the Rejection's
+- [x] Editing a Rejection opens the picker pre-filled with the Rejection's
       current Option
-- [ ] The existing date field, optional reason field, and inline edit/delete
+- [x] The existing date field, optional reason field, and inline edit/delete
       behavior are unchanged
-- [ ] All of the Log's Option pickers — add-a-dinner, edit-a-dinner, and the
+- [x] All of the Log's Option pickers — add-a-dinner, edit-a-dinner, and the
       rejection add/edit form — now use the shared `OptionCombobox`
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by
 
 - [01 — Type-ahead Option picker on the Add-a-dinner form](./01-combobox-add-dinner.md)
+
+## Comments
+
+The rejection add/edit forms (`app/log/rejection-row.tsx`) now use the shared
+`OptionCombobox`. The edit-a-dinner picker's conversion is the scope of issue
+02; the final rollout criterion holds once 01, 02, and 03 are all integrated —
+this branch delivers the rejection-form slice and is verified green against
+the integration tip carrying issue 01.

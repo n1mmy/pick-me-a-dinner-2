@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogRejectionRow, OptionChoice } from "../../db/queries";
+import { OptionCombobox } from "../option-combobox";
 import { inputClass, labelClass } from "./log-entry-row";
 import {
   createRejection,
@@ -23,56 +24,13 @@ const actionButton =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
- * The Option `<select>` shared by the add and edit forms — the same two
- * optgroups (Home meals / Restaurants) as the Log entry forms.
- */
-function OptionSelect({
-  id,
-  optionChoices,
-  value,
-  onChange,
-}: {
-  id: string;
-  optionChoices: OptionChoice[];
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const homeChoices = optionChoices.filter((o) => o.kind === "home");
-  const restChoices = optionChoices.filter((o) => o.kind === "restaurant");
-  return (
-    <select
-      id={id}
-      className={inputClass}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      {homeChoices.length > 0 && (
-        <optgroup label="Home meals">
-          {homeChoices.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.name}
-            </option>
-          ))}
-        </optgroup>
-      )}
-      {restChoices.length > 0 && (
-        <optgroup label="Restaurants">
-          {restChoices.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.name}
-            </option>
-          ))}
-        </optgroup>
-      )}
-    </select>
-  );
-}
-
-/**
  * The form body shared by the add-rejection form and the inline edit form: an
- * Option select, a date, and an optional reason, with Save/Add and Cancel. A
- * failed write — a duplicate `(option_id, rejected_on)` or a stale Option —
- * sets `error`, shown inline under the date and never flashed as a success.
+ * Option picker (the shared type-ahead `OptionCombobox`), a date, and an
+ * optional reason, with Save/Add and Cancel. The add form opens with no Option
+ * selected and blocks submit with an inline "Pick an Option" error; the edit
+ * form opens pre-filled with the Rejection's current Option. A failed write —
+ * a duplicate `(option_id, rejected_on)` or a stale Option — sets `error`,
+ * shown inline under the date and never flashed as a success.
  */
 function RejectionForm({
   optionChoices,
@@ -84,7 +42,7 @@ function RejectionForm({
   onCancel,
 }: {
   optionChoices: OptionChoice[];
-  initialOptionId: string;
+  initialOptionId: string | null;
   initialDate: string;
   initialReason: string;
   submitLabel: string;
@@ -96,7 +54,7 @@ function RejectionForm({
   onCancel: () => void;
 }) {
   const fieldId = useId();
-  const [optionId, setOptionId] = useState(initialOptionId);
+  const [optionId, setOptionId] = useState<string | null>(initialOptionId);
   const [rejectedOn, setRejectedOn] = useState(initialDate);
   const [reason, setReason] = useState(initialReason);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +63,10 @@ function RejectionForm({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    if (!optionId) {
+      setError("Pick an Option");
+      return;
+    }
     if (!rejectedOn) {
       setError("Pick a valid date");
       return;
@@ -121,12 +83,22 @@ function RejectionForm({
         <label htmlFor={`${fieldId}-option`} className={labelClass}>
           Option
         </label>
-        <OptionSelect
+        <OptionCombobox
           id={`${fieldId}-option`}
-          optionChoices={optionChoices}
+          choices={optionChoices}
           value={optionId}
           onChange={setOptionId}
+          placeholder="Search Options"
         />
+        {error === "Pick an Option" && (
+          <p
+            id={`${fieldId}-error`}
+            className="text-chip text-danger"
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-1">
@@ -139,10 +111,14 @@ function RejectionForm({
           className={inputClass}
           value={rejectedOn}
           onChange={(event) => setRejectedOn(event.target.value)}
-          aria-invalid={error !== null}
-          aria-describedby={error ? `${fieldId}-error` : undefined}
+          aria-invalid={error !== null && error !== "Pick an Option"}
+          aria-describedby={
+            error && error !== "Pick an Option"
+              ? `${fieldId}-error`
+              : undefined
+          }
         />
-        {error && (
+        {error && error !== "Pick an Option" && (
           <p
             id={`${fieldId}-error`}
             className="text-chip text-danger"
@@ -217,7 +193,7 @@ export function AddRejectionForm({
   return (
     <RejectionForm
       optionChoices={optionChoices}
-      initialOptionId={optionChoices[0]?.id ?? ""}
+      initialOptionId={null}
       initialDate={defaultDate}
       initialReason=""
       submitLabel="Add"
