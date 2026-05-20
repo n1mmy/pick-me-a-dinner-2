@@ -136,7 +136,13 @@ export type SnapshotModelLogEntry = {
 
 /** The model-input JSON the snapshot builder produces. */
 export type ModelSnapshot = {
-  /** Today's Household calendar day, with weekday — `"2026-05-17 (Sunday)"`. */
+  /**
+   * The Tonight screen's anchor day — the **Selected day** (ADR-0009) — with
+   * weekday, e.g. `"2026-05-17 (Sunday)"`. Called `today` on the wire because
+   * the model's frame is "today is this date": it is today *from the
+   * household's planning perspective*, even when the Selected day is a future
+   * calendar date the Household stepped to.
+   */
   today: string;
   /** The Household's query — Household-authored, so delimited. */
   query: string;
@@ -177,9 +183,10 @@ export type BuiltSnapshot = {
 };
 
 /**
- * Turn the active Catalog, the full Log, the Rejection history, today, and the
- * query into the model-input JSON. Decisions baked in (ADR-0005, ADR-0006,
- * ADR-0008):
+ * Turn the active Catalog, the full Log, the Rejection history, the **anchor
+ * day** (the Selected day from the Tonight screen — today on the standard
+ * render), and the query into the model-input JSON. Decisions baked in
+ * (ADR-0005, ADR-0006, ADR-0008, ADR-0009):
  *
  * - Options come out in **alphabetical order by name**, not Score-rank order —
  *   a pre-ranked list would anchor the model toward the existing order.
@@ -197,20 +204,24 @@ export type BuiltSnapshot = {
  *   dinners)** — as a flat chronological list, newest dinner first, each entry
  *   carrying its real date + weekday and the eaten Option's name / kind / Tags
  *   inline, so the model reads eating history directly without joining numbers.
- *   The snapshot carries today's date, so the model tells a plan from history
- *   itself (ADR-0008); the deterministic ranking still excludes future Log
- *   rows — only this AI snapshot sees the future.
- * - Options the Household **rejected today** are dropped from the candidate
- *   `options` — the AI-result side of "suppressed for the day" (PRD:
- *   Rejections on Tonight). It is a presentation filter on the snapshot only;
- *   the Score and `lib/ranking` are untouched (ADR-0003, ADR-0006). A
+ *   The snapshot carries the anchor day as its `today`, so the model tells a
+ *   plan from history itself (ADR-0008); when the Selected day is a future
+ *   date the model sees it as "today" and reasons about the day-of-week and
+ *   the household's plans against that frame (ADR-0009). The deterministic
+ *   ranking still excludes Log rows after the anchor — only this AI snapshot
+ *   sees rows beyond it.
+ * - Options the Household **rejected on the anchor day** are dropped from the
+ *   candidate `options` — the AI-result side of "suppressed for the day"
+ *   (PRD: Rejections on Tonight). It is a presentation filter on the snapshot
+ *   only; the Score and `lib/ranking` are untouched (ADR-0003, ADR-0006). A
  *   suppressed Option's eating history still appears in the Log — only its
  *   candidacy is removed.
  * - The **Rejections block** carries every Rejection of an active Option as
- *   raw dated history (via `lib/rejections`), split into today's and not-today's
- *   — the not-today group carrying past *and* future-dated (Planned) Rejections;
- *   the model judges from the reasons and dates what is standing and what was
- *   one-off.
+ *   raw dated history (via `lib/rejections`), split into anchor-day Rejections
+ *   (the snapshot's `rejectedTonight` group, from the model's frame) and the
+ *   not-anchor-day ones — the latter carrying past *and* future-dated (Planned)
+ *   Rejections; the model judges from the reasons and dates what is standing
+ *   and what was one-off.
  * - The Restaurant **Places fields** (`address`, `phone`, `lat`, `lng`,
  *   `googlePlaceId`, `mapsUrl`) never enter — `SnapshotOption` has no slot for
  *   them, so they are excluded by construction.
@@ -222,29 +233,37 @@ export function buildSnapshot(input: {
   options: SnapshotOption[];
   logEntries: SnapshotLogEntry[];
   rejections: RejectionRow[];
-  today: string;
+  /**
+   * The anchor day — the Tonight screen's **Selected day** (ADR-0009). Drives
+   * the snapshot's `today` field from the model's frame, the candidate-drop
+   * rule (Options rejected on this day), and the Rejections split (this day vs
+   * everything else). On the standard Tonight render this is today; on a
+   * stepped Tonight it is the Selected day.
+   */
+  asOf: string;
   query: string;
 }): BuiltSnapshot {
-  const { options, logEntries, rejections, today, query } = input;
+  const { options, logEntries, rejections, asOf, query } = input;
 
   // Every Option is numbered by its 1-based position in the Catalog ordered
   // alphabetically by name — the number is what the model sees instead of the
-  // UUID. Numbering covers the *whole* Catalog, not just candidates, so a
-  // today-rejected Option still has a stable number for its Log and Rejection
-  // rows; the candidate `options` list below simply omits it, leaving a gap.
+  // UUID. Numbering covers the *whole* Catalog, not just candidates, so an
+  // anchor-day-rejected Option still has a stable number for its Log and
+  // Rejection rows; the candidate `options` list below simply omits it,
+  // leaving a gap.
   const byName = [...options].sort((a, b) => a.name.localeCompare(b.name));
   const indexByOptionId = new Map(byName.map((o, i) => [o.id, i + 1]));
 
-  const { suppressedToday, block } = partitionRejections(
+  const { suppressedForAsOf, block } = partitionRejections(
     rejections,
-    today,
+    asOf,
     indexByOptionId,
   );
 
-  // Today's-rejected Options leave the candidate set. The Log below is still
-  // built from the *full* `options` input, so a suppressed Option's eating
-  // history reads as history even though it is no longer a candidate.
-  const candidates = byName.filter((o) => !suppressedToday.has(o.id));
+  // Anchor-day-rejected Options leave the candidate set. The Log below is
+  // still built from the *full* `options` input, so a suppressed Option's
+  // eating history reads as history even though it is no longer a candidate.
+  const candidates = byName.filter((o) => !suppressedForAsOf.has(o.id));
   const modelOptions = candidates.map(
     (option): SnapshotModelOption => ({
       id: indexByOptionId.get(option.id)!,
@@ -284,7 +303,7 @@ export function buildSnapshot(input: {
 
   return {
     snapshot: {
-      today: formatDateWithWeekday(today),
+      today: formatDateWithWeekday(asOf),
       query: delimit(query),
       options: modelOptions,
       log,

@@ -96,7 +96,53 @@ describe("pickTonight", () => {
     expect(result.ok).toBe(false);
     expect(await db.select().from(dinnerLog)).toHaveLength(0);
   });
+
+  it("logs a Planned dinner when given a future Selected day", async () => {
+    // ADR-0009: a Pick from Tonight with a future Selected day creates a
+    // Planned dinner dated that day — the same write `pickTonight` already
+    // does, just to a different `eaten_on`.
+    const pizza = await makeOption("Pizza");
+    const future = futureSqlDate(7);
+
+    const result = await pickTonight(pizza, future);
+
+    expect(result.ok).toBe(true);
+    const rows = await db.select().from(dinnerLog);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].eatenOn).toBe(future);
+  });
+
+  it("clamps a past Selected day to today rather than backfilling", async () => {
+    // The Selected day's stepper has `min=today` (ADR-0009); a past value can
+    // only arrive from a stale or hand-edited request. The action clamps to
+    // today defensively — backfilling lives on the Log screen, not here.
+    const pizza = await makeOption("Pizza");
+
+    await pickTonight(pizza, "2025-01-01");
+
+    const rows = await db.select().from(dinnerLog);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].eatenOn).toBe(TODAY);
+  });
+
+  it("clamps a malformed Selected day to today", async () => {
+    const pizza = await makeOption("Pizza");
+
+    await pickTonight(pizza, "not-a-date");
+
+    const rows = await db.select().from(dinnerLog);
+    expect(rows[0].eatenOn).toBe(TODAY);
+  });
 });
+
+/**
+ * A SQL date `daysAhead` days from today — used by the Planned-dinner tests
+ * so the future cases stay relative to whenever the suite runs.
+ */
+function futureSqlDate(daysAhead: number): string {
+  const ms = Date.now() + daysAhead * 86_400_000;
+  return todaySqlDate(new Date(ms), process.env.APP_TZ ?? "UTC");
+}
 
 describe("logForDate", () => {
   it("backfills a past date", async () => {

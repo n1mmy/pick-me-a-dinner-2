@@ -1,20 +1,23 @@
 /**
  * Tonight's-dinner module — a deep, pure split of the Tonight screen into its
  * two modes (PRD: Tonight — decided mode). No DB, no React: given the ranked
- * Tonight rows and today's Log entries it decides what has been Picked and what
- * is still pickable.
+ * Tonight rows and the Log entries dated on the anchor day it decides what has
+ * been Picked and what is still pickable.
  *
- * The Tonight screen keys its mode off the result: an empty `tonightsDinner` is
- * picker mode, a non-empty one is decided mode. Because the input is only
- * *today's* Log entries, a new calendar day naturally empties `tonightsDinner`
- * and the screen falls back to picker mode with no extra day-boundary logic.
+ * The anchor day is the Tonight screen's **Selected day** (ADR-0009), which
+ * defaults to today and may be a future date the Household stepped to. The
+ * Tonight screen keys its mode off the result: an empty `tonightsDinner` is
+ * picker mode, a non-empty one is decided mode. The anchor-day filter lives in
+ * the caller (the page query that loads the entries), so this module stays
+ * date-agnostic — feed it the entries for *the* anchor day and it does the
+ * right thing whether that day is today or Friday.
  */
 import type { TonightRow } from "./ranking";
 
 /**
- * A `dinner_log` row dated today, narrowed to what the decided view needs.
- * `createdAt` gives the pick order; `id` is the handle the decided row's
- * "Remove" deletes (issue 03).
+ * A `dinner_log` row dated on the anchor day, narrowed to what the decided
+ * view needs. `createdAt` gives the pick order; `id` is the handle the
+ * decided row's "Remove" deletes (issue 03).
  */
 export type TodayLogEntry = {
   id: string;
@@ -39,21 +42,21 @@ export type SplitTonight = {
 };
 
 /**
- * Split the Tonight screen given the live ranked rows, today's Log entries, and
- * `decidedRows`.
+ * Split the Tonight screen given the live ranked rows, the Log entries dated
+ * on the anchor day, and `decidedRows`.
  *
  * `tonightsDinner` is the Picked Options ordered by pick order, oldest first,
  * so a multi-Option Dinner reads as how the evening came together and never
  * reshuffles when another Option is added. Each Option's row is taken from
- * `decidedRows` — the same Catalog ranked over the Log *before today* — so a
- * just-Picked Option's Recency and Tag chips show how overdue it was when it
- * was Picked rather than a meaningless "0d". `picker` is the live `rankedRows`
- * minus every Picked Option, so the picker only ever offers what is not yet
- * Picked, ranked as it is now.
+ * `decidedRows` — the same Catalog ranked over the Log *before the anchor day*
+ * — so a just-Picked Option's Recency and Tag chips show how overdue it was
+ * when it was Picked rather than a meaningless "0d". `picker` is the live
+ * `rankedRows` minus every Picked Option, so the picker only ever offers what
+ * is not yet Picked, ranked as it is now.
  *
- * A today Log entry whose Option is not in `decidedRows` — e.g. the Option was
- * Archived after it was Picked — has no row to render; it is skipped without
- * error rather than crashing the screen.
+ * An anchor-day Log entry whose Option is not in `decidedRows` — e.g. the
+ * Option was Archived after it was Picked — has no row to render; it is
+ * skipped without error rather than crashing the screen.
  */
 export function splitTonight(
   rankedRows: TonightRow[],

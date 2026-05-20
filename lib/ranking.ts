@@ -1,12 +1,20 @@
 /**
  * The Tonight ranking engine (plan §7, ADR-0003) — a deep, pure module with no
  * DB or React dependency. It maps the active Catalog, each Option's Tags, the
- * non-future Log entries and "today" to the Tonight list: Options ranked
- * descending by Score, each with an Explanation chip and per-Tag recency.
+ * Log entries (any date) and a single **anchor day** to the Tonight list:
+ * Options ranked descending by Score, each with an Explanation chip and per-Tag
+ * recency.
+ *
+ * The anchor day defaults to today on the standard Tonight render, but the
+ * caller may pass any other day — the **Selected day** the Household stepped
+ * to (ADR-0009). The math is the same either way: Log entries dated after the
+ * anchor are excluded by `lastEaten` / `lastTagUse`, so a caller may pass them
+ * in harmlessly, and recency is `anchor - lastEaten`. Planning a future Selected
+ * day's dinner therefore re-anchors the ranking to that day; Planned dinners
+ * between today and the Selected day count toward that day's recency.
  *
  * All dates arrive as integer epoch-days (see `local-day.ts`); this module does
- * pure integer arithmetic. Future Log entries (Planned dinners) are excluded by
- * `lastEaten` / `lastTagUse`, so a caller may pass them in harmlessly.
+ * pure integer arithmetic.
  */
 import { CAP, OVERDUE_THRESHOLD, W_OPTION, W_TAG } from "./ranking.config";
 
@@ -57,9 +65,10 @@ export type TonightRow = {
    */
   recencyDays: number;
   /**
-   * True when the Option has no non-future Log entry. `recencyDays` caps at
-   * `CAP`, so a never-eaten Option and one last eaten 60+ days ago both read
-   * `CAP` — this flag lets the Recency chip show "new" instead of "60d+".
+   * True when the Option has no Log entry dated on or before the anchor day.
+   * `recencyDays` caps at `CAP`, so a never-eaten Option and one last eaten 60+
+   * days ago both read `CAP` — this flag lets the Recency chip show "new"
+   * instead of "60d+".
    */
   neverEaten: boolean;
 };
@@ -78,7 +87,7 @@ export type OptionRanking = {
   tags: TagRecency[];
   /** Per-Option recency in days, capped at `CAP`. */
   recencyDays: number;
-  /** True when the Option has no non-future Log entry — see `TonightRow`. */
+  /** True when the Option has no Log entry dated on or before the anchor day. */
   neverEaten: boolean;
 };
 
@@ -88,40 +97,42 @@ function mean(values: number[]): number {
 }
 
 /**
- * Days from `day` to `today`, capped at `CAP`. A `null` `day` ("never eaten" /
- * "never used") returns `CAP` so it cannot dominate the ranking. A future `day`
- * — which `lastEaten` / `lastTagUse` already exclude — is guarded to 0 so it
- * can never push a Score negative.
+ * Days from `day` to the `asOf` anchor day, capped at `CAP`. A `null` `day`
+ * ("never eaten" / "never used") returns `CAP` so it cannot dominate the
+ * ranking. A `day` after `asOf` — which `lastEaten` / `lastTagUse` already
+ * exclude — is guarded to 0 so it can never push a Score negative.
  */
-export function daysSince(day: number | null, today: number): number {
+export function daysSince(day: number | null, asOf: number): number {
   if (day === null) return CAP;
-  return Math.max(0, Math.min(CAP, today - day));
+  return Math.max(0, Math.min(CAP, asOf - day));
 }
 
 /**
- * Per-Option recency: the most-recent non-future `eatenOn` for `optionId`, or
- * `null` if the Option has no non-future Log entry. Planned dinners (a future
- * `eatenOn`) are excluded — planning Friday must not make Friday's dish look
- * recently eaten today.
+ * Per-Option recency: the most-recent `eatenOn` for `optionId` dated on or
+ * before the `asOf` anchor day, or `null` if the Option has no such Log entry.
+ * Entries dated after the anchor are excluded — a Planned dinner after the
+ * Selected day must not make its dish look recently eaten *for* the Selected
+ * day.
  */
 export function lastEaten(
   entries: LogEntry[],
   optionId: string,
-  today: number,
+  asOf: number,
 ): number | null {
   let latest: number | null = null;
   for (const entry of entries) {
     if (entry.optionId !== optionId) continue;
-    if (entry.eatenOn > today) continue;
+    if (entry.eatenOn > asOf) continue;
     if (latest === null || entry.eatenOn > latest) latest = entry.eatenOn;
   }
   return latest;
 }
 
 /**
- * Per-Tag recency: the most-recent non-future `eatenOn` across every Option
- * that currently carries `tag`, or `null` if no carrier has a non-future Log
- * entry. Future entries are excluded, exactly as for `lastEaten`.
+ * Per-Tag recency: the most-recent `eatenOn` across every Option that carries
+ * `tag`, dated on or before the `asOf` anchor day, or `null` if no carrier has
+ * such a Log entry. Entries dated after the anchor are excluded, exactly as
+ * for `lastEaten`.
  */
 export function lastTagUse(
   entries: LogEntry[],
@@ -129,7 +140,7 @@ export function lastTagUse(
   // search snapshot passes its own `SnapshotOption`, which has no url/phone.
   options: { id: string; tags: string[] }[],
   tag: string,
-  today: number,
+  asOf: number,
 ): number | null {
   const carriers = new Set(
     options.filter((option) => option.tags.includes(tag)).map((o) => o.id),
@@ -137,7 +148,7 @@ export function lastTagUse(
   let latest: number | null = null;
   for (const entry of entries) {
     if (!carriers.has(entry.optionId)) continue;
-    if (entry.eatenOn > today) continue;
+    if (entry.eatenOn > asOf) continue;
     if (latest === null || entry.eatenOn > latest) latest = entry.eatenOn;
   }
   return latest;
@@ -155,21 +166,24 @@ export function optionScore(antiRepeat: number, tagDays: number[]): number {
 }
 
 /**
- * Rank the active Catalog into the Tonight list: descending by Score, with an
- * alphabetical tie-break that also gives the cold-start fallback for free —
- * with no non-future Log history every Score ties, so the list is alphabetical.
+ * Rank the active Catalog into the Tonight list for the `asOf` anchor day:
+ * descending by Score, with an alphabetical tie-break that also gives the
+ * cold-start fallback for free — with no Log history on or before the anchor
+ * every Score ties, so the list is alphabetical. When the anchor is today,
+ * this is the standard Tonight render; when it is the Selected day, it is the
+ * day-shifted view (ADR-0009).
  */
 export function rankTonight(
   options: RankOption[],
   entries: LogEntry[],
-  today: number,
+  asOf: number,
 ): TonightRow[] {
   const rows = options.map((option): TonightRow => {
-    const lastEatenDay = lastEaten(entries, option.id, today);
-    const antiRepeat = daysSince(lastEatenDay, today);
+    const lastEatenDay = lastEaten(entries, option.id, asOf);
+    const antiRepeat = daysSince(lastEatenDay, asOf);
 
     const tags: TagRecency[] = option.tags.map((tag) => {
-      const days = daysSince(lastTagUse(entries, options, tag, today), today);
+      const days = daysSince(lastTagUse(entries, options, tag, asOf), asOf);
       return { tag, days, overdue: days >= OVERDUE_THRESHOLD };
     });
 
@@ -199,12 +213,12 @@ export type RankOptionInput = {
   target: RankOption;
   /** The active Catalog — the per-Tag Recency carriers, as `rankTonight` reads them. */
   activeOptions: RankOption[];
-  /** The active Catalog's non-future Log entries (per-Tag recency draws on these). */
+  /** The active Catalog's Log entries dated on or before `asOf` (per-Tag recency draws on these). */
   activeLog: LogEntry[];
   /** The `target` Option's own Log entries (per-Option recency always draws on these). */
   targetLog: LogEntry[];
-  /** Today as an epoch-day (see `local-day.ts`). */
-  today: number;
+  /** The anchor day, as an epoch-day (see `local-day.ts`). */
+  asOf: number;
 };
 
 /**
@@ -228,15 +242,15 @@ export function rankOption({
   activeOptions,
   activeLog,
   targetLog,
-  today,
+  asOf,
 }: RankOptionInput): OptionRanking {
-  const lastEatenDay = lastEaten(targetLog, target.id, today);
-  const antiRepeat = daysSince(lastEatenDay, today);
+  const lastEatenDay = lastEaten(targetLog, target.id, asOf);
+  const antiRepeat = daysSince(lastEatenDay, asOf);
 
   const tags: TagRecency[] = target.tags.map((tag) => {
     const days = daysSince(
-      lastTagUse(activeLog, activeOptions, tag, today),
-      today,
+      lastTagUse(activeLog, activeOptions, tag, asOf),
+      asOf,
     );
     return { tag, days, overdue: days >= OVERDUE_THRESHOLD };
   });

@@ -177,6 +177,78 @@ describe("rankTonight", () => {
     expect(rows[0].recencyDays).toBe(CAP);
     expect(rows[0].score).toBe((W_OPTION + W_TAG) * CAP);
   });
+
+  it(
+    "shifts the anchor day to the Selected day — a Planned dinner between " +
+      "today and the anchor counts toward that day's recency",
+    () => {
+      // Picking for the Selected day, three days from today (ADR-0009). A
+      // Planned dinner sitting two days ahead is "yesterday" relative to that
+      // anchor, so it shapes the anchor day's per-Option *and* per-Tag recency
+      // even though it would be excluded as future from a today-anchored
+      // ranking.
+      const options = [
+        option("planned", "Planned Pasta", ["pasta"]),
+        option("companion", "Other Pasta", ["pasta"]),
+        option("untouched", "Fresh Salad", ["salad"]),
+      ];
+      const selectedDay = TODAY + 3;
+      const entries: LogEntry[] = [
+        { optionId: "planned", eatenOn: TODAY + 2 }, // Planned dinner before the anchor
+      ];
+      const rows = rankTonight(options, entries, selectedDay);
+      const planned = rows.find((row) => row.option.id === "planned")!;
+      const companion = rows.find((row) => row.option.id === "companion")!;
+      const untouched = rows.find((row) => row.option.id === "untouched")!;
+
+      // The planned dish reads one day overdue against the Selected day —
+      // not "never eaten", not 60d+.
+      expect(planned.recencyDays).toBe(1);
+      expect(planned.neverEaten).toBe(false);
+      // Its Tag-mate inherits the same per-Tag recency (it shares "pasta") —
+      // the variety side of the Score rotates with the anchor too.
+      expect(companion.tags[0]).toEqual({ tag: "pasta", days: 1, overdue: false });
+      // An unrelated Option is unaffected by a planned dinner it has no Tag in
+      // common with — still cold-start.
+      expect(untouched.neverEaten).toBe(true);
+      expect(untouched.recencyDays).toBe(CAP);
+    },
+  );
+
+  it("excludes a Log entry dated after the anchor day", () => {
+    // From a Selected day's perspective, an entry dated after that day is
+    // "future" and excluded — same rule today's view uses, just relative to
+    // the anchor (ADR-0009).
+    const options = [option("o1", "Future Pick")];
+    const selectedDay = TODAY + 2;
+    const entries: LogEntry[] = [
+      { optionId: "o1", eatenOn: selectedDay + 1 }, // a day after the Selected day
+    ];
+    const rows = rankTonight(options, entries, selectedDay);
+    expect(rows[0].neverEaten).toBe(true);
+    expect(rows[0].recencyDays).toBe(CAP);
+  });
+
+  it(
+    "ties tie-break and cold-start fallback for a future anchor day too",
+    () => {
+      // No Log history on or before the Selected day → every Score ties at
+      // the cold-start ceiling → alphabetical order, identical to today's
+      // cold-start branch (ADR-0009).
+      const options = [
+        option("b", "Banana Bread"),
+        option("a", "Apple Crumble"),
+      ];
+      const rows = rankTonight(options, [], TODAY + 10);
+      expect(rows.map((row) => row.option.name)).toEqual([
+        "Apple Crumble",
+        "Banana Bread",
+      ]);
+      expect(rows.every((row) => row.score === (W_OPTION + W_TAG) * CAP)).toBe(
+        true,
+      );
+    },
+  );
 });
 
 describe("rankOption", () => {
@@ -207,7 +279,7 @@ describe("rankOption", () => {
         activeOptions: options,
         activeLog: entries,
         targetLog: logFor(entries, target.id),
-        today: TODAY,
+        asOf: TODAY,
       });
       expect(ranked.score).toBe(row?.score);
       expect(ranked.recencyDays).toBe(row?.recencyDays);
@@ -223,7 +295,7 @@ describe("rankOption", () => {
       activeOptions: options,
       activeLog: [],
       targetLog: [],
-      today: TODAY,
+      asOf: TODAY,
     });
     expect(ranked.neverEaten).toBe(true);
     expect(ranked.recencyDays).toBe(CAP);
@@ -249,7 +321,7 @@ describe("rankOption", () => {
       activeOptions,
       activeLog,
       targetLog,
-      today: TODAY,
+      asOf: TODAY,
     });
     // An Archived Option takes no part in the ranking — no Score.
     expect(ranked.score).toBe(null);

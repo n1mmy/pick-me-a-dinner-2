@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import type { TodayRejection } from "../db/queries";
 import type { AiRankingRow } from "../lib/ai-search";
+import { weekdayName } from "../lib/local-day";
 import type { TonightRow } from "../lib/ranking";
 import {
   chipStateLabel,
@@ -16,6 +17,7 @@ import {
   type TagFilters,
 } from "../lib/tonight-filter";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
+import { DayStepper } from "./day-stepper";
 import { deleteRejection } from "./rejection-actions";
 import { aiSearchAction } from "./tonight-actions";
 import { TonightRowItem } from "./tonight-row";
@@ -51,26 +53,47 @@ export function TonightScreen({
   searchEnabled,
   allRejected = false,
   rejectedTonight = [],
+  selectedDay,
+  todaySql,
 }: {
   /** The Picked Options, in pick order — non-empty puts Tonight in decided mode. */
   tonightsDinner: TonightsDinnerEntry[];
-  /** The ranked picker rows, with Picked and today-rejected Options removed. */
+  /** The ranked picker rows, with Picked and Selected-day-rejected Options removed. */
   pickerRows: TonightRow[];
   /** Whether AI search is configured — gates the search box (`aiSearchEnabled`). */
   searchEnabled: boolean;
   /**
-   * True when the picker had rows but every one was rejected for tonight (PRD:
-   * Rejections). It separates an all-rejected empty list — a real state, with
-   * the Options back tomorrow — from a genuinely empty Catalog.
+   * True when the picker had rows but every one was rejected for the
+   * Selected day (PRD: Rejections). It separates an all-rejected empty list —
+   * a real state, with the Options back the next day — from a genuinely
+   * empty Catalog.
    */
   allRejected?: boolean;
   /**
-   * Today's Rejections (PRD: Rejections on Tonight) — what the "Rejected
-   * tonight" disclosure lists and lets the Household bring back. Empty by
-   * default, so the disclosure costs nothing until something is rejected.
+   * The Selected day's Rejections (PRD: Rejections on Tonight) — what the
+   * "Rejected for [day]" disclosure lists and lets the Household bring back.
+   * Empty by default, so the disclosure costs nothing until something is
+   * rejected.
    */
   rejectedTonight?: TodayRejection[];
+  /**
+   * The Tonight screen's **Selected day** (ADR-0009). When equal to
+   * `todaySql` the screen reads as today's Tonight; when not, the H1, copy,
+   * and Pick/Reject writes all rotate to that day.
+   */
+  selectedDay: string;
+  /** Today's SQL date in the Household's `APP_TZ`. */
+  todaySql: string;
 }) {
+  const isToday = selectedDay === todaySql;
+  // The H1 label: "Tonight" today, the weekday name on a future Selected day
+  // (ADR-0009 / PRD story 11–12). The navigation entry's "Tonight" label is
+  // unchanged either way — it lives in `app-nav.tsx`.
+  const heading = isToday ? "Tonight" : weekdayName(selectedDay);
+  // Day-aware copy for the decided block, the "Rejected …" disclosure, and
+  // the "all rejected" empty state. "tonight" for today, the weekday name
+  // otherwise — the day name reads as a noun in both copy slots.
+  const dayLabel = isToday ? "tonight" : weekdayName(selectedDay);
   const decided = tonightsDinner.length > 0;
   // Picker mode with nothing to rank at all — an empty Catalog, not "all Picked"
   // and not "all rejected" (both of which are real states with their own copy).
@@ -106,10 +129,10 @@ export function TonightScreen({
 
   // The mode restated for assistive tech. A live region voices only changes, so
   // a fresh load is silent; a Pick that flips picker → decided (or a Remove
-  // that flips back) is announced.
+  // that flips back) is announced. The day-aware copy mirrors the visible H1.
   const modeStatus = decided
-    ? "Tonight's dinner is decided."
-    : "Choosing tonight's dinner.";
+    ? `${capitalize(dayLabel)}'s dinner is decided.`
+    : `Choosing ${dayLabel}'s dinner.`;
 
   // The kind segment shows only when a Picker is actually on screen and not
   // overridden by an AI result. The picker is on screen whenever there are rows
@@ -120,7 +143,10 @@ export function TonightScreen({
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h1 className="font-display text-h1 font-h1 text-ink">Tonight</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="font-display text-h1 font-h1 text-ink">{heading}</h1>
+          <DayStepper selectedDay={selectedDay} todaySql={todaySql} />
+        </div>
         {showKindSegment && <KindSegment kind={kind} onChange={setKind} />}
       </div>
       <p className="sr-only" role="status" aria-live="polite">
@@ -138,25 +164,27 @@ export function TonightScreen({
           </Link>
         </p>
       ) : !decided && allRejected ? (
-        // Every Option was rejected for tonight — a real state, not a broken
-        // screen. A Rejection means "not tonight": the Options return tomorrow.
+        // Every Option was rejected for the Selected day — a real state, not
+        // a broken screen. A Rejection means "not this day": the Options
+        // return on any other day.
         <p className="text-body text-muted">
-          Every Option has been rejected for tonight. They&rsquo;ll be back
-          tomorrow.
+          Every Option has been rejected for {dayLabel}. They&rsquo;ll be back
+          on a different day.
         </p>
       ) : decided ? (
         <>
-          <TonightsDinnerBlock entries={tonightsDinner} />
+          <TonightsDinnerBlock entries={tonightsDinner} dayLabel={dayLabel} />
           {pickerRows.length === 0 ? (
             <p className="border-t border-line pt-5.5 text-body text-muted">
               {allRejected
-                ? "Every remaining Option has been rejected for tonight."
-                : "Every Option is already on tonight’s dinner."}
+                ? `Every remaining Option has been rejected for ${dayLabel}.`
+                : `Every Option is already on ${dayLabel}’s dinner.`}
             </p>
           ) : (
             // The ranked picker stays open below the decided block, under a
-            // divider. Picking from it Picks a *second* dinner for tonight
-            // rather than replacing the first — the heading and hint say so.
+            // divider. Picking from it Picks a *second* dinner for the
+            // Selected day rather than replacing the first — the heading and
+            // hint say so.
             <section
               aria-label="Add another option"
               className="flex flex-col gap-2 border-t border-line pt-5.5"
@@ -165,14 +193,16 @@ export function TonightScreen({
                 Add another option
               </h2>
               <p className="text-meta text-muted">
-                Picking one adds it to tonight&rsquo;s dinner — it won&rsquo;t
-                replace what&rsquo;s already chosen.
+                Picking one adds it to {dayLabel}&rsquo;s dinner — it
+                won&rsquo;t replace what&rsquo;s already chosen.
               </p>
               <Picker
                 rows={pickerRows}
                 searchEnabled={searchEnabled}
                 kind={kind}
                 onAiActiveChange={setAiActive}
+                selectedDay={selectedDay}
+                isToday={isToday}
               />
             </section>
           )}
@@ -183,18 +213,28 @@ export function TonightScreen({
           searchEnabled={searchEnabled}
           kind={kind}
           onAiActiveChange={setAiActive}
+          selectedDay={selectedDay}
+          isToday={isToday}
         />
       )}
 
       {/* Pinned to the bottom of the page, after the ranked rows — collapsed
           by default, so it costs no screen space until scrolled to. Rendered
-          whenever something was rejected today; it then lists today's
-          Rejections with a "Bring back" undo. */}
+          whenever something was rejected for the Selected day; it then lists
+          those Rejections with a "Bring back" undo. */}
       {rejectedTonight.length > 0 && (
-        <RejectedTonightDisclosure rejections={rejectedTonight} />
+        <RejectedTonightDisclosure
+          rejections={rejectedTonight}
+          dayLabel={dayLabel}
+        />
       )}
     </main>
   );
+}
+
+/** Capitalize a lowercase day label for sentence-start copy. */
+function capitalize(s: string): string {
+  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
 }
 
 /**
@@ -213,8 +253,11 @@ export function TonightScreen({
  */
 function RejectedTonightDisclosure({
   rejections,
+  dayLabel,
 }: {
   rejections: TodayRejection[];
+  /** Day-aware copy noun — "tonight" or the weekday name for a future Selected day. */
+  dayLabel: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -235,7 +278,9 @@ function RejectedTonightDisclosure({
           px-4 text-body font-emphasis text-action transition-colors
           duration-short hover:bg-raised ${focusRing}`}
       >
-        {`Rejected tonight (${rejections.length})`}
+        {dayLabel === "tonight"
+          ? `Rejected tonight (${rejections.length})`
+          : `Rejected for ${dayLabel} (${rejections.length})`}
       </button>
       {open && (
         <ul className="flex flex-col">
@@ -295,11 +340,17 @@ function Picker({
   searchEnabled,
   kind,
   onAiActiveChange,
+  selectedDay,
+  isToday,
 }: {
   rows: TonightRow[];
   searchEnabled: boolean;
   kind: KindFilter;
   onAiActiveChange: (active: boolean) => void;
+  /** The Selected day — threaded into Pick/Reject writes and AI search. */
+  selectedDay: string;
+  /** True when the Selected day is today — drives copy and lets AI search skip the parameter. */
+  isToday: boolean;
 }) {
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
 
@@ -367,7 +418,10 @@ function Picker({
 
   function runSearch() {
     startTransition(async () => {
-      const result = await aiSearchAction(query);
+      const result = await aiSearchAction(
+        query,
+        isToday ? undefined : selectedDay,
+      );
       if (!result.ok) {
         // A failed search leaves the deterministic list exactly as it was. The
         // inline error is persistent — it is not cleared on submit, only when a
@@ -463,6 +517,7 @@ function Picker({
                 row={row}
                 rank={index + 1}
                 aiReason={reason}
+                selectedDay={isToday ? undefined : selectedDay}
                 onRejected={(name) =>
                   setRejectNotice(`Rejected ${name}, removed from the list.`)
                 }
@@ -481,6 +536,7 @@ function Picker({
               key={row.option.id}
               row={row}
               rank={rankOf.get(row.option.id) ?? 0}
+              selectedDay={isToday ? undefined : selectedDay}
               onRejected={(name) =>
                 setRejectNotice(`Rejected ${name}, removed from the list.`)
               }

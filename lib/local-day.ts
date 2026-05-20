@@ -78,3 +78,60 @@ export function todayEpochDay(now: Date, timeZone: string): number {
 export function today(): string {
   return todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
 }
+
+/**
+ * Parse the Tonight screen's `?day=` URL parameter into a **Selected day** SQL
+ * date, defaulting to today on anything that is not a valid future-or-today
+ * SQL date (ADR-0009). The Selected day anchors the whole Tonight screen — the
+ * deterministic ranked list, AI search, the decided block, and the live Reject
+ * control all use this date. Past dates are off-limits and stay a Log-screen
+ * backfill job, so a past `?day=` is clamped to today rather than honoured. A
+ * SQL date is lexicographically ordered, so the `<` comparison is exact.
+ */
+export function parseSelectedDay(
+  rawParam: unknown,
+  todaySql: string,
+): string {
+  if (typeof rawParam !== "string") return todaySql;
+  if (!isValidSqlDate(rawParam)) return todaySql;
+  if (rawParam < todaySql) return todaySql;
+  return rawParam;
+}
+
+/** Weekday names, indexed by `Date.prototype.getUTCDay()` (0 = Sunday). */
+const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+/**
+ * The weekday of a SQL `date` string — `"Friday"`, `"Tuesday"`, etc. Used by
+ * the Tonight screen's H1 to show the Selected day's name when it is not
+ * today (ADR-0009). The date is anchored at UTC midnight purely to read the
+ * weekday, so this is exact and timezone-independent.
+ */
+export function weekdayName(sqlDate: string): string {
+  const [year, month, day] = sqlDate.split("-").map(Number);
+  return WEEKDAY_NAMES[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+}
+
+/**
+ * Shift a SQL `date` string by `days` calendar days (negative steps back).
+ * Uses the same UTC-midnight anchoring as `epochDayFromSqlDate`, so a 31st of
+ * the month wraps to the next month cleanly and the result never reads a wrong
+ * day across a DST boundary — a SQL date has no time or zone, so the
+ * computation stays exact and timezone-independent.
+ */
+export function shiftSqlDate(sqlDate: string, days: number): string {
+  const [year, month, day] = sqlDate.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  const yyyy = shifted.getUTCFullYear();
+  const mm = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}

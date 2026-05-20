@@ -31,6 +31,13 @@ vi.mock("./log/actions", () => ({
   pickTonight: vi.fn(async () => ({ ok: true })),
   deleteLogEntry: vi.fn(async () => {}),
 }));
+// `DayStepper` uses Next.js router hooks (`useRouter`, `useSearchParams`,
+// `usePathname`) that aren't wired up in this jsdom render. The stepper has
+// its own (intentionally tiny) surface and no behaviour these screen-level
+// tests assert on, so stub it to a no-op render.
+vi.mock("./day-stepper", () => ({
+  DayStepper: () => null,
+}));
 
 import type { AiSearchResult } from "../lib/ai-search";
 import { aiSearchAction } from "./tonight-actions";
@@ -132,7 +139,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
     // The deterministic list shows its rows.
     expect(screen.getByText("Apple Crumble")).toBeTruthy();
 
@@ -144,7 +151,35 @@ describe("TonightScreen — AI search", () => {
     // The AI result swaps in; the unranked deterministic row is gone.
     expect(await screen.findByText("Light and quick")).toBeTruthy();
     expect(screen.queryByText("Apple Crumble")).toBeNull();
-    expect(mockedAiSearch).toHaveBeenCalledWith("something light");
+    // The Selected day is today in this test render, so the second argument
+    // is `undefined` — `aiSearchAction` then defaults to today server-side.
+    expect(mockedAiSearch).toHaveBeenCalledWith("something light", undefined);
+  });
+
+  it("passes a future Selected day through to the AI search action", async () => {
+    // ADR-0009: a search on a stepped Tonight passes the Selected day to
+    // `aiSearchAction`, so the snapshot rotates around that day for the model.
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o2", reason: "Friday fit" }],
+    });
+
+    render(
+      <TonightScreen
+        selectedDay="2026-05-22"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Search for dinner by intent"), {
+      target: { value: "something light" },
+    });
+    await submitSearchAndSettle();
+
+    expect(mockedAiSearch).toHaveBeenCalledWith("something light", "2026-05-22");
   });
 
   it("renders an AI row with an empty reason as a deterministic-style row", async () => {
@@ -160,7 +195,7 @@ describe("TonightScreen — AI search", () => {
     });
 
     const { container } = render(
-      <TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
     );
     await submitSearchAndSettle();
 
@@ -174,7 +209,7 @@ describe("TonightScreen — AI search", () => {
   });
 
   it("shows the in-field clear control once the query has text", () => {
-    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
 
     // No text and no search run yet — nothing to clear, so no ✕.
     expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
@@ -194,7 +229,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
     await submitSearchAndSettle();
     await screen.findByText("Light and quick");
 
@@ -211,7 +246,7 @@ describe("TonightScreen — AI search", () => {
   it("shows a plain empty-state with a clear control on an empty AI result", async () => {
     mockedAiSearch.mockResolvedValue({ ok: true, results: [] });
 
-    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
     await submitSearchAndSettle();
 
     // The empty result reads as a real answer, not a broken screen.
@@ -236,7 +271,7 @@ describe("TonightScreen — AI search", () => {
   it("leaves the deterministic list intact and shows an error on failure", async () => {
     mockedAiSearch.mockResolvedValue({ ok: false });
 
-    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
     await submitSearchAndSettle();
 
     // The persistent inline error appears; the deterministic list is untouched.
@@ -250,7 +285,7 @@ describe("TonightScreen — AI search", () => {
   it("clears the error when the query is cleared", async () => {
     mockedAiSearch.mockResolvedValue({ ok: false });
 
-    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
     await submitSearchAndSettle();
     await screen.findByText("Search unavailable — try again");
 
@@ -269,7 +304,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen tonightsDinner={[]} pickerRows={TAGGED_ROWS} searchEnabled />);
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={TAGGED_ROWS} searchEnabled />);
 
     // The kind segment and Tag filter chips are part of the deterministic view.
     expect(
@@ -312,7 +347,7 @@ describe("TonightScreen — AI search", () => {
       }),
     );
 
-    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
     expect(searchInput().disabled).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
@@ -346,7 +381,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
     await submitSearchAndSettle();
     await screen.findByText("Search unavailable — try again");
 
@@ -362,7 +397,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
     await submitSearchAndSettle();
 
     // The button drops "Search" for a done badge — a check plus the elapsed
@@ -375,7 +410,7 @@ describe("TonightScreen — AI search", () => {
 
   it("hides the search box when AI search is not enabled", () => {
     // No ANTHROPIC_API_KEY — Tonight is exactly v1: the search box is absent.
-    render(<TonightScreen tonightsDinner={[]} pickerRows={ROWS} searchEnabled={false} />);
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled={false} />);
 
     expect(screen.queryByLabelText("Search for dinner by intent")).toBeNull();
     expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
@@ -392,6 +427,8 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
   it("gives every decided-block row a Remove control", () => {
     render(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={DINNER}
         pickerRows={[]}
         searchEnabled={false}
@@ -404,6 +441,8 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
   it("asks for an inline confirm before deleting today's Log entry", () => {
     render(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={DINNER}
         pickerRows={[]}
         searchEnabled={false}
@@ -425,6 +464,8 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
   it("backs out of the confirm on Cancel without deleting", () => {
     render(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={DINNER}
         pickerRows={[]}
         searchEnabled={false}
@@ -444,6 +485,8 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
     // `tonightsDinner`; emptying it returns the screen to picker mode.
     const { rerender } = render(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={DINNER}
         pickerRows={ROWS}
         searchEnabled={false}
@@ -460,6 +503,8 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
 
     rerender(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={[]}
         pickerRows={ROWS}
         searchEnabled={false}
@@ -485,6 +530,8 @@ describe("TonightScreen — decided-mode picker", () => {
   it("keeps the ranked picker open below the decided block, under a divider", () => {
     render(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={DINNER}
         pickerRows={ROWS}
         searchEnabled={false}
@@ -510,6 +557,8 @@ describe("TonightScreen — decided-mode picker", () => {
   it("shows the all-picked message when nothing is left to pick", () => {
     render(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={DINNER}
         pickerRows={[]}
         searchEnabled={false}
@@ -538,6 +587,8 @@ describe("TonightScreen — scroll to top on Pick", () => {
     const scrollTo = stubScroll(false);
     const { rerender } = render(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={[DINNER[0]]}
         pickerRows={ROWS}
         searchEnabled={false}
@@ -549,6 +600,8 @@ describe("TonightScreen — scroll to top on Pick", () => {
     // A Pick revalidates the page with another Option in Tonight's dinner.
     rerender(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={DINNER}
         pickerRows={ROWS}
         searchEnabled={false}
@@ -561,6 +614,8 @@ describe("TonightScreen — scroll to top on Pick", () => {
     const scrollTo = stubScroll(false);
     const { rerender } = render(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={DINNER}
         pickerRows={ROWS}
         searchEnabled={false}
@@ -568,6 +623,8 @@ describe("TonightScreen — scroll to top on Pick", () => {
     );
     rerender(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={[DINNER[0]]}
         pickerRows={ROWS}
         searchEnabled={false}
@@ -580,6 +637,8 @@ describe("TonightScreen — scroll to top on Pick", () => {
     const scrollTo = stubScroll(true);
     const { rerender } = render(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={[DINNER[0]]}
         pickerRows={ROWS}
         searchEnabled={false}
@@ -587,6 +646,8 @@ describe("TonightScreen — scroll to top on Pick", () => {
     );
     rerender(
       <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
         tonightsDinner={DINNER}
         pickerRows={ROWS}
         searchEnabled={false}

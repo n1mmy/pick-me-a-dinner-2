@@ -60,11 +60,17 @@ candidate options).
 
 **Tonight's dinner**:
 Today's Dinner — the Log entries dated today — as surfaced on the Tonight
-screen once the Household has Picked. May be one Option or several.
+screen once the Household has Picked. May be one Option or several. When
+the **Selected day** is a future date, the same decided block on Tonight
+surfaces that day's Planned dinners with day-aware copy ("Friday's
+dinner") — the term "Tonight's dinner" itself stays narrow to today.
 
 **Pick** (verb):
-To choose tonight's dinner. Picking creates a Log entry dated today —
-"pick = log". A Pick *is* a Log entry; there is no separate "pick" entity.
+To choose the dinner for the **Selected day**. Picking creates a Log entry
+dated the Selected day — "pick = log". When the Selected day is today the
+entry is **Tonight's dinner**; when it is a future date the entry is a
+**Planned dinner**. A Pick *is* a Log entry; there is no separate "pick"
+entity.
 
 **Planned dinner**:
 A Log entry dated after today. Excluded from the ranking until its date
@@ -75,16 +81,17 @@ screen section's heading).
 **Rejection**:
 A record that the Household passed an Option over for one night's dinner,
 carrying an optional short reason ("closed on Sundays", "too heavy for
-tonight"). It is created two ways: live on a Tonight row in the moment, or
-entered by hand on the Log screen or the Option detail page for a deliberately
-chosen date — a past date backfills a Rejection never recorded live, a future
-date is a **Planned rejection**. On the date it carries, a Rejection removes
+tonight"). It is created two ways: live on a Tonight row in the moment —
+dated the **Selected day** — or entered by hand on the Log screen or the
+Option detail page for a deliberately chosen date — a past date backfills a
+Rejection never recorded live, a future date is a **Planned rejection**. On the date it carries, a Rejection removes
 its Option from Tonight's list for that day (the Option returns on its own the
 next day); it is also kept as dated history fed into future AI searches, where
 the model judges from the reason which Rejections are a standing dislike and
 which were one-off. A Rejection can be edited or deleted at any time from the
-Log screen or the Option detail page. **Bring back** is the narrower same-day
-quick-undo on Tonight's "Rejected tonight" disclosure. A Rejection is not a Log
+Log screen or the Option detail page. **Bring back** is the narrower
+Selected-day quick-undo on Tonight's "Rejected" disclosure (labelled
+"Rejected tonight" when the Selected day is today). A Rejection is not a Log
 entry and does not affect any Score.
 _Avoid_: Archive (a Rejection covers one night; Archive removes an Option from
 the Catalog until un-archived). Avoid "reject" for declining a whole AI result.
@@ -100,10 +107,24 @@ _Avoid_: Recurring rejection (a Planned rejection is a single date).
 
 ### Ranking
 
+**Selected day**:
+The date the **Tonight** screen is currently ranking for. Defaults to today
+and can be stepped forward to any future date; past dates are off-limits and
+remain a Log-screen backfill job. The whole Tonight screen — the
+deterministic list, AI search, the decided **Dinner** block, and the live
+Reject control with its "Bring back" disclosure — uses the Selected day as
+its anchor. The H1 reads "Tonight" when the Selected day is today and shows
+the day's name otherwise; the navigation entry stays "Tonight" either way.
+_Avoid_: target date, picking day, future day (today is a valid Selected
+day).
+
 **Tonight**:
-The home screen. It ranks active Options by Score (descending) for the
-Household to choose from, and once a Pick is made it surfaces **Tonight's
-dinner** — the screen has both jobs, deciding and showing what was decided.
+The home screen. It ranks active Options by Score (descending) for a
+**Selected day** (defaulting to today, optionally stepped forward to any
+future date), and once a Pick is made it surfaces the Dinner for that day —
+the screen has both jobs, deciding and showing what was decided. "Tonight"
+is the screen's name and its H1 label when the Selected day is today; when
+the Selected day is a future date the H1 shows that day's name.
 
 **Recency**:
 How long since something was last eaten, measured only from non-future Log
@@ -191,9 +212,9 @@ single-household — no user accounts, no per-person identity.
 - A **Log entry** records exactly one **Option** on one date.
 - A **Dinner** is one or more **Log entries** sharing the same date.
 - The **Log** is the set of all **Log entries**.
-- **Picking** creates a **Log entry** dated today.
+- **Picking** creates a **Log entry** dated the **Selected day**.
 - A **Planned dinner** is a **Log entry** dated after today.
-- **Tonight** ranks active **Options** by **Score**.
+- **Tonight** ranks active **Options** by **Score** for the **Selected day**.
 - **Tonight** surfaces **Tonight's dinner** once a **Pick** is made.
 - An Option's **Score** combines its **per-Option recency** with the
   **per-Tag recency** of its **Tags**.

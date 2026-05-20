@@ -41,11 +41,18 @@ export function TonightRowItem({
   row,
   rank,
   aiReason,
+  selectedDay,
   onRejected,
 }: {
   row: TonightRow;
   rank: number;
   aiReason?: string;
+  /**
+   * The Tonight screen's **Selected day** (ADR-0009) — passed only when it is
+   * not today. Pick and Reject writes use it to date the row to a future
+   * Selected day; on today it is omitted and the actions default to today.
+   */
+  selectedDay?: string;
   /** Called with the Option name once a Rejection is recorded — drives the
    *  list's live-region "removed" announcement (the row itself then unmounts). */
   onRejected?: (optionName: string) => void;
@@ -65,7 +72,7 @@ export function TonightRowItem({
   function pick() {
     setActionError(null);
     startTransition(async () => {
-      const result = await pickTonight(option.id);
+      const result = await pickTonight(option.id, selectedDay);
       if (!result.ok) {
         // Never flash a false "Logged ✓" — show the failure on the row instead.
         setActionError(result.error);
@@ -80,7 +87,7 @@ export function TonightRowItem({
   function submitReject() {
     setActionError(null);
     startTransition(async () => {
-      const result = await rejectOption(option.id, reason);
+      const result = await rejectOption(option.id, reason, selectedDay);
       if (!result.ok) {
         // A double-tap race collided with today's Rejection — surface the
         // failure inline rather than silently leaving the row in place.
