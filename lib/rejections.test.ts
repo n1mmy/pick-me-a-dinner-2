@@ -86,39 +86,59 @@ describe("partitionRejections — partition", () => {
 });
 
 describe("partitionRejections — suppression set", () => {
-  it("is exactly the Option ids rejected today", () => {
-    const { suppressedToday } = partition(
+  it("is exactly the Option ids rejected on the anchor day", () => {
+    const { suppressedForAsOf } = partition(
       [rejection("a", TODAY), rejection("b", TODAY)],
       TODAY,
     );
-    expect([...suppressedToday].sort()).toEqual(["a", "b"]);
+    expect([...suppressedForAsOf].sort()).toEqual(["a", "b"]);
   });
 
   it("carries nothing from earlier days", () => {
-    const { suppressedToday } = partition(
+    const { suppressedForAsOf } = partition(
       [rejection("today", TODAY), rejection("earlier", "2026-05-19")],
       TODAY,
     );
-    expect([...suppressedToday]).toEqual(["today"]);
+    expect([...suppressedForAsOf]).toEqual(["today"]);
   });
 
   it("is empty when nothing was rejected today", () => {
-    const { suppressedToday } = partition(
+    const { suppressedForAsOf } = partition(
       [rejection("earlier", "2026-05-19")],
       TODAY,
     );
-    expect(suppressedToday.size).toBe(0);
+    expect(suppressedForAsOf.size).toBe(0);
   });
 
   it("excludes a future-dated Planned rejection — it does not suppress today", () => {
     // A Planned rejection only suppresses its Option when its date becomes
-    // today; until then the Option stays a candidate (ADR-0008).
-    const { suppressedToday } = partition(
+    // the anchor day; until then the Option stays a candidate (ADR-0008).
+    const { suppressedForAsOf } = partition(
       [rejection("planned", "2026-05-24")],
       TODAY,
     );
-    expect(suppressedToday.size).toBe(0);
+    expect(suppressedForAsOf.size).toBe(0);
   });
+
+  it(
+    "rotates with the anchor day — a Rejection dated on a future Selected " +
+      "day suppresses its Option from that day's candidate set",
+    () => {
+      // The same Rejection that was "not-today" against today flips to
+      // "rejected for the anchor day" when the anchor is its own date
+      // (ADR-0009). The Rejection row is unchanged — only the anchor moved.
+      const SELECTED = "2026-05-24";
+      const { suppressedForAsOf, block } = partition(
+        [rejection("planned", SELECTED), rejection("other", TODAY)],
+        SELECTED,
+      );
+      expect([...suppressedForAsOf]).toEqual(["planned"]);
+      // The Rejection dated today is now "not-anchor-day" — its Option stays
+      // a candidate for the Selected day.
+      expect(ids(block.rejectedTonight)).toEqual(["planned"]);
+      expect(ids(block.notTodayRejections)).toEqual(["other"]);
+    },
+  );
 });
 
 describe("partitionRejections — snapshot block shape", () => {

@@ -270,7 +270,47 @@ describe("rejectOption", () => {
     });
     expect(await db.select().from(rejections)).toHaveLength(0);
   });
+
+  it("dates a Rejection to a future Selected day when one is passed", async () => {
+    // ADR-0009: live Reject on Tonight with a future Selected day creates a
+    // Rejection dated that day — the same row a Planned rejection would
+    // otherwise be entered from the Log screen.
+    const pizza = await makeOption("Pizza");
+    const future = futureSqlDate(7);
+
+    const result = await rejectOption(
+      pizza,
+      "closed next Sunday",
+      future,
+    );
+
+    expect(result).toEqual({ ok: true });
+    const rows = await db.select().from(rejections);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].rejectedOn).toBe(future);
+  });
+
+  it("clamps a past Selected day to today rather than backfilling", async () => {
+    // The Selected day stepper has `min=today`; a past value would only arrive
+    // from a stale request. The action falls back to today defensively.
+    const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+    const pizza = await makeOption("Pizza");
+
+    await rejectOption(pizza, "stale", "2025-01-01");
+
+    const [row] = await db.select().from(rejections);
+    expect(row.rejectedOn).toBe(today);
+  });
 });
+
+/**
+ * A SQL date `daysAhead` days from today — used by the Selected-day tests so
+ * they stay relative to whenever the suite runs.
+ */
+function futureSqlDate(daysAhead: number): string {
+  const ms = Date.now() + daysAhead * 86_400_000;
+  return todaySqlDate(new Date(ms), process.env.APP_TZ ?? "UTC");
+}
 
 describe("getLogRejections", () => {
   it("returns Rejections newest rejected_on first, each joined to its Option", async () => {

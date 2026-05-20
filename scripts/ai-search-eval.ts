@@ -129,7 +129,7 @@ async function buildSnapshotFromDb(query: string): Promise<{
       note: entry.note,
     })),
     rejections,
-    today,
+    asOf: today,
     query,
   });
   // Result rows carry the real UUID (`parseAndValidate` maps the snapshot

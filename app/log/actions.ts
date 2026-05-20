@@ -23,21 +23,36 @@ function revalidateLogViews(): void {
 }
 
 /**
- * Pick tonight: log the Option for today — `pick = log`. The insert upserts on
- * `(option_id, eaten_on)` via `onConflictDoNothing`, so an accidental
- * double-tap is a harmless no-op. Picking a *different* Option the same evening
- * is a separate row — a multi-Option Dinner.
+ * Pick tonight: log the Option for the Selected day — `pick = log`. The insert
+ * upserts on `(option_id, eaten_on)` via `onConflictDoNothing`, so an
+ * accidental double-tap is a harmless no-op. Picking a *different* Option the
+ * same evening is a separate row — a multi-Option Dinner.
+ *
+ * `selectedDay` is the Tonight screen's **Selected day** (ADR-0009),
+ * defaulting to today on the standard render and any future SQL date the
+ * Household stepped to. Callers that have no Selected day to pass (the
+ * Catalog and Log `PickButton`) call this without it and pick for today; the
+ * Tonight rows pass the screen's current Selected day. The value is validated
+ * to a future-or-today SQL date defensively — a stale or hand-edited request
+ * falls back to today rather than silently writing a past row.
  *
  * Returns an `ActionResult` so a write failure (e.g. the Option was deleted
  * out from under the row) is reported, never flashed as a false "Logged ✓" —
  * the optimistic success label depends on `ok` (review fix F4).
  */
 export const pickTonight = authedAction(
-  async (optionId: string): Promise<ActionResult> => {
+  async (optionId: string, selectedDay?: string): Promise<ActionResult> => {
+    const todaySql = today();
+    const eatenOn =
+      typeof selectedDay === "string" &&
+      isValidSqlDate(selectedDay) &&
+      selectedDay >= todaySql
+        ? selectedDay
+        : todaySql;
     try {
       await db
         .insert(dinnerLog)
-        .values({ optionId, eatenOn: today() })
+        .values({ optionId, eatenOn })
         .onConflictDoNothing();
     } catch {
       return { ok: false, error: "Couldn't log that — try again" };

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   epochDayFromSqlDate,
   isValidSqlDate,
+  parseSelectedDay,
+  shiftSqlDate,
   todayEpochDay,
   todaySqlDate,
 } from "./local-day";
@@ -83,5 +85,66 @@ describe("todayEpochDay across a DST boundary", () => {
     expect(todaySqlDate(new Date("2026-05-16T05:00:00Z"), "UTC")).toBe(
       "2026-05-16",
     );
+  });
+});
+
+describe("parseSelectedDay", () => {
+  const TODAY = "2026-05-20";
+
+  it("returns today when the raw value is missing", () => {
+    expect(parseSelectedDay(undefined, TODAY)).toBe(TODAY);
+  });
+
+  it("returns today when the raw value is empty", () => {
+    expect(parseSelectedDay("", TODAY)).toBe(TODAY);
+  });
+
+  it("returns today when the raw value is not a string (array, number)", () => {
+    expect(parseSelectedDay(["2026-05-22"], TODAY)).toBe(TODAY);
+    expect(parseSelectedDay(20260522, TODAY)).toBe(TODAY);
+  });
+
+  it("returns today when the raw value is malformed", () => {
+    expect(parseSelectedDay("not-a-date", TODAY)).toBe(TODAY);
+    expect(parseSelectedDay("2026-13-01", TODAY)).toBe(TODAY);
+    expect(parseSelectedDay("2026-02-30", TODAY)).toBe(TODAY);
+  });
+
+  it("returns today for a valid date in the past — past is off-limits", () => {
+    expect(parseSelectedDay("2026-05-19", TODAY)).toBe(TODAY);
+    expect(parseSelectedDay("2025-12-31", TODAY)).toBe(TODAY);
+  });
+
+  it("returns today for the exact today date", () => {
+    expect(parseSelectedDay(TODAY, TODAY)).toBe(TODAY);
+  });
+
+  it("returns the date for a valid future Selected day", () => {
+    expect(parseSelectedDay("2026-05-22", TODAY)).toBe("2026-05-22");
+    expect(parseSelectedDay("2027-01-01", TODAY)).toBe("2027-01-01");
+  });
+});
+
+describe("shiftSqlDate", () => {
+  it("steps forward by one day", () => {
+    expect(shiftSqlDate("2026-05-20", 1)).toBe("2026-05-21");
+  });
+
+  it("steps back by one day", () => {
+    expect(shiftSqlDate("2026-05-20", -1)).toBe("2026-05-19");
+  });
+
+  it("wraps the last day of a month to the first of the next", () => {
+    expect(shiftSqlDate("2026-05-31", 1)).toBe("2026-06-01");
+    expect(shiftSqlDate("2026-12-31", 1)).toBe("2027-01-01");
+  });
+
+  it("handles a leap-year February correctly", () => {
+    expect(shiftSqlDate("2024-02-29", 1)).toBe("2024-03-01");
+    expect(shiftSqlDate("2024-03-01", -1)).toBe("2024-02-29");
+  });
+
+  it("a +1 then -1 round-trip returns the same date", () => {
+    expect(shiftSqlDate(shiftSqlDate("2026-03-08", 1), -1)).toBe("2026-03-08");
   });
 });

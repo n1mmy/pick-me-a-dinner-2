@@ -148,14 +148,19 @@ export const deleteRejection = authedAction(
 );
 
 /**
- * Reject an Option for tonight's decision (PRD: Rejections on Tonight) — the
- * live-Tonight Reject affordance, also wired into the Option detail page's
- * controls. It is just "create a Rejection dated today": the Household's
- * calendar day in `APP_TZ` is computed here and the write delegates to the
- * shared `recordRejection` core, so the today-dated insert inherits the
- * `23505` collision handling. Tapping Reject when a today-dated Rejection for
- * the Option already exists (or a double-tap race) therefore returns an inline
- * `{ ok: false }` "Already rejected for that date" instead of an uncaught 500.
+ * Reject an Option for the Selected day's decision (PRD: Rejections on
+ * Tonight) — the live-Tonight Reject affordance, also wired into the Option
+ * detail page's controls. It is "create a Rejection dated on the Selected
+ * day": the date is the Tonight screen's **Selected day** (ADR-0009),
+ * defaulting to today and any future SQL date the Household stepped to. The
+ * write delegates to the shared `recordRejection` core, so the
+ * `(option_id, rejected_on)` `23505` collision is reported inline as
+ * "Already rejected for that date" rather than thrown.
+ *
+ * Callers that have no Selected day to pass — the Option detail page — call
+ * this without `selectedDay` and reject for today. The value is validated
+ * defensively: a stale or hand-edited past date falls back to today rather
+ * than silently writing a past Rejection.
  *
  * `authedAction`-wrapped: a Server Action is reachable by id from any route, so
  * the shared-password session check is not optional. A Rejection is not a Log
@@ -163,7 +168,18 @@ export const deleteRejection = authedAction(
  * Tonight page applies, never a ranking change (ADR-0003, ADR-0006).
  */
 export const rejectOption = authedAction(
-  async (optionId: string, reason: string): Promise<ActionResult> => {
-    return recordRejection(optionId, today(), reason);
+  async (
+    optionId: string,
+    reason: string,
+    selectedDay?: string,
+  ): Promise<ActionResult> => {
+    const todaySql = today();
+    const rejectedOn =
+      typeof selectedDay === "string" &&
+      isValidSqlDate(selectedDay) &&
+      selectedDay >= todaySql
+        ? selectedDay
+        : todaySql;
+    return recordRejection(optionId, rejectedOn, reason);
   },
 );

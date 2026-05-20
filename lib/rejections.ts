@@ -2,16 +2,28 @@
  * Rejections — the pure shaping of the Household's Rejection history for the AI
  * search snapshot (PRD: Rejections on Tonight, ADR-0006). No I/O: it is handed
  * the Rejection rows — each carrying its Option's name / kind / Tags for
- * readability — and today's date, and it partitions them, derives the per-day
- * suppression set, and shapes the snapshot's Rejections block.
+ * readability — and the anchor day, and it partitions them, derives the
+ * per-anchor-day suppression set, and shapes the snapshot's Rejections block.
+ *
+ * The anchor day is the AI search's **Selected day** (ADR-0009) — today on the
+ * standard render, the Selected day when the Household has stepped Tonight to
+ * another date. A Rejection dated on the anchor day suppresses its Option from
+ * the candidate set (it has been turned down *for that day*); every other
+ * Rejection — past or future — stays a candidate and feeds the model as raw
+ * dated history.
  *
  * ADR-0006: every Rejection is stored flat as raw dated history. This module
  * encodes no decay, no query-scoping, and no "standing dislike vs one-off"
- * judgement — that call is the model's. All it does is split today from
- * not-today (today's rejected Options leave the candidate set; not-today ones
- * — past *or* future-dated — stay candidates) and shape both groups parallel
- * to the Log block, so the model reasons over Rejections the way it reasons
- * over the Log (ADR-0005, ADR-0008).
+ * judgement — that call is the model's. All it does is split anchor-day from
+ * not-anchor-day (anchor-day's rejected Options leave the candidate set;
+ * not-anchor-day ones — past *or* future-dated — stay candidates) and shape
+ * both groups parallel to the Log block, so the model reasons over Rejections
+ * the way it reasons over the Log (ADR-0005, ADR-0008).
+ *
+ * The JSON field names sent to the model — `rejectedTonight`,
+ * `notTodayRejections` — are kept from the model's perspective: the anchor
+ * day is "today" *to the model*, regardless of which calendar date the
+ * Household stepped to. The system prompt reads those keys verbatim.
  */
 import {
   delimit,
@@ -60,9 +72,13 @@ export type SnapshotRejection = {
 };
 
 /**
- * The snapshot's Rejections block: today's Rejections — whose Options are off
- * the candidate set — and not-today ones — whose Options stay candidates — each
- * group ordered newest first, parallel to the Log block. The not-today group
+ * The snapshot's Rejections block — both groups carried to the model:
+ * `rejectedTonight` (Rejections dated on the anchor day, whose Options are off
+ * the candidate set) and `notTodayRejections` (every other Rejection — past or
+ * future, the Options still candidates), each group ordered newest first,
+ * parallel to the Log block. The field names are the model's vocabulary —
+ * "tonight" means the anchor day from the model's perspective, regardless of
+ * which date the Household stepped to (ADR-0009). The not-anchor-day group
  * carries both past and future-dated (Planned) Rejections; each row's own date
  * tells the model which it is, so the group label stays date-neutral
  * (ADR-0008).
@@ -75,10 +91,11 @@ export type RejectionsBlock = {
 /** The partitioned Rejections: the snapshot block plus the suppression set. */
 export type PartitionedRejections = {
   /**
-   * The ids of Options rejected *today* — the per-day suppression set. These
-   * Options are dropped from the snapshot's candidate `options`.
+   * The ids of Options rejected *on the anchor day* — the per-anchor-day
+   * suppression set. These Options are dropped from the snapshot's candidate
+   * `options`.
    */
-  suppressedToday: Set<string>;
+  suppressedForAsOf: Set<string>;
   /** Both Rejection groups, shaped for the model-input snapshot. */
   block: RejectionsBlock;
 };
@@ -104,29 +121,31 @@ function toSnapshotRejection(
 }
 
 /**
- * Partition the Household's Rejection history against today: a row whose
- * `rejectedOn` is exactly today is *rejected tonight*, every other row —
- * past-dated *or* future-dated (a Planned rejection) — is *not-today*. Derives
- * the today suppression set — the Option ids rejected today — and shapes both
- * groups for the snapshot: reasons delimited, dates carrying their weekday,
- * the Option referred to by its snapshot number (`indexByOptionId`, keyed by
- * UUID), each group newest first. The suppression set stays `rejectedOn ===
- * today` only, so a Planned rejection's Option remains a candidate today
- * (ADR-0008).
+ * Partition the Household's Rejection history against the `asOf` anchor day: a
+ * row whose `rejectedOn` is exactly the anchor day is *rejected for the anchor
+ * day* (and lands in the snapshot's `rejectedTonight` group from the model's
+ * perspective), every other row — past-dated *or* future-dated (a Planned
+ * rejection that is not today) — is *not-anchor-day*. Derives the per-anchor
+ * suppression set — the Option ids rejected on the anchor day — and shapes
+ * both groups for the snapshot: reasons delimited, dates carrying their
+ * weekday, the Option referred to by its snapshot number (`indexByOptionId`,
+ * keyed by UUID), each group newest first. The suppression set stays
+ * `rejectedOn === asOf` only, so a Planned rejection's Option remains a
+ * candidate until its date becomes the anchor day (ADR-0008, ADR-0009).
  */
 export function partitionRejections(
   rows: RejectionRow[],
-  today: string,
+  asOf: string,
   indexByOptionId: ReadonlyMap<string, number>,
 ): PartitionedRejections {
   const tonight: RejectionRow[] = [];
   const notToday: RejectionRow[] = [];
-  const suppressedToday = new Set<string>();
+  const suppressedForAsOf = new Set<string>();
 
   for (const row of rows) {
-    if (row.rejectedOn === today) {
+    if (row.rejectedOn === asOf) {
       tonight.push(row);
-      suppressedToday.add(row.optionId);
+      suppressedForAsOf.add(row.optionId);
     } else {
       notToday.push(row);
     }
@@ -139,7 +158,7 @@ export function partitionRejections(
     b.rejectedOn.localeCompare(a.rejectedOn);
 
   return {
-    suppressedToday,
+    suppressedForAsOf,
     block: {
       rejectedTonight: [...tonight]
         .sort(newestFirst)

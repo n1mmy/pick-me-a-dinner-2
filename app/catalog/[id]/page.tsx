@@ -96,7 +96,7 @@ export default async function OptionDetailPage({
     activeOptions: options,
     activeLog,
     targetLog,
-    today: todayEpochDay,
+    asOf: todayEpochDay,
   });
 
   // History interleaves this Option's logged dinners and its Rejections into

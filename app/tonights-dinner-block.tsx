@@ -37,13 +37,27 @@ const focusRing =
  */
 export function TonightsDinnerBlock({
   entries,
+  dayLabel,
 }: {
   entries: TonightsDinnerEntry[];
+  /**
+   * Day-aware label noun — `"tonight"` for today, the weekday name (e.g.
+   * `"Friday"`) when the Selected day is in the future (ADR-0009). Drives
+   * both the visible H2 ("Tonight's dinner" vs "Friday's dinner") and the
+   * section's accessible label.
+   */
+  dayLabel: string;
 }) {
+  // "Tonight's dinner" reads with a capital T; a weekday name is already
+  // proper-cased, so reuse it as-is. The aria-label uses a plain apostrophe
+  // so assistive tech reads it cleanly; the visible H2 uses the typographic
+  // curly apostrophe to match the rest of the screen's copy.
+  const headingLeft = dayLabel === "tonight" ? "Tonight" : dayLabel;
+  const ariaLabel = `${headingLeft}'s dinner`;
   return (
-    <section aria-label="Tonight's dinner" className="flex flex-col gap-2">
+    <section aria-label={ariaLabel} className="flex flex-col gap-2">
       <h2 className="text-meta uppercase tracking-wide text-muted">
-        Tonight&rsquo;s dinner
+        {headingLeft}&rsquo;s dinner
       </h2>
       <ul className="flex flex-col">
         {entries.map((entry) => (
