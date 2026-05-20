@@ -644,14 +644,15 @@ const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
     "- If the query is empty or does not narrow the Catalog, return every " +
     "candidate Option from the snapshot, ranked best first, varying how " +
     "much you write by how strong the pick is. For an Option that is a " +
-    "genuine pick tonight, give a one-line rationale (roughly 100 " +
-    "characters at most) naming the pattern behind its rank. For an Option " +
-    "you judge a clearly weak pick, give only a terse few-word note " +
-    'instead — e.g. "eaten yesterday" — never a full sentence. For an ' +
-    "Option you judge an obviously bad pick tonight (just eaten, plainly " +
-    "not due, a standing reason against it), give an empty string as the " +
-    "reason — no text at all. You decide which tier each Option falls in; " +
-    "the weaker the pick, the less needs to be said.",
+    "genuine pick tonight — typically the first few in the ranking — give " +
+    "a one-line rationale of roughly 140 characters (200 at most) naming " +
+    "the pattern behind its rank. For an Option you judge a clearly weak " +
+    'pick, give only a terse few-word note instead — e.g. "eaten ' +
+    'yesterday" — never a full sentence. For an Option you judge an ' +
+    "obviously bad pick tonight (just eaten, plainly not due, a standing " +
+    "reason against it), give an empty string as the reason — no text at " +
+    "all. You decide which tier each Option falls in; the weaker the " +
+    "pick, the less needs to be said.",
   drop:
     "- If the query is empty or does not narrow the Catalog, return only the " +
     "Options genuinely worth considering for tonight, ranked best first, and " +
