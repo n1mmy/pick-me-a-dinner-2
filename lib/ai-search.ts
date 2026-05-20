@@ -67,13 +67,20 @@ export type AiSearchResult =
 export const AI_SEARCH_UNAVAILABLE: AiSearchResult = { ok: false };
 
 /**
- * Whether AI search is configured — `ANTHROPIC_API_KEY` is set. Mirrors
- * `placesEnabled()`: the Tonight page passes the result to the screen, which
- * hides the search box entirely when it is false, so an unconfigured
- * deployment is exactly v1 Tonight with no broken feature.
+ * Whether AI search is configured — `ANTHROPIC_API_KEY` is set to a non-empty
+ * value. Mirrors `placesEnabled()`: the Tonight page passes the result to the
+ * screen, which hides the search box entirely when it is false, so an
+ * unconfigured deployment is exactly v1 Tonight with no broken feature.
+ *
+ * Both the unset and the empty-string case are handled explicitly: some
+ * environments (notably the Claude Code shell) export `ANTHROPIC_API_KEY=""`,
+ * which Next.js then carries through `process.env` as the empty string rather
+ * than `undefined`. A truthy-only check would already collapse both to false,
+ * but the explicit comparison says so in code.
  */
 export function aiSearchEnabled(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  const key = process.env.ANTHROPIC_API_KEY;
+  return key !== undefined && key !== "";
 }
 
 /** An active Catalog Option as the snapshot builder consumes it. */
