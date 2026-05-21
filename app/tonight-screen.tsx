@@ -46,6 +46,15 @@ const focusRing =
  * recomputes from today's Log on every Pick. A new calendar day empties
  * `tonightsDinner` on its own, so Tonight returns to picker mode with no
  * day-boundary logic here.
+ *
+ * AI search state (`query`, `aiResults`, `aiError`, the in-flight transition)
+ * lives here rather than inside the Picker. A Pick that flips picker →
+ * decided wraps the Picker in a new `<section>`; React then unmounts the
+ * picker-mode `<Picker>` and mounts a different one inside the section,
+ * which would wipe any state owned by Picker. Holding the search state on
+ * `TonightScreen` — which is the same instance across the transition — lets
+ * the AI result survive the Pick (the Picked Option simply drops out of the
+ * AI list on its own, because `pickerRows` no longer carries it).
  */
 export function TonightScreen({
   tonightsDinner,
@@ -102,9 +111,42 @@ export function TonightScreen({
   // The All/Home/Restaurant kind filter lives here so its segment can sit in
   // the page header beside "Tonight"; the Picker still owns the filtering.
   const [kind, setKind] = useState<KindFilter>("all");
-  // The Picker reports when an AI result is on screen — the kind segment hides
-  // then, since an AI result is ranked by the query alone.
-  const [aiActive, setAiActive] = useState(false);
+
+  // AI search state lifted out of the Picker — see the component comment for
+  // why. `aiResults === null` is the default deterministic view; a non-null
+  // value (including an empty array — a real "no fit" answer) swaps the list
+  // for the AI result. `aiActive` is derived directly so the kind segment can
+  // hide while the result is on screen, without the Picker → parent
+  // `useEffect` ping-pong this used to need.
+  const [query, setQuery] = useState("");
+  const [aiResults, setAiResults] = useState<AiRankingRow[] | null>(null);
+  const [aiError, setAiError] = useState(false);
+  const [searchPending, startSearchTransition] = useTransition();
+  const aiActive = aiResults !== null;
+
+  function runSearch() {
+    startSearchTransition(async () => {
+      const result = await aiSearchAction(
+        query,
+        isToday ? undefined : selectedDay,
+      );
+      if (!result.ok) {
+        // A failed search leaves the deterministic list exactly as it was. The
+        // inline error is persistent — it is not cleared on submit, only when a
+        // later search succeeds or the query is cleared.
+        setAiError(true);
+        return;
+      }
+      setAiError(false);
+      setAiResults(result.results);
+    });
+  }
+
+  function clearSearch() {
+    setAiResults(null);
+    setAiError(false);
+    setQuery("");
+  }
 
   // A Pick grows `tonightsDinner`; when it does, animate the page up to the
   // "Tonight's dinner" block so the Household sees the Option land there. The
@@ -200,7 +242,13 @@ export function TonightScreen({
                 rows={pickerRows}
                 searchEnabled={searchEnabled}
                 kind={kind}
-                onAiActiveChange={setAiActive}
+                query={query}
+                onQueryChange={setQuery}
+                aiResults={aiResults}
+                aiError={aiError}
+                searchPending={searchPending}
+                onSubmitSearch={runSearch}
+                onClearSearch={clearSearch}
                 selectedDay={selectedDay}
                 isToday={isToday}
               />
@@ -212,7 +260,13 @@ export function TonightScreen({
           rows={pickerRows}
           searchEnabled={searchEnabled}
           kind={kind}
-          onAiActiveChange={setAiActive}
+          query={query}
+          onQueryChange={setQuery}
+          aiResults={aiResults}
+          aiError={aiError}
+          searchPending={searchPending}
+          onSubmitSearch={runSearch}
+          onClearSearch={clearSearch}
           selectedDay={selectedDay}
           isToday={isToday}
         />
@@ -324,14 +378,17 @@ function RejectedTonightDisclosure({
  * screen in picker mode and the collapsible body in decided mode; its behavior
  * is identical either way. The All/Home/Restaurant kind segment lives in the
  * page header (`TonightScreen`) and scrolls away with it; the picker only reads
- * the resulting `kind` and reports AI-result state back via `onAiActiveChange`
- * so the header can hide the segment.
+ * the resulting `kind`.
  *
- * The search box appears only when AI search is configured (`searchEnabled`).
- * Submitting it runs an **AI search** (PRD: AI search) — the deterministic list
- * swaps in place for an AI-ranked result, each row carrying an AI rationale.
- * While an AI result is shown the kind segment and Tag chips are hidden so the
- * query is the single ranking authority; clearing the search restores both.
+ * AI search state — `query`, `aiResults`, `aiError`, the in-flight `pending`
+ * flag — is owned by `TonightScreen` and threaded in as props, so a Pick that
+ * flips picker → decided (which remounts this component inside a new
+ * `<section>` wrapper) does not wipe the result. The search box appears only
+ * when AI search is configured (`searchEnabled`). Submitting it runs an **AI
+ * search** (PRD: AI search) — the deterministic list swaps in place for an
+ * AI-ranked result, each row carrying an AI rationale. While an AI result is
+ * shown the kind segment and Tag chips are hidden so the query is the single
+ * ranking authority; clearing the search restores both.
  *
  * Each row carries the `pick = log` write action (§6) in `tonight-row.tsx`.
  */
@@ -339,27 +396,32 @@ function Picker({
   rows,
   searchEnabled,
   kind,
-  onAiActiveChange,
+  query,
+  onQueryChange,
+  aiResults,
+  aiError,
+  searchPending,
+  onSubmitSearch,
+  onClearSearch,
   selectedDay,
   isToday,
 }: {
   rows: TonightRow[];
   searchEnabled: boolean;
   kind: KindFilter;
-  onAiActiveChange: (active: boolean) => void;
+  query: string;
+  onQueryChange: (next: string) => void;
+  aiResults: AiRankingRow[] | null;
+  aiError: boolean;
+  searchPending: boolean;
+  onSubmitSearch: () => void;
+  onClearSearch: () => void;
   /** The Selected day — threaded into Pick/Reject writes and AI search. */
   selectedDay: string;
   /** True when the Selected day is today — drives copy and lets AI search skip the parameter. */
   isToday: boolean;
 }) {
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
-
-  // AI search state. `aiResults === null` is the default deterministic view;
-  // a non-null value swaps the list for the AI result.
-  const [query, setQuery] = useState("");
-  const [aiResults, setAiResults] = useState<AiRankingRow[] | null>(null);
-  const [aiError, setAiError] = useState(false);
-  const [pending, startTransition] = useTransition();
 
   // A submitted Rejection removes its row from the list on revalidation; this
   // live region — stable across that re-render, unlike the row itself —
@@ -384,7 +446,7 @@ function Picker({
   // AI result. The initial string is not announced — a live region only voices
   // changes — so a fresh load stays silent. A failed search is announced
   // separately by the inline error on the search box.
-  const searchStatus = pending
+  const searchStatus = searchPending
     ? "Searching for dinner…"
     : aiResults === null
       ? "Showing the ranked dinner list."
@@ -394,6 +456,9 @@ function Picker({
 
   // The AI result resolved against the rows already on screen: every validated
   // id is in the active Catalog, so it has a row to render with name and Tags.
+  // A Pick (in picker mode → decided mode) drops the Picked Option from
+  // `rows`, so its entry naturally falls out of `aiRows` while the rest of the
+  // AI-ranked list stays put.
   const aiRows = useMemo(() => {
     if (aiResults === null) return null;
     const byId = new Map(rows.map((row) => [row.option.id, row]));
@@ -403,41 +468,11 @@ function Picker({
     });
   }, [aiResults, rows]);
 
-  // Surface the AI-result state to the page header so its kind segment hides
-  // while an AI result is on screen.
-  useEffect(() => {
-    onAiActiveChange(aiRows !== null);
-  }, [aiRows, onAiActiveChange]);
-
   function cycleTag(tag: string) {
     setTagFilters((prev) => ({
       ...prev,
       [tag]: cycleChipState(prev[tag] ?? "off"),
     }));
-  }
-
-  function runSearch() {
-    startTransition(async () => {
-      const result = await aiSearchAction(
-        query,
-        isToday ? undefined : selectedDay,
-      );
-      if (!result.ok) {
-        // A failed search leaves the deterministic list exactly as it was. The
-        // inline error is persistent — it is not cleared on submit, only when a
-        // later search succeeds (below) or the query is cleared.
-        setAiError(true);
-        return;
-      }
-      setAiError(false);
-      setAiResults(result.results);
-    });
-  }
-
-  function clearSearch() {
-    setAiResults(null);
-    setAiError(false);
-    setQuery("");
   }
 
   return (
@@ -449,10 +484,10 @@ function Picker({
           <>
             <SearchBox
               query={query}
-              onQueryChange={setQuery}
-              onSubmit={runSearch}
-              onClear={clearSearch}
-              pending={pending}
+              onQueryChange={onQueryChange}
+              onSubmit={onSubmitSearch}
+              onClear={onClearSearch}
+              pending={searchPending}
               error={aiError}
               showClear={aiResults !== null || aiError}
             />
@@ -501,7 +536,7 @@ function Picker({
             <p className="text-body text-muted">No Options fit that search.</p>
             <button
               type="button"
-              onClick={clearSearch}
+              onClick={onClearSearch}
               className={`min-h-11 rounded-control px-3 text-body
                 font-emphasis text-action transition-colors duration-short
                 ${focusRing}`}

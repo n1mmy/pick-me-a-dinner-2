@@ -421,6 +421,69 @@ describe("TonightScreen — AI search", () => {
       screen.queryByRole("group", { name: "Filter by kind" }),
     ).toBeTruthy();
   });
+
+  it("keeps the AI result on screen when a Pick flips picker → decided mode", async () => {
+    // A Pick today empties `pickerRows` of the Picked Option and grows
+    // `tonightsDinner`, which flips the screen from picker mode (Picker is a
+    // direct child of `<main>`) to decided mode (Picker is wrapped in an
+    // "Add another option" `<section>`). Holding the AI search state on
+    // `TonightScreen` instead of `Picker` is what keeps the result alive
+    // across that wrapper change — Picker remounts, but `aiResults` is on
+    // the parent so the AI-ranked list survives.
+    //
+    // jsdom implements neither `scrollTo` nor `matchMedia` — the scroll-to-top
+    // effect that fires when `tonightsDinner` grows reaches for both — so stub
+    // them as no-ops here, the same way the scroll-on-Pick suite does.
+    vi.stubGlobal("scrollTo", vi.fn());
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [
+        { id: "o1", reason: "Sweet and quick" },
+        { id: "o2", reason: "Light and quick" },
+      ],
+    });
+
+    const { rerender } = render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    await submitSearchAndSettle();
+    await screen.findByText("Sweet and quick");
+    await screen.findByText("Light and quick");
+
+    // A Pick on `o1`: the server revalidates, `tonightsDinner` now carries
+    // the Picked Option and `pickerRows` no longer does. The screen flips
+    // into decided mode under the new section wrapper.
+    rerender(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[DINNER[0]]}
+        pickerRows={[ROWS[1]]}
+        searchEnabled
+      />,
+    );
+
+    // The decided block is on screen; the picker below it still carries the
+    // AI-ranked remainder of the result — the Picked Option drops out, the
+    // other AI row stays put with its rationale.
+    expect(
+      screen.getByRole("region", { name: "Tonight's dinner" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("region", { name: "Add another option" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Light and quick")).toBeTruthy();
+    // The Picked Option's AI rationale is gone — its row dropped out of the
+    // AI list because it left `pickerRows`.
+    expect(screen.queryByText("Sweet and quick")).toBeNull();
+  });
 });
 
 describe("TonightScreen — Remove from Tonight's dinner", () => {
