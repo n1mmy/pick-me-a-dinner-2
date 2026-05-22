@@ -13,8 +13,10 @@ const focusRing =
 
 /**
  * The Catalog screen: Home meals and Restaurants in two sections, each row
- * showing the name. Adding and editing happen inline — an "add" affordance or a
- * row expands in place into the form. `allTags` feeds every form's Tag
+ * showing the name. Two add buttons sit in the header beside the title — the
+ * Catalog's add affordance, each tinted its meal-kind hue; clicking one
+ * expands its `OptionForm` below the header. Editing happens inline — a row
+ * expands in place into the form. `allTags` feeds every form's Tag
  * autocomplete. Archived Options are reachable again from a collapsed
  * "Archived" disclosure pinned below the two active sections.
  */
@@ -32,33 +34,87 @@ export function CatalogScreen({
   placesEnabled: boolean;
 }) {
   const isEmpty = home.length === 0 && restaurants.length === 0;
+  // Which kind's add form is open, or `null`. The two add buttons in the
+  // header stay put; clicking one opens its `OptionForm` below the header,
+  // and saving or cancelling closes it.
+  const [adding, setAdding] = useState<OptionKind | null>(null);
 
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
-      <h1 className="font-display text-h1 font-h1 text-ink">Catalog</h1>
-      {isEmpty && (
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h1 className="font-display text-h1 font-h1 text-ink">Catalog</h1>
+        <div className="flex gap-2">
+          <AddButton
+            kind="home"
+            label="Add a meal"
+            onClick={() => setAdding("home")}
+          />
+          <AddButton
+            kind="restaurant"
+            label="Add a restaurant"
+            onClick={() => setAdding("restaurant")}
+          />
+        </div>
+      </div>
+      {adding && (
+        <OptionForm
+          key={adding}
+          kind={adding}
+          allTags={allTags}
+          placesEnabled={placesEnabled}
+          onCancel={() => setAdding(null)}
+          onSaved={() => setAdding(null)}
+        />
+      )}
+      {isEmpty && !adding && (
         <p className="text-body text-muted">
           Add a meal or restaurant to get started
         </p>
       )}
       <OptionSection
-        kind="home"
         title="Home meals"
-        addLabel="Add a meal"
         options={home}
         allTags={allTags}
         placesEnabled={placesEnabled}
       />
       <OptionSection
-        kind="restaurant"
         title="Restaurants"
-        addLabel="Add a restaurant"
         options={restaurants}
         allTags={allTags}
         placesEnabled={placesEnabled}
       />
       {archived.length > 0 && <ArchivedDisclosure archived={archived} />}
     </main>
+  );
+}
+
+/**
+ * One of the two Catalog add buttons, in the header beside the title. Filled
+ * with its meal-kind hue — teal `kind-home` for "Add a meal", plum
+ * `kind-restaurant` for "Add a restaurant" — so the add affordance carries the
+ * same kind coding the rows do.
+ */
+function AddButton({
+  kind,
+  label,
+  onClick,
+}: {
+  kind: OptionKind;
+  label: string;
+  onClick: () => void;
+}) {
+  // Full literal class strings — Tailwind's content scan needs to see them.
+  const fill = kind === "home" ? "bg-kind-home" : "bg-kind-restaurant";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`min-h-11 rounded-control px-4 text-body font-emphasis
+        text-action-ink transition-opacity duration-short hover:opacity-90
+        ${fill} ${focusRing}`}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -104,24 +160,18 @@ function ArchivedDisclosure({ archived }: { archived: ArchivedOption[] }) {
   );
 }
 
-/** One kind's section: a heading, its rows, and the inline-expand add form. */
+/** One kind's section: a heading and its rows. */
 function OptionSection({
-  kind,
   title,
-  addLabel,
   options,
   allTags,
   placesEnabled,
 }: {
-  kind: OptionKind;
   title: string;
-  addLabel: string;
   options: OptionWithTags[];
   allTags: string[];
   placesEnabled: boolean;
 }) {
-  const [adding, setAdding] = useState(false);
-
   return (
     <section className="flex flex-col gap-2">
       <h2 className="text-meta font-emphasis uppercase tracking-wide text-muted">
@@ -138,27 +188,6 @@ function OptionSection({
             />
           ))}
         </ul>
-      )}
-      {adding ? (
-        <div className="border-b border-line py-3">
-          <OptionForm
-            kind={kind}
-            allTags={allTags}
-            placesEnabled={placesEnabled}
-            onCancel={() => setAdding(false)}
-            onSaved={() => setAdding(false)}
-          />
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setAdding(true)}
-          className="min-h-11 self-start rounded-control px-2 text-body
-            font-emphasis text-action focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action"
-        >
-          + {addLabel}
-        </button>
       )}
     </section>
   );
