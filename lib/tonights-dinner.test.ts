@@ -15,6 +15,8 @@ function row(id: string, name: string, recencyDays = 0): TonightRow {
   return {
     option: { id, name, kind: "home", tags: [], url: null, phone: null },
     score: 0,
+    affinity: 0,
+    readiness: 0,
     tags: [],
     recencyDays,
     neverEaten: false,

@@ -56,6 +56,8 @@ function row(id: string, name: string, tags: string[] = []): TonightRow {
   return {
     option: { id, name, kind: "home", tags, url: null, phone: null },
     score: 10,
+    affinity: 1,
+    readiness: 10,
     tags: [],
     recencyDays: 0,
     neverEaten: false,

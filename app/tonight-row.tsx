@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { CAP } from "../lib/ranking.config";
 import type { TagRecency, TonightRow } from "../lib/ranking";
-import { recencyChipBg, recencyChipBgStrong } from "../lib/recency-color";
+import {
+  affinityChipBg,
+  recencyChipBg,
+  recencyChipBgStrong,
+} from "../lib/recency-color";
 import { kindBarClass } from "./kind-bar";
 import { pickTonight } from "./log/actions";
 import { rejectOption } from "./rejection-actions";
@@ -123,6 +127,7 @@ export function TonightRowItem({
             </Link>
           </div>
           <RowChips
+            affinity={row.affinity}
             recencyDays={row.recencyDays}
             neverEaten={row.neverEaten}
             tags={row.tags}
@@ -216,29 +221,56 @@ export function TonightRowItem({
 
 /**
  * The chip row directly under an Option name on a Tonight or decided row: the
- * Recency chip first — the Option's own per-Option recency — then one Tag chip
- * per Tag. Every chip is tinted on the red→green recency heatmap by its own
- * recency (overdue greener, recently used redder). The Recency chip carries a
- * stronger fill so the single per-Option signal reads louder than the Tag
- * chips beside it. The Recency chip always renders; Tag chips render only when
- * the Option carries Tags.
+ * Affinity chip (when one is supplied), then the Recency chip — the Option's own
+ * per-Option recency — then one Tag chip per Tag. Every chip is tinted on the
+ * shared green→red heatmap: the Recency and Tag chips by recency (recent greener,
+ * overdue redder), the Affinity chip by frequency (frequent greener, rare
+ * redder). The Affinity and Recency chips carry a stronger fill so the two loud
+ * per-Option signals read above the Tag chips. The Recency chip always renders;
+ * the Affinity chip renders only when `affinity` is supplied (Tonight rows have
+ * one; the Option detail page's Recency-only section omits it); Tag chips render
+ * only when the Option carries Tags.
  */
 export function RowChips({
+  affinity,
   recencyDays,
   neverEaten,
   tags,
 }: {
+  /** The Option's affinity (normalized eat-frequency); omit/`null` to hide the chip. */
+  affinity?: number | null;
   recencyDays: number;
   neverEaten: boolean;
   tags: TagRecency[];
 }) {
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1">
+      {affinity != null && <AffinityChip affinity={affinity} />}
       <RecencyChip days={recencyDays} neverEaten={neverEaten} />
       {tags.map((tag) => (
         <TagChip key={tag.tag} tag={tag} />
       ))}
     </div>
+  );
+}
+
+/**
+ * The Affinity chip — the Option's affinity (its normalized eat-frequency, the
+ * preference half of the Score), tinted on the shared heatmap *by frequency*: a
+ * frequently-eaten Option reads green, a rarely-eaten one red, ~average (1.0)
+ * tan. It sits first in the chip row; its numeral is the affinity value (1.0 =
+ * catalog-average). It takes the *fainter* Tag-chip fill rather than the Recency
+ * chip's stronger one, so the two heatmap chips are told apart by weight —
+ * louder recency, quieter affinity — instead of reading as one smear of color.
+ */
+function AffinityChip({ affinity }: { affinity: number }) {
+  return (
+    <span
+      className="rounded-badge px-2 py-0.5 text-meta leading-tight text-ink"
+      style={{ backgroundColor: affinityChipBg(affinity) }}
+    >
+      <MonoNumerals text={affinity.toFixed(1)} />
+    </span>
   );
 }
 

@@ -128,6 +128,7 @@ function DecidedRow({
         <RemoveControl entryId={entryId} />
       </div>
       <RowChips
+        affinity={row.affinity}
         recencyDays={row.recencyDays}
         neverEaten={row.neverEaten}
         tags={row.tags}

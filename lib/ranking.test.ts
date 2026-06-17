@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { CAP, OVERDUE_THRESHOLD, W_OPTION, W_TAG } from "./ranking.config";
+import { CAP, NEUTRAL_AFFINITY, OVERDUE_THRESHOLD } from "./ranking.config";
 import {
   daysSince,
   lastEaten,
   lastTagUse,
-  optionScore,
   rankOption,
   rankTonight,
   type LogEntry,
@@ -12,6 +11,9 @@ import {
 } from "./ranking";
 
 const TODAY = 100;
+
+/** The Score every Option ties at on a cold start: neutral affinity × CAP readiness. */
+const COLD_START_SCORE = NEUTRAL_AFFINITY * CAP;
 
 /** Build an active Option for the tests. */
 function option(
@@ -95,21 +97,85 @@ describe("lastTagUse", () => {
   });
 });
 
-describe("optionScore", () => {
-  it("uses the mean of the Tag recencies as variety for a tagged Option", () => {
-    // anti_repeat 10, tagDays mean (20 + 30) / 2 = 25.
-    expect(optionScore(10, [20, 30])).toBe(W_OPTION * 10 + W_TAG * 25);
+describe("affinity (Score = affinity × readiness)", () => {
+  it("ranks a frequently-eaten Option above a rarely-eaten one at equal readiness", () => {
+    // Both were last eaten 30 days ago — identical readiness — but `liked` was
+    // a regular before that and `disliked` has only the one entry. Affinity is
+    // the only thing separating them, and it must put `liked` first. This is the
+    // failure the old recency-only Score had backwards.
+    const options = [option("liked", "Liked"), option("disliked", "Disliked")];
+    const entries: LogEntry[] = [
+      { optionId: "liked", eatenOn: TODAY - 30 },
+      { optionId: "liked", eatenOn: TODAY - 37 },
+      { optionId: "liked", eatenOn: TODAY - 44 },
+      { optionId: "disliked", eatenOn: TODAY - 30 },
+    ];
+    const rows = rankTonight(options, entries, TODAY);
+    expect(rows.map((row) => row.option.id)).toEqual(["liked", "disliked"]);
   });
 
-  it("mirrors anti_repeat as variety for a tagless Option", () => {
-    expect(optionScore(12, [])).toBe(W_OPTION * 12 + W_TAG * 12);
+  it("does not let a rarely-eaten stale Option pin above a frequent favorite", () => {
+    // `pet` is overdue (30d) and eaten weekly; `dud` is more overdue (60d+) but
+    // eaten once long ago. The old Score crowned `dud` on staleness alone; the
+    // product keeps the favorite on top.
+    const options = [option("pet", "Favorite"), option("dud", "Avoided")];
+    const entries: LogEntry[] = [
+      { optionId: "pet", eatenOn: TODAY - 30 },
+      { optionId: "pet", eatenOn: TODAY - 37 },
+      { optionId: "pet", eatenOn: TODAY - 44 },
+      { optionId: "pet", eatenOn: TODAY - 51 },
+      { optionId: "dud", eatenOn: TODAY - 200 },
+    ];
+    const rows = rankTonight(options, entries, TODAY);
+    expect(rows[0].option.id).toBe("pet");
   });
 
-  it("ties every Option at (W_OPTION + W_TAG) * CAP on cold start", () => {
-    const coldTagged = optionScore(CAP, [CAP, CAP]);
-    const coldTagless = optionScore(CAP, []);
-    expect(coldTagged).toBe((W_OPTION + W_TAG) * CAP);
-    expect(coldTagless).toBe((W_OPTION + W_TAG) * CAP);
+  it("inherits cuisine affinity for a never-eaten Option (cold-start)", () => {
+    // Two never-eaten dishes: one in a cuisine the Household eats often, one in
+    // a cuisine it barely touches. The popular-cuisine newcomer must rank
+    // higher even though the avoided cuisine is the more overdue one.
+    const options = [
+      option("freshPasta", "New Pasta", ["pasta"]),
+      option("freshLiver", "New Liver", ["liver"]),
+      option("oldPasta", "Old Pasta", ["pasta"]),
+      option("oldLiver", "Old Liver", ["liver"]),
+    ];
+    const entries: LogEntry[] = [
+      { optionId: "oldPasta", eatenOn: TODAY - 3 },
+      { optionId: "oldPasta", eatenOn: TODAY - 10 },
+      { optionId: "oldPasta", eatenOn: TODAY - 17 },
+      { optionId: "oldLiver", eatenOn: TODAY - 40 },
+    ];
+    const rows = rankTonight(options, entries, TODAY);
+    const pasta = rows.findIndex((row) => row.option.id === "freshPasta");
+    const liver = rows.findIndex((row) => row.option.id === "freshLiver");
+    expect(pasta).toBeLessThan(liver);
+  });
+
+  it("gives an Option with no signal at all the neutral affinity", () => {
+    // Never eaten, and its only Tag has never been used by any carrier — no
+    // evidence either way, so it lands at the neutral baseline rather than 0.
+    const options = [
+      option("fresh", "Untried", ["novel"]),
+      option("known", "Known", ["common"]),
+    ];
+    const rows = rankTonight(
+      options,
+      [{ optionId: "known", eatenOn: TODAY - 5 }],
+      TODAY,
+    );
+    const fresh = rows.find((row) => row.option.id === "fresh")!;
+    expect(fresh.affinity).toBe(NEUTRAL_AFFINITY);
+  });
+
+  it("exposes affinity and readiness on every row, with score their product", () => {
+    const options = [option("o1", "Dish", ["tag"])];
+    const rows = rankTonight(
+      options,
+      [{ optionId: "o1", eatenOn: TODAY - 12 }],
+      TODAY,
+    );
+    expect(rows[0].score).toBeCloseTo(rows[0].affinity * rows[0].readiness);
   });
 });
 
@@ -160,9 +226,7 @@ describe("rankTonight", () => {
       "Apple Crumble",
       "Banana Bread",
     ]);
-    expect(rows.every((row) => row.score === (W_OPTION + W_TAG) * CAP)).toBe(
-      true,
-    );
+    expect(rows.every((row) => row.score === COLD_START_SCORE)).toBe(true);
   });
 
   it("excludes future Log entries so a Planned dinner does not skew the Score", () => {
@@ -175,7 +239,7 @@ describe("rankTonight", () => {
     // The only entry is in the future, so the Option reads as never eaten.
     expect(rows[0].neverEaten).toBe(true);
     expect(rows[0].recencyDays).toBe(CAP);
-    expect(rows[0].score).toBe((W_OPTION + W_TAG) * CAP);
+    expect(rows[0].score).toBe(COLD_START_SCORE);
   });
 
   it(
@@ -244,9 +308,7 @@ describe("rankTonight", () => {
         "Apple Crumble",
         "Banana Bread",
       ]);
-      expect(rows.every((row) => row.score === (W_OPTION + W_TAG) * CAP)).toBe(
-        true,
-      );
+      expect(rows.every((row) => row.score === COLD_START_SCORE)).toBe(true);
     },
   );
 });
@@ -271,7 +333,7 @@ describe("rankOption", () => {
     const rows = rankTonight(options, entries, TODAY);
 
     // The detail page and Tonight read the same inputs through the same
-    // recency internals, so every field must agree for every active Option.
+    // internals, so every field must agree for every active Option.
     for (const target of options) {
       const row = rows.find((r) => r.option.id === target.id);
       const ranked = rankOption({
@@ -282,6 +344,8 @@ describe("rankOption", () => {
         asOf: TODAY,
       });
       expect(ranked.score).toBe(row?.score);
+      expect(ranked.affinity).toBe(row?.affinity);
+      expect(ranked.readiness).toBe(row?.readiness);
       expect(ranked.recencyDays).toBe(row?.recencyDays);
       expect(ranked.neverEaten).toBe(row?.neverEaten);
       expect(ranked.tags).toEqual(row?.tags);
@@ -299,8 +363,10 @@ describe("rankOption", () => {
     });
     expect(ranked.neverEaten).toBe(true);
     expect(ranked.recencyDays).toBe(CAP);
-    // A tagged but never-used Option ties at the cold-start Score.
-    expect(ranked.score).toBe((W_OPTION + W_TAG) * CAP);
+    // A tagged but never-used Option has no affinity signal → neutral → ties at
+    // the cold-start Score.
+    expect(ranked.affinity).toBe(NEUTRAL_AFFINITY);
+    expect(ranked.score).toBe(COLD_START_SCORE);
     expect(ranked.tags[0]).toEqual({ tag: "soy", days: CAP, overdue: true });
   });
 
@@ -323,8 +389,9 @@ describe("rankOption", () => {
       targetLog,
       asOf: TODAY,
     });
-    // An Archived Option takes no part in the ranking — no Score.
+    // An Archived Option takes no part in the ranking — no Score, no affinity.
     expect(ranked.score).toBe(null);
+    expect(ranked.affinity).toBe(null);
     // Per-Option recency still comes from the Option's own history.
     expect(ranked.recencyDays).toBe(12);
     expect(ranked.neverEaten).toBe(false);

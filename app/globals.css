@@ -26,13 +26,15 @@
    * distinct from the picker below it. */
   --color-kind-home-wash: #dde8e8;
   --color-kind-restaurant-wash: #e7e0e6;
-  /* Recency heatmap — three anchor stops of a continuous red->green scale;
-   * lib/recency-color.ts interpolates between them. */
-  --color-recency-overdue: #3f8a4a;
+  /* Recency heatmap — three anchor stops of a continuous green->red scale:
+   * recently eaten reads green, long overdue reads red, fading through a tan
+   * midpoint. lib/recency-color.ts interpolates between them and saturates the
+   * scale at 30 days. */
+  --color-recency-overdue: #c4453a;
   --color-recency-mid: #c8b78f;
-  --color-recency-recent: #c4453a;
+  --color-recency-recent: #3f8a4a;
   /* PICK and other primary actions — neutral charcoal so they never collide
-   * with the heatmap's green end. */
+   * with the heatmap. */
   --color-action: #2c2f36;
   --color-action-hover: #3c4049;
   --color-action-ink: #ffffff;
@@ -102,9 +104,9 @@
     --color-kind-restaurant: #a87d99;
     --color-kind-home-wash: #212e30;
     --color-kind-restaurant-wash: #2e2a30;
-    --color-recency-overdue: #5aa863;
+    --color-recency-overdue: #d65a4f;
     --color-recency-mid: #bdae89;
-    --color-recency-recent: #d65a4f;
+    --color-recency-recent: #5aa863;
     --color-action: #e6e7ea;
     --color-action-hover: #d0d2d6;
     --color-action-ink: #1a1c1f;

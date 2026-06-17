@@ -17,6 +17,8 @@ function row(
   return {
     option: { id, name: id, kind, tags, url: null, phone: null },
     score: 0,
+    affinity: 0,
+    readiness: 0,
     tags: tags.map((tag) => ({ tag, days: 0, overdue: false })),
     recencyDays: 0,
     neverEaten: false,
