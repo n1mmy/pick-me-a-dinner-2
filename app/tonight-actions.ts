@@ -20,10 +20,10 @@ import { isValidSqlDate, today } from "../lib/local-day";
  * future-dated ones (Planned dinners) alike — call `lib/ai-search`, and return
  * the validated ordered result. An empty query is a valid trigger.
  *
- * The Selected day defaults to today on the standard render and may be a
- * future date the Household stepped to. It is validated to `>= today()`
- * server-side as a defense against a stale / hand-edited request; an invalid
- * or missing value falls back to today.
+ * The Selected day defaults to today on the standard render and may be any
+ * date the Household stepped to, past or future (ADR-0009, amended). It is
+ * validated to a real SQL date server-side; an invalid or missing value falls
+ * back to today.
  *
  * The Log fed to the snapshot comes from `getFullLogForSnapshot`, not from
  * `getTonightData` (whose `logEntries` are filtered to non-future for the
@@ -43,14 +43,13 @@ export const aiSearchAction = authedAction(
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return AI_SEARCH_UNAVAILABLE;
 
-    // Validate the Selected day defensively: a Server Action is reachable
-    // from any caller, so a stale or hand-edited request could carry a past
-    // or malformed date. Past or invalid → today; today or future → honoured.
+    // Validate the Selected day defensively: a Server Action is reachable from
+    // any caller, so a hand-edited request could carry a malformed date. Any
+    // real SQL date is honoured (past or future); only a malformed/missing
+    // value falls back to today.
     const todaySql = today();
     const asOf =
-      typeof selectedDay === "string" &&
-      isValidSqlDate(selectedDay) &&
-      selectedDay >= todaySql
+      typeof selectedDay === "string" && isValidSqlDate(selectedDay)
         ? selectedDay
         : todaySql;
 

@@ -81,12 +81,14 @@ export function today(): string {
 
 /**
  * Parse the Tonight screen's `?day=` URL parameter into a **Selected day** SQL
- * date, defaulting to today on anything that is not a valid future-or-today
- * SQL date (ADR-0009). The Selected day anchors the whole Tonight screen — the
+ * date, defaulting to today on anything that is not a valid SQL date (ADR-0009,
+ * amended). The Selected day anchors the whole Tonight screen — the
  * deterministic ranked list, AI search, the decided block, and the live Reject
- * control all use this date. Past dates are off-limits and stay a Log-screen
- * backfill job, so a past `?day=` is clamped to today rather than honoured. A
- * SQL date is lexicographically ordered, so the `<` comparison is exact.
+ * control all use this date. Any valid date is honoured, past or future: a
+ * future day plans ahead, a past day reaches back to edit that night's Pick
+ * (its note, a mis-logged Remove) or backfill a forgotten dinner — the same
+ * interaction principle (ADR-0007) that puts the note editor on the decided
+ * row. Only `todaySql` is needed now as the invalid/missing fallback.
  */
 export function parseSelectedDay(
   rawParam: unknown,
@@ -94,7 +96,6 @@ export function parseSelectedDay(
 ): string {
   if (typeof rawParam !== "string") return todaySql;
   if (!isValidSqlDate(rawParam)) return todaySql;
-  if (rawParam < todaySql) return todaySql;
   return rawParam;
 }
 

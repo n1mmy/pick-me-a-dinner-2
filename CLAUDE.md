@@ -79,48 +79,71 @@ tools.
 
 ## Tool & permissions discipline
 
-Bash calls go through a permission matcher that prompts (or, in an automated
-loop, denies) unfamiliar command shapes. The matcher treats compound shell
-expressions as separate patterns from their constituents, so a compound
-prompts even when each piece is allowlisted.
+Prompt the user as little as possible — every avoidable permission prompt is
+friction. Bash calls go through a permission matcher; when there is more than
+one way to run something, choose the shape it already clears. How the matcher
+actually behaves (empirically catalogued; it is built-in, undocumented, and can
+drift across Claude Code versions, so re-verify if a result surprises you):
 
-- **Prefer dedicated tools over `Bash`.** `Read` for file contents (it takes
-  `offset`/`limit` for ranged reads), `Edit`/`Write` for changes. For search,
-  use whichever your tool set actually exposes: the `Glob`/`Grep` tools if
-  present, otherwise `Bash` — `rg`/`grep` for content, `find` for paths,
-  `git ls-files` for tracked files. Native macOS/Linux Claude Code builds
-  drop the `Glob`/`Grep` tools and fold search into Bash; npm-installed
-  builds keep them. Reach for `Bash` for everything else only when shell
-  semantics are genuinely required (git, package manager, docker, curl).
-  `cat`/`ls`/`head`/`tail` from Bash prompt where `Read` would not — use
-  `Read` for file contents.
-- **No compound shell in `Bash` calls** — no `&&`, `||`, `|`, `;`,
-  subshells, or redirects (`>`, `>>`, `<`, `2>&1`). Split into separate
-  `Bash` tool uses in the same message (they run in parallel) rather than
-  chaining. Don't pipe build/test output through `tail`/`head`; run the bare
-  command.
-- **No `cd <path> && …`.** Commands resolve from the repo root. Prefixing
-  with `cd` turns an allowed command into a denied compound.
-- **Don't prefix a command with its full path.** Run `pnpm`, `git`, `node`,
-  etc. bare — the matcher allowlists the bare command shape, and an explicit
-  path (`/opt/homebrew/bin/pnpm …`) is a different, unrecognized shape that
-  prompts. Use a full path only when the command genuinely is not on `$PATH`.
-- **No bare `rm`, no `mkdir`.** Use `git rm <path>` for tracked files,
+- **Compounds are decomposed, not rejected wholesale.** `&&`, `||`, `;`, `|`,
+  and `&` are split into their stages, and the compound clears iff *every* stage
+  independently clears (against the allowlist or a safe list below). A compound
+  does **not** prompt merely for being compound — only when some stage isn't
+  itself allowed. So `git add <paths> && git commit -m x` is fine when both
+  halves are allowed. **But** command substitution `$(…)` / backticks are
+  rejected as a distinct shape, and an unescaped `*`, or any literal `$` byte
+  (even backslash-escaped as `\$`), in an argument is rejected outright — keep
+  those out of Bash args.
+- **Two built-in safe lists clear with no allow rule.** Read-only Bash commands
+  — `cat`, `head`, `tail`, `wc`, `grep`, `find`, `ls`, `stat`, `echo`, `printf`,
+  `which`, `type`, `realpath`, `dirname`, `basename`, `test` — and read-only git
+  subcommands — `log`, `diff`, `show`, `status`, `blame`, `rev-parse`,
+  `ls-files`, `for-each-ref`, `worktree list` — run without prompting.
+  `sed`/`awk` (verified — both prompt), `env`/`printenv`, `rm`/`mkdir`/`rmdir`,
+  and `git config`/`push`/`fetch` are **not** on the lists — treat them as
+  prompting; use `Read`/`Edit` or a safe-listed reader instead.
+- **Path-locality gate.** For the path-taking readers (`cat`/`head`/`tail`/
+  `wc`/`grep`/`find`/`ls`/`stat`/`rmdir`), an argument that is an absolute path
+  **outside the working directory** is rejected even though the command is
+  safe-listed — so `cat /etc/passwd` and `find /` are blocked, while in-worktree
+  paths clear. (git's read subcommands bypass this gate.)
+- **First-token shape.** A first token containing `/` — a full path like
+  `/usr/bin/git` or a `./relative` form — misses the lookup and is rejected even
+  for an otherwise-allowed command.
+
+The actionable rules that follow from this:
+
+- **Prefer dedicated tools over `Bash`.** `Read` for file contents (ranged
+  `offset`/`limit`, images, PDFs), `Edit`/`Write` for changes. For search use
+  the `Glob`/`Grep` tools if your build exposes them, otherwise `Bash` —
+  `rg`/`grep` for content, `find` for paths, `git ls-files` for tracked files.
+  (Native macOS/Linux builds drop `Glob`/`Grep` and fold search into Bash;
+  npm-installed builds keep them.) `cat`/`head` don't prompt for in-worktree
+  files, but `Read` is still better — ranged reads, images, no path-locality
+  limit. Reach for `Bash` when shell semantics are genuinely required (git,
+  package manager, docker, curl).
+- **Run commands bare from the working directory.** No full path
+  (`/opt/homebrew/bin/pnpm`), no `./x` first token, and no `git -C <path>` for
+  your own checkout — the cwd is already the repo/worktree root, so
+  `git status`, `git add <paths>`, and `git commit` resolve with no `-C`. Each
+  `/`-bearing first token misses the lookup. Use a full path or `-C` only when
+  genuinely targeting something off `$PATH` or a different checkout.
+- **No `cd <path> && …`.** Commands already resolve from the repo root and `cd`
+  isn't allowlisted, so the compound fails on the `cd` stage.
+- **No bare `rm`, no `mkdir`** (neither is safe-listed). Use `git rm <path>`,
   `Write` to overwrite, and `Write` to a path inside a missing directory to
   auto-create the parent.
-- **Never run `find /`.** The container filesystem is large and the probe
-  takes minutes. To locate a binary use `which`/`command -v`/`type`, or
-  check known install dirs (`~/.local/bin`, `/usr/local/bin`, `/usr/bin`,
-  `/opt/homebrew/bin`). If a tool isn't on `PATH`, treat it as not
-  installed.
+- **Keep `$(…)`, unescaped `*`, and `$VAR` out of Bash args** — the matcher
+  rejects all three regardless of quoting. Let a dedicated tool or a literal
+  path stand in.
 - **Brief subagents with this discipline — they don't inherit it.** An
-  `Explore` / `general-purpose` subagent reaches for `sed`, `cat`, `head`
-  by reflex, and each prompts the user from inside the run. For read-only
-  exploration, tell the agent to use `Read` (note it takes `offset`/`limit`
-  for ranged reads) plus the search rule above — `Glob`/`Grep` if present,
-  otherwise `Bash` search. On an npm build where `Glob`/`Grep` exist you can
-  forbid the `Bash` tool outright; on a native build the agent needs `Bash`
-  for search, so pass it the no-compound-shell / no-`cd` rules instead.
+  `Explore` / `general-purpose` subagent reaches for `sed`/`awk`, full paths,
+  outside-cwd reads, and `$(…)` by reflex. For read-only exploration, tell the
+  agent to use `Read` (ranged `offset`/`limit`) plus the search rule above. On
+  an npm build
+  with `Glob`/`Grep` you can forbid the `Bash` tool outright; on a native build
+  it needs `Bash` for search, so pass it the bare-shape / in-worktree-path /
+  no-`$(…)` rules.
 
 Widening the allowlist in `.claude/settings.local.json` is the user's call,
 not Claude's.

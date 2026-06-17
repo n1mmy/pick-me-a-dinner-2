@@ -16,12 +16,13 @@ import { TonightScreen } from "./tonight-screen";
 export const dynamic = "force-dynamic";
 
 /**
- * The Tonight page (ADR-0009): ranks for the **Selected day** anchored from
- * `?day=`. With no `?day=` — or any malformed / past value — the Selected day
- * is today and the screen is exactly v1; with a future SQL date it is that
- * date and the whole screen rotates around it: the deterministic ranked list,
- * the decided **Dinner** block, the live Reject control, and AI search all
- * read the Selected day from the screen and from the URL respectively.
+ * The Tonight page (ADR-0009, amended): ranks for the **Selected day** anchored
+ * from `?day=`. With no `?day=` — or any malformed value — the Selected day is
+ * today and the screen is exactly v1; with any valid SQL date, past or future,
+ * it is that date and the whole screen rotates around it: the deterministic
+ * ranked list, the decided **Dinner** block, the live Reject control, and AI
+ * search all read the Selected day from the screen and from the URL
+ * respectively. A future day plans ahead; a past day edits that night.
  */
 export default async function TonightPage({
   searchParams,

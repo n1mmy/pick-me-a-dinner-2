@@ -166,10 +166,11 @@ export type TonightLogRow = {
  * render from (PRD: Tonight — decided mode). The ranking input is otherwise
  * unchanged: `rankTonight` reads only the recency-relevant `RankOption` fields.
  *
- * `todayEntries` is the `dinner_log` rows dated *today* — with their `id` and
- * `created_at` — which the decided mode of Tonight needs (PRD: Tonight —
- * decided mode): `created_at` gives the pick order and `id` is the handle the
- * decided row's "Remove" deletes.
+ * `todayEntries` is the `dinner_log` rows dated *today* — with their `id`,
+ * `created_at`, and `note` — which the decided mode of Tonight needs (PRD:
+ * Tonight — decided mode): `created_at` gives the pick order, `id` is the
+ * handle the decided row's "Remove" deletes, and `note` is what the row's
+ * inline note editor shows and edits.
  */
 export async function getTonightData(todaySqlDate: string): Promise<{
   options: TonightOption[];
@@ -206,6 +207,7 @@ export async function getTonightData(todaySqlDate: string): Promise<{
       id: dinnerLog.id,
       optionId: dinnerLog.optionId,
       createdAt: dinnerLog.createdAt,
+      note: dinnerLog.note,
     })
     .from(dinnerLog)
     .where(eq(dinnerLog.eatenOn, todaySqlDate));

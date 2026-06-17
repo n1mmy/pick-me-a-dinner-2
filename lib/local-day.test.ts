@@ -110,9 +110,9 @@ describe("parseSelectedDay", () => {
     expect(parseSelectedDay("2026-02-30", TODAY)).toBe(TODAY);
   });
 
-  it("returns today for a valid date in the past — past is off-limits", () => {
-    expect(parseSelectedDay("2026-05-19", TODAY)).toBe(TODAY);
-    expect(parseSelectedDay("2025-12-31", TODAY)).toBe(TODAY);
+  it("returns the date for a valid past Selected day — past is now editable", () => {
+    expect(parseSelectedDay("2026-05-19", TODAY)).toBe("2026-05-19");
+    expect(parseSelectedDay("2025-12-31", TODAY)).toBe("2025-12-31");
   });
 
   it("returns today for the exact today date", () => {

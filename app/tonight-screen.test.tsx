@@ -78,8 +78,8 @@ const TAGGED_ROWS: TonightRow[] = [
 // mode and renders the "Tonight's dinner" block. `entryId` is the today Log
 // entry id the row's "Remove" deletes.
 const DINNER: TonightsDinnerEntry[] = [
-  { entryId: "e1", row: row("o1", "Apple Crumble") },
-  { entryId: "e2", row: row("o2", "Banana Bread") },
+  { entryId: "e1", row: row("o1", "Apple Crumble"), note: null },
+  { entryId: "e2", row: row("o2", "Banana Bread"), note: null },
 ];
 
 afterEach(() => {

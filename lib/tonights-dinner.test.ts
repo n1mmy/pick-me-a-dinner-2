@@ -22,8 +22,13 @@ function row(id: string, name: string, recencyDays = 0): TonightRow {
 }
 
 /** A today Log entry with its pick instant as an ISO string. */
-function entry(id: string, optionId: string, createdAt: string): TodayLogEntry {
-  return { id, optionId, createdAt: new Date(createdAt) };
+function entry(
+  id: string,
+  optionId: string,
+  createdAt: string,
+  note: string | null = null,
+): TodayLogEntry {
+  return { id, optionId, createdAt: new Date(createdAt), note };
 }
 
 const ROWS: TonightRow[] = [
@@ -45,8 +50,19 @@ describe("splitTonight", () => {
       [entry("e1", "b", "2026-05-17T18:00:00Z")],
       ROWS,
     );
-    expect(tonightsDinner).toEqual([{ entryId: "e1", row: row("b", "Banana Bread") }]);
+    expect(tonightsDinner).toEqual([
+      { entryId: "e1", row: row("b", "Banana Bread"), note: null },
+    ]);
     expect(picker.map((r) => r.option.id)).toEqual(["a", "c"]);
+  });
+
+  it("carries each Pick's note onto its decided entry", () => {
+    const { tonightsDinner } = splitTonight(
+      ROWS,
+      [entry("e1", "b", "2026-05-17T18:00:00Z", "extra spicy")],
+      ROWS,
+    );
+    expect(tonightsDinner[0].note).toBe("extra spicy");
   });
 
   it("orders a multi-Option dinner by created_at, oldest first", () => {
