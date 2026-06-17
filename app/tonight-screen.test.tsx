@@ -130,7 +130,7 @@ async function submitSearchAndSettle() {
 /** Re-query the search input — never reuse a captured ref across re-renders. */
 function searchInput() {
   return screen.getByLabelText(
-    "Search for dinner by intent",
+    "Find a dinner by name, or describe a craving",
   ) as HTMLInputElement;
 }
 
@@ -145,7 +145,7 @@ describe("TonightScreen — AI search", () => {
     // The deterministic list shows its rows.
     expect(screen.getByText("Apple Crumble")).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("Search for dinner by intent"), {
+    fireEvent.change(screen.getByLabelText("Find a dinner by name, or describe a craving"), {
       target: { value: "something light" },
     });
     await submitSearchAndSettle();
@@ -176,7 +176,7 @@ describe("TonightScreen — AI search", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Search for dinner by intent"), {
+    fireEvent.change(screen.getByLabelText("Find a dinner by name, or describe a craving"), {
       target: { value: "something light" },
     });
     await submitSearchAndSettle();
@@ -414,7 +414,7 @@ describe("TonightScreen — AI search", () => {
     // No ANTHROPIC_API_KEY — Tonight is exactly v1: the search box is absent.
     render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled={false} />);
 
-    expect(screen.queryByLabelText("Search for dinner by intent")).toBeNull();
+    expect(screen.queryByLabelText("Find a dinner by name, or describe a craving")).toBeNull();
     expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
 
     // The deterministic list and its filter zone remain — v1 is unaffected.
