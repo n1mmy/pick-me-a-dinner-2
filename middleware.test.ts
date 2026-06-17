@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { sealData } from "iron-session";
-import { middleware } from "./middleware";
+import { config, middleware } from "./middleware";
 import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "./lib/session";
 
 // At least 32 characters — iron-session's minimum sealing-password length.
@@ -78,6 +78,29 @@ describe("middleware route gate", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("http://localhost/login");
+  });
+});
+
+describe("middleware matcher", () => {
+  // Next applies `config.matcher` at the edge before `middleware()` runs, so
+  // the exemptions can only be checked against the regex itself.
+  const matcher = new RegExp(`^${config.matcher[0]}$`);
+
+  it("gates app routes", () => {
+    expect(matcher.test("/")).toBe(true);
+    expect(matcher.test("/catalog")).toBe(true);
+    expect(matcher.test("/catalog/42")).toBe(true);
+  });
+
+  it("exempts the PWA install assets so they are publicly readable", () => {
+    expect(matcher.test("/manifest.webmanifest")).toBe(false);
+    expect(matcher.test("/icons/icon-192.png")).toBe(false);
+    expect(matcher.test("/icons/apple-touch-icon.png")).toBe(false);
+  });
+
+  it("still exempts the Next static assets", () => {
+    expect(matcher.test("/_next/static/chunk.js")).toBe(false);
+    expect(matcher.test("/favicon.ico")).toBe(false);
   });
 });
 

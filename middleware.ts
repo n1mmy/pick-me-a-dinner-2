@@ -81,5 +81,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
 export const config = {
   // Gate every route but the static assets Next.js serves without a session.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // `manifest.webmanifest` and `icons/` are the PWA install assets (app name,
+  // colors, the "D" launcher icon) — non-secret, and browsers fetch them to
+  // validate installability and render the login-page favicon, sometimes
+  // without a live session, so they must be publicly readable.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/).*)",
+  ],
 };
