@@ -135,11 +135,30 @@ days since that exact Option was last eaten; **per-Tag recency** is days since
 any active Option carrying that Tag was last eaten.
 
 **Score**:
-The number that ranks an Option on Tonight, combining its per-Option recency
-with the per-Tag recency of its Tags. Higher = more overdue = higher on the
-list.
-_Avoid_: Anti-repeat, variety enforcer (the two inputs are simply per-Option
-recency and per-Tag recency).
+The number that ranks an Option on Tonight: **Readiness × Affinity**. Readiness
+asks "how overdue is this?"; Affinity asks "how much does the Household actually
+want it?". Multiplying lets low Affinity hold back a stale-but-unloved Option,
+so the list is "what we'd like *and* haven't had lately" rather than pure
+anti-repeat. Higher = higher on the list.
+_Avoid_: Anti-repeat, variety enforcer (Score is no longer recency alone —
+that model surfaced disliked Options precisely because they were avoided).
+
+**Readiness**:
+The overdue half of the Score: a blend of an Option's **per-Option recency** and
+the **per-Tag recency** of its Tags, on the capped-day scale. High when the
+Household hasn't had this dish or its cuisine in a while. (This is the old
+recency-only ranking, now one of the two Score factors.)
+
+**Affinity**:
+The preference half of the Score: a recency-weighted eat-**frequency** — how
+often, and how recently, the Household has eaten an Option (and its cuisine) —
+normalized so ~1.0 is catalog-average. It is the Household's *revealed*
+preference, inferred from the Log with no rating field and no new schema. A
+never-eaten Option inherits its cuisine's Affinity; one with no signal at all
+sits at a neutral baseline. Rejections do **not** feed Affinity — they stay
+day-scoped.
+_Avoid_: Rating, preference score (it is inferred from eat-frequency, never
+entered by hand).
 
 **Recency chip**:
 The small chip on each Tonight row showing the Option's own **per-Option
@@ -168,8 +187,9 @@ types an intent ("something light", "we have guests") — or leaves the query
 empty — and the model returns a ranked set of Options to fit it. The model
 also reads the household's eating history for habits and rhythms — how often
 something recurs, day-of-week tendencies, what tends to follow what — and lets
-those shape the ranking, surfacing patterns the deterministic Score's pure
-recency cannot; with an empty query, finding those patterns is the whole job.
+those shape the ranking, surfacing patterns — day-of-week rhythms, what follows
+what — the deterministic Score's recency-and-frequency cannot; with an empty
+query, finding those patterns is the whole job.
 Always a deliberate action; it never replaces the deterministic ranking as the
 default Tonight view. The model decides how many Options to return, so a
 narrowing query yields a subset of the Catalog, not the whole list.
@@ -217,8 +237,8 @@ single-household — no user accounts, no per-person identity.
 - A **Planned dinner** is a **Log entry** dated after today.
 - **Tonight** ranks active **Options** by **Score** for the **Selected day**.
 - **Tonight** surfaces **Tonight's dinner** once a **Pick** is made.
-- An Option's **Score** combines its **per-Option recency** with the
-  **per-Tag recency** of its **Tags**.
+- An Option's **Score** is its **Readiness** (per-Option + per-Tag recency)
+  times its **Affinity** (recency-weighted eat-frequency).
 - Each **Tonight** row carries one **Recency chip**.
 - An **Option** is either **Active** or **Archived**.
 - A **Household** may **Reject** an Option for one night — live on **Tonight**,

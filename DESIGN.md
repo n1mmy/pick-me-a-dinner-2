@@ -74,19 +74,31 @@ no CDN, no layout shift).
   Tonight screen was the explored canvas; the same tokens propagate to the
   other screens.
 
-### Two color channels
+### Color channels
 
-Every Tonight row carries exactly two color signals:
+A Tonight row carries the meal-kind bar plus the green→red heatmap, the latter
+now driving **two** per-Option chips (Affinity and Recency) that encode the two
+halves of the Score. (Through 2026-06-16 this was "exactly two channels", kind +
+recency; the Affinity chip was added 2026-06-17 alongside the affinity-ranking
+work — see the Decisions Log.)
 
 1. **Meal kind** — a 3px solid vertical bar on the row's left edge. Teal
    `kind-home` for home-cooked Options, plum `kind-restaurant` for
    restaurants. One calm decision per row: home vs out, before reading a word.
-2. **Recency heatmap** — a continuous red→green scale. An Option (or a Tag)
-   long overdue reads green ("go ahead"); one eaten recently reads red ("you
-   just had this"); the scale fades through a muted tan midpoint. The heatmap
-   colors the Explanation chip background and tints each Tag word by that
-   Tag's own recency. Because Tonight is ranked best-first, the list runs
-   green at the top to red at the bottom.
+2. **The green→red heatmap** — a continuous scale where green is "good" and red
+   is "not now", fading through a muted tan midpoint. It drives three things,
+   each by its own value:
+   - the **Affinity chip** (first in the chip row, at the *fainter* Tag-chip
+     fill so it reads quieter than the louder Recency chip beside it) — by
+     *frequency*: a frequently-eaten Option reads green, a rarely-eaten one red,
+     ~average (1.0) tan. The preference half of the Score.
+   - the **Recency chip** (stronger fill) — by *days since last eaten*, capped at
+     30: just-eaten reads green, long-overdue red. A factual freshness readout.
+   - each **Tag word** — by that Tag's own recency, at a fainter fill.
+
+   Both chips are *readouts*, not the row order: since 2026-06-17 Tonight is
+   ordered by Score = affinity × readiness, so the list no longer runs a clean
+   green-to-red top-to-bottom.
 
 ### Light theme (primary)
 
@@ -102,9 +114,9 @@ Every Tonight row carries exactly two color signals:
 | `kind-restaurant` | `#7a4f6b` | Meal-kind left bar — restaurant (plum) |
 | `kind-home-wash` | `#dde8e8` | Decided-row background — much-lighter home wash |
 | `kind-restaurant-wash` | `#e7e0e6` | Decided-row background — much-lighter restaurant wash |
-| `recency-overdue` | `#3f8a4a` | Recency heatmap — green end, long overdue |
+| `recency-overdue` | `#c4453a` | Recency heatmap — red end, long overdue |
 | `recency-mid` | `#c8b78f` | Recency heatmap — muted tan midpoint |
-| `recency-recent` | `#c4453a` | Recency heatmap — red end, eaten recently |
+| `recency-recent` | `#3f8a4a` | Recency heatmap — green end, eaten recently |
 | `action` | `#2c2f36` | PICK button fill (charcoal-ink) |
 | `action-hover` | `#3c4049` | PICK hover / pressed |
 | `action-ink` | `#ffffff` | Text/label on the PICK fill |
@@ -118,10 +130,10 @@ Every Tonight row carries exactly two color signals:
 | `planned` | `#b9822b` | Amber — the Upcoming planned-dinner section |
 
 `recency-overdue` / `recency-mid` / `recency-recent` are the three anchor
-stops of a continuous scale; the implementation interpolates between them,
-applying the result at low opacity for Explanation chip backgrounds and at
-higher strength for Tag text. The PICK button is a neutral charcoal so it
-never collides with the green end of the heatmap.
+stops of a continuous green→red scale that saturates at 30 days; the
+implementation interpolates between them, applying the result at low opacity
+for Recency chip backgrounds and at higher strength for Tag text. The PICK
+button is a neutral charcoal so it never collides with the heatmap.
 
 `accent` is the one deliberate exception to the neutral-everything-else rule:
 the Tonight AI-search button is a vivid violet so the smart-search affordance
@@ -152,9 +164,9 @@ check before relying on it.
 | `kind-restaurant` | `#a87d99` |
 | `kind-home-wash` | `#212e30` |
 | `kind-restaurant-wash` | `#2e2a30` |
-| `recency-overdue` | `#5aa863` |
+| `recency-overdue` | `#d65a4f` |
 | `recency-mid` | `#bdae89` |
-| `recency-recent` | `#d65a4f` |
+| `recency-recent` | `#5aa863` |
 | `success-wash` | `#26312a` |
 | `danger-wash` | `#33272a` |
 | `action` | `#e6e7ea` |
@@ -224,7 +236,7 @@ mobile-bottom-nav → desktop-left-rail shift lives in `app/app-nav.tsx` (the
 the tokens.
 
 **Color revision implemented (2026-05-17):** the cool-grey base, the two
-functional channels (the 3px meal-kind left bar and the red→green recency
+functional channels (the 3px meal-kind left bar and the green→red recency
 heatmap), and the charcoal PICK button are all in code. The light + dark token
 sets live in `app/globals.css` and `tailwind.config.ts`; the heatmap
 interpolation is `lib/recency-color.ts` (a `color-mix()` over the
@@ -247,3 +259,5 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-05-17 | Color system revised via `/design-shotgun`: cool-grey base, two-channel kind-bar + red→green recency heatmap | The prior warm palette read as too monochrome to parse quickly. Six rounds of Tonight-screen mockups; user chose the cool-slate base with teal/plum meal-kind left bars and a red→green recency heatmap on the Explanation chip and per-tag text. PICK moved from clay to neutral charcoal so it never collides with the heatmap's green. Spec only — not yet in code. |
 | 2026-05-17 | Interaction principle: expose every sensible control, don't enforce a journey (ADR-0007) | Each item-representation carries every control that makes sense for it, trading off only for space. Surfaced while designing the Option detail page. |
 | 2026-05-18 | Added `accent` (vivid violet) for the Tonight AI-search button | User asked for an "exciting" search button distinct from PICK. A dedicated UI-action accent keeps functional color intact — it never lands on a dinner row, so it does not collide with the kind or recency channels. |
+| 2026-06-17 | Recency heatmap polarity swapped (green = recent, red = overdue) and the color scale capped at 30 days, not 60 | Once Affinity drives Tonight's order (Score = affinity × readiness), the Recency chip is a factual freshness readout, not a "go ahead" signal — green-for-fresh / red-for-stale reads more naturally, and saturating at 30 days gives the recent end more resolution. Swap done by exchanging the `recency-recent` / `recency-overdue` hex values; `lib/recency-color.ts` caps at `RECENCY_COLOR_CAP = 30`. |
+| 2026-06-17 | Added an Affinity chip (first in the chip row) on the same heatmap, tinted by frequency (green = frequent) | Surfaces the preference half of the Score beside the recency half, so the row shows *both* factors behind the order. Reuses the heatmap with an inverted mapping so "good" stays green on both chips. Relaxes the prior "exactly two color channels" rule. **Trialling** — the numeral label and whether it earns a permanent slot are still being eyeballed against real data. |
