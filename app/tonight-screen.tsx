@@ -1,8 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type KeyboardEvent,
+} from "react";
 import Link from "next/link";
-import type { TodayRejection } from "../db/queries";
+import type { OptionChoice, TodayRejection } from "../db/queries";
 import type { AiRankingRow } from "../lib/ai-search";
 import { weekdayName } from "../lib/local-day";
 import type { TonightRow } from "../lib/ranking";
@@ -18,6 +26,8 @@ import {
 } from "../lib/tonight-filter";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 import { DayStepper } from "./day-stepper";
+import { kindBarClass } from "./kind-bar";
+import { pickTonight } from "./log/actions";
 import { deleteRejection } from "./rejection-actions";
 import { aiSearchAction } from "./tonight-actions";
 import { TonightRowItem } from "./tonight-row";
@@ -434,6 +444,21 @@ function Picker({
   const [rejectNotice, setRejectNotice] = useState("");
 
   const tags = useMemo(() => distinctTags(rows), [rows]);
+  // The search box's typeahead candidates: the ranked rows reduced to
+  // OptionChoices and re-sorted by name (the rows arrive score-ordered; the
+  // dropdown lists by name). It mirrors the picker exactly, so a typeahead
+  // pick can never hit an already-picked or Selected-day-rejected Option.
+  const choices = useMemo(
+    () =>
+      rows
+        .map((row) => ({
+          id: row.option.id,
+          name: row.option.name,
+          kind: row.option.kind,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [rows],
+  );
   // Rank reflects each Option's position in the picker ranking, so a filtered
   // row keeps its true rank (#4, #7, ...) rather than being renumbered.
   const rankOf = useMemo(
@@ -495,6 +520,9 @@ function Picker({
               pending={searchPending}
               error={aiError}
               showClear={aiResults !== null || aiError}
+              choices={choices}
+              selectedDay={selectedDay}
+              isToday={isToday}
             />
             <p className="sr-only" role="status" aria-live="polite">
               {searchStatus}
@@ -592,19 +620,35 @@ const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body " +
   `text-ink placeholder:text-muted disabled:opacity-60 ${focusRing}`;
 
+/** The per-kind label on a dropdown row, mirroring the Log combobox's rows. */
+function kindLabel(kind: "home" | "restaurant"): string {
+  return kind === "home" ? "Home meal" : "Restaurant";
+}
+
 /**
- * The AI search box above the list. Submitting — by Enter or the Search button,
- * an empty query allowed — runs an AI search; an in-field Clear (✕) control
- * (shown once an AI result is on screen, or once a search has failed) restores
- * the deterministic list and clears the query. The box is disabled while a
- * search is in flight so only one search runs at a time.
+ * The Tonight search box — one input doing two jobs (treatment A). Typing
+ * filters the picker's Options by name into a dropdown beneath the field;
+ * selecting a row logs that Option for the Selected day immediately
+ * (`pick = log`, the same write the ranked rows carry) and clears the box. The
+ * violet **Search** button — and Enter with nothing highlighted — instead runs
+ * the slow **AI search** (PRD: AI search), swapping the list for an AI-ranked
+ * result. So a click in the dropdown picks a dinner you already know; the
+ * button asks the AI to choose.
  *
- * On failure a persistent inline error sits under the box: the deterministic
- * list is left untouched, and the Household can retry or just keep using it.
+ * The dropdown appears only while a name actually matches, so a free-text
+ * craving ("something light") shows none and reads purely as an AI query.
+ * Nothing is highlighted by default — Enter falls through to the AI search;
+ * ArrowDown steps into the dropdown and then Enter logs the highlight. Picks
+ * commit through their own transition and a failed one (the Option deleted out
+ * from under the field) surfaces inline, separate from the AI search's own
+ * "unavailable" error.
  *
- * The Search button tracks the search through three states: `accent` violet at
- * rest, a spinner with a live elapsed-second timer in flight, and a `success`
- * green check with the final duration once a result lands.
+ * An in-field Clear (✕) control (shown whenever there is query text, an AI
+ * result, or a failed search) clears the query and restores the deterministic
+ * list; the box is disabled while a search is in flight so only one runs at a
+ * time. The Search button tracks the search through three states: `accent`
+ * violet at rest, a spinner with a live elapsed-second timer in flight, and a
+ * `success` green check with the final duration once a result lands.
  */
 function SearchBox({
   query,
@@ -614,6 +658,9 @@ function SearchBox({
   pending,
   error,
   showClear,
+  choices,
+  selectedDay,
+  isToday,
 }: {
   query: string;
   onQueryChange: (next: string) => void;
@@ -622,7 +669,14 @@ function SearchBox({
   pending: boolean;
   error: boolean;
   showClear: boolean;
+  /** The picker's Options, by name — the typeahead's pick candidates. */
+  choices: OptionChoice[];
+  /** The Selected day a typeahead pick is logged to (ADR-0009). */
+  selectedDay: string;
+  /** True when the Selected day is today — then the pick omits the day. */
+  isToday: boolean;
 }) {
+  const listId = useId();
   // Elapsed whole seconds of the in-flight search. An AI search runs ~50–90s,
   // so a live counter reassures the Household the request is still working.
   // It is wall-clock based (not a tick count) so it stays accurate if a timer
@@ -657,6 +711,79 @@ function SearchBox({
     }
   }, [pending, error]);
 
+  // Typeahead state: `open` gates the dropdown, `activeIndex` is the keyboard
+  // highlight — −1 means nothing is highlighted, so Enter runs the AI search
+  // rather than picking. A pick logs through its own transition; a failure
+  // shows inline below the box.
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [pickError, setPickError] = useState<string | null>(null);
+  const [, startPick] = useTransition();
+
+  // Flat, case-insensitive substring match over the picker's Options. An empty
+  // query matches nothing, so a blank box stays a clean AI "recommend" trigger
+  // rather than dropping down the whole Catalog.
+  const matches = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (needle.length === 0) return [];
+    return choices.filter((option) =>
+      option.name.toLowerCase().includes(needle),
+    );
+  }, [query, choices]);
+
+  // The dropdown shows only when there is something to pick.
+  const showList = open && matches.length > 0;
+
+  function pick(option: OptionChoice) {
+    setPickError(null);
+    startPick(async () => {
+      const result = await pickTonight(
+        option.id,
+        isToday ? undefined : selectedDay,
+      );
+      if (!result.ok) {
+        setPickError(result.error);
+        return;
+      }
+      // Clearing the query empties `matches`, which closes the dropdown; the
+      // page's scroll-to-top effect confirms the pick.
+      onQueryChange("");
+      setOpen(false);
+      setActiveIndex(-1);
+    });
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown") {
+      if (matches.length === 0) return;
+      event.preventDefault();
+      setOpen(true);
+      setActiveIndex((index) => Math.min(index + 1, matches.length - 1));
+    } else if (event.key === "ArrowUp") {
+      if (matches.length === 0) return;
+      event.preventDefault();
+      setActiveIndex((index) => Math.max(index - 1, -1));
+    } else if (event.key === "Enter") {
+      // A highlighted match is picked; with nothing highlighted the keypress
+      // falls through to the form's submit, which runs the AI search.
+      if (showList && activeIndex >= 0) {
+        event.preventDefault();
+        pick(matches[activeIndex]);
+      }
+    } else if (event.key === "Escape") {
+      if (showList) {
+        event.preventDefault();
+        setOpen(false);
+        setActiveIndex(-1);
+      }
+    }
+  }
+
+  const activeId =
+    showList && activeIndex >= 0
+      ? `${listId}-option-${matches[activeIndex].id}`
+      : undefined;
+
   // The done badge shows only while a successful AI result is on screen —
   // `showClear && !error`, no search in flight. Clearing the search drops
   // `showClear`, so the badge falls back to the plain "Search".
@@ -671,6 +798,9 @@ function SearchBox({
     <form
       onSubmit={(event) => {
         event.preventDefault();
+        // Submitting is the AI search path; close any open dropdown first.
+        setOpen(false);
+        setActiveIndex(-1);
         onSubmit();
       }}
       className="flex flex-col gap-1"
@@ -683,10 +813,22 @@ function SearchBox({
           <input
             type="text"
             value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
+            onChange={(event) => {
+              onQueryChange(event.target.value);
+              setOpen(true);
+              setActiveIndex(-1);
+            }}
+            onKeyDown={handleKeyDown}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setOpen(false)}
             disabled={pending}
-            placeholder="leave empty for recommendations"
-            aria-label="Search for dinner by intent"
+            placeholder="Find a dinner, or describe a craving"
+            role="combobox"
+            aria-expanded={showList}
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeId}
+            aria-label="Find a dinner by name, or describe a craving"
             // Extra right padding only when the ✕ is shown, so query text
             // never runs under it.
             className={`${inputClass} w-full ${canClear ? "pr-11" : ""}`}
@@ -704,6 +846,44 @@ function SearchBox({
             >
               <ClearIcon />
             </button>
+          )}
+          {/* The name-match dropdown. It sits inside the input's relative
+              wrapper so it tracks the field's width, and above the list
+              below (z-20). `onMouseDown` + preventDefault commits the pick
+              before the input's blur can close the dropdown. */}
+          {showList && (
+            <ul
+              id={listId}
+              role="listbox"
+              className="absolute left-0 right-0 top-full z-20 mt-1 flex
+                max-h-64 flex-col overflow-y-auto rounded-input border
+                border-line bg-surface py-1 shadow-sm"
+            >
+              {matches.map((option, index) => (
+                <li key={option.id}>
+                  <button
+                    type="button"
+                    id={`${listId}-option-${option.id}`}
+                    role="option"
+                    aria-selected={index === activeIndex}
+                    className={`flex min-h-11 w-full flex-col py-1.5 pr-3
+                      text-left ${kindBarClass(option.kind)} ${
+                        index === activeIndex ? "bg-raised" : "hover:bg-raised"
+                      }`}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      pick(option);
+                    }}
+                    onMouseEnter={() => setActiveIndex(index)}
+                  >
+                    <span className="text-body text-ink">{option.name}</span>
+                    <span className="text-meta text-muted">
+                      {kindLabel(option.kind)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
         {/* Width is pinned hard — `min-w` defeats the flex item's default
@@ -754,6 +934,11 @@ function SearchBox({
       {error && (
         <p role="status" aria-live="polite" className="text-meta text-danger">
           Search unavailable — try again
+        </p>
+      )}
+      {pickError && (
+        <p role="status" aria-live="polite" className="text-meta text-danger">
+          {pickError}
         </p>
       )}
     </form>
