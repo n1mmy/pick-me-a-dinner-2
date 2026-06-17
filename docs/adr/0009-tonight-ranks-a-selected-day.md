@@ -90,3 +90,32 @@ Three choices are load-bearing:
 - No schema change. `dinner_log.eaten_on` and `rejections.rejected_on` were
   always dated columns; the work is at the page, action, and snapshot
   layers.
+
+## Amendment (2026-06-17): past dates are now selectable
+
+The original decision made the Selected day **today-or-future only**, reasoning
+that the ranking has no useful meaning anchored to the past and that backfilling
+belongs on the Log. We reverse the "no past dates" choice.
+
+The trigger is the interaction principle (ADR-0007) reaching the decided block:
+a Pick's note, an accidental Pick to Remove, and a forgotten dinner to backfill
+are all things the Household wants to do *to a past night*, and the Tonight
+screen is where a night's dinner is shown. Forcing the user to the Log to edit a
+past night contradicts "expose every sensible control where the item appears."
+
+What changes:
+
+- `parseSelectedDay` honours any valid SQL date; only malformed/missing falls
+  back to today. The `DayStepper` drops its `min=today` and the disabled
+  previous-day button, so it steps freely in both directions (still no maximum).
+- The three Selected-day-anchored writes — `pickTonight`, `rejectOption`, and
+  the AI search action — drop their `>= today` clamp, so the Selected day is a
+  true single anchor: a Pick on a past day backfills a Log entry dated that day
+  rather than silently mis-dating it to today.
+- The original points still hold: the ranking for day D still uses every Log
+  entry dated ≤ D (now meaningful for a past D as "as it stood that night"), the
+  H1 still shows the weekday name off-today (the full date stays visible in the
+  stepper, so a bare weekday is unambiguous), and there is still no schema
+  change. AI search remains available on a past day; it is pointless there but
+  harmless, and hiding it would add a special case against the single-anchor
+  model.

@@ -112,17 +112,18 @@ describe("pickTonight", () => {
     expect(rows[0].eatenOn).toBe(future);
   });
 
-  it("clamps a past Selected day to today rather than backfilling", async () => {
-    // The Selected day's stepper has `min=today` (ADR-0009); a past value can
-    // only arrive from a stale or hand-edited request. The action clamps to
-    // today defensively — backfilling lives on the Log screen, not here.
+  it("backfills a forgotten dinner when given a past Selected day", async () => {
+    // ADR-0009 (amended): the Selected day can step into the past, so a Pick
+    // with a past Selected day backfills a Log entry dated that day rather than
+    // mis-dating it to today.
     const pizza = await makeOption("Pizza");
 
-    await pickTonight(pizza, "2025-01-01");
+    const result = await pickTonight(pizza, "2025-01-01");
 
+    expect(result.ok).toBe(true);
     const rows = await db.select().from(dinnerLog);
     expect(rows).toHaveLength(1);
-    expect(rows[0].eatenOn).toBe(TODAY);
+    expect(rows[0].eatenOn).toBe("2025-01-01");
   });
 
   it("clamps a malformed Selected day to today", async () => {

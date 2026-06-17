@@ -28,13 +28,13 @@ function revalidateLogViews(): void {
  * accidental double-tap is a harmless no-op. Picking a *different* Option the
  * same evening is a separate row — a multi-Option Dinner.
  *
- * `selectedDay` is the Tonight screen's **Selected day** (ADR-0009),
- * defaulting to today on the standard render and any future SQL date the
- * Household stepped to. Callers that have no Selected day to pass (the
- * Catalog and Log `PickButton`) call this without it and pick for today; the
- * Tonight rows pass the screen's current Selected day. The value is validated
- * to a future-or-today SQL date defensively — a stale or hand-edited request
- * falls back to today rather than silently writing a past row.
+ * `selectedDay` is the Tonight screen's **Selected day** (ADR-0009, amended),
+ * defaulting to today on the standard render and any SQL date the Household
+ * stepped to — future to plan ahead, past to backfill that night's dinner.
+ * Callers that have no Selected day to pass (the Catalog and Log `PickButton`)
+ * call this without it and pick for today; the Tonight rows pass the screen's
+ * current Selected day. The value is validated to a real SQL date defensively —
+ * a malformed or hand-edited request falls back to today.
  *
  * Returns an `ActionResult` so a write failure (e.g. the Option was deleted
  * out from under the row) is reported, never flashed as a false "Logged ✓" —
@@ -44,9 +44,7 @@ export const pickTonight = authedAction(
   async (optionId: string, selectedDay?: string): Promise<ActionResult> => {
     const todaySql = today();
     const eatenOn =
-      typeof selectedDay === "string" &&
-      isValidSqlDate(selectedDay) &&
-      selectedDay >= todaySql
+      typeof selectedDay === "string" && isValidSqlDate(selectedDay)
         ? selectedDay
         : todaySql;
     try {

@@ -109,22 +109,23 @@ _Avoid_: Recurring rejection (a Planned rejection is a single date).
 
 **Selected day**:
 The date the **Tonight** screen is currently ranking for. Defaults to today
-and can be stepped forward to any future date; past dates are off-limits and
-remain a Log-screen backfill job. The whole Tonight screen — the
-deterministic list, AI search, the decided **Dinner** block, and the live
-Reject control with its "Bring back" disclosure — uses the Selected day as
-its anchor. The H1 reads "Tonight" when the Selected day is today and shows
-the day's name otherwise; the navigation entry stays "Tonight" either way.
-_Avoid_: target date, picking day, future day (today is a valid Selected
-day).
+and can be stepped in either direction to any date (ADR-0009 amended): forward
+to plan ahead, back to edit a past night's Pick (its note, a mis-logged Remove)
+or backfill a forgotten dinner. The whole Tonight screen — the deterministic
+list, AI search, the decided **Dinner** block, and the live Reject control with
+its "Bring back" disclosure — uses the Selected day as its anchor. The H1 reads
+"Tonight" when the Selected day is today and shows the day's name otherwise (the
+full date stays visible in the stepper); the navigation entry stays "Tonight"
+either way. _Avoid_: target date, picking day, future day (today is a valid
+Selected day).
 
 **Tonight**:
 The home screen. It ranks active Options by Score (descending) for a
-**Selected day** (defaulting to today, optionally stepped forward to any
-future date), and once a Pick is made it surfaces the Dinner for that day —
-the screen has both jobs, deciding and showing what was decided. "Tonight"
-is the screen's name and its H1 label when the Selected day is today; when
-the Selected day is a future date the H1 shows that day's name.
+**Selected day** (defaulting to today, steppable to any past or future date),
+and once a Pick is made it surfaces the Dinner for that day — the screen has
+both jobs, deciding and showing what was decided. "Tonight" is the screen's
+name and its H1 label when the Selected day is today; on any other day the H1
+shows that day's name.
 
 **Recency**:
 How long since something was last eaten, measured only from non-future Log

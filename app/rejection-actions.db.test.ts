@@ -290,16 +290,15 @@ describe("rejectOption", () => {
     expect(rows[0].rejectedOn).toBe(future);
   });
 
-  it("clamps a past Selected day to today rather than backfilling", async () => {
-    // The Selected day stepper has `min=today`; a past value would only arrive
-    // from a stale request. The action falls back to today defensively.
-    const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+  it("records a past Selected day as-is (ADR-0009 amended)", async () => {
+    // The Selected day can step into the past, so a Reject anchored to a past
+    // day is dated that day rather than clamped to today.
     const pizza = await makeOption("Pizza");
 
     await rejectOption(pizza, "stale", "2025-01-01");
 
     const [row] = await db.select().from(rejections);
-    expect(row.rejectedOn).toBe(today);
+    expect(row.rejectedOn).toBe("2025-01-01");
   });
 });
 

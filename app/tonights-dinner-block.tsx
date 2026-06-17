@@ -57,7 +57,7 @@ export function TonightsDinnerBlock({
   entries: TonightsDinnerEntry[];
   /**
    * Day-aware label noun — `"tonight"` for today, the weekday name (e.g.
-   * `"Friday"`) when the Selected day is in the future (ADR-0009). Drives
+   * `"Friday"`) when the Selected day is any other day (ADR-0009). Drives
    * both the visible H2 ("Tonight's dinner" vs "Friday's dinner") and the
    * section's accessible label.
    */

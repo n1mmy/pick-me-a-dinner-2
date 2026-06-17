@@ -151,16 +151,16 @@ export const deleteRejection = authedAction(
  * Reject an Option for the Selected day's decision (PRD: Rejections on
  * Tonight) — the live-Tonight Reject affordance, also wired into the Option
  * detail page's controls. It is "create a Rejection dated on the Selected
- * day": the date is the Tonight screen's **Selected day** (ADR-0009),
- * defaulting to today and any future SQL date the Household stepped to. The
- * write delegates to the shared `recordRejection` core, so the
+ * day": the date is the Tonight screen's **Selected day** (ADR-0009, amended),
+ * defaulting to today and any SQL date the Household stepped to, past or
+ * future. The write delegates to the shared `recordRejection` core, so the
  * `(option_id, rejected_on)` `23505` collision is reported inline as
  * "Already rejected for that date" rather than thrown.
  *
  * Callers that have no Selected day to pass — the Option detail page — call
  * this without `selectedDay` and reject for today. The value is validated
- * defensively: a stale or hand-edited past date falls back to today rather
- * than silently writing a past Rejection.
+ * defensively to a real SQL date; any valid date is honoured (past or future,
+ * ADR-0009 amended), a malformed/missing one falls back to today.
  *
  * `authedAction`-wrapped: a Server Action is reachable by id from any route, so
  * the shared-password session check is not optional. A Rejection is not a Log
@@ -175,9 +175,7 @@ export const rejectOption = authedAction(
   ): Promise<ActionResult> => {
     const todaySql = today();
     const rejectedOn =
-      typeof selectedDay === "string" &&
-      isValidSqlDate(selectedDay) &&
-      selectedDay >= todaySql
+      typeof selectedDay === "string" && isValidSqlDate(selectedDay)
         ? selectedDay
         : todaySql;
     return recordRejection(optionId, rejectedOn, reason);

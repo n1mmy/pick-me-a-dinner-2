@@ -95,9 +95,10 @@ export function TonightScreen({
   todaySql: string;
 }) {
   const isToday = selectedDay === todaySql;
-  // The H1 label: "Tonight" today, the weekday name on a future Selected day
-  // (ADR-0009 / PRD story 11–12). The navigation entry's "Tonight" label is
-  // unchanged either way — it lives in `app-nav.tsx`.
+  // The H1 label: "Tonight" today, the weekday name on any other Selected day,
+  // past or future (ADR-0009 amended). The full date stays visible in the
+  // DayStepper, so a bare weekday is unambiguous. The navigation entry's
+  // "Tonight" label is unchanged either way — it lives in `app-nav.tsx`.
   const heading = isToday ? "Tonight" : weekdayName(selectedDay);
   // Day-aware copy for the decided block, the "Rejected …" disclosure, and
   // the "all rejected" empty state. "tonight" for today, the weekday name
@@ -314,7 +315,7 @@ function RejectedTonightDisclosure({
   dayLabel,
 }: {
   rejections: TodayRejection[];
-  /** Day-aware copy noun — "tonight" or the weekday name for a future Selected day. */
+  /** Day-aware copy noun — "tonight" or the weekday name for any other Selected day. */
   dayLabel: string;
 }) {
   const [open, setOpen] = useState(false);
