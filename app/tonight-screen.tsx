@@ -215,7 +215,11 @@ export function TonightScreen({
         </p>
       ) : decided ? (
         <>
-          <TonightsDinnerBlock entries={tonightsDinner} dayLabel={dayLabel} />
+          <TonightsDinnerBlock
+            entries={tonightsDinner}
+            dayLabel={dayLabel}
+            eatenOn={selectedDay}
+          />
           {pickerRows.length === 0 ? (
             <p className="border-t border-line pt-5.5 text-body text-muted">
               {allRejected

@@ -1,19 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { type FormEvent, useId, useState, useTransition } from "react";
 import {
   decidedActions,
   type DecidedAction,
   type TonightsDinnerEntry,
 } from "../lib/tonights-dinner";
 import { kindBarClass } from "./kind-bar";
-import { deleteLogEntry } from "./log/actions";
+import { deleteLogEntry, updateLogEntry } from "./log/actions";
+import { inputClass, labelClass } from "./log/log-entry-row";
 import { RowChips } from "./tonight-row";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
   "focus-visible:outline-offset-2 focus-visible:outline-action";
+
+// The decided row's filled action style — the charcoal `action` button the
+// Menu / Call / Recipe links share, so they read as one set.
+const actionFill =
+  "inline-flex min-h-11 items-center rounded-control bg-action px-4 text-body " +
+  `font-emphasis text-action-ink transition-colors duration-short hover:bg-action-hover ${focusRing}`;
 
 /**
  * Tonight's dinner — the decided block (PRD: Tonight — decided mode). Under a
@@ -34,10 +41,18 @@ const focusRing =
  * dinner — the Option drops out of this block and reappears in the picker — and
  * removing the last Option empties the block, so Tonight falls back to picker
  * mode with no extra logic here.
+ *
+ * And every row carries an inline, click-to-edit note (interaction principle,
+ * ADR-0007 — the note is shown and edited wherever the Pick appears). The note
+ * text sits under the chips as quiet muted copy — a faint "Add a note…" prompt
+ * when none is set — and tapping it turns it into a textarea that saves the
+ * Pick's `dinner_log` note via the existing `updateLogEntry` action. Saving an
+ * empty one clears it. No button: the note itself is the affordance.
  */
 export function TonightsDinnerBlock({
   entries,
   dayLabel,
+  eatenOn,
 }: {
   entries: TonightsDinnerEntry[];
   /**
@@ -47,6 +62,12 @@ export function TonightsDinnerBlock({
    * section's accessible label.
    */
   dayLabel: string;
+  /**
+   * The anchor day every Pick in this block is dated on (the Selected day) —
+   * the `eaten_on` the note editor passes to `updateLogEntry` to edit a row in
+   * place without moving it to another day.
+   */
+  eatenOn: string;
 }) {
   // "Tonight's dinner" reads with a capital T; a weekday name is already
   // proper-cased, so reuse it as-is. The aria-label uses a plain apostrophe
@@ -61,7 +82,7 @@ export function TonightsDinnerBlock({
       </h2>
       <ul className="flex flex-col">
         {entries.map((entry) => (
-          <DecidedRow key={entry.entryId} entry={entry} />
+          <DecidedRow key={entry.entryId} entry={entry} eatenOn={eatenOn} />
         ))}
       </ul>
     </section>
@@ -71,11 +92,20 @@ export function TonightsDinnerBlock({
 /**
  * One row of Tonight's dinner: the Picked Option's name with the inline
  * "Remove" control beside it and the 3px meal-kind bar on the left edge, then
- * the Recency + Tag chips and the Menu/Call/Recipe action buttons.
+ * the Recency + Tag chips, the click-to-edit note, and the Menu/Call/Recipe
+ * action buttons. While the note editor is open the Menu/Call/Recipe row hides,
+ * so the editor's Save/Cancel are the only buttons on the row.
  */
-function DecidedRow({ entry }: { entry: TonightsDinnerEntry }) {
-  const { entryId, row } = entry;
+function DecidedRow({
+  entry,
+  eatenOn,
+}: {
+  entry: TonightsDinnerEntry;
+  eatenOn: string;
+}) {
+  const { entryId, row, note } = entry;
   const actions = decidedActions(row.option);
+  const [editing, setEditing] = useState(false);
   // A light wash of the Option's kind hue tints each decided row, so the
   // "Tonight's dinner" block reads as a distinct shaded area above the picker.
   const washClass =
@@ -102,7 +132,20 @@ function DecidedRow({ entry }: { entry: TonightsDinnerEntry }) {
         neverEaten={row.neverEaten}
         tags={row.tags}
       />
-      {actions.length > 0 && (
+      {editing ? (
+        <NoteForm
+          entryId={entryId}
+          optionId={row.option.id}
+          eatenOn={eatenOn}
+          note={note}
+          onClose={() => setEditing(false)}
+        />
+      ) : (
+        <NoteRest note={note} onEdit={() => setEditing(true)} />
+      )}
+      {/* The Menu/Call/Recipe actions hide while the note editor is open, so the
+          editor's Save/Cancel never sit beside another button row. */}
+      {!editing && actions.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
           {actions.map((action) => (
             <ActionButton key={action.label} action={action} />
@@ -110,6 +153,123 @@ function DecidedRow({ entry }: { entry: TonightsDinnerEntry }) {
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * The decided row's resting note line (Q1 option C). The note shows as quiet
+ * muted text — a faint "Add a note…" prompt when none is set — styled as a
+ * full-width tappable area so the whole line is a comfortable kitchen tap
+ * target. Tapping it opens the editor; the note text itself is the affordance,
+ * so there is no separate button.
+ */
+function NoteRest({
+  note,
+  onEdit,
+}: {
+  note: string | null;
+  onEdit: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      aria-label={note ? "Edit note" : "Add note"}
+      className={`mt-2 block min-h-11 w-full rounded-control px-1 py-1 text-left
+        text-chip text-muted transition-colors duration-short ${focusRing} ${
+          note ? "hover:text-ink" : "italic opacity-70 hover:opacity-100"
+        }`}
+    >
+      {note ?? "Add a note…"}
+    </button>
+  );
+}
+
+/**
+ * The decided row's inline note editor (interaction principle, ADR-0007). A
+ * textarea seeded with the Pick's current note, saved via the existing
+ * `updateLogEntry` action with the Option and date held fixed — so it edits the
+ * note in place and never moves the entry to another day or collides with
+ * another Pick. An empty note is cleared (`updateLogEntry` trims to null);
+ * `updateLogEntry` revalidates Tonight, so on Save the row re-renders with the
+ * new note. Errors surface inline the same way the Log editor's do.
+ */
+function NoteForm({
+  entryId,
+  optionId,
+  eatenOn,
+  note,
+  onClose,
+}: {
+  entryId: string;
+  optionId: string;
+  eatenOn: string;
+  note: string | null;
+  onClose: () => void;
+}) {
+  const fieldId = useId();
+  const [value, setValue] = useState(note ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    startTransition(async () => {
+      const result = await updateLogEntry(entryId, {
+        optionId,
+        eatenOn,
+        note: value,
+      });
+      if (result.ok) {
+        onClose();
+      } else {
+        setError(result.error);
+      }
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-2 flex flex-col gap-1">
+      <label htmlFor={`${fieldId}-note`} className={labelClass}>
+        Note
+      </label>
+      <textarea
+        id={`${fieldId}-note`}
+        className={`${inputClass} py-2`}
+        rows={2}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        autoFocus
+        aria-invalid={error !== null}
+        aria-describedby={error ? `${fieldId}-error` : undefined}
+      />
+      {error && (
+        <p id={`${fieldId}-error`} className="text-chip text-danger" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="mt-1 flex items-center gap-2">
+        <button
+          type="submit"
+          disabled={pending}
+          className={`min-h-11 rounded-control bg-action px-4 text-body
+            font-emphasis text-action-ink transition-colors duration-micro
+            hover:bg-action-hover disabled:opacity-60 ${focusRing}`}
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={pending}
+          className={`min-h-11 rounded-control px-3 text-body text-muted
+            disabled:opacity-60 ${focusRing}`}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -190,9 +350,7 @@ function ActionButton({ action }: { action: DecidedAction }) {
       {...(isCall
         ? {}
         : { target: "_blank", rel: "noopener noreferrer" })}
-      className={`inline-flex min-h-11 items-center rounded-control bg-action
-        px-4 text-body font-emphasis text-action-ink transition-colors
-        duration-short hover:bg-action-hover ${focusRing}`}
+      className={actionFill}
     >
       {action.label}
     </a>

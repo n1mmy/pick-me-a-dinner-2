@@ -24,6 +24,8 @@ export type TodayLogEntry = {
   optionId: string;
   /** Row creation time — the Pick's wall-clock instant. */
   createdAt: Date;
+  /** The Log entry's free-text note, or `null` when none is set. */
+  note: string | null;
 };
 
 /** One Option in Tonight's dinner: its Tonight row plus its Log entry id. */
@@ -31,6 +33,8 @@ export type TonightsDinnerEntry = {
   /** The today Log entry's id — the handle "Remove" deletes (issue 03). */
   entryId: string;
   row: TonightRow;
+  /** The Log entry's free-text note, shown and edited inline on the row. */
+  note: string | null;
 };
 
 /** The Tonight screen split into its decided block and its picker list. */
@@ -77,7 +81,7 @@ export function splitTonight(
     const row = decidedByOptionId.get(entry.optionId);
     if (!row) continue;
     pickedOptionIds.add(entry.optionId);
-    tonightsDinner.push({ entryId: entry.id, row });
+    tonightsDinner.push({ entryId: entry.id, row, note: entry.note });
   }
 
   const picker = rankedRows.filter(
