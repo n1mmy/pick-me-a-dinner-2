@@ -38,3 +38,9 @@ export async function login(
   await session.save();
   redirect("/");
 }
+
+export async function logout(): Promise<void> {
+  const session = await getSession();
+  session.destroy();
+  redirect("/login");
+}
