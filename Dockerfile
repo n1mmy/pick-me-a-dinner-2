@@ -35,6 +35,11 @@ RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 # Next.js standalone output: a minimal server with only the traced deps.
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# Static assets under public/ (the PWA manifest icons live here). Next's
+# standalone output does NOT bundle public/, so without this copy the files
+# 404 at runtime — which makes the PWA non-installable (Chrome can't fetch the
+# manifest icons).
+COPY --from=builder /app/public ./public
 # Migration files bundled in the image — the startup schema check compares
 # these against the DB's __drizzle_migrations table. The entrypoint never
 # applies them; migrating is an out-of-band operator step (plan §3).
