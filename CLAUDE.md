@@ -187,6 +187,10 @@ The five canonical triage roles use their default strings. See `docs/agents/tria
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+### Ralph loop
+
+Loop config and worker permissions. See `docs/agents/ralph.md`.
+
 ## Design System
 
 Always read `DESIGN.md` before making any visual or UI decision. Font choices,
