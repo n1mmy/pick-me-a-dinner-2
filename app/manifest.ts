@@ -7,8 +7,8 @@ import type { MetadataRoute } from "next";
  * classic stale-cache footguns for no benefit.
  *
  * `theme_color`/`background_color` track the app `bg` (DESIGN.md), not the
- * violet icon field, so the system status bar blends into the cool-grey top of
- * every screen with no seam. The light/dark `theme-color` split is emitted from
+ * icon's teal/plum field, so the system status bar blends into the cool-grey
+ * top of every screen with no seam. The light/dark `theme-color` split is emitted from
  * the `viewport` export in `app/layout.tsx`; this single value is the fallback.
  */
 export default function manifest(): MetadataRoute.Manifest {
