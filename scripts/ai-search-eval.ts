@@ -14,6 +14,8 @@
  *   npx tsx scripts/ai-search-eval.ts --mode=drop ""       # force a tail mode
  *   npx tsx scripts/ai-search-eval.ts --compare            # model matrix
  *   npx tsx scripts/ai-search-eval.ts --compare --serial   # one call at a time
+ *   npx tsx scripts/ai-search-eval.ts --compare --reps=3   # repeat each cell
+ *   npx tsx scripts/ai-search-eval.ts --compare --json     # record rankings to a file
  *
  * The `--mode` flag (`full` | `pithy` | `drop`) overrides `AI_TAIL_MODE`
  * for the run, so the three open-query result shapes can be compared on the
@@ -22,10 +24,13 @@
  * `--compare` runs the same empty-query snapshot through the `COMPARE_CELLS`
  * matrix and prints each run's latency and ranking. Every cell goes through
  * `createAiSearchClient` with an explicit model + `ThinkingChoice` override,
- * so the budget-API models (Sonnet, Haiku) and the adaptive-API model (Opus)
- * are all exercised through the production path. `--serial` runs the cells one
- * at a time — slower, but the per-call latencies are free of the contention a
- * parallel sweep adds.
+ * so the budget-API models (Sonnet, Haiku) and the adaptive-API models (Opus
+ * 4.8 and 4.7) are all exercised through the production path. `--serial` runs
+ * the cells one at a time — slower, but the per-call latencies are free of the
+ * contention a parallel sweep adds. `--reps=N` repeats every cell N times and
+ * the latency summary aggregates each cell to mean/min/max (interleaved under
+ * `--serial`); `--json[=path]` records every run's full ranking to a file for
+ * programmatic before/after comparison.
  *
  * A plain run (no `--compare`) uses the env-configured model / effort
  * (`AI_MODEL` / `AI_EFFORT`), exactly as the `aiSearchAction` server action.
@@ -36,6 +41,7 @@
  */
 import "dotenv/config";
 import { config } from "dotenv";
+import { writeFileSync } from "node:fs";
 import { getRejections, getTonightData } from "../db/queries";
 import {
   buildSnapshot,
@@ -55,9 +61,11 @@ type ComparisonCell = {
   thinking: ThinkingChoice;
 };
 
-/** One completed `--compare` run: its cell, latency, and ranked result. */
+/** One completed `--compare` run: its cell, rep index, latency, and result. */
 type ComparisonRun = {
   cell: ComparisonCell;
+  /** 1-based repetition index — always `1` unless `--reps` asked for more. */
+  rep: number;
   latencyMs: number;
   ok: boolean;
   rows: { id: string; reason: string }[];
@@ -70,13 +78,15 @@ const BUDGET_MODELS = [
 ];
 /** Token budgets to sweep — `0` is thinking off. */
 const BUDGET_LEVELS = [0, 1024, 2048, 4096, 6144];
-/** Opus 4.7 adaptive-thinking effort levels (`null` = thinking off). */
+/** Opus adaptive-thinking effort levels (`null` = thinking off). */
 const OPUS_EFFORTS: ("low" | "medium" | "high" | null)[] = [
   null,
   "low",
   "medium",
   "high",
 ];
+/** Opus models swept over the effort levels — the current default first. */
+const OPUS_MODELS = ["claude-opus-4-8", "claude-opus-4-7"];
 
 /**
  * The matrix `--compare` runs — every model family on one shared snapshot.
@@ -96,12 +106,16 @@ const COMPARE_CELLS: ComparisonCell[] = [
       }),
     ),
   ),
-  ...OPUS_EFFORTS.map(
-    (effort): ComparisonCell => ({
-      label: `opus · ${effort ? `effort ${effort}` : "thinking off"}`,
-      model: "claude-opus-4-7",
-      thinking: effort ? { type: "effort", effort } : { type: "off" },
-    }),
+  ...OPUS_MODELS.flatMap((model) =>
+    OPUS_EFFORTS.map(
+      (effort): ComparisonCell => ({
+        label: `${model.replace("claude-", "")} · ${
+          effort ? `effort ${effort}` : "thinking off"
+        }`,
+        model,
+        thinking: effort ? { type: "effort", effort } : { type: "off" },
+      }),
+    ),
   ),
 ];
 
@@ -138,7 +152,11 @@ async function buildSnapshotFromDb(query: string): Promise<{
   return { snapshot, idByIndex, nameById };
 }
 
-async function runComparison(apiKey: string, serial: boolean): Promise<void> {
+async function runComparison(
+  apiKey: string,
+  opts: { serial: boolean; reps: number; jsonPath?: string },
+): Promise<void> {
+  const { serial, reps, jsonPath } = opts;
   const { snapshot, idByIndex, nameById } = await buildSnapshotFromDb("");
 
   console.log(`today: ${snapshot.today}`);
@@ -147,9 +165,12 @@ async function runComparison(apiKey: string, serial: boolean): Promise<void> {
     `catalog: ${snapshot.options.length} Options   ` +
       `log: ${snapshot.log.length} dinners`,
   );
-  console.log(`mode: ${serial ? "serial" : "parallel"}\n`);
+  console.log(`mode: ${serial ? "serial" : "parallel"}   reps: ${reps}\n`);
 
-  const runCell = (cell: ComparisonCell): Promise<ComparisonRun> => {
+  const runCell = (
+    cell: ComparisonCell,
+    rep: number,
+  ): Promise<ComparisonRun> => {
     const startedAt = Date.now();
     return createAiSearchClient(apiKey, {
       model: cell.model,
@@ -158,6 +179,7 @@ async function runComparison(apiKey: string, serial: boolean): Promise<void> {
       .search(snapshot, idByIndex)
       .then((result) => ({
         cell,
+        rep,
         latencyMs: Date.now() - startedAt,
         ok: result.ok,
         rows: result.ok ? result.results : [],
@@ -165,23 +187,35 @@ async function runComparison(apiKey: string, serial: boolean): Promise<void> {
   };
 
   // Serial avoids the concurrency contention that makes a parallel sweep's
-  // per-call latencies unreadable; parallel is faster when only ranking
-  // quality, not timing, is under test.
+  // per-call latencies unreadable, and interleaves reps (rep-major) so
+  // API-load drift spreads evenly across cells; parallel is faster when only
+  // ranking quality, not timing, is under test.
   let runs: ComparisonRun[];
   if (serial) {
     runs = [];
-    for (const cell of COMPARE_CELLS) runs.push(await runCell(cell));
+    for (let rep = 1; rep <= reps; rep++) {
+      for (const cell of COMPARE_CELLS) runs.push(await runCell(cell, rep));
+    }
   } else {
-    runs = await Promise.all(COMPARE_CELLS.map(runCell));
+    const jobs: Promise<ComparisonRun>[] = [];
+    for (let rep = 1; rep <= reps; rep++) {
+      for (const cell of COMPARE_CELLS) jobs.push(runCell(cell, rep));
+    }
+    runs = await Promise.all(jobs);
   }
 
+  // Full rankings — printed once per cell (its first rep) to stay readable
+  // when reps multiply the run count; the latency summary below covers them all.
+  const printedRanking = new Set<string>();
   for (const run of runs) {
     const secs = (run.latencyMs / 1000).toFixed(1);
+    const repTag = reps > 1 ? ` (rep ${run.rep})` : "";
     console.log(
-      `\n=== ${run.cell.label}  —  ${secs}s  —  ` +
+      `\n=== ${run.cell.label}${repTag}  —  ${secs}s  —  ` +
         `${run.ok ? `${run.rows.length} results` : "UNAVAILABLE"} ===`,
     );
-    if (!run.ok) continue;
+    if (!run.ok || printedRanking.has(run.cell.label)) continue;
+    printedRanking.add(run.cell.label);
     run.rows.forEach((row, index) => {
       console.log(
         `${String(index + 1).padStart(2)}. ${nameById.get(row.id) ?? row.id}`,
@@ -191,14 +225,52 @@ async function runComparison(apiKey: string, serial: boolean): Promise<void> {
   }
 
   console.log("\n--- latency summary ---");
-  for (const run of runs) {
+  for (const cell of COMPARE_CELLS) {
+    const cellRuns = runs.filter((r) => r.cell.label === cell.label);
+    const ms = cellRuns.map((r) => r.latencyMs);
+    const mean = ms.reduce((a, b) => a + b, 0) / ms.length / 1000;
+    const okCount = cellRuns.filter((r) => r.ok).length;
+    const detail =
+      reps > 1
+        ? `mean ${mean.toFixed(1).padStart(5)}s  min ${(
+            Math.min(...ms) / 1000
+          ).toFixed(1)}s  max ${(Math.max(...ms) / 1000).toFixed(1)}s`
+        : `${mean.toFixed(1).padStart(6)}s`;
     console.log(
-      `${run.cell.label.padEnd(24)} ${(run.latencyMs / 1000)
-        .toFixed(1)
-        .padStart(6)}s   ${
-        run.ok ? `${run.rows.length} results` : "UNAVAILABLE"
-      }`,
+      `${cell.label.padEnd(24)} ${detail}   ${okCount}/${cellRuns.length} ok`,
     );
+  }
+
+  if (jsonPath) {
+    writeFileSync(
+      jsonPath,
+      JSON.stringify(
+        {
+          today: snapshot.today,
+          query: "(empty)",
+          mode: serial ? "serial" : "parallel",
+          reps,
+          catalog: snapshot.options.length,
+          logEntries: snapshot.log.length,
+          runs: runs.map((run) => ({
+            rep: run.rep,
+            label: run.cell.label,
+            model: run.cell.model,
+            thinking: run.cell.thinking,
+            latencyMs: run.latencyMs,
+            ok: run.ok,
+            ranking: run.rows.map((row, index) => ({
+              rank: index + 1,
+              name: nameById.get(row.id) ?? row.id,
+              reason: row.reason,
+            })),
+          })),
+        },
+        null,
+        2,
+      ),
+    );
+    console.log(`\nfull rankings recorded → ${jsonPath}`);
   }
 }
 
@@ -299,7 +371,25 @@ async function main(): Promise<void> {
   }
 
   if (args.includes("--compare")) {
-    await runComparison(apiKey, args.includes("--serial"));
+    // `--reps=N` repeats every cell N times (latency is aggregated per cell);
+    // `--json` / `--json=path` writes every run's full ranking to a file for
+    // programmatic before/after comparison.
+    const repsArg = args.find((arg) => arg.startsWith("--reps="))?.slice(7);
+    const parsedReps = repsArg ? Number.parseInt(repsArg, 10) : 1;
+    const reps = Number.isFinite(parsedReps) ? Math.max(1, parsedReps) : 1;
+    const jsonArg = args.find(
+      (arg) => arg === "--json" || arg.startsWith("--json="),
+    );
+    const jsonPath = jsonArg
+      ? jsonArg.includes("=")
+        ? jsonArg.slice(7)
+        : "scripts/ai-search-compare.json"
+      : undefined;
+    await runComparison(apiKey, {
+      serial: args.includes("--serial"),
+      reps,
+      jsonPath,
+    });
   } else {
     await runSingle(apiKey);
   }
