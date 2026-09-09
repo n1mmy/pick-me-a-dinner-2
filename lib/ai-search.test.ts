@@ -20,6 +20,7 @@ import {
   buildSystemPrompt,
   createAiSearchClient,
   parseRankingText,
+  resolveModel,
   resolveTailMode,
   type SnapshotLogEntry,
   type SnapshotOption,
@@ -676,7 +677,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
       finalMessage: () => Promise.resolve(rankingResponse("1|fits")),
     });
     const result = await createAiSearchClient("k", {
-      model: "claude-opus-4-7",
+      model: "claude-opus-5",
       thinking: { type: "effort", effort: "medium" },
     }).search(snapshot, idByIndex);
 
@@ -687,7 +688,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
     // Opus must use the streaming method, never plain `create`.
     expect(messagesStream).toHaveBeenCalledTimes(1);
     expect(messagesCreate).not.toHaveBeenCalled();
-    // …and with the adaptive request shape Opus 4.7 requires — a budget-style
+    // …and with the adaptive request shape Opus requires — a budget-style
     // `thinking.type: "enabled"` would be rejected by the API.
     const params = messagesStream.mock.calls[0][0];
     expect(params.thinking).toEqual({ type: "adaptive" });
@@ -699,7 +700,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
       finalMessage: () => Promise.reject(new Error("stream broke")),
     });
     const result = await createAiSearchClient("k", {
-      model: "claude-opus-4-7",
+      model: "claude-opus-5",
       thinking: { type: "effort", effort: "high" },
     }).search(snapshot, idByIndex);
 
@@ -712,13 +713,13 @@ describe("createAiSearchClient — failure model and fallback", () => {
       finalMessage: () => Promise.resolve(rankingResponse("1|fits")),
     });
     await createAiSearchClient("k", {
-      model: "claude-opus-4-7",
+      model: "claude-opus-5",
       thinking: { type: "effort", effort: "low" },
     }).search(snapshot, idByIndex);
 
     const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
     expect(line).toMatchObject({
-      model: "claude-opus-4-7",
+      model: "claude-opus-5",
       thinking: "effort:low",
       outcome: "ok",
     });
@@ -738,7 +739,26 @@ describe("createAiSearchClient — failure model and fallback", () => {
     // The misconfiguration must fail loudly at client construction, not be
     // silently swallowed into a default effort.
     expect(() =>
-      createAiSearchClient("k", { model: "claude-opus-4-7" }),
+      createAiSearchClient("k", { model: "claude-opus-5" }),
     ).toThrow(/adaptive/i);
+  });
+
+  it("defaults to a model that takes the adaptive streaming path", async () => {
+    // `MODEL_DEFAULT` and `usesAdaptiveThinking` have to agree: the default is
+    // an Opus, so an unconfigured client must stream with `thinking:
+    // adaptive`. Pointing the default at a budget-API model without changing
+    // the routing would otherwise send Opus-shaped params the API rejects —
+    // and no other test exercises the default at all.
+    delete process.env.AI_MODEL;
+    messagesStream.mockReturnValue({
+      finalMessage: () => Promise.resolve(rankingResponse("1|fits")),
+    });
+    await createAiSearchClient("k").search(snapshot, idByIndex);
+
+    expect(messagesCreate).not.toHaveBeenCalled();
+    const params = messagesStream.mock.calls[0][0];
+    expect(params.model).toBe(resolveModel());
+    expect(params.thinking).toEqual({ type: "adaptive" });
+    expect(params.output_config).toEqual({ effort: "low" });
   });
 });

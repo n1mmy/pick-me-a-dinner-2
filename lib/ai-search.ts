@@ -429,7 +429,7 @@ export function parseRankingText(
 }
 
 /** The default model when `AI_MODEL` is unset — a current Claude Opus. */
-const MODEL_DEFAULT = "claude-opus-4-8";
+const MODEL_DEFAULT = "claude-opus-5";
 
 /** Resolve the model id from `AI_MODEL`, falling back to `MODEL_DEFAULT`. */
 export function resolveModel(): string {
@@ -454,7 +454,7 @@ const REQUEST_TIMEOUT_MS = 90_000;
  * The two model families take that effort through different APIs (see
  * `planThinking`): the budget-API models (Sonnet 4.6, Haiku 4.5) get a
  * `budget_tokens` cap mapped from the effort level; the adaptive-API model
- * (Opus 4.8) gets an `output_config.effort` level directly. For the
+ * (Opus 5) gets an `output_config.effort` level directly. For the
  * budget-API models `AI_EFFORT` also accepts a bare integer — used directly
  * as `budget_tokens`, for finer control than the three named levels give (the
  * API floor is 1024; `0` is off). A positive number has no meaning for Opus,
@@ -479,7 +479,7 @@ const EFFORT_BUDGETS: Record<Exclude<AiEffort, "off">, number> = {
 };
 
 /**
- * Whether a model takes the adaptive-thinking API. Opus 4.8 rejects the
+ * Whether a model takes the adaptive-thinking API. Opus rejects the
  * `thinking.type: "enabled"` budget scheme — it takes `thinking.type:
  * "adaptive"` plus an `output_config.effort` level instead. Sonnet 4.6 and
  * Haiku 4.5 use the budget scheme.
