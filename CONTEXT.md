@@ -116,8 +116,12 @@ list, AI search, the decided **Dinner** block, and the live Reject control with
 its "Bring back" disclosure — uses the Selected day as its anchor. The H1 reads
 "Tonight" when the Selected day is today and shows the day's name otherwise (the
 full date stays visible in the stepper); the navigation entry stays "Tonight"
-either way. _Avoid_: target date, picking day, future day (today is a valid
-Selected day).
+either way. The H1 is also the reset: tapping the day name returns the Selected
+day to today, from any distance and at any time — including when it already
+reads "Tonight".
+_Avoid_: target date, picking day, future day (today is a valid Selected day);
+"going back to Tonight" for the reset (that reads as navigating to the Tonight
+screen — say "reset the Selected day to today").
 
 **Tonight**:
 The home screen. It ranks active Options by Score (descending) for a
@@ -279,3 +283,7 @@ single-household — no user accounts, no per-person identity.
 - "Tonight" was defined as only the ranked picker list. Resolved: the Tonight
   screen has two jobs — ranking Options to choose from, and showing
   **Tonight's dinner** once a Pick is made.
+- "Going back to Tonight" was used for two different things: navigating to the
+  Tonight screen, and returning the **Selected day** to today while already on
+  that screen. Resolved: the second is **resetting the Selected day to today**;
+  "Tonight" unqualified always means the screen.

@@ -64,7 +64,13 @@
   --text-chip: 13px;
   --text-body: 15px;
   --text-name: 18px;
-  --text-h1: 28px;
+  /* 22px on phones, 28px from the 720px breakpoint up. The Tonight header puts
+   * the H1 and the day stepper on one row, and even a compacted stepper spends
+   * ~205px of a 343px phone row on its two arrows and its native date input.
+   * That leaves ~130px for the day name, and the longest one ("Wednesday") is
+   * 154px at 28px and 134px at 24px — both ellipsize. 22px brings it to ~123px,
+   * which fits with a few pixels to spare. */
+  --text-h1: 22px;
   --weight-body: 400;
   --weight-name: 500;
   --weight-emphasis: 600;
@@ -121,11 +127,13 @@
   }
 }
 
-/* The 720px breakpoint widens the centered column and offsets it past the
+/* The 720px breakpoint widens the centered column, restores the full-size H1
+ * (no stepper competing for a phone-width row), and offsets the column past the
  * desktop left rail (see app/app-nav.tsx). */
 @media (min-width: 720px) {
   :root {
     --column-max: 700px;
+    --text-h1: 28px;
   }
 
   body {

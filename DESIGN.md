@@ -57,7 +57,14 @@ no CDN, no layout shift).
   18 days"). The mono is the instrument readout — it makes numbers align to the
   pixel down a column. Use it for numerals and dates only, not whole sentences.
 - **Scale** (px):
-  - `h1` screen title — Fraunces, 28px / weight 600
+  - `h1` screen title — Fraunces, weight 600; **22px on phones, 28px from the
+    720px breakpoint up**. The Tonight header sets the floor: its H1 shares a
+    row with the Selected-day stepper, whose native date input is wide and
+    sized inconsistently across browsers. Even compacted, the stepper spends
+    ~205px of a 343px phone row, leaving ~130px for the day name — and the
+    longest one, "Wednesday", measures 154px at 28px and 134px at 24px (both
+    ellipsize) against ~122px at 22px. This is the one type token that varies by
+    breakpoint, alongside the column width.
   - `name` Option name — Fraunces, 18px / weight 500
   - `body` — Geist, 15px / weight 400 / line-height 1.5
   - `chip` Explanation chip text — Geist 13px (numerals in Geist Mono 13px)
@@ -238,6 +245,14 @@ check before relying on it.
 - **Border radius:** badge/chip 3px, inputs 6px, buttons/controls 6px. Sharp
   crisp corners suit a sharp tool — no pill shapes except where a control is
   genuinely circular.
+- **Control height:** 44px is the default minimum for a tappable control
+  (`min-h-11`), and the Tonight *row* controls — Pick, Reject, Bring back — keep
+  it. The **Tonight header** is the deliberate exception at 36px (`h-9`): its
+  day stepper, date input, and kind segment share a phone-width row with the H1,
+  and every pixel they give back is a pixel the day name keeps un-truncated.
+  Gaps between adjacent header controls are 4px rather than the usual 6px for
+  the same reason. Don't "restore" these to 44px without re-measuring the
+  header — see ADR-0009's 2026-09-08 amendment.
 
 ## Motion
 

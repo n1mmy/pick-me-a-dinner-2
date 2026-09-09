@@ -25,7 +25,7 @@ import {
   type TagFilters,
 } from "../lib/tonight-filter";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
-import { DayStepper } from "./day-stepper";
+import { DayNameReset, DayStepper } from "./day-stepper";
 import { kindBarClass } from "./kind-bar";
 import { pickTonight } from "./log/actions";
 import { deleteRejection } from "./rejection-actions";
@@ -159,6 +159,20 @@ export function TonightScreen({
     setQuery("");
   }
 
+  // An AI result answers "what should we eat on D" for one specific Selected
+  // day — its ranking and its per-row rationales are both day-shaped — so
+  // carrying it across a day change would leave Friday's reasoning sitting
+  // under today's heading. Any open search is dropped whenever the day changes,
+  // the H1 reset included (ADR-0009, amendment 2026-09-08); the deterministic
+  // list underneath is already correct for each day on its own. The Tag and
+  // kind filters deliberately survive — "show me pasta" means the same thing on
+  // any day. On mount every setter is a no-op, the state being empty already.
+  useEffect(() => {
+    setAiResults(null);
+    setAiError(false);
+    setQuery("");
+  }, [selectedDay]);
+
   // A Pick grows `tonightsDinner`; when it does, animate the page up to the
   // "Tonight's dinner" block so the Household sees the Option land there. The
   // effect runs after the Pick's revalidation has committed, so the scroll
@@ -196,8 +210,18 @@ export function TonightScreen({
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex items-center gap-3">
-          <h1 className="font-display text-h1 font-h1 text-ink">{heading}</h1>
+        {/* On a phone the H1 and the stepper take a full-width row with the
+            stepper pinned right, so it holds still as the day name changes
+            length instead of sliding with it — and a long name shortens the H1
+            rather than pushing the forward arrow off-screen. From `desktop:`
+            up there is room to sit them side by side, as before. */}
+        <div
+          className="flex w-full items-center justify-between gap-2
+            desktop:w-auto desktop:justify-start desktop:gap-3"
+        >
+          <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
+            <DayNameReset heading={heading} />
+          </h1>
           <DayStepper selectedDay={selectedDay} todaySql={todaySql} />
         </div>
         {showKindSegment && <KindSegment kind={kind} onChange={setKind} />}
@@ -1011,7 +1035,7 @@ function KindSegment({
   onChange: (next: KindFilter) => void;
 }) {
   return (
-    <div role="group" aria-label="Filter by kind" className="flex gap-1.5">
+    <div role="group" aria-label="Filter by kind" className="flex gap-1">
       {KIND_SEGMENTS.map((segment) => {
         const selected = kind === segment.value;
         return (
@@ -1020,7 +1044,7 @@ function KindSegment({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(segment.value)}
-            className={`min-h-11 min-w-11 rounded-control px-3 text-chip
+            className={`min-h-9 rounded-control px-2.5 text-chip
               transition-colors duration-micro ${focusRing} ${
                 selected
                   ? "bg-action font-emphasis text-action-ink"

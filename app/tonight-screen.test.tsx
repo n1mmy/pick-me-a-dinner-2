@@ -31,12 +31,14 @@ vi.mock("./log/actions", () => ({
   pickTonight: vi.fn(async () => ({ ok: true })),
   deleteLogEntry: vi.fn(async () => {}),
 }));
-// `DayStepper` uses Next.js router hooks (`useRouter`, `useSearchParams`,
-// `usePathname`) that aren't wired up in this jsdom render. The stepper has
-// its own (intentionally tiny) surface and no behaviour these screen-level
-// tests assert on, so stub it to a no-op render.
+// Both day-navigation controls use Next.js router hooks (`useRouter`,
+// `useSearchParams`, `usePathname`) that aren't wired up in this jsdom render.
+// Each has its own (intentionally tiny) surface and no behaviour these
+// screen-level tests assert on, so stub them. `DayNameReset` still renders its
+// heading text, which the H1 assertions below read.
 vi.mock("./day-stepper", () => ({
   DayStepper: () => null,
+  DayNameReset: ({ heading }: { heading: string }) => <>{heading}</>,
 }));
 
 import type { AiSearchResult } from "../lib/ai-search";
