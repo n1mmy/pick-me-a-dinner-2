@@ -16,21 +16,28 @@
  *   npx tsx scripts/ai-search-eval.ts --compare --serial   # one call at a time
  *   npx tsx scripts/ai-search-eval.ts --compare --reps=3   # repeat each cell
  *   npx tsx scripts/ai-search-eval.ts --compare --json     # record rankings to a file
+ *   npx tsx scripts/ai-search-eval.ts --compare --cells="effort low" "light"
+ *                                                          # two models, one query
  *
  * The `--mode` flag (`full` | `pithy` | `drop`) overrides `AI_TAIL_MODE`
  * for the run, so the three open-query result shapes can be compared on the
  * same data; a plain run prints its input / output / cache token counts.
  *
- * `--compare` runs the same empty-query snapshot through the `COMPARE_CELLS`
- * matrix and prints each run's latency and ranking. Every cell goes through
+ * `--compare` runs one shared snapshot through the `COMPARE_CELLS` matrix and
+ * prints each run's latency and ranking. Every cell goes through
  * `createAiSearchClient` with an explicit model + `ThinkingChoice` override,
  * so the budget-API models (Sonnet, Haiku) and the adaptive-API models (Opus
- * 4.8 and 4.7) are all exercised through the production path. `--serial` runs
+ * 4.8 and 5) are all exercised through the production path. `--serial` runs
  * the cells one at a time — slower, but the per-call latencies are free of the
  * contention a parallel sweep adds. `--reps=N` repeats every cell N times and
  * the latency summary aggregates each cell to mean/min/max (interleaved under
  * `--serial`); `--json[=path]` records every run's full ranking to a file for
  * programmatic before/after comparison.
+ *
+ * `--compare` takes the same positional query a plain run does (empty when
+ * omitted), and `--cells=<substring>` narrows the matrix to the cells whose
+ * label contains it — the full matrix is eighteen live calls per rep, so a
+ * two-model question should say so rather than pay for the sweep.
  *
  * A plain run (no `--compare`) uses the env-configured model / effort
  * (`AI_MODEL` / `AI_EFFORT`), exactly as the `aiSearchAction` server action.
@@ -90,7 +97,7 @@ const OPUS_EFFORTS: ("low" | "medium" | "high" | null)[] = [
   "high",
 ];
 /** Opus models swept over the effort levels — the current default first. */
-const OPUS_MODELS = ["claude-opus-4-8", "claude-opus-4-7"];
+const OPUS_MODELS = ["claude-opus-4-8", "claude-opus-5"];
 
 /**
  * The matrix `--compare` runs — every model family on one shared snapshot.
@@ -185,14 +192,31 @@ async function buildSnapshotFromDb(query: string): Promise<{
 
 async function runComparison(
   apiKey: string,
-  opts: { serial: boolean; reps: number; jsonPath?: string },
+  opts: {
+    serial: boolean;
+    reps: number;
+    jsonPath?: string;
+    query: string;
+    cellFilter?: string;
+  },
 ): Promise<void> {
-  const { serial, reps, jsonPath } = opts;
-  const cells = COMPARE_CELLS;
-  const { snapshot, idByIndex, nameById } = await buildSnapshotFromDb("");
+  const { serial, reps, jsonPath, query, cellFilter } = opts;
+  // The full matrix is every model family at every thinking level — far more
+  // calls than most questions need. `--cells=` narrows it to the cells whose
+  // label contains the substring, so "compare two models at the production
+  // effort" costs two calls rather than eighteen.
+  const cells = cellFilter
+    ? COMPARE_CELLS.filter((cell) => cell.label.includes(cellFilter))
+    : COMPARE_CELLS;
+  if (cells.length === 0) {
+    console.error(`--cells=${cellFilter} matched no cell. Available labels:`);
+    for (const cell of COMPARE_CELLS) console.error(`  ${cell.label}`);
+    process.exit(1);
+  }
+  const { snapshot, idByIndex, nameById } = await buildSnapshotFromDb(query);
 
   console.log(`today: ${snapshot.today}`);
-  console.log("query: (empty)");
+  console.log(`query: ${query ? JSON.stringify(query) : "(empty)"}`);
   console.log(
     `catalog: ${snapshot.options.length} Options   ` +
       `log: ${snapshot.log.length} dinners`,
@@ -304,7 +328,7 @@ async function runComparison(
       JSON.stringify(
         {
           today: snapshot.today,
-          query: "(empty)",
+          query: query || "(empty)",
           mode: serial ? "serial" : "parallel",
           reps,
           catalog: snapshot.options.length,
@@ -438,6 +462,8 @@ async function main(): Promise<void> {
       serial: args.includes("--serial"),
       reps,
       jsonPath,
+      query: args.find((arg) => !arg.startsWith("--")) ?? "",
+      cellFilter: args.find((arg) => arg.startsWith("--cells="))?.slice(8),
     });
   } else {
     await runSingle(apiKey);
