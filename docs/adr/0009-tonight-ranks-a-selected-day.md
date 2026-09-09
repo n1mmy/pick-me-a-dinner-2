@@ -119,3 +119,72 @@ What changes:
   change. AI search remains available on a past day; it is pointless there but
   harmless, and hiding it would add a special case against the single-anchor
   model.
+
+## Amendment (2026-09-08): the day name is the reset to today
+
+Returning to today from a distant Selected day cost as many taps as reaching it,
+or a trip through the native date picker to find today by hand. The common case
+is a tab left open on a future date and come back to later, and it had no
+one-gesture answer.
+
+We add no control for it. The H1 already carries the Selected day's name, so it
+becomes the reset: tapping it returns the Selected day to today. It is always
+tappable, including when it already reads "Tonight."
+
+Three choices are load-bearing:
+
+- **No dedicated "Today" button.** The header's width budget on a phone is
+  already spent — the H1 and the stepper together overflow a narrow viewport
+  before anything is added, clipping the forward arrow. Reusing the H1 costs
+  zero width. The affordance is invisible, which a discoverability-sensitive
+  product could not accept; this one has a single household that learns it once.
+  The day name is nonetheless a real `<button>` inside the `<h1>`, visually
+  unstyled: invisible to the eye is fine, invisible to the keyboard and to
+  assistive tech is not.
+- **The reset deletes `?day=` rather than setting it to today's date.** Any
+  today value a client control could read is a prop baked in at render, so a tab
+  left open past midnight would reset to the wrong day. Dropping the parameter
+  defers the question to the server, which resolves `today()` fresh on the
+  re-render. The URL stays honest for free, since a bare `/` was already exactly
+  the today case.
+- **A Selected-day change clears any open AI search result.** An AI result and
+  its rationales are computed against one specific Selected day, so carrying
+  them across a day change puts Friday's reasoning under today's heading. The
+  query, the result, and the search error are cleared on every Selected-day
+  change, the reset included; the deterministic list underneath is correct for
+  each day on its own, so nothing is lost but the search. The Tag and kind
+  filters are deliberately **not** cleared — "show me pasta" means the same
+  thing on any day, so they are day-agnostic in a way an AI result is not.
+  (This reverses the prior behaviour, where the result survived a day change
+  because it is held on `TonightScreen` rather than the picker. That was
+  genuinely useful for comparing two days, and is worth restoring if the
+  re-run cost grates — recent search-latency work is what makes paying it
+  acceptable now.)
+
+The header is re-laid-out to match. On mobile the H1 and the stepper share a
+full-width row with the stepper pinned right, so it holds still as the day name
+changes length instead of sliding with it; the stepper is `shrink-0` and the H1
+`min-w-0`, which makes clipping the forward arrow structurally impossible — a
+long day name shortens the H1 instead. Desktop keeps the previous layout. The
+full date stays visible in the stepper at every breakpoint, so the invariant
+that makes a bare weekday unambiguous is unchanged.
+
+Fitting a *whole* long day name, rather than merely not clipping the arrow, took
+measurement. The native date input turned out to be the space hog — 162px of a
+343px row at 375px, more than both arrows combined — so the header's controls
+drop from 44px to 36px, their gaps from 6px to 4px, and the date input to the
+`meta` type size, which brings the stepper to ~205px. That leaves ~130px for the
+day name, and "Wednesday" needs 122px at a 22px H1 (it needs 134px at 24px and
+154px at 28px, both of which ellipsize). Hence the phone H1 is 22px, and the
+header is the one place in the app where controls sit below the 44px touch
+target — recorded in DESIGN.md so it is not "corrected" later.
+
+The residual risk is that the date input's width is browser- and OS-dependent;
+these numbers are Chromium's. A browser that renders it wider than ~137px will
+ellipsize "Wednesday" rather than clip anything — a graceful failure, and the
+reason the layout is built to degrade that way instead of tuning to fit.
+
+Accepted limitation: a tab left on today and returned to the next day still
+shows the stale day, with the H1 reading "Tonight" when it is no longer tonight.
+A reload fixes it. Detecting the rollover client-side is deliberately not
+attempted — the whole page's data is stale in that case, not just the date.

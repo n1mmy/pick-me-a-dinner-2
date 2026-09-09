@@ -19,6 +19,11 @@ const focusRing =
  * Stepping back to today clears `?day=` from the URL rather than carrying a
  * redundant today value, so a request to `/` with no `?day=` is exactly the
  * same screen as one with `?day=today`.
+ *
+ * `shrink-0` keeps the whole group at its natural width when the header row
+ * runs out of space: on a phone the H1 beside it gives up the width instead,
+ * so the forward arrow is never the thing that gets clipped (ADR-0009,
+ * amendment 2026-09-08).
  */
 export function DayStepper({
   selectedDay,
@@ -60,9 +65,14 @@ export function DayStepper({
     navigateTo(raw);
   }
 
+  // The stepper is deliberately compact: it shares a phone-width row with the
+  // H1, and the native date input alone takes ~130px of it. Every pixel the
+  // arrows and the input give up is a pixel the day name gets to keep, so these
+  // sit below the 44px touch-target ideal by design (ADR-0009, amendment
+  // 2026-09-08) — 36px is still a comfortable thumb target at this density.
   const buttonClass =
-    "inline-flex h-11 w-11 items-center justify-center rounded-control " +
-    "border border-line bg-surface text-h2 text-ink transition-colors " +
+    "inline-flex h-9 w-9 items-center justify-center rounded-control " +
+    "border border-line bg-surface text-ink transition-colors " +
     "duration-short hover:bg-raised disabled:opacity-40 disabled:hover:bg-surface " +
     focusRing;
 
@@ -70,7 +80,7 @@ export function DayStepper({
     <div
       role="group"
       aria-label="Selected day"
-      className="flex items-center gap-1.5"
+      className="flex shrink-0 items-center gap-1"
     >
       <button
         type="button"
@@ -85,7 +95,7 @@ export function DayStepper({
         value={selectedDay}
         onChange={onPickerChange}
         aria-label="Pick a date"
-        className={`h-11 rounded-input border border-line bg-surface px-3 text-body text-ink ${focusRing}`}
+        className={`h-9 rounded-input border border-line bg-surface px-2 text-meta text-ink ${focusRing}`}
       />
       <button
         type="button"
@@ -96,5 +106,50 @@ export function DayStepper({
         ›
       </button>
     </div>
+  );
+}
+
+/**
+ * The Tonight H1's day name, doubling as the reset to today (ADR-0009,
+ * amendment 2026-09-08). Tapping it returns the Selected day to today from any
+ * distance, which the `‹ ›` stepper can only do one day per tap and the date
+ * picker only by hunting for today's date by hand.
+ *
+ * It carries no visual affordance — a single household learns the gesture once
+ * — but it is a real `<button>`, so the keyboard and assistive tech can still
+ * reach it. Its accessible name spells out what the day name alone would not.
+ *
+ * The reset **deletes** `?day=` rather than setting today's date: any today
+ * value the client holds was baked in at render, so a tab left open past
+ * midnight would reset to yesterday. Dropping the parameter leaves the question
+ * to the server, which resolves `today()` fresh on the re-render. When the
+ * parameter is already absent there is nothing to navigate to, so the tap
+ * re-fetches instead — which is what repairs that stale tab.
+ */
+export function DayNameReset({ heading }: { heading: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  function resetToToday() {
+    const params = new URLSearchParams(searchParams.toString());
+    if (!params.has("day")) {
+      router.refresh();
+      return;
+    }
+    params.delete("day");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={resetToToday}
+      aria-label={`${heading} — reset to today`}
+      className={`block max-w-full truncate rounded-control ${focusRing}`}
+    >
+      {heading}
+    </button>
   );
 }
