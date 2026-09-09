@@ -563,7 +563,10 @@ type ThinkingRequest = {
    * the SDK's long-request guard on a plain `create`. Budget / off calls do not.
    */
   stream: boolean;
-  extra: Record<string, unknown>;
+  extra: {
+    thinking?: Anthropic.ThinkingConfigParam;
+    output_config?: Anthropic.OutputConfig;
+  };
 };
 
 /** Turn a thinking choice into its per-call request fields. */
@@ -823,9 +826,7 @@ function logModelCall(fields: {
       // thinking is what the effort level moves, and the difference
       // between them is the only way to tell from live traffic which knob a
       // latency change came from — without a synthetic benchmark to isolate it.
-      thinkingTokens: (
-        usage as { output_tokens_details?: { thinking_tokens?: number } } | undefined
-      )?.output_tokens_details?.thinking_tokens,
+      thinkingTokens: usage?.output_tokens_details?.thinking_tokens,
       cacheReadTokens: usage?.cache_read_input_tokens ?? undefined,
       cacheCreationTokens: usage?.cache_creation_input_tokens ?? undefined,
     }),
@@ -881,10 +882,7 @@ export function createAiSearchClient(
       let result: AiSearchResult = AI_SEARCH_UNAVAILABLE;
       let usage: Anthropic.Usage | undefined;
       try {
-        // `thinking` / `output_config` for the adaptive path are not in this
-        // SDK version's typings — build the params loosely and cast (the API
-        // accepts the extra fields).
-        const params: Record<string, unknown> = {
+        const params: Anthropic.MessageCreateParamsNonStreaming = {
           model,
           max_tokens: plan.maxTokens,
           system: systemPrompt,
@@ -915,15 +913,11 @@ export function createAiSearchClient(
         // `create` would.
         const response = plan.stream
           ? await anthropic.messages
-              .stream(
-                params as unknown as Anthropic.MessageStreamParams,
-                { signal: controller.signal },
-              )
+              .stream(params, { signal: controller.signal })
               .finalMessage()
-          : await anthropic.messages.create(
-              params as unknown as Anthropic.MessageCreateParamsNonStreaming,
-              { signal: controller.signal },
-            );
+          : await anthropic.messages.create(params, {
+              signal: controller.signal,
+            });
         usage = response.usage;
         // Thinking blocks precede the answer; only the text blocks carry the
         // ranking, and they are joined in case the model split it across more
