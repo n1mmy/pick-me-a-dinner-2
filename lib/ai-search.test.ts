@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The Anthropic SDK is mocked so no live call is ever made — the tests drive
 // `messages.create` (the Sonnet/Haiku budget path) and `messages.stream` (the
-// Opus 4.7 adaptive path) through canned rejections and responses, the way
+// Opus adaptive path) through canned rejections and responses, the way
 // `places.test.ts` drives the Places client through a stubbed `fetch`.
 const { messagesCreate, messagesStream } = vi.hoisted(() => ({
   messagesCreate: vi.fn(),
@@ -19,7 +19,8 @@ import {
   buildSnapshot,
   buildSystemPrompt,
   createAiSearchClient,
-  parseAndValidate,
+  parseRankingText,
+  resolveModel,
   resolveTailMode,
   type SnapshotLogEntry,
   type SnapshotOption,
@@ -417,132 +418,72 @@ describe("buildSnapshot — Selected day (ADR-0009)", () => {
   );
 });
 
-describe("parseAndValidate", () => {
-  // Candidate numbers map back to their real ids; the returned rows carry the
-  // real id, never the number the model was given.
+describe("parseRankingText", () => {
   const idByIndex = new Map<number, string>([
     [1, "a1"],
     [2, "b1"],
   ]);
 
-  it("drops a number that is not a candidate (a hallucination)", () => {
-    const result = parseAndValidate(
-      {
-        results: [
-          { id: 1, reason: "Sweet and overdue" },
-          { id: 99, reason: "Not a real Option" },
-          { id: 2, reason: "Also sweet" },
-        ],
-      },
-      idByIndex,
-    );
-    expect(result).toEqual([
-      { id: "a1", reason: "Sweet and overdue" },
-      { id: "b1", reason: "Also sweet" },
+  it("reads one number|rationale line per Option, in written order", () => {
+    expect(parseRankingText("2|first\n1|second", idByIndex)).toEqual([
+      { id: "b1", reason: "first" },
+      { id: "a1", reason: "second" },
     ]);
   });
 
-  it("preserves the model's ordering — the array order is the ranking", () => {
-    const result = parseAndValidate(
-      { results: [{ id: 2, reason: "first" }, { id: 1, reason: "second" }] },
-      idByIndex,
-    );
-    expect(result?.map((row) => row.id)).toEqual(["b1", "a1"]);
-  });
-
-  it("drops a non-integer id and a non-numeric one", () => {
-    expect(
-      parseAndValidate(
-        {
-          results: [
-            { id: 1.5, reason: "a float is not a number" },
-            { id: "ghost", reason: "not numeric" },
-            { id: 1, reason: "the one good row" },
-          ],
-        },
-        idByIndex,
-      ),
-    ).toEqual([{ id: "a1", reason: "the one good row" }]);
-  });
-
-  it("accepts a numeric-string id — a sloppy but recoverable response", () => {
-    expect(
-      parseAndValidate({ results: [{ id: "2", reason: "stringy" }] }, idByIndex),
-    ).toEqual([{ id: "b1", reason: "stringy" }]);
-  });
-
-  it("skips a malformed entry inside a valid results array", () => {
-    expect(
-      parseAndValidate({ results: [{ id: 1 }, { reason: "no id" }] }, idByIndex),
-    ).toEqual([]);
-  });
-
-  it("returns null for malformed tool input — missing or non-array results", () => {
-    // Malformed output is a Failure (PRD §5), distinct from a valid empty result.
-    expect(parseAndValidate(null, idByIndex)).toBeNull();
-    expect(parseAndValidate(undefined, idByIndex)).toBeNull();
-    expect(parseAndValidate({}, idByIndex)).toBeNull();
-    expect(parseAndValidate({ results: "nope" }, idByIndex)).toBeNull();
-  });
-
-  it("returns an empty array for a valid, genuinely empty result", () => {
-    // `results: []` is a real answer — the model found nothing fitting (PRD §8).
-    expect(parseAndValidate({ results: [] }, idByIndex)).toEqual([]);
-  });
-
-  it("keeps an entry whose reason is an empty string", () => {
-    expect(
-      parseAndValidate({ results: [{ id: 1, reason: "" }] }, idByIndex),
-    ).toEqual([{ id: "a1", reason: "" }]);
-  });
-
-  it("dedupes a repeated Option, keeping the first occurrence", () => {
-    const result = parseAndValidate(
-      {
-        results: [
-          { id: 1, reason: "first take" },
-          { id: 2, reason: "other Option" },
-          { id: 1, reason: "second take — dropped" },
-        ],
-      },
+  it("applies the same hardening as the tool parser", () => {
+    // A hallucinated number, a repeat, and a non-integer number are each
+    // dropped; the first placement of a repeated Option is the one kept.
+    const result = parseRankingText(
+      "99|not a real Option\n1|kept\n1|duplicate\n1.5|not an integer\n2|also kept",
       idByIndex,
     );
     expect(result).toEqual([
-      { id: "a1", reason: "first take" },
-      { id: "b1", reason: "other Option" },
+      { id: "a1", reason: "kept" },
+      { id: "b1", reason: "also kept" },
     ]);
   });
 
-  it("truncates a rationale over ~200 characters", () => {
-    const longReason = "x".repeat(400);
-    const [row] = parseAndValidate(
-      { results: [{ id: 1, reason: longReason }] },
-      idByIndex,
-    )!;
-    expect(row.reason.length).toBeLessThan(longReason.length);
-    expect(row.reason.length).toBeLessThanOrEqual(201);
+  it("trims whitespace and keeps an empty rationale after the bar", () => {
+    // The empty rationale is what `pithy` mode asks for on an obviously bad
+    // pick — a bare number and its bar.
+    expect(parseRankingText("  1 | spaced out \n2|", idByIndex)).toEqual([
+      { id: "a1", reason: "spaced out" },
+      { id: "b1", reason: "" },
+    ]);
+  });
+
+  it("splits on the first bar only, so a rationale may contain one", () => {
+    expect(parseRankingText("1|overdue | and cheap", idByIndex)).toEqual([
+      { id: "a1", reason: "overdue | and cheap" },
+    ]);
+  });
+
+  it("skips a stray line rather than failing the whole response", () => {
+    // The prompt forbids a preamble; a model that writes one anyway should
+    // cost the household nothing.
+    expect(
+      parseRankingText("Here is my ranking:\n\n1|overdue\n\nHope that helps!", idByIndex),
+    ).toEqual([{ id: "a1", reason: "overdue" }]);
+  });
+
+  it("truncates an over-long rationale", () => {
+    const long = "x".repeat(250);
+    const [row] = parseRankingText(`1|${long}`, idByIndex) ?? [];
+    expect(row.reason).toHaveLength(201); // 200 characters plus the ellipsis
     expect(row.reason.endsWith("…")).toBe(true);
   });
 
-  it("truncates an over-long rationale at a word boundary", () => {
-    const longReason = "pattern ".repeat(60); // 480 chars, all word breaks
-    const [row] = parseAndValidate(
-      { results: [{ id: 1, reason: longReason }] },
-      idByIndex,
-    )!;
-    expect(row.reason.length).toBeLessThanOrEqual(201);
-    expect(row.reason.endsWith("…")).toBe(true);
-    // The cut lands after a whole word — never mid-word.
-    expect(row.reason).toMatch(/pattern…$/);
+  it("reads the NONE sentinel as a genuinely empty result", () => {
+    expect(parseRankingText("NONE", idByIndex)).toEqual([]);
+    expect(parseRankingText("none\n", idByIndex)).toEqual([]);
   });
 
-  it("leaves a short rationale unchanged", () => {
-    const shortReason = "Light and quick — a soup, three weeks since fish";
-    const [row] = parseAndValidate(
-      { results: [{ id: 1, reason: shortReason }] },
-      idByIndex,
-    )!;
-    expect(row.reason).toBe(shortReason);
+  it("returns null for a body with no rows and no sentinel", () => {
+    // Unparseable output is a Failure (PRD §5), not an empty result — an
+    // empty body, and prose with no rows in it, both fall back.
+    expect(parseRankingText("", idByIndex)).toBeNull();
+    expect(parseRankingText("I could not rank these.", idByIndex)).toBeNull();
   });
 });
 
@@ -584,6 +525,16 @@ describe("buildSystemPrompt", () => {
       expect(buildSystemPrompt(mode)).toContain("READ THEIR EATING HISTORY");
     }
   });
+
+  it("spells out the line format the parser reads back", () => {
+    // No tool is offered, so the prompt is the only place the output contract
+    // is stated — it has to carry the row shape and the empty-result sentinel.
+    for (const mode of ["full", "pithy", "drop"] as const) {
+      const prompt = buildSystemPrompt(mode);
+      expect(prompt).toContain("<number>|<rationale>");
+      expect(prompt).toContain("NONE");
+    }
+  });
 });
 
 describe("createAiSearchClient — failure model and fallback", () => {
@@ -596,11 +547,15 @@ describe("createAiSearchClient — failure model and fallback", () => {
     query: "",
   });
 
-  /** A model response carrying a valid `rank_options` tool-use block. */
-  function toolUseResponse(rows: Array<{ id: number; reason: string }>) {
+  /**
+   * A model response carrying the ranking as text, after a thinking block —
+   * `body` is the raw `<number>|<rationale>` lines the model wrote.
+   */
+  function rankingResponse(body: string) {
     return {
       content: [
-        { type: "tool_use", name: "rank_options", input: { results: rows } },
+        { type: "thinking", thinking: "…" },
+        { type: "text", text: body },
       ],
       usage: { input_tokens: 12000, output_tokens: 2000 },
     };
@@ -619,15 +574,21 @@ describe("createAiSearchClient — failure model and fallback", () => {
   });
 
   it("returns the validated ordered result, mapping numbers back to ids", async () => {
-    messagesCreate.mockResolvedValueOnce(
-      toolUseResponse([{ id: 1, reason: "fits" }]),
-    );
+    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
     const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
     expect(result).toEqual({
       ok: true,
       results: [{ id: "opt-a", reason: "fits" }],
     });
     expect(messagesCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers no tool — the prompt alone carries the output contract", async () => {
+    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+    await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
+    const params = messagesCreate.mock.calls[0][0];
+    expect(params.tools).toBeUndefined();
+    expect(params.tool_choice).toBeUndefined();
   });
 
   it("collapses every failure class to the fallback without retrying", async () => {
@@ -649,45 +610,34 @@ describe("createAiSearchClient — failure model and fallback", () => {
     }
   });
 
-  it("collapses a response with no tool-use block to the fallback", async () => {
-    messagesCreate.mockResolvedValue({
-      content: [{ type: "text", text: "no tool call here" }],
-      usage: { input_tokens: 12000, output_tokens: 2000 },
-    });
+  it("collapses a response with no readable ranking to the fallback", async () => {
+    // Prose with no rows and no sentinel is unparseable output, which PRD §5
+    // treats as a Failure, not an empty result.
+    messagesCreate.mockResolvedValue(rankingResponse("Sorry, I can't."));
     const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(messagesCreate).toHaveBeenCalledTimes(1);
   });
 
-  it("collapses a tool-use block with malformed input to the fallback", async () => {
-    // The model called the tool but its input has no `results` array —
-    // unparseable output, which PRD §5 treats as a Failure, not an empty result.
+  it("collapses a response with no text block at all to the fallback", async () => {
     messagesCreate.mockResolvedValue({
-      content: [{ type: "tool_use", name: "rank_options", input: { wrong: 1 } }],
+      content: [{ type: "thinking", thinking: "…" }],
       usage: { input_tokens: 12000, output_tokens: 2000 },
     });
     const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
-    expect(messagesCreate).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps a valid, genuinely empty tool-use result as an ok empty result", async () => {
-    // `results: []` is the model legitimately finding nothing — `ok: true`,
-    // distinct from the malformed-input fallback above.
-    messagesCreate.mockResolvedValue({
-      content: [
-        { type: "tool_use", name: "rank_options", input: { results: [] } },
-      ],
-      usage: { input_tokens: 12000, output_tokens: 2000 },
-    });
+  it("keeps the NONE sentinel as an ok empty result", async () => {
+    // The model legitimately finding nothing — `ok: true`, distinct from the
+    // unparseable-body fallback above.
+    messagesCreate.mockResolvedValue(rankingResponse("NONE"));
     const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
     expect(result).toEqual({ ok: true, results: [] });
   });
 
   it("emits one structured log line with outcome ok on success", async () => {
-    messagesCreate.mockResolvedValueOnce(
-      toolUseResponse([{ id: 1, reason: "fits" }]),
-    );
+    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
     await createAiSearchClient("k", {
       model: "claude-sonnet-4-6",
       thinking: { type: "budget", budgetTokens: 4000 },
@@ -724,11 +674,10 @@ describe("createAiSearchClient — failure model and fallback", () => {
 
   it("runs the Opus path through messages.stream with adaptive thinking", async () => {
     messagesStream.mockReturnValue({
-      finalMessage: () =>
-        Promise.resolve(toolUseResponse([{ id: 1, reason: "fits" }])),
+      finalMessage: () => Promise.resolve(rankingResponse("1|fits")),
     });
     const result = await createAiSearchClient("k", {
-      model: "claude-opus-4-7",
+      model: "claude-opus-5",
       thinking: { type: "effort", effort: "medium" },
     }).search(snapshot, idByIndex);
 
@@ -739,7 +688,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
     // Opus must use the streaming method, never plain `create`.
     expect(messagesStream).toHaveBeenCalledTimes(1);
     expect(messagesCreate).not.toHaveBeenCalled();
-    // …and with the adaptive request shape Opus 4.7 requires — a budget-style
+    // …and with the adaptive request shape Opus requires — a budget-style
     // `thinking.type: "enabled"` would be rejected by the API.
     const params = messagesStream.mock.calls[0][0];
     expect(params.thinking).toEqual({ type: "adaptive" });
@@ -751,7 +700,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
       finalMessage: () => Promise.reject(new Error("stream broke")),
     });
     const result = await createAiSearchClient("k", {
-      model: "claude-opus-4-7",
+      model: "claude-opus-5",
       thinking: { type: "effort", effort: "high" },
     }).search(snapshot, idByIndex);
 
@@ -761,17 +710,16 @@ describe("createAiSearchClient — failure model and fallback", () => {
 
   it("logs the Opus model id and effort thinking descriptor", async () => {
     messagesStream.mockReturnValue({
-      finalMessage: () =>
-        Promise.resolve(toolUseResponse([{ id: 1, reason: "fits" }])),
+      finalMessage: () => Promise.resolve(rankingResponse("1|fits")),
     });
     await createAiSearchClient("k", {
-      model: "claude-opus-4-7",
+      model: "claude-opus-5",
       thinking: { type: "effort", effort: "low" },
     }).search(snapshot, idByIndex);
 
     const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
     expect(line).toMatchObject({
-      model: "claude-opus-4-7",
+      model: "claude-opus-5",
       thinking: "effort:low",
       outcome: "ok",
     });
@@ -779,9 +727,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
 
   it("reads a numeric AI_EFFORT as an explicit budget for a budget model", async () => {
     process.env.AI_EFFORT = "3000";
-    messagesCreate.mockResolvedValueOnce(
-      toolUseResponse([{ id: 1, reason: "fits" }]),
-    );
+    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
     await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
 
     const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
@@ -793,7 +739,26 @@ describe("createAiSearchClient — failure model and fallback", () => {
     // The misconfiguration must fail loudly at client construction, not be
     // silently swallowed into a default effort.
     expect(() =>
-      createAiSearchClient("k", { model: "claude-opus-4-7" }),
+      createAiSearchClient("k", { model: "claude-opus-5" }),
     ).toThrow(/adaptive/i);
+  });
+
+  it("defaults to a model that takes the adaptive streaming path", async () => {
+    // `MODEL_DEFAULT` and `usesAdaptiveThinking` have to agree: the default is
+    // an Opus, so an unconfigured client must stream with `thinking:
+    // adaptive`. Pointing the default at a budget-API model without changing
+    // the routing would otherwise send Opus-shaped params the API rejects —
+    // and no other test exercises the default at all.
+    delete process.env.AI_MODEL;
+    messagesStream.mockReturnValue({
+      finalMessage: () => Promise.resolve(rankingResponse("1|fits")),
+    });
+    await createAiSearchClient("k").search(snapshot, idByIndex);
+
+    expect(messagesCreate).not.toHaveBeenCalled();
+    const params = messagesStream.mock.calls[0][0];
+    expect(params.model).toBe(resolveModel());
+    expect(params.thinking).toEqual({ type: "adaptive" });
+    expect(params.output_config).toEqual({ effort: "low" });
   });
 });

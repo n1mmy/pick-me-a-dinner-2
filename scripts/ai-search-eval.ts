@@ -16,21 +16,28 @@
  *   npx tsx scripts/ai-search-eval.ts --compare --serial   # one call at a time
  *   npx tsx scripts/ai-search-eval.ts --compare --reps=3   # repeat each cell
  *   npx tsx scripts/ai-search-eval.ts --compare --json     # record rankings to a file
+ *   npx tsx scripts/ai-search-eval.ts --compare --cells="effort low" "light"
+ *                                                          # two models, one query
  *
  * The `--mode` flag (`full` | `pithy` | `drop`) overrides `AI_TAIL_MODE`
  * for the run, so the three open-query result shapes can be compared on the
  * same data; a plain run prints its input / output / cache token counts.
  *
- * `--compare` runs the same empty-query snapshot through the `COMPARE_CELLS`
- * matrix and prints each run's latency and ranking. Every cell goes through
+ * `--compare` runs one shared snapshot through the `COMPARE_CELLS` matrix and
+ * prints each run's latency and ranking. Every cell goes through
  * `createAiSearchClient` with an explicit model + `ThinkingChoice` override,
  * so the budget-API models (Sonnet, Haiku) and the adaptive-API models (Opus
- * 4.8 and 4.7) are all exercised through the production path. `--serial` runs
+ * 4.8 and 5) are all exercised through the production path. `--serial` runs
  * the cells one at a time — slower, but the per-call latencies are free of the
  * contention a parallel sweep adds. `--reps=N` repeats every cell N times and
  * the latency summary aggregates each cell to mean/min/max (interleaved under
  * `--serial`); `--json[=path]` records every run's full ranking to a file for
  * programmatic before/after comparison.
+ *
+ * `--compare` takes the same positional query a plain run does (empty when
+ * omitted), and `--cells=<substring>` narrows the matrix to the cells whose
+ * label contains it — the full matrix is eighteen live calls per rep, so a
+ * two-model question should say so rather than pay for the sweep.
  *
  * A plain run (no `--compare`) uses the env-configured model / effort
  * (`AI_MODEL` / `AI_EFFORT`), exactly as the `aiSearchAction` server action.
@@ -46,6 +53,8 @@ import { getRejections, getTonightData } from "../db/queries";
 import {
   buildSnapshot,
   createAiSearchClient,
+  resolveModel,
+  type AiSearchResult,
   type ModelSnapshot,
   type ThinkingChoice,
 } from "../lib/ai-search";
@@ -69,6 +78,8 @@ type ComparisonRun = {
   latencyMs: number;
   ok: boolean;
   rows: { id: string; reason: string }[];
+  /** Output tokens the call generated — absent when the call left no response. */
+  outputTokens?: number;
 };
 
 /** Budget-API models (Sonnet, Haiku) swept over token-budget levels. */
@@ -86,7 +97,7 @@ const OPUS_EFFORTS: ("low" | "medium" | "high" | null)[] = [
   "high",
 ];
 /** Opus models swept over the effort levels — the current default first. */
-const OPUS_MODELS = ["claude-opus-4-8", "claude-opus-4-7"];
+const OPUS_MODELS = ["claude-opus-4-8", "claude-opus-5"];
 
 /**
  * The matrix `--compare` runs — every model family on one shared snapshot.
@@ -118,6 +129,33 @@ const COMPARE_CELLS: ComparisonCell[] = [
     ),
   ),
 ];
+
+/**
+ * Run `call` with the `ai_search` log line `search` emits captured rather than
+ * printed, so its token counts can be reported as a tidy summary. Everything
+ * else printed while it runs passes through. The interception is process-wide,
+ * so this may only wrap a call that is awaited on its own — never overlapping
+ * ones, whose lines it could not tell apart.
+ */
+async function captureModelCall<T>(
+  call: () => Promise<T>,
+): Promise<{ value: T; modelCall?: Record<string, unknown> }> {
+  let modelCall: Record<string, unknown> | undefined;
+  const passThroughLog = console.log.bind(console);
+  console.log = ((...logArgs: unknown[]): void => {
+    const [first] = logArgs;
+    if (typeof first === "string" && first.includes('"event":"ai_search"')) {
+      modelCall = JSON.parse(first) as Record<string, unknown>;
+    } else {
+      passThroughLog(...(logArgs as Parameters<typeof console.log>));
+    }
+  }) as typeof console.log;
+  try {
+    return { value: await call(), modelCall };
+  } finally {
+    console.log = passThroughLog;
+  }
+}
 
 async function buildSnapshotFromDb(query: string): Promise<{
   snapshot: ModelSnapshot;
@@ -154,36 +192,66 @@ async function buildSnapshotFromDb(query: string): Promise<{
 
 async function runComparison(
   apiKey: string,
-  opts: { serial: boolean; reps: number; jsonPath?: string },
+  opts: {
+    serial: boolean;
+    reps: number;
+    jsonPath?: string;
+    query: string;
+    cellFilter?: string;
+  },
 ): Promise<void> {
-  const { serial, reps, jsonPath } = opts;
-  const { snapshot, idByIndex, nameById } = await buildSnapshotFromDb("");
+  const { serial, reps, jsonPath, query, cellFilter } = opts;
+  // The full matrix is every model family at every thinking level — far more
+  // calls than most questions need. `--cells=` narrows it to the cells whose
+  // label contains the substring, so "compare two models at the production
+  // effort" costs two calls rather than eighteen.
+  const cells = cellFilter
+    ? COMPARE_CELLS.filter((cell) => cell.label.includes(cellFilter))
+    : COMPARE_CELLS;
+  if (cells.length === 0) {
+    console.error(`--cells=${cellFilter} matched no cell. Available labels:`);
+    for (const cell of COMPARE_CELLS) console.error(`  ${cell.label}`);
+    process.exit(1);
+  }
+  const { snapshot, idByIndex, nameById } = await buildSnapshotFromDb(query);
 
   console.log(`today: ${snapshot.today}`);
-  console.log("query: (empty)");
+  console.log(`query: ${query ? JSON.stringify(query) : "(empty)"}`);
   console.log(
     `catalog: ${snapshot.options.length} Options   ` +
       `log: ${snapshot.log.length} dinners`,
   );
   console.log(`mode: ${serial ? "serial" : "parallel"}   reps: ${reps}\n`);
 
-  const runCell = (
+  const runCell = async (
     cell: ComparisonCell,
     rep: number,
   ): Promise<ComparisonRun> => {
     const startedAt = Date.now();
-    return createAiSearchClient(apiKey, {
-      model: cell.model,
-      thinking: cell.thinking,
-    })
-      .search(snapshot, idByIndex)
-      .then((result) => ({
-        cell,
-        rep,
-        latencyMs: Date.now() - startedAt,
-        ok: result.ok,
-        rows: result.ok ? result.results : [],
-      }));
+    const call = (): Promise<AiSearchResult> =>
+      createAiSearchClient(apiKey, {
+        model: cell.model,
+        thinking: cell.thinking,
+      }).search(snapshot, idByIndex);
+
+    // Token counts come from the structured log line, which can only be
+    // attributed to its own call when nothing else is in flight — so a
+    // parallel sweep reports latency only.
+    const { value: result, modelCall } = serial
+      ? await captureModelCall(call)
+      : { value: await call(), modelCall: undefined };
+
+    return {
+      cell,
+      rep,
+      latencyMs: Date.now() - startedAt,
+      ok: result.ok,
+      rows: result.ok ? result.results : [],
+      outputTokens:
+        typeof modelCall?.outputTokens === "number"
+          ? modelCall.outputTokens
+          : undefined,
+    };
   };
 
   // Serial avoids the concurrency contention that makes a parallel sweep's
@@ -194,12 +262,12 @@ async function runComparison(
   if (serial) {
     runs = [];
     for (let rep = 1; rep <= reps; rep++) {
-      for (const cell of COMPARE_CELLS) runs.push(await runCell(cell, rep));
+      for (const cell of cells) runs.push(await runCell(cell, rep));
     }
   } else {
     const jobs: Promise<ComparisonRun>[] = [];
     for (let rep = 1; rep <= reps; rep++) {
-      for (const cell of COMPARE_CELLS) jobs.push(runCell(cell, rep));
+      for (const cell of cells) jobs.push(runCell(cell, rep));
     }
     runs = await Promise.all(jobs);
   }
@@ -225,7 +293,7 @@ async function runComparison(
   }
 
   console.log("\n--- latency summary ---");
-  for (const cell of COMPARE_CELLS) {
+  for (const cell of cells) {
     const cellRuns = runs.filter((r) => r.cell.label === cell.label);
     const ms = cellRuns.map((r) => r.latencyMs);
     const mean = ms.reduce((a, b) => a + b, 0) / ms.length / 1000;
@@ -236,8 +304,21 @@ async function runComparison(
             Math.min(...ms) / 1000
           ).toFixed(1)}s  max ${(Math.max(...ms) / 1000).toFixed(1)}s`
         : `${mean.toFixed(1).padStart(6)}s`;
+    // Output tokens are only captured on
+    // a serial sweep (see `runCell`), so the column is absent in parallel.
+    const tokens = cellRuns
+      .map((r) => r.outputTokens)
+      .filter((value): value is number => value !== undefined);
+    const tokenDetail = tokens.length
+      ? `   out ${Math.round(
+          tokens.reduce((a, b) => a + b, 0) / tokens.length,
+        )
+          .toString()
+          .padStart(5)} tok`
+      : "";
     console.log(
-      `${cell.label.padEnd(24)} ${detail}   ${okCount}/${cellRuns.length} ok`,
+      `${cell.label.padEnd(24)} ${detail}   ${okCount}/${cellRuns.length} ok` +
+        tokenDetail,
     );
   }
 
@@ -247,7 +328,7 @@ async function runComparison(
       JSON.stringify(
         {
           today: snapshot.today,
-          query: "(empty)",
+          query: query || "(empty)",
           mode: serial ? "serial" : "parallel",
           reps,
           catalog: snapshot.options.length,
@@ -258,6 +339,7 @@ async function runComparison(
             model: run.cell.model,
             thinking: run.cell.thinking,
             latencyMs: run.latencyMs,
+            outputTokens: run.outputTokens,
             ok: run.ok,
             ranking: run.rows.map((row, index) => ({
               rank: index + 1,
@@ -284,6 +366,7 @@ async function runSingle(apiKey: string): Promise<void> {
   console.log(`today: ${snapshot.today}`);
   console.log(`query: ${query ? JSON.stringify(query) : "(empty)"}`);
   console.log(`tail mode: ${process.env.AI_TAIL_MODE ?? "pithy"}`);
+  console.log(`model: ${resolveModel()}`);
   console.log(
     `catalog: ${snapshot.options.length} Options   ` +
       `log: ${snapshot.log.length} dinners\n`,
@@ -298,19 +381,9 @@ async function runSingle(apiKey: string): Promise<void> {
   // `search` emits one structured `ai_search` log line to stdout; capture it
   // so the token counts can be reprinted as a tidy summary instead of a raw
   // JSON blob in the middle of the output.
-  let modelCall: Record<string, unknown> | undefined;
-  const passThroughLog = console.log.bind(console);
-  console.log = ((...logArgs: unknown[]): void => {
-    const [first] = logArgs;
-    if (typeof first === "string" && first.includes('"event":"ai_search"')) {
-      modelCall = JSON.parse(first) as Record<string, unknown>;
-    } else {
-      passThroughLog(...(logArgs as Parameters<typeof console.log>));
-    }
-  }) as typeof console.log;
-
-  const result = await createAiSearchClient(apiKey).search(snapshot, idByIndex);
-  console.log = passThroughLog;
+  const { value: result, modelCall } = await captureModelCall(() =>
+    createAiSearchClient(apiKey).search(snapshot, idByIndex),
+  );
 
   if (modelCall) {
     const cell = (value: unknown) => (value === undefined ? "—" : String(value));
@@ -389,6 +462,8 @@ async function main(): Promise<void> {
       serial: args.includes("--serial"),
       reps,
       jsonPath,
+      query: args.find((arg) => !arg.startsWith("--")) ?? "",
+      cellFilter: args.find((arg) => arg.startsWith("--cells="))?.slice(8),
     });
   } else {
     await runSingle(apiKey);
