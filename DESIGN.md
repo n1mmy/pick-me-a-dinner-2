@@ -237,11 +237,37 @@ check before relying on it.
   Geist Mono. PICK as a filled `action` (charcoal-ink) button with
   `action-ink` label. The uniform flat list is intentional and locked — no
   lead-item prominence, no collapsed long tail, no per-row background tint.
+- **Last note line (2026-09-10 amendment to row anatomy):** a picker row whose
+  Option has a **Last note** carries one extra muted line under the chip row —
+  the note's age then the note text (`18d · got the katsu curry`), clamped to a
+  **single line** with ellipsis. This is a deliberate, bounded exception to
+  "every row the same height": rows differ by at most one line-height, only when
+  a note exists, and the clamp is what keeps the ledger scannable. Rows without
+  a note are unchanged. Do not let this grow into a second prose line, a
+  multi-line clamp, or a per-row expansion that reflows the list — a note longer
+  than the clamp is read by tapping it (below) or on the Option detail page. On
+  an AI search row the Last note sits **above** the AI rationale: row data
+  first, the model's voice second on its `raised` surface.
+- **Last-note tap target (2026-09-10 exception to control height):** the picker's
+  clamped Last note line is tappable to unclamp — and carries a `title` so a
+  desktop hover shows the full text — but is sized to its text (~20px) rather
+  than the usual `min-h-11`. The 44px floor guards controls where a mis-tap
+  costs something (Pick, Reject, Bring back, Remove); expanding a line of text
+  costs nothing and a second tap collapses it. Paying 44px per noted row would
+  spend exactly the height the single-line clamp was protecting. This exception
+  is for *this* control only — it is not licence to shrink row actions.
 - **Decided block ("Tonight's dinner"):** unlike the picker ledger above, each
   decided row carries a much-lighter wash of its meal-kind hue
   (`kind-home-wash` / `kind-restaurant-wash`) as its background, so the
   decided area reads as a distinct, settled panel above the picker. The
   "no per-row background tint" rule applies to the *ranked picker*, not here.
+  A decided row shows its Option's **Last note** in **full** — no clamp, no tap
+  target — on its own line between the chip row and the row's own editable note,
+  labelled inline (`Last time (18d): got the katsu curry`). The label is what
+  keeps it from reading as a duplicate of the editable note directly below it.
+  Non-uniform decided-row heights are fine: the block is a settled panel, not a
+  ledger to scan. While the note editor is open the Last note hides, the same
+  way the Menu/Call/Recipe buttons do.
 - **Border radius:** badge/chip 3px, inputs 6px, buttons/controls 6px. Sharp
   crisp corners suit a sharp tool — no pill shapes except where a control is
   genuinely circular.
