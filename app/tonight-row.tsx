@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { noteAge, type LastNote } from "../lib/last-note";
 import { CAP } from "../lib/ranking.config";
 import type { TagRecency, TonightRow } from "../lib/ranking";
 import {
@@ -33,6 +34,12 @@ const focusRing =
  * write that fails — a double-tap race that collides with today's existing
  * Rejection — shows the inline error rather than silently dropping the row.
  *
+ * When the Option has a **Last note** the row carries it as one muted line under
+ * the chips (DESIGN.md, "Last note line"): the note's age then its text, clamped
+ * to a single line and tappable to unclamp. It is what happened last time this
+ * Option was eaten, put where the choosing happens instead of only in Log
+ * history. An Option with no earlier Note renders no line at all.
+ *
  * On an AI search result row, `aiReason` is the AI rationale — a prose "why"
  * line the deterministic list does not have; it sits below the chip row on a
  * neutral `raised` surface. It may be an empty string — in `pithy` mode the
@@ -45,12 +52,18 @@ export function TonightRowItem({
   row,
   rank,
   aiReason,
+  lastNote,
   selectedDay,
   onRejected,
 }: {
   row: TonightRow;
   rank: number;
   aiReason?: string;
+  /**
+   * The Option's **Last note** — its newest Note dated before the Selected day
+   * — or `undefined` when it has none, which renders no line.
+   */
+  lastNote?: LastNote;
   /**
    * The Tonight screen's **Selected day** (ADR-0009) — passed only when it is
    * not today. Pick and Reject writes use it to date the row to a future
@@ -111,7 +124,10 @@ export function TonightRowItem({
   }
 
   return (
-    <li className={`border-b border-line py-3 ${kindBarClass(option.kind)}`}>
+    <li
+      className={`border-b border-line py-[10px]
+        ${kindBarClass(option.kind)}`}
+    >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
@@ -132,6 +148,7 @@ export function TonightRowItem({
             neverEaten={row.neverEaten}
             tags={row.tags}
           />
+          {lastNote && <LastNoteLine lastNote={lastNote} />}
           {aiReason && (
             <p className="mt-1 rounded-badge bg-raised px-2 py-1 text-chip text-muted">
               <MonoNumerals text={aiReason} />
@@ -216,6 +233,61 @@ export function TonightRowItem({
         </p>
       )}
     </li>
+  );
+}
+
+/**
+ * The picker row's **Last note** line: the note's age then its text
+ * (`18d · got the katsu curry`), muted italic, held to one line.
+ *
+ * Italic is the quieting device (DESIGN.md, "Last note line"): the note is
+ * reported speech from another night sitting in a row of live ranking data, and
+ * the slant says "aside" without spending another size or color step. The age
+ * slants with it — the whole line is one aside, and an upright numeral inside
+ * an italic line reads as a correction rather than a column to scan.
+ *
+ * It sits a step below and a step inside the chip row (`mt-1 pl-2`) so the
+ * note reads as subordinate to the row's data rather than a fourth peer line.
+ * That step down is paid for out of the row's own padding — the `li` is
+ * `py-[10px]`, the tight end of DESIGN.md's 10–12px row padding, rather than
+ * `py-3`'s 12px — so a noted row came out *shorter* than it was before the
+ * step. Deepen the indent or the gap only by finding those pixels somewhere
+ * else. The literal 10px is deliberate: the spacing scale is 4/6/8/12/16/22px,
+ * so 10px has no token, the same reason the kind bar spells out `3px`.
+ *
+ * Tapping it unclamps to the full note and tapping again re-clamps, so a long
+ * note is readable without leaving the screen; a `title` gives the same text to
+ * a desktop hover. The control is sized to its text rather than the usual 44px
+ * `min-h-11` — a deliberate, documented exception (DESIGN.md, "Last-note tap
+ * target"): the 44px floor guards controls where a mis-tap costs something, and
+ * paying it on every noted row would spend the height the clamp exists to save.
+ *
+ * The single line is held by `truncate`, **not** `line-clamp-1`: a clamp needs
+ * `display: -webkit-box`, and a `<button>` blockifies its inner display, so the
+ * clamp is coerced away and a long note quietly wraps to a second line — the
+ * row growth the single line exists to prevent. `truncate` (nowrap + ellipsis)
+ * survives blockification; `whitespace-normal` is what releases it when
+ * expanded. Its `leading-tight` matches the chip row above, so the note reads
+ * as the chips' last line rather than a separate paragraph.
+ */
+function LastNoteLine({ lastNote }: { lastNote: LastNote }) {
+  const [expanded, setExpanded] = useState(false);
+  const age = noteAge(lastNote.daysAgo);
+  return (
+    <button
+      type="button"
+      onClick={() => setExpanded((open) => !open)}
+      aria-expanded={expanded}
+      aria-label={`Last note, ${age} ago: ${lastNote.text}`}
+      title={lastNote.text}
+      className={`mt-1 block w-full pl-2 text-left text-chip italic
+        leading-tight text-muted transition-colors duration-short
+        hover:text-ink ${focusRing}
+        ${expanded ? "whitespace-normal" : "truncate"}`}
+    >
+      <span className="font-mono tabular-nums">{age}</span>
+      {` · ${lastNote.text}`}
+    </button>
   );
 }
 

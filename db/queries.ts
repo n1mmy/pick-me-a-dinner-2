@@ -153,6 +153,14 @@ export type TonightLogRow = {
 };
 
 /**
+ * A `TonightLogRow` plus its `created_at` — what `lib/last-note` needs to break
+ * a tie between two entries dated the same day when picking an Option's **Last
+ * note**. Only `getTonightData` returns these: the AI snapshot has no use for
+ * the pick instant, so `getFullLogForSnapshot` stays on the narrower row.
+ */
+export type NotedTonightLogRow = TonightLogRow & { createdAt: Date };
+
+/**
  * Everything the Tonight screen needs to rank the Catalog (ADR-0003): the
  * active Options with their Tags, and the non-future Log entries. `eaten_on` is
  * filtered against `todaySqlDate` — the Household's calendar day in `APP_TZ`,
@@ -160,10 +168,12 @@ export type TonightLogRow = {
  * Score itself is computed in the pure `lib/ranking` module, not in SQL.
  *
  * Each Option also carries its `notes` and each Log entry its `note` — text the
- * AI search snapshot builder needs (PRD: AI search). Each Option additionally
- * carries `url` and `phone` (both nullable; `phone` is always null for a Home
- * meal) — the fields the decided view's Menu / Call / Recipe action buttons
- * render from (PRD: Tonight — decided mode). The ranking input is otherwise
+ * AI search snapshot builder needs (PRD: AI search), and the source
+ * `lib/last-note` reduces to each Option's **Last note** for its Tonight row.
+ * The entries also carry `created_at` for that module's same-date tie-break.
+ * Each Option additionally carries `url` and `phone` (both nullable; `phone` is
+ * always null for a Home meal) — the fields the decided view's Menu / Call /
+ * Recipe action buttons render from (PRD: Tonight — decided mode). The ranking input is otherwise
  * unchanged: `rankTonight` reads only the recency-relevant `RankOption` fields.
  *
  * `todayEntries` is the `dinner_log` rows dated *today* — with their `id`,
@@ -174,7 +184,7 @@ export type TonightLogRow = {
  */
 export async function getTonightData(todaySqlDate: string): Promise<{
   options: TonightOption[];
-  logEntries: TonightLogRow[];
+  logEntries: NotedTonightLogRow[];
   todayEntries: TodayLogEntry[];
 }> {
   const active = await db
@@ -194,6 +204,7 @@ export async function getTonightData(todaySqlDate: string): Promise<{
       optionId: dinnerLog.optionId,
       eatenOn: dinnerLog.eatenOn,
       note: dinnerLog.note,
+      createdAt: dinnerLog.createdAt,
     })
     .from(dinnerLog)
     .innerJoin(options, eq(dinnerLog.optionId, options.id))

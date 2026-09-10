@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import type { OptionChoice, TodayRejection } from "../db/queries";
 import type { AiRankingRow } from "../lib/ai-search";
+import type { LastNote } from "../lib/last-note";
 import { weekdayName } from "../lib/local-day";
 import type { TonightRow } from "../lib/ranking";
 import {
@@ -36,6 +37,9 @@ import { TonightsDinnerBlock } from "./tonights-dinner-block";
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
   "focus-visible:outline-offset-2 focus-visible:outline-action";
+
+/** The no-Last-notes default — module-level so its identity stays stable. */
+const NO_LAST_NOTES: Map<string, LastNote> = new Map();
 
 /**
  * The Tonight screen (plan §9, §16; PRD: Tonight — decided mode) — the home
@@ -69,6 +73,7 @@ const focusRing =
 export function TonightScreen({
   tonightsDinner,
   pickerRows,
+  lastNotes = NO_LAST_NOTES,
   searchEnabled,
   allRejected = false,
   rejectedTonight = [],
@@ -79,6 +84,13 @@ export function TonightScreen({
   tonightsDinner: TonightsDinnerEntry[];
   /** The ranked picker rows, with Picked and Selected-day-rejected Options removed. */
   pickerRows: TonightRow[];
+  /**
+   * Each Option's **Last note** keyed by Option id — the newest Note dated
+   * before the Selected day. One Map serves all three row types (picker, AI
+   * result, decided); an Option absent from it renders no note line. Empty by
+   * default so a screen with no Log history costs nothing.
+   */
+  lastNotes?: Map<string, LastNote>;
   /** Whether AI search is configured — gates the search box (`aiSearchEnabled`). */
   searchEnabled: boolean;
   /**
@@ -252,6 +264,7 @@ export function TonightScreen({
         <>
           <TonightsDinnerBlock
             entries={tonightsDinner}
+            lastNotes={lastNotes}
             dayLabel={dayLabel}
             eatenOn={selectedDay}
           />
@@ -279,6 +292,7 @@ export function TonightScreen({
               </p>
               <Picker
                 rows={pickerRows}
+                lastNotes={lastNotes}
                 searchEnabled={searchEnabled}
                 kind={kind}
                 query={query}
@@ -297,6 +311,7 @@ export function TonightScreen({
       ) : (
         <Picker
           rows={pickerRows}
+          lastNotes={lastNotes}
           searchEnabled={searchEnabled}
           kind={kind}
           query={query}
@@ -433,6 +448,7 @@ function RejectedTonightDisclosure({
  */
 function Picker({
   rows,
+  lastNotes,
   searchEnabled,
   kind,
   query,
@@ -446,6 +462,8 @@ function Picker({
   isToday,
 }: {
   rows: TonightRow[];
+  /** Each Option's Last note, keyed by Option id; absent means no note line. */
+  lastNotes: Map<string, LastNote>;
   searchEnabled: boolean;
   kind: KindFilter;
   query: string;
@@ -609,6 +627,7 @@ function Picker({
                 row={row}
                 rank={index + 1}
                 aiReason={reason}
+                lastNote={lastNotes.get(row.option.id)}
                 selectedDay={isToday ? undefined : selectedDay}
                 onRejected={(name) =>
                   setRejectNotice(`Rejected ${name}, removed from the list.`)
@@ -628,6 +647,7 @@ function Picker({
               key={row.option.id}
               row={row}
               rank={rankOf.get(row.option.id) ?? 0}
+              lastNote={lastNotes.get(row.option.id)}
               selectedDay={isToday ? undefined : selectedDay}
               onRejected={(name) =>
                 setRejectNotice(`Rejected ${name}, removed from the list.`)

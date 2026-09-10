@@ -52,6 +52,23 @@ entries (e.g. takeout plus some home cooking). The app never stores a Dinner
 as a row — it is the eating on a date. The Log screen groups by date and shows
 each date's Dinner together with that date's Rejections.
 
+**Note**:
+The optional free-text line a Log entry carries — what the Household recorded
+about that night's eating ("got the katsu curry", "too much rice", "the kids
+didn't touch it"). It belongs to one entry on one date, so Notes form a series
+over time and the newest one can be singled out as an Option's **Last note**.
+Most Log entries have none. A Note is shown and edited wherever its entry
+appears.
+_Avoid_: "note" unqualified when **Option notes** is meant — they are different
+things, and only a Note has a date.
+
+**Option notes**:
+The standing free-text description attached to an Option itself, maintained on
+the Option detail page ("ask for the corner table", "recipe halves badly").
+Unlike a Note it describes the Option, not one night, so it has no date and no
+"last". It is read by AI search and never shown on Tonight.
+_Avoid_: Note (singular, which is the Log entry's).
+
 **Log**:
 The full history of Log entries — both the `dinner_log` table and the screen
 that shows it.
@@ -175,6 +192,20 @@ Score.
 _Avoid_: Explanation chip (the retired prose line — Tonight no longer carries
 a deterministic "why" sentence).
 
+**Last note**:
+The newest non-empty **Note** on a Log entry dated *strictly before* the
+**Selected day**, surfaced on that Option's Tonight row with how long ago it was
+written ("18d · got the katsu curry"). It answers "what happened last time we
+had this?" at the moment of choosing, rather than only in Log history. Strictly
+before, so the Selected day's own Pick is never its own Last note. An Option
+with no earlier Note has no Last note and its row shows nothing. Every Tonight
+row shows one — picker, AI search result, and decided alike — and a Rejection
+reason is never a Last note, however useful it might read: the two would be
+indistinguishable as one line of text, and "we ate this and it was salty" is not
+"we didn't eat this because it was closed".
+_Avoid_: "last note" for the Note on the Selected day's own Pick (that is just
+that entry's **Note**); Last comment, Last review.
+
 **Overdue**:
 A Tag whose per-Tag recency has crossed the overdue threshold; rendered in the
 accent color on Tonight.
@@ -244,6 +275,10 @@ single-household — no user accounts, no per-person identity.
 - An Option's **Score** is its **Readiness** (per-Option + per-Tag recency)
   times its **Affinity** (recency-weighted eat-frequency).
 - Each **Tonight** row carries one **Recency chip**.
+- A **Log entry** carries zero or one **Note**; an **Option** carries its own
+  standing **Option notes**.
+- A **Tonight** row shows the Option's **Last note** — its newest **Note** dated
+  before the **Selected day** — when it has one.
 - An **Option** is either **Active** or **Archived**.
 - A **Household** may **Reject** an Option for one night — live on **Tonight**,
   or entered by hand on the **Log** for any past, present, or future date.
@@ -283,6 +318,10 @@ single-household — no user accounts, no per-person identity.
 - "Tonight" was defined as only the ranked picker list. Resolved: the Tonight
   screen has two jobs — ranking Options to choose from, and showing
   **Tonight's dinner** once a Pick is made.
+- "Note" meant two different fields: the per-night text on a Log entry and the
+  standing description on an Option. Resolved: **Note** is the Log entry's,
+  **Option notes** is the Option's. Only a Note is dated, so only a Note can be
+  a **Last note**.
 - "Going back to Tonight" was used for two different things: navigating to the
   Tonight screen, and returning the **Selected day** to today while already on
   that screen. Resolved: the second is **resetting the Selected day to today**;

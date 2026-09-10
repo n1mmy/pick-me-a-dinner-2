@@ -61,6 +61,12 @@ const config: Config = {
         "3": "var(--space-3)",
         "4": "var(--space-4)",
         "5.5": "var(--space-5_5)",
+        // Control heights, not layout steps: `min-h-11` is DESIGN.md's 44px tap
+        // floor and `h-9` its 36px header exception. Both must be declared here
+        // — `minHeight`/`height` read the spacing scale, and Tailwind's rem
+        // defaults resolve against the 15px root to 41.25px / 33.75px.
+        "9": "var(--space-9)",
+        "11": "var(--space-11)",
       },
       maxWidth: {
         column: "var(--column-max)",

@@ -84,6 +84,14 @@
   --space-4: 16px;
   --space-5_5: 22px;
 
+  /* Control-height stops. These are named on the spacing scale because
+     `min-h-11` / `h-9` read from it, and the scale must be declared in px:
+     `html` is 15px (--text-body), so Tailwind's rem defaults would land
+     `min-h-11` on 41.25px and `h-9` on 33.75px, not the 44px and 36px
+     DESIGN.md specifies. */
+  --space-9: 36px;
+  --space-11: 44px;
+
   /* Motion — minimal-functional; durations only where they aid comprehension. */
   --motion-micro: 80ms;
   --motion-short: 140ms;
