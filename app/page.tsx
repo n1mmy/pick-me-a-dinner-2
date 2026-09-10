@@ -1,5 +1,6 @@
 import { getTodayRejections, getTonightData } from "../db/queries";
 import { aiSearchEnabled } from "../lib/ai-search";
+import { lastNotesByOption } from "../lib/last-note";
 import {
   epochDayFromSqlDate,
   parseSelectedDay,
@@ -49,6 +50,19 @@ export default async function TonightPage({
   }));
 
   const rows = rankTonight(options, entries, anchorEpochDay);
+  // Each Option's **Last note** — the newest Note dated strictly before the
+  // Selected day. Display only: it is derived beside the ranking, never inside
+  // it, so the Score stays blind to Note text. One Map serves every row type —
+  // picker, AI result, and decided — since all three key off the Option id.
+  const lastNotes = lastNotesByOption(
+    logEntries.map((entry) => ({
+      optionId: entry.optionId,
+      eatenOn: epochDayFromSqlDate(entry.eatenOn),
+      createdAt: entry.createdAt,
+      note: entry.note,
+    })),
+    anchorEpochDay,
+  );
   // The decided block shows each Picked Option's recency as it stood *before*
   // the Selected day — "5d", not "0d" — and its Tag chips keep that pre-Pick
   // context (PRD: Tonight — decided mode). So rank the Catalog a second time
@@ -86,6 +100,7 @@ export default async function TonightPage({
     <TonightScreen
       tonightsDinner={tonightsDinner}
       pickerRows={visiblePicker}
+      lastNotes={lastNotes}
       rejectedTonight={anchorRejections}
       allRejected={allRejected}
       searchEnabled={aiSearchEnabled()}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
+import { noteAge, type LastNote } from "../lib/last-note";
 import {
   decidedActions,
   type DecidedAction,
@@ -48,13 +49,26 @@ const actionFill =
  * when none is set — and tapping it turns it into a textarea that saves the
  * Pick's `dinner_log` note via the existing `updateLogEntry` action. Saving an
  * empty one clears it. No button: the note itself is the affordance.
+ *
+ * Above that editable note sits the Option's **Last note** when it has one —
+ * the newest Note from *before* the Selected day, shown in full and labelled
+ * "Last time" (DESIGN.md, "Decided block"). It is the context you write
+ * tonight's note against ("they didn't touch the spicy one"), and the label is
+ * what keeps two lines of similar muted text from reading as one. It is inert:
+ * to change an old Note, open that night on the Log.
  */
 export function TonightsDinnerBlock({
   entries,
+  lastNotes,
   dayLabel,
   eatenOn,
 }: {
   entries: TonightsDinnerEntry[];
+  /**
+   * Each Option's Last note keyed by Option id. Dated strictly before the
+   * Selected day, so a row's own Pick is never its own Last note.
+   */
+  lastNotes: Map<string, LastNote>;
   /**
    * Day-aware label noun — `"tonight"` for today, the weekday name (e.g.
    * `"Friday"`) when the Selected day is any other day (ADR-0009). Drives
@@ -82,7 +96,12 @@ export function TonightsDinnerBlock({
       </h2>
       <ul className="flex flex-col">
         {entries.map((entry) => (
-          <DecidedRow key={entry.entryId} entry={entry} eatenOn={eatenOn} />
+          <DecidedRow
+            key={entry.entryId}
+            entry={entry}
+            lastNote={lastNotes.get(entry.row.option.id)}
+            eatenOn={eatenOn}
+          />
         ))}
       </ul>
     </section>
@@ -98,9 +117,12 @@ export function TonightsDinnerBlock({
  */
 function DecidedRow({
   entry,
+  lastNote,
   eatenOn,
 }: {
   entry: TonightsDinnerEntry;
+  /** The Option's Last note, or `undefined` when it has none. */
+  lastNote?: LastNote;
   eatenOn: string;
 }) {
   const { entryId, row, note } = entry;
@@ -133,6 +155,9 @@ function DecidedRow({
         neverEaten={row.neverEaten}
         tags={row.tags}
       />
+      {/* The Last note hides while the editor is open, like the Menu/Call/Recipe
+          buttons below — the open textarea is the row's whole subject then. */}
+      {!editing && lastNote && <LastTimeLine lastNote={lastNote} />}
       {editing ? (
         <NoteForm
           entryId={entryId}
@@ -154,6 +179,32 @@ function DecidedRow({
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * The decided row's **Last note** line: the Option's newest Note from before the
+ * Selected day, shown in **full** — no clamp, no tap target — and labelled
+ * inline ("Last time (18d): got the katsu curry").
+ *
+ * The picker clamps its note to one line to protect a scannable ledger; this
+ * block is a settled panel of at most a few rows, so the whole note is worth
+ * more than uniform height (DESIGN.md, "Decided block"). The label is load-
+ * bearing: without it this reads as a duplicate of the editable note directly
+ * below.
+ */
+function LastTimeLine({ lastNote }: { lastNote: LastNote }) {
+  return (
+    <p className="mt-2 px-1 text-chip text-muted">
+      <span className="italic opacity-70">
+        Last time (
+        <span className="font-mono not-italic tabular-nums">
+          {noteAge(lastNote.daysAgo)}
+        </span>
+        ):
+      </span>{" "}
+      {lastNote.text}
+    </p>
   );
 }
 

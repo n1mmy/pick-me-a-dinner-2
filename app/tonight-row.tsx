@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { noteAge, type LastNote } from "../lib/last-note";
 import { CAP } from "../lib/ranking.config";
 import type { TagRecency, TonightRow } from "../lib/ranking";
 import {
@@ -33,6 +34,12 @@ const focusRing =
  * write that fails — a double-tap race that collides with today's existing
  * Rejection — shows the inline error rather than silently dropping the row.
  *
+ * When the Option has a **Last note** the row carries it as one muted line under
+ * the chips (DESIGN.md, "Last note line"): the note's age then its text, clamped
+ * to a single line and tappable to unclamp. It is what happened last time this
+ * Option was eaten, put where the choosing happens instead of only in Log
+ * history. An Option with no earlier Note renders no line at all.
+ *
  * On an AI search result row, `aiReason` is the AI rationale — a prose "why"
  * line the deterministic list does not have; it sits below the chip row on a
  * neutral `raised` surface. It may be an empty string — in `pithy` mode the
@@ -45,12 +52,18 @@ export function TonightRowItem({
   row,
   rank,
   aiReason,
+  lastNote,
   selectedDay,
   onRejected,
 }: {
   row: TonightRow;
   rank: number;
   aiReason?: string;
+  /**
+   * The Option's **Last note** — its newest Note dated before the Selected day
+   * — or `undefined` when it has none, which renders no line.
+   */
+  lastNote?: LastNote;
   /**
    * The Tonight screen's **Selected day** (ADR-0009) — passed only when it is
    * not today. Pick and Reject writes use it to date the row to a future
@@ -132,6 +145,7 @@ export function TonightRowItem({
             neverEaten={row.neverEaten}
             tags={row.tags}
           />
+          {lastNote && <LastNoteLine lastNote={lastNote} />}
           {aiReason && (
             <p className="mt-1 rounded-badge bg-raised px-2 py-1 text-chip text-muted">
               <MonoNumerals text={aiReason} />
@@ -216,6 +230,37 @@ export function TonightRowItem({
         </p>
       )}
     </li>
+  );
+}
+
+/**
+ * The picker row's **Last note** line: the note's age then its text
+ * (`18d · got the katsu curry`), muted, clamped to one line.
+ *
+ * Tapping it unclamps to the full note and tapping again re-clamps, so a long
+ * note is readable without leaving the screen; a `title` gives the same text to
+ * a desktop hover. The control is sized to its text rather than the usual 44px
+ * `min-h-11` — a deliberate, documented exception (DESIGN.md, "Last-note tap
+ * target"): the 44px floor guards controls where a mis-tap costs something, and
+ * paying it on every noted row would spend the height the clamp exists to save.
+ */
+function LastNoteLine({ lastNote }: { lastNote: LastNote }) {
+  const [expanded, setExpanded] = useState(false);
+  const age = noteAge(lastNote.daysAgo);
+  return (
+    <button
+      type="button"
+      onClick={() => setExpanded((open) => !open)}
+      aria-expanded={expanded}
+      aria-label={`Last note, ${age} ago: ${lastNote.text}`}
+      title={lastNote.text}
+      className={`mt-1 block w-full text-left text-chip text-muted
+        transition-colors duration-short hover:text-ink ${focusRing}
+        ${expanded ? "" : "line-clamp-1"}`}
+    >
+      <span className="font-mono tabular-nums">{age}</span>
+      {` · ${lastNote.text}`}
+    </button>
   );
 }
 

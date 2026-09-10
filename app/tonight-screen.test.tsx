@@ -10,6 +10,7 @@ import {
   within,
 } from "@testing-library/react";
 import type { TonightRow } from "../lib/ranking";
+import type { LastNote } from "../lib/last-note";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 
 // `aiSearchAction` is the AI search server action; the screen test drives the
@@ -638,6 +639,140 @@ describe("TonightScreen — decided-mode picker", () => {
     expect(
       screen.queryByRole("region", { name: "Add another option" }),
     ).toBeNull();
+  });
+});
+
+describe("TonightScreen — Last note", () => {
+  // Apple Crumble has a Last note; Banana Bread deliberately has none, so every
+  // test here also asserts the no-note row stays bare.
+  const LAST_NOTES = new Map<string, LastNote>([
+    ["o1", { text: "got the katsu curry", daysAgo: 18 }],
+  ]);
+
+  it("shows the note with its age on a picker row, and nothing on a row without one", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        lastNotes={LAST_NOTES}
+        searchEnabled={false}
+      />,
+    );
+
+    const note = screen.getByRole("button", {
+      name: "Last note, 18d ago: got the katsu curry",
+    });
+    expect(note.textContent).toBe("18d · got the katsu curry");
+    // One note line on the screen: the Option with no Last note renders none.
+    expect(screen.getAllByRole("button", { name: /^Last note,/ })).toHaveLength(
+      1,
+    );
+  });
+
+  it("renders no note line at all when no Option has one", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /^Last note,/ })).toBeNull();
+  });
+
+  it("unclamps the picker note on tap and re-clamps on a second tap", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        lastNotes={LAST_NOTES}
+        searchEnabled={false}
+      />,
+    );
+
+    const note = screen.getByRole("button", { name: /^Last note,/ });
+    // Collapsed: clamped to one line, with the full text on hover.
+    expect(note.className).toContain("line-clamp-1");
+    expect(note.getAttribute("title")).toBe("got the katsu curry");
+    expect(note.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(note);
+    expect(note.className).not.toContain("line-clamp-1");
+    expect(note.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.click(note);
+    expect(note.className).toContain("line-clamp-1");
+    expect(note.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("shows the note on an AI result row, above the AI rationale", async () => {
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o1", reason: "Light and quick" }],
+    });
+
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        lastNotes={LAST_NOTES}
+        searchEnabled
+      />,
+    );
+    await submitSearchAndSettle();
+
+    const note = await screen.findByRole("button", { name: /^Last note,/ });
+    const rationale = screen.getByText("Light and quick");
+    // Row data first, the model's voice second (DESIGN.md, "Last note line").
+    expect(
+      note.compareDocumentPosition(rationale) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows the note in full on a decided row, labelled and inert", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={DINNER}
+        pickerRows={[]}
+        lastNotes={LAST_NOTES}
+        searchEnabled={false}
+      />,
+    );
+
+    // Labelled "Last time", not clamped, and not a control — the decided row's
+    // only note affordance is the editable one below it.
+    // The label is its own span, so read the whole line it sits in.
+    const line = screen.getByText(/Last time \(/).closest("p");
+    expect(line?.textContent).toContain("18d");
+    expect(line?.textContent).toContain("got the katsu curry");
+    expect(screen.queryByRole("button", { name: /^Last note,/ })).toBeNull();
+  });
+
+  it("hides the decided row's Last note while its note editor is open", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={DINNER}
+        pickerRows={[]}
+        lastNotes={LAST_NOTES}
+        searchEnabled={false}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Add note" })[0]);
+    expect(screen.queryByText(/Last time \(/)).toBeNull();
   });
 });
 
