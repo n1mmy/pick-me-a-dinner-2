@@ -124,7 +124,10 @@ export function TonightRowItem({
   }
 
   return (
-    <li className={`border-b border-line py-3 ${kindBarClass(option.kind)}`}>
+    <li
+      className={`border-b border-line py-[10px]
+        ${kindBarClass(option.kind)}`}
+    >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
@@ -235,7 +238,22 @@ export function TonightRowItem({
 
 /**
  * The picker row's **Last note** line: the note's age then its text
- * (`18d · got the katsu curry`), muted, clamped to one line.
+ * (`18d · got the katsu curry`), muted italic, held to one line.
+ *
+ * Italic is the quieting device (DESIGN.md, "Last note line"): the note is
+ * reported speech from another night sitting in a row of live ranking data, and
+ * the slant says "aside" without spending another size or color step. The age
+ * slants with it — the whole line is one aside, and an upright numeral inside
+ * an italic line reads as a correction rather than a column to scan.
+ *
+ * It sits a step below and a step inside the chip row (`mt-1 pl-2`) so the
+ * note reads as subordinate to the row's data rather than a fourth peer line.
+ * That step down is paid for out of the row's own padding — the `li` is
+ * `py-[10px]`, the tight end of DESIGN.md's 10–12px row padding, rather than
+ * `py-3`'s 12px — so a noted row came out *shorter* than it was before the
+ * step. Deepen the indent or the gap only by finding those pixels somewhere
+ * else. The literal 10px is deliberate: the spacing scale is 4/6/8/12/16/22px,
+ * so 10px has no token, the same reason the kind bar spells out `3px`.
  *
  * Tapping it unclamps to the full note and tapping again re-clamps, so a long
  * note is readable without leaving the screen; a `title` gives the same text to
@@ -243,6 +261,14 @@ export function TonightRowItem({
  * `min-h-11` — a deliberate, documented exception (DESIGN.md, "Last-note tap
  * target"): the 44px floor guards controls where a mis-tap costs something, and
  * paying it on every noted row would spend the height the clamp exists to save.
+ *
+ * The single line is held by `truncate`, **not** `line-clamp-1`: a clamp needs
+ * `display: -webkit-box`, and a `<button>` blockifies its inner display, so the
+ * clamp is coerced away and a long note quietly wraps to a second line — the
+ * row growth the single line exists to prevent. `truncate` (nowrap + ellipsis)
+ * survives blockification; `whitespace-normal` is what releases it when
+ * expanded. Its `leading-tight` matches the chip row above, so the note reads
+ * as the chips' last line rather than a separate paragraph.
  */
 function LastNoteLine({ lastNote }: { lastNote: LastNote }) {
   const [expanded, setExpanded] = useState(false);
@@ -254,9 +280,10 @@ function LastNoteLine({ lastNote }: { lastNote: LastNote }) {
       aria-expanded={expanded}
       aria-label={`Last note, ${age} ago: ${lastNote.text}`}
       title={lastNote.text}
-      className={`mt-1 block w-full text-left text-chip text-muted
-        transition-colors duration-short hover:text-ink ${focusRing}
-        ${expanded ? "" : "line-clamp-1"}`}
+      className={`mt-1 block w-full pl-2 text-left text-chip italic
+        leading-tight text-muted transition-colors duration-short
+        hover:text-ink ${focusRing}
+        ${expanded ? "whitespace-normal" : "truncate"}`}
     >
       <span className="font-mono tabular-nums">{age}</span>
       {` · ${lastNote.text}`}

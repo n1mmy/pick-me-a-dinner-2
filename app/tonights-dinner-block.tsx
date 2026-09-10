@@ -136,7 +136,7 @@ function DecidedRow({
       : "bg-kind-restaurant-wash";
   return (
     <li
-      className={`border-b border-line py-3 last:border-b-0 ${washClass}
+      className={`border-b border-line py-[10px] last:border-b-0 ${washClass}
         ${kindBarClass(row.option.kind)}`}
     >
       <div className="flex items-center justify-between gap-2">
@@ -172,7 +172,7 @@ function DecidedRow({
       {/* The Menu/Call/Recipe actions hide while the note editor is open, so the
           editor's Save/Cancel never sit beside another button row. */}
       {!editing && actions.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-1 flex flex-wrap gap-2">
           {actions.map((action) => (
             <ActionButton key={action.label} action={action} />
           ))}
@@ -187,18 +187,22 @@ function DecidedRow({
  * Selected day, shown in **full** — no clamp, no tap target — and labelled
  * inline ("Last time (18d): got the katsu curry").
  *
- * The picker clamps its note to one line to protect a scannable ledger; this
+ * The picker holds its note to one line to protect a scannable ledger; this
  * block is a settled panel of at most a few rows, so the whole note is worth
  * more than uniform height (DESIGN.md, "Decided block"). The label is load-
  * bearing: without it this reads as a duplicate of the editable note directly
  * below.
+ *
+ * The whole line is italic — label, age, and note text alike — so a Last note
+ * reads the same way wherever Tonight shows one, and so this line stays visibly
+ * an aside beside the upright editable note under it.
  */
 function LastTimeLine({ lastNote }: { lastNote: LastNote }) {
   return (
-    <p className="mt-2 px-1 text-chip text-muted">
-      <span className="italic opacity-70">
+    <p className="mt-1 px-1 text-chip italic leading-snug text-muted">
+      <span className="opacity-70">
         Last time (
-        <span className="font-mono not-italic tabular-nums">
+        <span className="font-mono tabular-nums">
           {noteAge(lastNote.daysAgo)}
         </span>
         ):
@@ -214,6 +218,12 @@ function LastTimeLine({ lastNote }: { lastNote: LastNote }) {
  * full-width tappable area so the whole line is a comfortable kitchen tap
  * target. Tapping it opens the editor; the note text itself is the affordance,
  * so there is no separate button.
+ *
+ * It takes `min-h-9` (36px) rather than the 44px floor — a documented exception
+ * (DESIGN.md, "Decided block"). The floor guards controls where a mis-tap costs
+ * something; this one opens an editor that Cancel closes, and it is already
+ * full-bleed horizontally, so 44px bought ~19px of empty space above and below
+ * one 13px line rather than any real reach.
  */
 function NoteRest({
   note,
@@ -227,7 +237,7 @@ function NoteRest({
       type="button"
       onClick={onEdit}
       aria-label={note ? "Edit note" : "Add note"}
-      className={`mt-2 block min-h-11 w-full rounded-control px-1 py-1 text-left
+      className={`mt-1 block min-h-9 w-full rounded-control px-1 py-1 text-left
         text-chip text-muted transition-colors duration-short ${focusRing} ${
           note ? "hover:text-ink" : "italic opacity-70 hover:opacity-100"
         }`}
@@ -325,9 +335,14 @@ function NoteForm({
   );
 }
 
+// `-my-2` keeps the 44×44px tap area while letting it overlap the row's own
+// padding instead of setting the title line's height: the Option name is 27px,
+// so an in-flow 44px control would leave ~16px of dead space across the row's
+// widest line. The overlap only ever falls on the row padding and the
+// non-interactive chip row, so nothing else becomes harder to hit.
 const removeButton =
-  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-control " +
-  `px-2 text-chip transition-colors duration-short ${focusRing}`;
+  "inline-flex min-h-11 min-w-11 -my-2 items-center justify-center " +
+  `rounded-control px-2 text-chip transition-colors duration-short ${focusRing}`;
 
 /**
  * The decided row's inline "Remove" control — the app's destructive-action

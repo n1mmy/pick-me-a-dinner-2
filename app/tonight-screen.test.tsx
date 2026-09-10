@@ -697,17 +697,23 @@ describe("TonightScreen — Last note", () => {
     );
 
     const note = screen.getByRole("button", { name: /^Last note,/ });
-    // Collapsed: clamped to one line, with the full text on hover.
-    expect(note.className).toContain("line-clamp-1");
+    // Collapsed: held to one line, with the full text on hover. jsdom does no
+    // layout, so the utility is the only observable proxy for "one line" — and
+    // it must be `truncate`, not `line-clamp-1`: a clamp needs
+    // `display: -webkit-box`, which a <button> blockifies away, so a clamped
+    // note wraps to a second line in a real browser (see `LastNoteLine`).
+    expect(note.className).toContain("truncate");
+    expect(note.className).not.toContain("line-clamp");
     expect(note.getAttribute("title")).toBe("got the katsu curry");
     expect(note.getAttribute("aria-expanded")).toBe("false");
 
     fireEvent.click(note);
-    expect(note.className).not.toContain("line-clamp-1");
+    expect(note.className).not.toContain("truncate");
+    expect(note.className).toContain("whitespace-normal");
     expect(note.getAttribute("aria-expanded")).toBe("true");
 
     fireEvent.click(note);
-    expect(note.className).toContain("line-clamp-1");
+    expect(note.className).toContain("truncate");
     expect(note.getAttribute("aria-expanded")).toBe("false");
   });
 

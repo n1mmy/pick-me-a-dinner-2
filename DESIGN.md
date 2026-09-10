@@ -239,41 +239,87 @@ check before relying on it.
   lead-item prominence, no collapsed long tail, no per-row background tint.
 - **Last note line (2026-09-10 amendment to row anatomy):** a picker row whose
   Option has a **Last note** carries one extra muted line under the chip row —
-  the note's age then the note text (`18d · got the katsu curry`), clamped to a
+  the note's age then the note text (`18d · got the katsu curry`), held to a
   **single line** with ellipsis. This is a deliberate, bounded exception to
   "every row the same height": rows differ by at most one line-height, only when
-  a note exists, and the clamp is what keeps the ledger scannable. Rows without
-  a note are unchanged. Do not let this grow into a second prose line, a
-  multi-line clamp, or a per-row expansion that reflows the list — a note longer
-  than the clamp is read by tapping it (below) or on the Option detail page. On
-  an AI search row the Last note sits **above** the AI rationale: row data
-  first, the model's voice second on its `raised` surface.
+  a note exists, and the single line is what keeps the ledger scannable. Rows
+  without a note are unchanged. Do not let this grow into a second prose line, a
+  two-line clamp, or a per-row expansion that reflows the list — a longer note is
+  read by tapping it (below) or on the Option detail page. On an AI search row
+  the Last note sits **above** the AI rationale: row data first, the model's
+  voice second on its `raised` surface.
+  - **Density (2026-09-10):** the line is a quiet step below and inside the chip
+    row, not a paragraph after it — `leading-tight` like the chips, a 4px gap
+    above, an 8px indent, and the picker row itself at **10px** padding (the
+    tight end of the range below) to pay for that step. It costs a noted row at
+    most ~18px, and on most rows nothing at all: the Pick/Reject stack already
+    floors the row taller than its content, and the note spends that slack.
+    Measured on the real Catalog, noted rows add 2% to the list's height at
+    375px and nothing at desktop width. The indent and the gap are not free —
+    both are funded out of row padding, so deepening either means finding the
+    pixels somewhere else. Anything that pushes a noted row visibly above a
+    note-free one has regressed this.
+  - **One line means `truncate`, not `line-clamp-1`:** the line is a `<button`
+    (it taps to expand), a button blockifies its inner display, and a clamp
+    needs `display: -webkit-box` — so `line-clamp-1` is coerced away in Chrome
+    and long notes silently wrap to two lines, which is what "one line" exists
+    to prevent. This bit once; the class list is not the check, the rendered
+    height is.
+  - **Italic:** the whole line is italic wherever Tonight shows it — picker row
+    and decided block, age and note text alike. It is reported speech from
+    another night sitting in a row of live ranking numbers, and the slant marks
+    it as an aside without spending another size or color step. This is the one
+    place a mono numeral slants: the line is a single aside, and an upright age
+    inside it reads as a correction rather than a column to scan. Elsewhere
+    mono numerals stay upright.
 - **Last-note tap target (2026-09-10 exception to control height):** the picker's
-  clamped Last note line is tappable to unclamp — and carries a `title` so a
-  desktop hover shows the full text — but is sized to its text (~20px) rather
-  than the usual `min-h-11`. The 44px floor guards controls where a mis-tap
-  costs something (Pick, Reject, Bring back, Remove); expanding a line of text
-  costs nothing and a second tap collapses it. Paying 44px per noted row would
-  spend exactly the height the single-line clamp was protecting. This exception
+  truncated Last note line is tappable to show the note in full — and carries a
+  `title` so a desktop hover shows it too — but is sized to its text (~16px)
+  rather than the usual `min-h-11`. The 44px floor guards controls where a
+  mis-tap costs something (Pick, Reject, Bring back, Remove); expanding a line
+  of text costs nothing and a second tap collapses it. Paying 44px per noted row
+  would spend exactly the height the single line was protecting. This exception
   is for *this* control only — it is not licence to shrink row actions.
 - **Decided block ("Tonight's dinner"):** unlike the picker ledger above, each
   decided row carries a much-lighter wash of its meal-kind hue
   (`kind-home-wash` / `kind-restaurant-wash`) as its background, so the
   decided area reads as a distinct, settled panel above the picker. The
   "no per-row background tint" rule applies to the *ranked picker*, not here.
-  A decided row shows its Option's **Last note** in **full** — no clamp, no tap
-  target — on its own line between the chip row and the row's own editable note,
+  A decided row shows its Option's **Last note** in **full** — no truncation, no
+  tap target — on its own line between the chip row and the row's editable note,
   labelled inline (`Last time (18d): got the katsu curry`). The label is what
   keeps it from reading as a duplicate of the editable note directly below it.
   Non-uniform decided-row heights are fine: the block is a settled panel, not a
   ledger to scan. While the note editor is open the Last note hides, the same
   way the Menu/Call/Recipe buttons do.
+  - **Density (2026-09-10):** a settled panel is not licence to be airy. The
+    row's own stack is tight — 10px padding like the picker, 4px between its
+    lines — and the two places that were spending height on nothing are fixed
+    at the source: "Remove" carries a negative vertical margin so its 44px
+    target no longer inflates the title line to 44px for a 27px name, and the
+    click-to-edit note line takes **36px** (`min-h-9`) rather than the 44px
+    floor. That note line is a documented exception to control height: the floor
+    guards controls where a mis-tap costs something, this one opens an editor
+    that Cancel closes, and it is already full-bleed horizontally — so 44px
+    bought ~19px of empty space around one 13px line, not reach. Menu/Call/
+    Recipe are real actions and keep 44px.
 - **Border radius:** badge/chip 3px, inputs 6px, buttons/controls 6px. Sharp
   crisp corners suit a sharp tool — no pill shapes except where a control is
   genuinely circular.
 - **Control height:** 44px is the default minimum for a tappable control
   (`min-h-11`), and the Tonight *row* controls — Pick, Reject, Bring back — keep
-  it. The **Tonight header** is the deliberate exception at 36px (`h-9`): its
+  it. **These two stops are declared in px on the spacing scale**
+  (`--space-11: 44px`, `--space-9: 36px`, mapped in `tailwind.config.ts`)
+  because `min-h-*` and `h-*` read from `spacing`, and `html` is 15px
+  (`--text-body`) — on Tailwind's rem defaults `min-h-11` silently renders
+  41.25px and `h-9` 33.75px, which is what shipped until 2026-09-10. A control
+  stop that is not on the scale is a control stop that is quietly wrong: add the
+  px token rather than reaching for a rem-based utility.
+  - **A 44px target need not occupy 44px of row.** Where a control sits beside
+    shorter content — the decided row's "Remove" next to a 27px Option name —
+    give it a negative vertical margin so the hit area still measures 44px but
+    overlaps the row's own padding instead of setting the line's height. Only do
+    this where the overlap falls on padding or non-interactive content. The **Tonight header** is the deliberate exception at 36px (`h-9`): its
   day stepper, date input, and kind segment share a phone-width row with the H1,
   and every pixel they give back is a pixel the day name keeps un-truncated.
   Gaps between adjacent header controls are 4px rather than the usual 6px for
