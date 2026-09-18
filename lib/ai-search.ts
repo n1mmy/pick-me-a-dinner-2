@@ -447,19 +447,35 @@ export function resolveModel(): string {
 const REQUEST_TIMEOUT_MS = 90_000;
 
 /**
+ * The per-call timeout, overridable by `AI_TIMEOUT_MS` for the eval harness.
+ * A model/effort pairing that exceeds `REQUEST_TIMEOUT_MS` is indistinguishable
+ * from a broken one through the fail-safe path — both collapse to
+ * `AI_SEARCH_UNAVAILABLE` — so measuring how far past the budget it actually
+ * runs needs a way to let the call finish. Read at call time, not module load,
+ * so a value `dotenv` puts in the environment after import still applies.
+ * Production leaves it unset and gets the 90s budget.
+ */
+function resolveTimeoutMs(): number {
+  const raw = process.env.AI_TIMEOUT_MS?.trim();
+  if (raw === undefined || !/^\d+$/.test(raw)) return REQUEST_TIMEOUT_MS;
+  const parsed = Number.parseInt(raw, 10);
+  return parsed > 0 ? parsed : REQUEST_TIMEOUT_MS;
+}
+
+/**
  * Extended thinking lets the model reason over the Log — cadence, day-of-week
  * rhythm, streaks, drift — before it ranks (ADR-0005); without it the model can
  * only re-sort recency. How hard it thinks is one knob, `AI_EFFORT`
  * (`off` | `low` | `medium` | `high`), uniform across every supported model.
- * The two model families take that effort through different APIs (see
- * `planThinking`): the budget-API models (Sonnet 4.6, Haiku 4.5) get a
- * `budget_tokens` cap mapped from the effort level; the adaptive-API model
- * (Opus 5) gets an `output_config.effort` level directly. For the
+ * The two API generations take that effort differently (see `planThinking`):
+ * the budget-API models (Sonnet 4.6, Haiku 4.5) get a `budget_tokens` cap
+ * mapped from the effort level; the adaptive-API models (Opus 5, Sonnet 5)
+ * get an `output_config.effort` level directly. For the
  * budget-API models `AI_EFFORT` also accepts a bare integer — used directly
  * as `budget_tokens`, for finer control than the three named levels give (the
- * API floor is 1024; `0` is off). A positive number has no meaning for Opus,
- * which has no token budget, so pairing one with an Opus model is rejected —
- * `createAiSearchClient` throws.
+ * API floor is 1024; `0` is off). A positive number has no meaning for an
+ * adaptive model, which has no token budget, so pairing one with an adaptive
+ * model is rejected — `createAiSearchClient` throws.
  */
 type AiEffort = "off" | "low" | "medium" | "high";
 
@@ -479,13 +495,27 @@ const EFFORT_BUDGETS: Record<Exclude<AiEffort, "off">, number> = {
 };
 
 /**
- * Whether a model takes the adaptive-thinking API. Opus rejects the
- * `thinking.type: "enabled"` budget scheme — it takes `thinking.type:
- * "adaptive"` plus an `output_config.effort` level instead. Sonnet 4.6 and
- * Haiku 4.5 use the budget scheme.
+ * The models still on the legacy budget scheme — `thinking.type: "enabled"`
+ * plus a `budget_tokens` cap. Matched by prefix, so a dated snapshot id like
+ * `claude-haiku-4-5-20251001` matches its family.
+ */
+const BUDGET_API_MODELS = ["claude-sonnet-4-6", "claude-haiku-4-5"];
+
+/**
+ * Whether a model takes the adaptive-thinking API — `thinking.type: "adaptive"`
+ * plus an `output_config.effort` level — rather than a `budget_tokens` cap.
+ *
+ * Model *family* is not the test: adaptive thinking is where the whole model
+ * line has gone (Sonnet 5 took it with Opus 5, and both reject a `budget_tokens`
+ * call with a 400), so the budget scheme is the shrinking exception and every
+ * model not listed in `BUDGET_API_MODELS` is adaptive. A new model id therefore
+ * defaults to the adaptive API, which is the correct guess for anything
+ * released from here on.
  */
 function usesAdaptiveThinking(model: string): boolean {
-  return model.includes("opus");
+  return !BUDGET_API_MODELS.some((budgetModel) =>
+    model.startsWith(budgetModel),
+  );
 }
 
 /**
@@ -504,8 +534,9 @@ export type ThinkingChoice =
  * gives no explicit override. `AI_EFFORT` accepts `off` / `low` / `medium` /
  * `high`, or — for the budget-API models — a bare integer used directly as
  * `budget_tokens` (the API floor is 1024; `0` is off). A positive number has
- * no meaning for the adaptive-API model — pairing one with an Opus model is a
- * misconfiguration and throws, rather than silently running at some default.
+ * no meaning for the adaptive-API models — pairing one with an adaptive
+ * model is a misconfiguration and throws, rather than silently running at
+ * some default.
  * An unset or unrecognized value falls back to the default effort.
  */
 function envThinkingChoice(model: string): ThinkingChoice {
@@ -529,7 +560,7 @@ function envThinkingChoice(model: string): ThinkingChoice {
     throw new Error(
       `AI_EFFORT=${budget} is a token budget, but AI_MODEL (${model}) uses ` +
         `the adaptive-thinking API, which has no token budget — set AI_EFFORT ` +
-        `to off/low/medium/high for an Opus model.`,
+        `to off/low/medium/high for an adaptive-thinking model.`,
     );
   }
   return adaptive
@@ -864,7 +895,7 @@ export function createAiSearchClient(
     async search(snapshot, idByIndex) {
       const startedAt = Date.now();
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      const timer = setTimeout(() => controller.abort(), resolveTimeoutMs());
 
       // The snapshot body — everything but the query — is stable between
       // searches minutes apart, so it goes in a `cache_control` block: the
