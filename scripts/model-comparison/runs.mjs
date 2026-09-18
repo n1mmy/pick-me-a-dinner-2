@@ -40,7 +40,14 @@ export function parseArgs(argv) {
   return { flags, positionals };
 }
 
-/** Expand paths — files as themselves, directories as their `*.json`. */
+/**
+ * Expand paths — files as themselves, directories as their `*.json`. With no
+ * paths, this directory.
+ */
+export function expandPaths(paths) {
+  return expand(paths.length ? paths : [artifactDir]);
+}
+
 function expand(paths) {
   const files = [];
   for (const entry of paths) {
@@ -76,7 +83,7 @@ function expand(paths) {
  * move), so a date rollover must never masquerade as model instability.
  */
 export function loadRuns(paths) {
-  const files = expand(paths.length ? paths : [artifactDir]);
+  const files = expandPaths(paths);
   const runs = [];
   const docs = [];
   const skipped = [];

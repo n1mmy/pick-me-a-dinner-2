@@ -26,7 +26,8 @@
  *                  a sentence. Length and terminal punctuation are a proxy.
  *
  * Ranking *quality* is not scored: there is no ground truth for "what should we
- * eat tonight", so that stays a human read of `summary.md` + the `.log` files.
+ * eat tonight", so that stays a human read of `summary.md` and the rationales
+ * in the run files themselves.
  *
  * Two rules hold every pooled number here honest, and both matter more as runs
  * accumulate across dates:

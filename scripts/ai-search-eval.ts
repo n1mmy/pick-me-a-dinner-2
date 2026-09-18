@@ -39,7 +39,10 @@
  * programmatic before/after comparison. Each cell prints and is written to
  * that file as soon as it lands — a sweep is readable while it runs, and a
  * crash keeps the cells already paid for. A partial file carries
- * `inProgress: true`.
+ * `inProgress: true`. Several sweeps' files collapse into one per snapshot and
+ * query with `scripts/model-comparison/merge-runs.mjs`, which is how the
+ * comparison artifacts stay at one file per question rather than one per
+ * sweep; `scripts/model-comparison/analyze.mjs` reads either shape.
  *
  * `--compare` takes the same positional query a plain run does (empty when
  * omitted), and `--cells=<substring>[,<substring>...]` narrows the matrix to
