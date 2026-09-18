@@ -1,0 +1,55 @@
+{
+  "today": "2026-09-17 (Thursday)",
+  "query": "something light",
+  "mode": "serial",
+  "reps": 1,
+  "catalog": 35,
+  "logEntries": 175,
+  "inProgress": false,
+  "runs": [
+    {
+      "rep": 1,
+      "label": "opus-5 · effort medium",
+      "model": "claude-opus-5",
+      "thinking": {
+        "type": "effort",
+        "effort": "medium"
+      },
+      "latencyMs": 12905,
+      "outputTokens": 925,
+      "ok": true,
+      "ranking": [
+        {
+          "rank": 1,
+          "name": "Little Vietnamese Bistro",
+          "reason": "Light Vietnamese with rice and pho, and it has slipped out of the rotation since the start of the month"
+        },
+        {
+          "rank": 2,
+          "name": "Chicken and Rice",
+          "reason": "Sous vide chicken with frozen veggies is the lightest home meal, and it has quietly dropped out of rotation"
+        },
+        {
+          "rank": 3,
+          "name": "Roma Deli",
+          "reason": "Sandwiches are a rare but real light option, gone from the rotation for months"
+        },
+        {
+          "rank": 4,
+          "name": "Mollie Stone's",
+          "reason": "Simple grocery chicken-and-veg plate, light and not seen in weeks"
+        },
+        {
+          "rank": 5,
+          "name": "Tomato Salad",
+          "reason": "Lightest thing on the list, though it was just on the table Sunday"
+        },
+        {
+          "rank": 6,
+          "name": "Lotus Falafel",
+          "reason": "Light falafel plate, but mediterranean came round recently with Mazra"
+        }
+      ]
+    }
+  ]
+}

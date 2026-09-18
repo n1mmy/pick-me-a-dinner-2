@@ -1,0 +1,25 @@
+today: 2026-09-17 (Thursday)
+query: "something light"
+catalog: 35 Options   log: 175 dinners
+mode: serial   reps: 1
+
+→ opus-5 · effort medium …
+
+=== opus-5 · effort medium  —  12.9s  —  6 results —  1/1 ===
+ 1. Little Vietnamese Bistro
+    Light Vietnamese with rice and pho, and it has slipped out of the rotation since the start of the month
+ 2. Chicken and Rice
+    Sous vide chicken with frozen veggies is the lightest home meal, and it has quietly dropped out of rotation
+ 3. Roma Deli
+    Sandwiches are a rare but real light option, gone from the rotation for months
+ 4. Mollie Stone's
+    Simple grocery chicken-and-veg plate, light and not seen in weeks
+ 5. Tomato Salad
+    Lightest thing on the list, though it was just on the table Sunday
+ 6. Lotus Falafel
+    Light falafel plate, but mediterranean came round recently with Mazra
+
+--- latency summary ---
+opus-5 · effort medium     12.9s   1/1 ok   out   925 tok
+
+full rankings recorded → scripts/model-comparison/opus-medium-narrowing.json

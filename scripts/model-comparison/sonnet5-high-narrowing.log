@@ -1,0 +1,34 @@
+today: 2026-09-17 (Thursday)
+query: "something light"
+catalog: 35 Options   log: 175 dinners
+mode: serial   reps: 1
+
+
+=== sonnet-5 · effort high  —  59.5s  —  11 results ===
+ 1. Roosters Peruvian
+    Peruvian ceviche is light and has drifted out of rotation for weeks despite being a favorite when accessible.
+ 2. Aji Ichi Japanese Restaurant
+    Sushi due for a return since Ninja has taken over as the default pick lately.
+ 3. Little Vietnamese Bistro
+    Light Vietnamese option that has quietly slipped out of the regular rotation.
+ 4. Sofra Grill
+    A light Mediterranean spot that has never made it into rotation, worth trying.
+ 5. Mazra
+    had this a few days ago
+ 6. Lotus Falafel
+    overshadowed by frequent Mazra visits
+ 7. Tomato Salad
+    eaten just days ago
+ 8. Local Kitchens
+    salmon plate, but very recent
+ 9. Limon
+    distance keeps this rare, long overdue
+10. Ninja Sushi
+    
+11. Hungryroot
+    
+
+--- latency summary ---
+sonnet-5 · effort high     59.5s   1/1 ok   out  5624 tok
+
+full rankings recorded → scripts/model-comparison/sonnet5-high-narrowing.json

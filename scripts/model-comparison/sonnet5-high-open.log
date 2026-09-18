@@ -1,0 +1,82 @@
+today: 2026-09-17 (Thursday)
+query: (empty)
+catalog: 35 Options   log: 175 dinners
+mode: serial   reps: 1
+
+
+=== sonnet-5 · effort high  —  217.3s  —  35 results ===
+ 1. Minari Korean
+    Korean has quietly dropped out of rotation for months, making it clearly overdue
+ 2. Mollie Stone's
+    follows a roughly monthly rhythm, and that stretch has now passed
+ 3. West Coast Cafe
+    Italian has drifted out of rotation for months, well past its usual pace
+ 4. Big Mouth Burgers
+    the usual burger rhythm calls for a return, and that gap has now passed
+ 5. Roosters Peruvian
+    a rare treat kept alive every few weeks, and enough time has passed for another trip
+ 6. Thai Nakorn
+    the usual swim-day pick, and enough time has passed since last order to bring it back
+ 7. Little Vietnamese Bistro
+    recently returned after being rare for months
+ 8. Sofra Grill
+    never tried, no history to gauge
+ 9. bb.q Chicken San Bruno
+    never tried, no track record
+10. K-Grill & Tofu House
+    fried-rice quota already used this week
+11. Lotus Falafel
+    mediterranean slot filled by Mazra already
+12. Leftovers
+    no recent surplus noted
+13. Cocina Milonga
+    only for Jen's empanada runs
+14. Roma Deli
+    usually a swim-day pick
+15. Limon
+    too far for a weeknight
+16. Jack's
+    rarely used, no clear pattern
+17. Chili's
+    american slot filled recently
+18. BJ's
+    never actually chosen
+19. Atlas Pizza and Indian
+    sonia's interest has faded
+20. Quesadilla
+    only when ingredients are prepped
+21. Spiral Japanese
+    reserved for Sunday sushi backup
+22. Aji Ichi Japanese Restaurant
+    sushi slot already covered by Ninja
+23. Taqueria Durango
+    swim-day pick, off-cycle tonight
+24. Mazra
+    just had it recently
+25. Chicken and Rice
+    usually passed as too plain
+26. Frozen food
+    had earlier this week
+27. Pasta
+    had earlier this week
+28. Boiling Beijing
+    fried-rice quota already met this week
+29. Local Kitchens
+    just had it recently
+30. Tomato Salad
+    had earlier this week
+31. Tadu
+    
+32. Hungryroot
+    
+33. Societea Tea House & Eatery
+    
+34. Ninja Sushi
+    
+35. Quiche
+    
+
+--- latency summary ---
+sonnet-5 · effort high    217.3s   1/1 ok   out 25297 tok
+
+full rankings recorded → scripts/model-comparison/sonnet5-high-open.json

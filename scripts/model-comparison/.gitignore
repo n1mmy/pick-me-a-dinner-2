@@ -1,0 +1,5 @@
+# The full model request, snapshot JSON included — the household's entire
+# Catalog and Log in one file, and regenerable any time with
+# `npx tsx scripts/model-comparison/show-prompt.mjs`. The static half is
+# committed as `system-prompt.txt`, which is the part worth diffing.
+prompt-dump.txt

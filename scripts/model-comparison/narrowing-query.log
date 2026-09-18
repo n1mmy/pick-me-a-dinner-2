@@ -1,0 +1,63 @@
+today: 2026-09-17 (Thursday)
+query: "something light"
+catalog: 35 Options   log: 175 dinners
+mode: serial   reps: 1
+
+
+=== opus-5 · effort low  —  7.6s  —  6 results ===
+ 1. Little Vietnamese Bistro
+    Light vietnamese and has quietly dropped out of the rotation
+ 2. Roma Deli
+    Sandwiches are light and rare, but real — long overdue
+ 3. Chicken and Rice
+    Simple sous vide chicken with veggies, about as light as home gets
+ 4. Mollie Stone's
+    Grocery plate — light and flexible, hasn't come up in a while
+ 5. Tomato Salad
+    Light, but just had it
+ 6. Aji Ichi Japanese Restaurant
+    Sushi is light, but already had it twice this week
+
+=== opus-5 · effort high  —  20.9s  —  9 results ===
+ 1. Little Vietnamese Bistro
+    Light rice and broth, and it has slipped out of the rotation since the start of the month
+ 2. Roma Deli
+    Sandwiches are the lightest thing on the list and this one has fully dropped out of rotation
+ 3. Chicken and Rice
+    Simple sous vide chicken with veggies — about as light as a home night gets, and long unused
+ 4. Tomato Salad
+    Light home salad, though it just came up on the weekend
+ 5. Mazra
+    Grilled chicken and rice is on the lighter side, but mediterranean rarely repeats this soon
+ 6. Aji Ichi Japanese Restaurant
+    Sushi is light, but there has already been sushi twice this past week
+ 7. Hungryroot
+    light, but flagged as not in the house this week
+ 8. Leftovers
+    depends on leftovers being around
+ 9. Ninja Sushi
+    just had it
+
+=== sonnet-5 · effort low  —  13.8s  —  6 results ===
+ 1. Tomato Salad
+    Light, simple dish that has quietly dropped out of rotation since mid-September.
+ 2. Hungryroot
+    Light, veggie-forward meals; overdue after skipping several weeks in a row.
+ 3. Chicken and Rice
+    Simple, light home-cooked meal that hasn't appeared in over a month.
+ 4. Roma Deli
+    Light sandwich option that's rare but real, overdue after a long gap.
+ 5. Spiral Japanese
+    Light sushi option, but had sushi just two nights ago.
+ 6. Limon
+    Ceviche is light, though distance has kept it out of rotation.
+
+=== sonnet-5 · effort high  —  90.0s  —  UNAVAILABLE ===
+
+--- latency summary ---
+opus-5 · effort low         7.6s   1/1 ok   out   461 tok
+opus-5 · effort high       20.9s   1/1 ok   out  1357 tok
+sonnet-5 · effort low      13.8s   1/1 ok   out  1089 tok
+sonnet-5 · effort high     90.0s   0/1 ok
+
+full rankings recorded → scripts/model-comparison/narrowing-query.json

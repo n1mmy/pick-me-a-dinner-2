@@ -1,0 +1,379 @@
+{
+  "today": "2026-09-17 (Thursday)",
+  "query": "(empty)",
+  "mode": "serial",
+  "reps": 2,
+  "catalog": 35,
+  "logEntries": 175,
+  "inProgress": true,
+  "runs": [
+    {
+      "rep": 1,
+      "label": "opus-5 · effort low",
+      "model": "claude-opus-5",
+      "thinking": {
+        "type": "effort",
+        "effort": "low"
+      },
+      "latencyMs": 20848,
+      "outputTokens": 1556,
+      "ok": true,
+      "ranking": [
+        {
+          "rank": 1,
+          "name": "Taqueria Durango",
+          "reason": "Mexican has dropped to a couple-week cadence and the rotation is due for it again"
+        },
+        {
+          "rank": 2,
+          "name": "Little Vietnamese Bistro",
+          "reason": "Vietnamese comes around every few weeks and hasn't turned up in a while"
+        },
+        {
+          "rank": 3,
+          "name": "Minari Korean",
+          "reason": "Korean has quietly dropped out of the rotation since early summer"
+        },
+        {
+          "rank": 4,
+          "name": "K-Grill & Tofu House",
+          "reason": "the other Korean option, long out of rotation and never repeated recently"
+        },
+        {
+          "rank": 5,
+          "name": "Boiling Beijing",
+          "reason": "Chinese has been gone for months, though Helen just had fried rice"
+        },
+        {
+          "rank": 6,
+          "name": "Mollie Stone's",
+          "reason": "grocery-counter dinner hasn't come up in weeks"
+        },
+        {
+          "rank": 7,
+          "name": "Chicken and Rice",
+          "reason": "simple home sous-vide option, unused for over a month"
+        },
+        {
+          "rank": 8,
+          "name": "Roma Deli",
+          "reason": "sandwiches are rare but real, and long overdue"
+        },
+        {
+          "rank": 9,
+          "name": "West Coast Cafe",
+          "reason": "Italian long absent, though pasta came up at home this week"
+        },
+        {
+          "rank": 10,
+          "name": "bb.q Chicken San Bruno",
+          "reason": "never appears in the log — untested"
+        },
+        {
+          "rank": 11,
+          "name": "Sofra Grill",
+          "reason": "never appears in the log — untested"
+        },
+        {
+          "rank": 12,
+          "name": "Limon",
+          "reason": "Peruvian long gone, but distance keeps it rare"
+        },
+        {
+          "rank": 13,
+          "name": "Roosters Peruvian",
+          "reason": "far away and last try was mediocre"
+        },
+        {
+          "rank": 14,
+          "name": "Tadu",
+          "reason": "disappointing last time and very limited hours"
+        },
+        {
+          "rank": 15,
+          "name": "Local Kitchens",
+          "reason": "the standing Monday pick, not a Thursday one"
+        },
+        {
+          "rank": 16,
+          "name": "Quesadilla",
+          "reason": "only when Jen has the ingredients set"
+        },
+        {
+          "rank": 17,
+          "name": "Cocina Milonga",
+          "reason": "only when Jen restocks empanadas"
+        },
+        {
+          "rank": 18,
+          "name": "Atlas Pizza and Indian",
+          "reason": "household wants to slow down on Atlas"
+        },
+        {
+          "rank": 19,
+          "name": "Lotus Falafel",
+          "reason": "mediterranean already covered recently"
+        },
+        {
+          "rank": 20,
+          "name": "Jack's",
+          "reason": "rarely in rotation"
+        },
+        {
+          "rank": 21,
+          "name": "Chili's",
+          "reason": "American just had midweek"
+        },
+        {
+          "rank": 22,
+          "name": "BJ's",
+          "reason": "American just had midweek"
+        },
+        {
+          "rank": 23,
+          "name": "Hungryroot",
+          "reason": "not in the house this week"
+        },
+        {
+          "rank": 24,
+          "name": "Leftovers",
+          "reason": "no leftovers likely"
+        },
+        {
+          "rank": 25,
+          "name": "Frozen food",
+          "reason": "just had"
+        },
+        {
+          "rank": 26,
+          "name": "Pasta",
+          "reason": "just had"
+        },
+        {
+          "rank": 27,
+          "name": "Tomato Salad",
+          "reason": "just had"
+        },
+        {
+          "rank": 28,
+          "name": "Aji Ichi Japanese Restaurant",
+          "reason": "sushi just had"
+        },
+        {
+          "rank": 29,
+          "name": "Ninja Sushi",
+          "reason": ""
+        },
+        {
+          "rank": 30,
+          "name": "Spiral Japanese",
+          "reason": ""
+        },
+        {
+          "rank": 31,
+          "name": "Mazra",
+          "reason": ""
+        },
+        {
+          "rank": 32,
+          "name": "Societea Tea House & Eatery",
+          "reason": ""
+        },
+        {
+          "rank": 33,
+          "name": "Quiche",
+          "reason": ""
+        }
+      ]
+    },
+    {
+      "rep": 1,
+      "label": "opus-5 · effort medium",
+      "model": "claude-opus-5",
+      "thinking": {
+        "type": "effort",
+        "effort": "medium"
+      },
+      "latencyMs": 45896,
+      "outputTokens": 3670,
+      "ok": true,
+      "ranking": [
+        {
+          "rank": 1,
+          "name": "Taqueria Durango",
+          "reason": "Mexican is due again at its steady two-week cadence, and nothing similar has come up since early this month."
+        },
+        {
+          "rank": 2,
+          "name": "Minari Korean",
+          "reason": "Korean has quietly dropped out of the rotation since June, and this one avoids a fried-rice repeat."
+        },
+        {
+          "rank": 3,
+          "name": "Little Vietnamese Bistro",
+          "reason": "Vietnamese runs on a roughly monthly cycle and is coming due again."
+        },
+        {
+          "rank": 4,
+          "name": "West Coast Cafe",
+          "reason": "Italian has dropped out of rotation entirely since late spring."
+        },
+        {
+          "rank": 5,
+          "name": "K-Grill & Tofu House",
+          "reason": "Korean has gone missing for months, though Helen just had fried rice."
+        },
+        {
+          "rank": 6,
+          "name": "Mollie Stone's",
+          "reason": "A steady filler that has quietly fallen out of the rotation."
+        },
+        {
+          "rank": 7,
+          "name": "Roma Deli",
+          "reason": "Sandwiches are rare but real, and long absent."
+        },
+        {
+          "rank": 8,
+          "name": "Atlas Pizza and Indian",
+          "reason": "Still in rotation but deliberately being slowed down since Sonia cooled on the pizza."
+        },
+        {
+          "rank": 9,
+          "name": "Aji Ichi Japanese Restaurant",
+          "reason": "sushi last night"
+        },
+        {
+          "rank": 10,
+          "name": "Boiling Beijing",
+          "reason": "fried rice already this week"
+        },
+        {
+          "rank": 11,
+          "name": "Lotus Falafel",
+          "reason": "Mediterranean just had"
+        },
+        {
+          "rank": 12,
+          "name": "Sofra Grill",
+          "reason": "never in rotation"
+        },
+        {
+          "rank": 13,
+          "name": "Chicken and Rice",
+          "reason": "home-cooked, but plainer than usual"
+        },
+        {
+          "rank": 14,
+          "name": "Leftovers",
+          "reason": "little left after takeout"
+        },
+        {
+          "rank": 15,
+          "name": "Roosters Peruvian",
+          "reason": "far away"
+        },
+        {
+          "rank": 16,
+          "name": "Limon",
+          "reason": "far away"
+        },
+        {
+          "rank": 17,
+          "name": "bb.q Chicken San Bruno",
+          "reason": "untried"
+        },
+        {
+          "rank": 18,
+          "name": "Jack's",
+          "reason": "one-off in spring"
+        },
+        {
+          "rank": 19,
+          "name": "BJ's",
+          "reason": "american recently"
+        },
+        {
+          "rank": 20,
+          "name": "Chili's",
+          "reason": "american recently"
+        },
+        {
+          "rank": 21,
+          "name": "Local Kitchens",
+          "reason": "the Monday standby, just had"
+        },
+        {
+          "rank": 22,
+          "name": "Thai Nakorn",
+          "reason": "the Tuesday swim pick"
+        },
+        {
+          "rank": 23,
+          "name": "Hungryroot",
+          "reason": "not in the house this week"
+        },
+        {
+          "rank": 24,
+          "name": "Quesadilla",
+          "reason": "needs ingredients Jen sets aside"
+        },
+        {
+          "rank": 25,
+          "name": "Cocina Milonga",
+          "reason": "only when Jen restocks empanadas"
+        },
+        {
+          "rank": 26,
+          "name": "Tadu",
+          "reason": "closed tonight, and disappointing last time"
+        },
+        {
+          "rank": 27,
+          "name": "Spiral Japanese",
+          "reason": "reserved for Sundays"
+        },
+        {
+          "rank": 28,
+          "name": "Mazra",
+          "reason": "just had it"
+        },
+        {
+          "rank": 29,
+          "name": "Big Mouth Burgers",
+          "reason": ""
+        },
+        {
+          "rank": 30,
+          "name": "Societea Tea House & Eatery",
+          "reason": ""
+        },
+        {
+          "rank": 31,
+          "name": "Ninja Sushi",
+          "reason": ""
+        },
+        {
+          "rank": 32,
+          "name": "Pasta",
+          "reason": ""
+        },
+        {
+          "rank": 33,
+          "name": "Frozen food",
+          "reason": ""
+        },
+        {
+          "rank": 34,
+          "name": "Tomato Salad",
+          "reason": ""
+        },
+        {
+          "rank": 35,
+          "name": "Quiche",
+          "reason": ""
+        }
+      ]
+    }
+  ]
+}
