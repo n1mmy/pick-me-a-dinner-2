@@ -1,6 +1,6 @@
 # 02 — Recording Closed days on the Restaurant form
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
