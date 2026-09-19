@@ -15,28 +15,28 @@ adherence counts only — ranking quality is a human read (see `README.md`).
 | cell | source | rep | ok | latency | out tok | rows | empty reasons | date refs | name opens | mean chars | ends with `.` |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | opus-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 1 | yes | 77.9s | 6393 | 35 | 6 | 0 | 0 | 34 | 9 |
-| opus-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 2 | yes | 83.8s | 6605 | 35 | 3 | 5 | 0 | 33 | 4 |
-| opus-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 69.6s | 6060 | 35 | 8 | 4 | 0 | 34 | 3 |
+| opus-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 2 | yes | 83.8s | 6605 | 35 | 3 | 8 | 0 | 33 | 4 |
+| opus-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 69.6s | 6060 | 35 | 8 | 7 | 0 | 34 | 3 |
 | opus-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 4 | yes | 84.1s | 6882 | 35 | 3 | 3 | 0 | 38 | 0 |
-| opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 1 | yes | 21.9s | 1435 | 34 | 10 | 8 | 1 | 43 | 0 |
-| opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 2 | yes | 21.7s | 1396 | 34 | 7 | 3 | 1 | 39 | 0 |
+| opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 1 | yes | 21.9s | 1435 | 34 | 10 | 11 | 1 | 43 | 0 |
+| opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 2 | yes | 21.7s | 1396 | 34 | 7 | 5 | 1 | 39 | 0 |
 | opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 22.0s | 1485 | 35 | 13 | 5 | 0 | 43 | 0 |
-| opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 4 | yes | 20.7s | 1459 | 35 | 3 | 5 | 1 | 30 | 0 |
-| opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 5 | yes | 20.8s | 1556 | 33 | 5 | 5 | 0 | 39 | 0 |
-| opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 1 | yes | 51.7s | 3955 | 35 | 7 | 3 | 0 | 43 | 0 |
+| opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 4 | yes | 20.7s | 1459 | 35 | 3 | 6 | 1 | 30 | 0 |
+| opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 5 | yes | 20.8s | 1556 | 33 | 5 | 8 | 0 | 39 | 0 |
+| opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 1 | yes | 51.7s | 3955 | 35 | 7 | 5 | 0 | 43 | 0 |
 | opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 2 | yes | 41.7s | 3170 | 34 | 7 | 4 | 1 | 36 | 0 |
-| opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 45.9s | 3670 | 35 | 7 | 6 | 0 | 37 | 8 |
-| opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 4 | yes | 41.3s | 3116 | 34 | 12 | 4 | 0 | 44 | 0 |
-| opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 5 | yes | 42.1s | 3402 | 35 | 10 | 5 | 0 | 51 | 25 |
+| opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 45.9s | 3670 | 35 | 7 | 8 | 0 | 37 | 8 |
+| opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 4 | yes | 41.3s | 3116 | 34 | 12 | 5 | 0 | 44 | 0 |
+| opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 5 | yes | 42.1s | 3402 | 35 | 10 | 7 | 0 | 51 | 25 |
 | sonnet-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 1 | **NO** | 90.0s | — | 0 | 0 | 0 | 0 | 0 | 0 |
 | sonnet-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 2 | **NO** | 90.0s | — | 0 | 0 | 0 | 0 | 0 | 0 |
 | sonnet-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 217.3s | 25297 | 35 | 5 | 8 | 0 | 38 | 0 |
-| sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 1 | yes | 53.0s | 4970 | 33 | 4 | 13 | 0 | 50 | 28 |
-| sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 2 | yes | 49.8s | 4840 | 35 | 10 | 1 | 0 | 50 | 0 |
+| sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 1 | yes | 53.0s | 4970 | 33 | 4 | 14 | 0 | 50 | 28 |
+| sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 2 | yes | 49.8s | 4840 | 35 | 10 | 2 | 0 | 50 | 0 |
 | sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 41.7s | 3768 | 35 | 12 | 8 | 0 | 44 | 0 |
-| sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 4 | yes | 36.8s | 3307 | 35 | 3 | 4 | 0 | 47 | 20 |
-| sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 5 | yes | 27.8s | 2341 | 34 | 13 | 1 | 0 | 46 | 0 |
-| sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 6 | yes | 34.7s | 3028 | 35 | 13 | 7 | 0 | 50 | 0 |
+| sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 4 | yes | 36.8s | 3307 | 35 | 3 | 7 | 0 | 47 | 20 |
+| sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 5 | yes | 27.8s | 2341 | 34 | 13 | 2 | 0 | 46 | 0 |
+| sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 6 | yes | 34.7s | 3028 | 35 | 13 | 8 | 0 | 50 | 0 |
 
 ### Top 5
 
@@ -128,48 +128,58 @@ any ranking difference between them is not yet evidence of anything.
 
 ### Reason quality
 
-| cell | rep | pattern vocab | compound | len gradient | repeated | empty at rank | cuisine conflicts |
-|---|---|---|---|---|---|---|---|
-| opus-5 · effort high | 1 | 41% | 17% | -0.89 | 3 | 0.93 | 0 |
-| opus-5 · effort high | 2 | 31% | 9% | -0.80 | 2 | 0.97 | 0 |
-| opus-5 · effort high | 3 | 37% | 15% | -0.80 | 1 | 0.90 | 0 |
-| opus-5 · effort high | 4 | 22% | 25% | -0.89 | 4 | 0.97 | 0 |
-| opus-5 · effort low | 1 | 17% | 33% | -0.88 | 2 | 0.86 | 0 |
-| opus-5 · effort low | 2 | 33% | 22% | -0.88 | 1 | 0.87 | 0 |
-| opus-5 · effort low | 3 | 36% | 27% | -0.92 | 4 | 0.83 | 0 |
-| opus-5 · effort low | 4 | 34% | 13% | -0.76 | 8 | 0.97 | 0 |
-| opus-5 · effort low | 5 | 25% | 39% | -0.96 | 4 | 0.94 | 0 |
-| opus-5 · effort medium | 1 | 46% | 32% | -0.87 | 2 | 0.91 | 0 |
-| opus-5 · effort medium | 2 | 37% | 37% | -0.78 | 0 | 0.91 | 0 |
-| opus-5 · effort medium | 3 | 32% | 29% | -0.78 | 2 | 0.91 | 0 |
-| opus-5 · effort medium | 4 | 32% | 32% | -0.80 | 0 | 0.77 | 0 |
-| opus-5 · effort medium | 5 | 24% | 52% | -0.88 | 1 | 0.87 | 0 |
-| sonnet-5 · effort high | 3 | 50% | 13% | -0.83 | 3 | 0.94 | 0 |
-| sonnet-5 · effort low | 1 | 55% | 14% | -0.69 | 3 | 0.86 | 1 |
-| sonnet-5 · effort low | 2 | 68% | 8% | -0.47 | 3 | 0.71 | 0 |
-| sonnet-5 · effort low | 3 | 57% | 4% | -0.70 | 3 | 0.67 | 1 |
-| sonnet-5 · effort low | 4 | 69% | 13% | -0.63 | 4 | 0.49 | 0 |
-| sonnet-5 · effort low | 5 | 62% | 5% | -0.40 | 1 | 0.60 | 0 |
-| sonnet-5 · effort low | 6 | 59% | 5% | -0.87 | 0 | 0.81 | 0 |
+| cell | rep | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | cuisine conflicts |
+|---|---|---|---|---|---|---|---|---|---|
+| opus-5 · effort high | 1 | 31% | 7 | 72% | 17% | -0.89 | 3 | 0.93 | 0 |
+| opus-5 · effort high | 2 | 16% | 7 | 72% | 9% | -0.80 | 2 | 0.97 | 0 |
+| opus-5 · effort high | 3 | 30% | 5 | 85% | 15% | -0.80 | 1 | 0.90 | 0 |
+| opus-5 · effort high | 4 | 25% | 7 | 69% | 25% | -0.89 | 4 | 0.97 | 0 |
+| opus-5 · effort low | 1 | 4% | 8 | 88% | 33% | -0.88 | 2 | 0.86 | 0 |
+| opus-5 · effort low | 2 | 15% | 8 | 81% | 22% | -0.88 | 1 | 0.87 | 0 |
+| opus-5 · effort low | 3 | 18% | 9 | 77% | 27% | -0.92 | 4 | 0.83 | 0 |
+| opus-5 · effort low | 4 | 16% | 7 | 66% | 13% | -0.76 | 8 | 0.97 | 0 |
+| opus-5 · effort low | 5 | 11% | 6 | 79% | 39% | -0.96 | 4 | 0.94 | 0 |
+| opus-5 · effort medium | 1 | 29% | 10 | 75% | 32% | -0.87 | 2 | 0.91 | 0 |
+| opus-5 · effort medium | 2 | 19% | 8 | 93% | 37% | -0.78 | 0 | 0.91 | 0 |
+| opus-5 · effort medium | 3 | 18% | 8 | 86% | 29% | -0.78 | 2 | 0.91 | 0 |
+| opus-5 · effort medium | 4 | 18% | 4 | 82% | 32% | -0.80 | 0 | 0.77 | 0 |
+| opus-5 · effort medium | 5 | 12% | 6 | 88% | 52% | -0.88 | 1 | 0.87 | 0 |
+| sonnet-5 · effort high | 3 | 30% | 5 | 70% | 13% | -0.83 | 3 | 0.94 | 0 |
+| sonnet-5 · effort low | 1 | 31% | 11 | 72% | 14% | -0.69 | 3 | 0.86 | 1 |
+| sonnet-5 · effort low | 2 | 24% | 13 | 72% | 8% | -0.47 | 3 | 0.71 | 0 |
+| sonnet-5 · effort low | 3 | 22% | 11 | 70% | 4% | -0.70 | 3 | 0.67 | 1 |
+| sonnet-5 · effort low | 4 | 28% | 14 | 56% | 13% | -0.63 | 4 | 0.49 | 0 |
+| sonnet-5 · effort low | 5 | 33% | 10 | 71% | 5% | -0.40 | 1 | 0.60 | 0 |
+| sonnet-5 · effort low | 6 | 27% | 12 | 77% | 5% | -0.87 | 0 | 0.81 | 0 |
 
 #### Reason quality — per-cell means
 
-| cell | reps | pattern vocab | compound | len gradient | repeated | empty at rank | conflicts |
-|---|---|---|---|---|---|---|---|
-| opus-5 · effort high | 4 | 33% | 17% | -0.84 | 2.5 | 0.94 | 0 |
-| opus-5 · effort low | 5 | 29% | 27% | -0.88 | 3.8 | 0.89 | 0 |
-| opus-5 · effort medium | 5 | 34% | 36% | -0.82 | 1.0 | 0.88 | 0 |
-| sonnet-5 · effort high | 1 | 50% | 13% | -0.83 | 3.0 | 0.94 | 0 |
-| sonnet-5 · effort low | 6 | 62% | 8% | -0.63 | 2.3 | 0.69 | 2 |
+| cell | reps | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | conflicts |
+|---|---|---|---|---|---|---|---|---|---|
+| opus-5 · effort high | 4 | 25% | 6.5 | 75% | 17% | -0.84 | 2.5 | 0.94 | 0 |
+| opus-5 · effort low | 5 | 13% | 7.6 | 78% | 27% | -0.88 | 3.8 | 0.89 | 0 |
+| opus-5 · effort medium | 5 | 19% | 7.2 | 85% | 36% | -0.82 | 1.0 | 0.88 | 0 |
+| sonnet-5 · effort high | 1 | 30% | 5.0 | 70% | 13% | -0.83 | 3.0 | 0.94 | 0 |
+| sonnet-5 · effort low | 6 | 28% | 11.8 | 70% | 8% | -0.63 | 2.3 | 0.69 | 2 |
 
-`pattern vocab` = share of non-empty reasons reaching for habit language
-(cadence / rotation / weekday / overdue). `compound` = share joining two
-clauses, which the prompt forbids. `len gradient` = correlation of reason
-length with rank; negative means reasons shrink down the list as `pithy`
-mode asks. `repeated` = non-empty reasons that are verbatim duplicates of
-another. `empty at rank` = mean depth of the empty reasons (1.0 = all at
-the bottom). `cuisine conflicts` = rows whose reason names a cuisine the
-Option's own name contradicts.
+`rhythm` = share of non-empty reasons naming the SHAPE of a habit —
+an interval, a weekday, a sequence. Higher is better: it is the timing
+fact the Recency chip cannot show. `vague tic` = COUNT (not share) of
+reasons using the departure-from-rotation family (rotation / overdue /
+drifted); the prompt caps it at one per response, so 0-1 is compliant
+and more is a rule break. `opens` = share of distinct opening words —
+low means the lines have settled into one construction. `compound` =
+share joining two clauses; informational only, since a second clause is
+allowed when it adds a different kind of fact. `len gradient` =
+correlation of reason length with rank; negative means reasons shrink
+down the list as `pithy` mode asks. `repeated` = non-empty reasons that
+are verbatim duplicates of another. `empty at rank` = mean depth of the
+empty reasons (1.0 = all at the bottom). `cuisine conflicts` = rows whose
+reason names a cuisine the Option's own name contradicts.
+
+None of these carry a target. They are reported so a prompt change can be
+compared against the run before it; optimising them directly would buy
+thesaurus variety rather than better reasons.
 
 Cuisine check coverage: 42% of rows (238/565) have exactly one recognised cuisine in the Option name and could be checked at all. Extend `CUISINES` in `analyze.mjs` when the Catalog grows.
 
@@ -178,81 +188,83 @@ Cuisine check coverage: 42% of rows (238/565) have exactly one recognised cuisin
 - sonnet-5 · effort low (scripts/model-comparison/2026-09-17-open.json, rep 1) #1 Aji Ichi Japanese Restaurant [japanese] → "Mediterranean slot is due since Mazra just filled that recently, varying the rotation." [mediterranean]
 - sonnet-5 · effort low (scripts/model-comparison/2026-09-17-open.json, rep 3) #1 Aji Ichi Japanese Restaurant [japanese] → "overdue after a weekly cadence, the standing pick when Mediterranean rotation comes due" [mediterranean]
 
-### Date / day-count rule breaks (examples)
+### Elapsed-time rule breaks (examples)
 
-- **opus-5 · effort high** (rep 2), 5 hits:
+- **opus-5 · effort high** (rep 2), 8 hits:
   - Minari Korean: "Korean has quietly dropped out of the rotation since early summer."
   - West Coast Cafe: "Italian has gone missing for months, and Thursday was always its slot."
-  - Little Vietnamese Bistro: "roughly monthly, had it earlier this month"
-- **opus-5 · effort high** (rep 3), 4 hits:
+  - K-Grill & Tofu House: "korean off the board since spring"
+- **opus-5 · effort high** (rep 3), 7 hits:
   - Minari Korean: "Korean has quietly disappeared from the rotation for months."
   - Mollie Stone's: "a grocery dinner hasn't come up in over a month"
-  - Chili's: "drifted out since July"
+  - Chicken and Rice: "home standby unused for weeks"
 - **opus-5 · effort high** (rep 4), 3 hits:
   - Minari Korean: "korean has quietly vanished since June, and Helen gets fried chicken here rather than fried rice"
   - Chili's: "american shows up rarely and this one has been off the board for months"
   - Hungryroot: "not in the house this week"
-- **opus-5 · effort low** (rep 1), 8 hits:
+- **opus-5 · effort low** (rep 1), 11 hits:
   - Minari Korean: "Korean has quietly dropped out of rotation since early summer"
-  - Roma Deli: "sandwiches are rare but real, and this one's been absent for months"
-  - Chicken and Rice: "simple home-cooked night, hasn't come up in over a month"
-- **opus-5 · effort low** (rep 2), 3 hits:
+  - Little Vietnamese Bistro: "Vietnamese comes around every few weeks and hasn't appeared in a while"
+  - K-Grill & Tofu House: "the other Korean spot, long out of rotation"
+- **opus-5 · effort low** (rep 2), 5 hits:
   - Taqueria Durango: "Mexican has dropped out of rotation since early this month and it's due again"
   - Minari Korean: "Korean has quietly dropped out of rotation entirely since June"
-  - Hungryroot: "not in the house this week"
+  - West Coast Cafe: "Italian tends to land on Thursdays, and it hasn't come up in months"
 - **opus-5 · effort low** (rep 3), 5 hits:
   - Minari Korean: "Korean has quietly dropped out of rotation since early summer"
   - Mollie Stone's: "Grocery-plate night hasn't come up in over a month"
   - Little Vietnamese Bistro: "Helen already had fried rice this week"
-- **opus-5 · effort low** (rep 4), 5 hits:
+- **opus-5 · effort low** (rep 4), 6 hits:
   - Taqueria Durango: "Mexican is overdue — it usually comes back around every two weeks and has slipped past that"
   - Minari Korean: "Korean has quietly dropped out of the rotation entirely since early summer"
   - Limon: "Peruvian has been gone for months and this one only comes up on nights you'll travel for it"
-- **opus-5 · effort low** (rep 5), 5 hits:
+- **opus-5 · effort low** (rep 5), 8 hits:
+  - Little Vietnamese Bistro: "Vietnamese comes around every few weeks and hasn't turned up in a while"
   - Minari Korean: "Korean has quietly dropped out of the rotation since early summer"
-  - Boiling Beijing: "Chinese has been gone for months, though Helen just had fried rice"
-  - Chicken and Rice: "simple home sous-vide option, unused for over a month"
-- **opus-5 · effort medium** (rep 1), 3 hits:
+  - K-Grill & Tofu House: "the other Korean option, long out of rotation and never repeated recently"
+- **opus-5 · effort medium** (rep 1), 5 hits:
+  - K-Grill & Tofu House: "korean has vanished from the rotation entirely since spring"
   - Minari Korean: "the other korean option, absent for months, though swim-night Tuesdays are its usual slot"
   - Boiling Beijing: "chinese has been gone for months; only Helen's recent fried rice argues against it"
-  - Hungryroot: "not in the house this week"
 - **opus-5 · effort medium** (rep 2), 4 hits:
   - K-Grill & Tofu House: "Long out of rotation, though Helen just had fried rice this week"
   - West Coast Cafe: "Italian gap is long, but pasta came up at home this week"
   - Hungryroot: "not stocked this week"
-- **opus-5 · effort medium** (rep 3), 6 hits:
+- **opus-5 · effort medium** (rep 3), 8 hits:
   - Taqueria Durango: "Mexican is due again at its steady two-week cadence, and nothing similar has come up since early this month."
   - Minari Korean: "Korean has quietly dropped out of the rotation since June, and this one avoids a fried-rice repeat."
   - West Coast Cafe: "Italian has dropped out of rotation entirely since late spring."
-- **opus-5 · effort medium** (rep 4), 4 hits:
+- **opus-5 · effort medium** (rep 4), 5 hits:
   - Minari Korean: "Korean has quietly dropped out of the rotation since mid-June, and the fried chicken sidesteps Helen's fried rice"
+  - Jack's: "American spot that has dropped out entirely since spring"
   - Roma Deli: "sandwiches are rare but real; none since early spring"
-  - Chili's: "american, quiet since July"
-- **opus-5 · effort medium** (rep 5), 5 hits:
+- **opus-5 · effort medium** (rep 5), 7 hits:
+  - Taqueria Durango: "Comes around every couple of weeks and is now due; mexican hasn't come up since the last visit."
   - Minari Korean: "Korean has been absent from the rotation for months, and it avoids the fried rice Helen just had."
-  - West Coast Cafe: "Italian has gone missing for months; the pasta-too-recent objection is fading."
-  - Little Vietnamese Bistro: "Helen had fried rice this week."
+  - Chicken and Rice: "Sous-vide home night that hasn't come up in weeks, and no home cooking is blocked tonight."
 - **sonnet-5 · effort high** (rep 3), 8 hits:
   - Minari Korean: "Korean has quietly dropped out of rotation for months, making it clearly overdue"
   - West Coast Cafe: "Italian has drifted out of rotation for months, well past its usual pace"
   - Little Vietnamese Bistro: "recently returned after being rare for months"
-- **sonnet-5 · effort low** (rep 1), 13 hits:
+- **sonnet-5 · effort low** (rep 1), 14 hits:
+  - Roosters Peruvian: "Overdue after a long gap in the peruvian rotation."
   - Big Mouth Burgers: "American slot hasn't come up since early September, fits the periodic cadence."
   - Cocina Milonga: "Dropped out of rotation for months, tied to an empanada restock errand."
-  - Chili's: "Has drifted out of rotation for over two months."
-- **sonnet-5 · effort low** (rep 2), 1 hits:
+- **sonnet-5 · effort low** (rep 2), 2 hits:
+  - Minari Korean: "Long drift from rotation, hasn't appeared in months"
   - Hungryroot: "Recently flagged as not stocked this week"
 - **sonnet-5 · effort low** (rep 3), 8 hits:
   - Minari Korean: "has drifted out of rotation for months"
   - K-Grill & Tofu House: "dropped from Korean rotation for months"
   - Pasta: "just had it a few days ago"
-- **sonnet-5 · effort low** (rep 4), 4 hits:
+- **sonnet-5 · effort low** (rep 4), 7 hits:
+  - Lotus Falafel: "Mediterranean alternate to Mazra, hasn't come up in a few weeks."
   - K-Grill & Tofu House: "Dropped out of rotation for months, Korean drift."
-  - Ninja Sushi: "just had it yesterday"
-  - Hungryroot: "no Hungryroot this week per standing note"
-- **sonnet-5 · effort low** (rep 5), 1 hits:
+  - West Coast Cafe: "Has quietly drifted out of rotation since spring."
+- **sonnet-5 · effort low** (rep 5), 2 hits:
+  - Cocina Milonga: "drifted out of rotation, hasn't come up in months"
   - Hungryroot: "just skipped this week per household note"
-- **sonnet-5 · effort low** (rep 6), 7 hits:
+- **sonnet-5 · effort low** (rep 6), 8 hits:
   - Taqueria Durango: "Swim-day Mexican staple, hasn't recurred in three weeks despite regular pace"
   - K-Grill & Tofu House: "Korean fried-rice option has dropped out of rotation for months"
   - Minari Korean: "Korean pick that's drifted out since late spring"
@@ -262,11 +274,11 @@ Cuisine check coverage: 42% of rows (238/565) have exactly one recognised cuisin
 | cell | source | rep | ok | latency | out tok | rows | empty reasons | date refs | name opens | mean chars | ends with `.` |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | opus-5 · effort high | `scripts/model-comparison/2026-09-17-something-light.json` | 1 | yes | 20.9s | 1357 | 9 | 0 | 2 | 0 | 64 | 0 |
-| opus-5 · effort low | `scripts/model-comparison/2026-09-17-something-light.json` | 1 | yes | 7.6s | 461 | 6 | 0 | 1 | 0 | 52 | 0 |
+| opus-5 · effort low | `scripts/model-comparison/2026-09-17-something-light.json` | 1 | yes | 7.6s | 461 | 6 | 0 | 2 | 0 | 52 | 0 |
 | opus-5 · effort medium | `scripts/model-comparison/2026-09-17-something-light.json` | 1 | yes | 12.9s | 925 | 6 | 0 | 1 | 0 | 81 | 0 |
 | sonnet-5 · effort high | `scripts/model-comparison/2026-09-17-something-light.json` | 1 | **NO** | 90.0s | — | 0 | 0 | 0 | 0 | 0 | 0 |
-| sonnet-5 · effort high | `scripts/model-comparison/2026-09-17-something-light.json` | 2 | yes | 59.5s | 5624 | 11 | 2 | 2 | 0 | 54 | 4 |
-| sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-something-light.json` | 1 | yes | 13.8s | 1089 | 6 | 0 | 4 | 0 | 68 | 6 |
+| sonnet-5 · effort high | `scripts/model-comparison/2026-09-17-something-light.json` | 2 | yes | 59.5s | 5624 | 11 | 2 | 3 | 0 | 54 | 4 |
+| sonnet-5 · effort low | `scripts/model-comparison/2026-09-17-something-light.json` | 1 | yes | 13.8s | 1089 | 6 | 0 | 5 | 0 | 68 | 6 |
 
 ### Top 5
 
@@ -333,48 +345,60 @@ any ranking difference between them is not yet evidence of anything.
 
 ### Reason quality
 
-| cell | rep | pattern vocab | compound | len gradient | repeated | empty at rank | cuisine conflicts |
-|---|---|---|---|---|---|---|---|
-| opus-5 · effort high | 1 | 33% | 78% | -0.87 | 0 | — | 0 |
-| opus-5 · effort low | 1 | 33% | 83% | -0.51 | 0 | — | 0 |
-| opus-5 · effort medium | 1 | 67% | 100% | -0.86 | 0 | — | 0 |
-| sonnet-5 · effort high | 2 | 56% | 22% | -0.90 | 0 | 0.95 | 0 |
-| sonnet-5 · effort low | 1 | 67% | 67% | -0.88 | 0 | — | 0 |
+| cell | rep | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | cuisine conflicts |
+|---|---|---|---|---|---|---|---|---|---|
+| opus-5 · effort high | 1 | 11% | 3 | 78% | 78% | -0.87 | 0 | — | 0 |
+| opus-5 · effort low | 1 | 0% | 2 | 83% | 83% | -0.51 | 0 | — | 0 |
+| opus-5 · effort medium | 1 | 17% | 3 | 83% | 100% | -0.86 | 0 | — | 0 |
+| sonnet-5 · effort high | 2 | 0% | 5 | 100% | 22% | -0.90 | 0 | 0.95 | 0 |
+| sonnet-5 · effort low | 1 | 0% | 4 | 50% | 67% | -0.88 | 0 | — | 0 |
 
 #### Reason quality — per-cell means
 
-| cell | reps | pattern vocab | compound | len gradient | repeated | empty at rank | conflicts |
-|---|---|---|---|---|---|---|---|
-| opus-5 · effort high | 1 | 33% | 78% | -0.87 | 0.0 | — | 0 |
-| opus-5 · effort low | 1 | 33% | 83% | -0.51 | 0.0 | — | 0 |
-| opus-5 · effort medium | 1 | 67% | 100% | -0.86 | 0.0 | — | 0 |
-| sonnet-5 · effort high | 1 | 56% | 22% | -0.90 | 0.0 | 0.95 | 0 |
-| sonnet-5 · effort low | 1 | 67% | 67% | -0.88 | 0.0 | — | 0 |
+| cell | reps | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | conflicts |
+|---|---|---|---|---|---|---|---|---|---|
+| opus-5 · effort high | 1 | 11% | 3.0 | 78% | 78% | -0.87 | 0.0 | — | 0 |
+| opus-5 · effort low | 1 | 0% | 2.0 | 83% | 83% | -0.51 | 0.0 | — | 0 |
+| opus-5 · effort medium | 1 | 17% | 3.0 | 83% | 100% | -0.86 | 0.0 | — | 0 |
+| sonnet-5 · effort high | 1 | 0% | 5.0 | 100% | 22% | -0.90 | 0.0 | 0.95 | 0 |
+| sonnet-5 · effort low | 1 | 0% | 4.0 | 50% | 67% | -0.88 | 0.0 | — | 0 |
 
-`pattern vocab` = share of non-empty reasons reaching for habit language
-(cadence / rotation / weekday / overdue). `compound` = share joining two
-clauses, which the prompt forbids. `len gradient` = correlation of reason
-length with rank; negative means reasons shrink down the list as `pithy`
-mode asks. `repeated` = non-empty reasons that are verbatim duplicates of
-another. `empty at rank` = mean depth of the empty reasons (1.0 = all at
-the bottom). `cuisine conflicts` = rows whose reason names a cuisine the
-Option's own name contradicts.
+`rhythm` = share of non-empty reasons naming the SHAPE of a habit —
+an interval, a weekday, a sequence. Higher is better: it is the timing
+fact the Recency chip cannot show. `vague tic` = COUNT (not share) of
+reasons using the departure-from-rotation family (rotation / overdue /
+drifted); the prompt caps it at one per response, so 0-1 is compliant
+and more is a rule break. `opens` = share of distinct opening words —
+low means the lines have settled into one construction. `compound` =
+share joining two clauses; informational only, since a second clause is
+allowed when it adds a different kind of fact. `len gradient` =
+correlation of reason length with rank; negative means reasons shrink
+down the list as `pithy` mode asks. `repeated` = non-empty reasons that
+are verbatim duplicates of another. `empty at rank` = mean depth of the
+empty reasons (1.0 = all at the bottom). `cuisine conflicts` = rows whose
+reason names a cuisine the Option's own name contradicts.
+
+None of these carry a target. They are reported so a prompt change can be
+compared against the run before it; optimising them directly would buy
+thesaurus variety rather than better reasons.
 
 Cuisine check coverage: 36% of rows (13/36) have exactly one recognised cuisine in the Option name and could be checked at all. Extend `CUISINES` in `analyze.mjs` when the Catalog grows.
 
-### Date / day-count rule breaks (examples)
+### Elapsed-time rule breaks (examples)
 
 - **opus-5 · effort high** (rep 1), 2 hits:
   - Aji Ichi Japanese Restaurant: "Sushi is light, but there has already been sushi twice this past week"
   - Hungryroot: "light, but flagged as not in the house this week"
-- **opus-5 · effort low** (rep 1), 1 hits:
+- **opus-5 · effort low** (rep 1), 2 hits:
+  - Mollie Stone's: "Grocery plate — light and flexible, hasn't come up in a while"
   - Aji Ichi Japanese Restaurant: "Sushi is light, but already had it twice this week"
 - **opus-5 · effort medium** (rep 1), 1 hits:
   - Roma Deli: "Sandwiches are a rare but real light option, gone from the rotation for months"
-- **sonnet-5 · effort high** (rep 2), 2 hits:
+- **sonnet-5 · effort high** (rep 2), 3 hits:
+  - Roosters Peruvian: "Peruvian ceviche is light and has drifted out of rotation for weeks despite being a favorite when accessible."
   - Mazra: "had this a few days ago"
   - Tomato Salad: "eaten just days ago"
-- **sonnet-5 · effort low** (rep 1), 4 hits:
+- **sonnet-5 · effort low** (rep 1), 5 hits:
   - Tomato Salad: "Light, simple dish that has quietly dropped out of rotation since mid-September."
   - Hungryroot: "Light, veggie-forward meals; overdue after skipping several weeks in a row."
   - Chicken and Rice: "Simple, light home-cooked meal that hasn't appeared in over a month."

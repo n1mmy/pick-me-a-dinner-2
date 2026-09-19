@@ -14,16 +14,30 @@
  * system prompt in `lib/ai-search.ts` states as explicit rules, so they can be
  * checked without judgment:
  *
- * - `dateRefs`   — the prompt forbids calendar dates, day counts, and
- *                  how-long-ago arithmetic in a rationale ("9 days ago",
- *                  "5/14", "since early September"). Each hit is a rule break.
+ * - `dateRefs`   — the prompt forbids stating how long it has been since the
+ *                  household last ate something, in ANY form: calendar dates
+ *                  ("5/14"), day counts ("9 days ago"), seasons ("since early
+ *                  September"), and vague duration alike ("it has been a
+ *                  while", "long out of rotation"). The Recency chip and the
+ *                  Tag chips already show elapsed time as numbers on the same
+ *                  row, so prose restating it is redundant by construction.
+ *                  Each hit is a rule break.
  * - `nameOpens`  — the prompt forbids opening a rationale with the Option's
  *                  own name, since the household reads it right beside it.
  * - `emptyReasons` — in `pithy` tail mode an obviously bad pick should get an
  *                  EMPTY reason. A cell with none has flattened the tiering
  *                  the mode asks for.
- * - `meanChars` / `endsWithPeriod` — the prompt asks for one short clause, not
- *                  a sentence. Length and terminal punctuation are a proxy.
+ * - `meanChars` / `endsWithPeriod` — the prompt asks for a short line, not a
+ *                  sentence. Length and terminal punctuation are a proxy.
+ * - `rhythmShare` / `vagueShare` — the two halves of what used to be one
+ *                  "pattern vocab" number, split because they now pull in
+ *                  opposite directions. `rhythmShare` counts rationales naming
+ *                  the SHAPE of a habit (cadence, weekday, streak, follows) —
+ *                  the thing the chips cannot show, and what the prompt now
+ *                  demands whenever the reason is a timing one. `vagueShare`
+ *                  counts the departure-from-rotation tic ("dropped out of
+ *                  rotation", "overdue", "drifted"), which the prompt caps at
+ *                  ONE use per response. Watch them move apart, not together.
  *
  * Ranking *quality* is not scored: there is no ground truth for "what should we
  * eat tonight", so that stays a human read of `summary.md` and the rationales
@@ -49,14 +63,24 @@ import {
 } from "./runs.mjs";
 
 /**
- * Calendar dates, day counts, and how-long-ago arithmetic — the phrasings the
- * prompt rules out. Kept explicit rather than clever so a hit is auditable.
+ * Elapsed time in any granularity — the phrasings the prompt rules out. Kept
+ * explicit rather than clever so a hit is auditable.
  *
- * Weekday names are deliberately NOT here: the prompt's own example of a good
- * rationale is "the standing Wednesday pick", so naming a day-of-week rhythm is
- * exactly what it asks for. Counting weekdays as breaks would penalise the
- * day-of-week pattern-finding that is the point of the feature (ADR-0005).
- * Likewise "just had it" / "overdue" are the sanctioned plain-words phrasings.
+ * The ban widened on 2026-09-19. It used to cover only *precise* elapsed time
+ * (dates, day counts) on the grounds that the household does not read raw dates
+ * well; it now covers vague duration too ("it has been a while", "a long gap",
+ * "gone quiet", "long out of rotation"). The reason is stronger than
+ * readability: `app/tonight-row.tsx` renders the Recency chip and the per-Tag
+ * chips directly above the rationale, so ANY prose restatement of how long it
+ * has been duplicates a number already on the row. Precision was never the
+ * problem — redundancy is.
+ *
+ * Weekday names are deliberately NOT here: naming a day-of-week rhythm ("the
+ * standing Thursday choice") is exactly what the prompt asks for, and counting
+ * weekdays as breaks would penalise the pattern-finding that is the point of
+ * the feature (ADR-0005). Cadence phrasings ("about every two weeks") are
+ * likewise absent — they name an interval, which the chips cannot show, rather
+ * than restating elapsed time. See `RHYTHM_VOCAB`.
  */
 const DATE_REF = new RegExp(
   [
@@ -64,14 +88,25 @@ const DATE_REF = new RegExp(
     "\\b(day|night|week|month)s? ago\\b",
     "\\bover (a|two|three) (week|month)s?\\b",
     "\\b(many|several|two|three) (week|month)s\\b",
-    "\\bfor months\\b",
+    "\\bfor (weeks|months)\\b",
     "\\bsince (early|mid|late)\\b",
     "\\b(January|February|March|April|May|June|July|August|September|October|November|December)\\b",
+    "\\b(spring|summer|autumn|fall|winter)\\b",
     "\\b\\d{1,2}/\\d{1,2}\\b",
     "\\bthis (past )?week\\b",
     "\\bthis month\\b",
     "\\ba few days\\b",
     "\\btwo nights\\b",
+    // Vague duration — added with the 2026-09-19 widening above.
+    "\\b(in|been) a while\\b",
+    "\\ba long (gap|stretch|absence)\\b",
+    "\\blong (gap|out of|absent|since)\\b",
+    "\\bgone quiet\\b",
+    "\\bquiet since\\b",
+    "\\bhas ?n[o']?t (come up|appeared|happened|been)\\b",
+    "\\babsent\\b",
+    "\\bnot in a\\b",
+    "\\bages\\b",
   ].join("|"),
   "i",
 );
@@ -88,30 +123,30 @@ function opensWithName(name, reason) {
 }
 
 /**
- * Vocabulary that names a *pattern* rather than restating recency. ADR-0005's
- * whole claim is that the AI path beats the deterministic recency sort by
- * finding habits; a rationale drawing on this vocabulary is at least reaching
- * for one. Weekday names count — "the standing Wednesday pick" is the prompt's
- * own model answer.
+ * Vocabulary naming the SHAPE of a habit — an interval, a weekday, a sequence.
+ * ADR-0005's whole claim is that the AI path beats the deterministic recency
+ * sort by finding habits, and the prompt now requires that any timing rationale
+ * take this form: the chips already show elapsed time, so the Option's own
+ * interval is the only timing fact worth prose. Weekday names count — "the
+ * standing Thursday choice" is the prompt's own model answer.
+ *
+ * This and `VAGUE_VOCAB` were one `PATTERN_VOCAB` regex until 2026-09-19. They
+ * were split because the old combined number counted "dropped out of rotation"
+ * and "overdue" as evidence of habit reasoning, which made the single most
+ * common filler phrasing score as a success. Up is good here; up is bad there.
  */
-const PATTERN_VOCAB = new RegExp(
+const RHYTHM_VOCAB = new RegExp(
   [
     "\\bcadence\\b",
     "\\brhythm\\b",
-    "\\brotation\\b",
-    "\\brotat",
     "\\b(weekly|monthly|fortnightly|biweekly)\\b",
-    "\\bevery few\\b",
+    "\\bevery (few|other|two|three)\\b",
     "\\bstreak\\b",
     "\\bstanding\\b",
-    "\\bdue\\b",
-    "\\boverdue\\b",
-    "\\bdrift",
-    "\\bdropped out\\b",
-    "\\bslipped out\\b",
-    "\\bquota\\b",
-    "\\bslot\\b",
-    "\\bpick\\b",
+    "\\busual(ly)?\\b",
+    "\\bfollows\\b",
+    "\\balways\\b",
+    "\\bcomes? round\\b",
     "\\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\\b",
     "\\bweeknight\\b",
     "\\bweekend\\b",
@@ -119,7 +154,38 @@ const PATTERN_VOCAB = new RegExp(
   "i",
 );
 
-/** Clause joiners — the prompt asks for ONE clause, "never a compound of two". */
+/**
+ * The departure-from-rotation tic — the filler the household called out as
+ * formulaic. The prompt caps the whole family at ONE use per response, so this
+ * share should be near zero and a count above one per run is a rule break.
+ * Distinct from `DATE_REF`: some of these ("overdue", "due") state no duration
+ * at all, they are just the worn way of gesturing at one.
+ */
+const VAGUE_VOCAB = new RegExp(
+  [
+    "\\brotation\\b",
+    "\\brotat",
+    "\\blineup\\b",
+    "\\bdue\\b",
+    "\\boverdue\\b",
+    "\\bdrift",
+    "\\bdropped out\\b",
+    "\\bfallen out\\b",
+    "\\bslipped out\\b",
+    "\\bseldom\\b",
+    "\\brare(ly)?\\b",
+  ].join("|"),
+  "i",
+);
+
+/**
+ * Clause joiners. Informational since 2026-09-19, NOT a violation: the prompt
+ * used to demand one clause and "never a compound of two", but every genuinely
+ * good rationale in the baseline was a compound ("long gap, though Helen had
+ * fried rice earlier this week"), because pairing a habit with a note needs two
+ * clauses. The rule is now "a second clause is allowed when it adds a different
+ * KIND of fact", which no regex can check — so this counts, and a human reads.
+ */
 const COMPOUND = /( and | but |; | — |, though| while | plus |, and )/i;
 
 /**
@@ -652,8 +718,8 @@ for (const query of queries) {
   // --- Reason quality -------------------------------------------------
   out.push("### Reason quality", "");
   out.push(
-    "| cell | rep | pattern vocab | compound | len gradient | repeated | empty at rank | cuisine conflicts |",
-    "|---|---|---|---|---|---|---|---|",
+    "| cell | rep | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | cuisine conflicts |",
+    "|---|---|---|---|---|---|---|---|---|---|",
   );
   const conflictRows = [];
   const qualityRows = [];
@@ -662,13 +728,25 @@ for (const query of queries) {
   for (const c of queryCells) {
     if (!c.ok) continue;
     const nonEmpty = c.rows.filter((r) => r.reason.trim() !== "");
-    const patternShare = nonEmpty.length
-      ? nonEmpty.filter((r) => PATTERN_VOCAB.test(r.reason)).length /
+    const rhythmShare = nonEmpty.length
+      ? nonEmpty.filter((r) => RHYTHM_VOCAB.test(r.reason)).length /
         nonEmpty.length
       : 0;
+    // The tic the prompt caps at one use per response — so this is a count,
+    // not a share: 0 or 1 is compliant, anything above is a rule break.
+    const vagueCount = nonEmpty.filter((r) => VAGUE_VOCAB.test(r.reason)).length;
     const compoundShare = nonEmpty.length
       ? nonEmpty.filter((r) => COMPOUND.test(r.reason)).length / nonEmpty.length
       : 0;
+    // Distinct opening words, as a share of non-empty rationales. The prompt
+    // asks the model to vary how the lines open; a cell settling into one
+    // construction shows up here long before it produces a verbatim duplicate.
+    const openings = new Set(
+      nonEmpty.map((r) =>
+        r.reason.trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z]/g, ""),
+      ),
+    );
+    const openShare = nonEmpty.length ? openings.size / nonEmpty.length : 0;
     // Pithy mode wants the rationale to SHRINK down the ranking, so a
     // negative gradient is the prompt being followed.
     const gradient = pearson(
@@ -706,7 +784,9 @@ for (const query of queries) {
 
     qualityRows.push({
       label: c.label,
-      patternShare,
+      rhythmShare,
+      vagueCount,
+      openShare,
       compoundShare,
       gradient,
       repeated,
@@ -717,7 +797,8 @@ for (const query of queries) {
     });
 
     out.push(
-      `| ${c.label} | ${c.rep} | ${(patternShare * 100).toFixed(0)}% | ` +
+      `| ${c.label} | ${c.rep} | ${(rhythmShare * 100).toFixed(0)}% | ` +
+        `${vagueCount} | ${(openShare * 100).toFixed(0)}% | ` +
         `${(compoundShare * 100).toFixed(0)}% | ` +
         `${gradient === null ? "—" : gradient.toFixed(2)} | ${repeated} | ` +
         `${emptyAt} | ${conflicts} |`,
@@ -728,8 +809,8 @@ for (const query of queries) {
   // Per-cell means, so the comparison is not eyeballed across reps.
   out.push("#### Reason quality — per-cell means", "");
   out.push(
-    "| cell | reps | pattern vocab | compound | len gradient | repeated | empty at rank | conflicts |",
-    "|---|---|---|---|---|---|---|---|",
+    "| cell | reps | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | conflicts |",
+    "|---|---|---|---|---|---|---|---|---|---|",
   );
   const qualityByLabel = groupBy(qualityRows, (r) => r.label);
   const mean = (values) => {
@@ -741,7 +822,9 @@ for (const query of queries) {
     const e = mean(rs.map((r) => r.emptyAt));
     out.push(
       `| ${label} | ${rs.length} | ` +
-        `${(mean(rs.map((r) => r.patternShare)) * 100).toFixed(0)}% | ` +
+        `${(mean(rs.map((r) => r.rhythmShare)) * 100).toFixed(0)}% | ` +
+        `${mean(rs.map((r) => r.vagueCount)).toFixed(1)} | ` +
+        `${(mean(rs.map((r) => r.openShare)) * 100).toFixed(0)}% | ` +
         `${(mean(rs.map((r) => r.compoundShare)) * 100).toFixed(0)}% | ` +
         `${g === null ? "—" : g.toFixed(2)} | ` +
         `${mean(rs.map((r) => r.repeated)).toFixed(1)} | ` +
@@ -751,14 +834,24 @@ for (const query of queries) {
   }
   out.push("");
   out.push(
-    "`pattern vocab` = share of non-empty reasons reaching for habit language",
-    "(cadence / rotation / weekday / overdue). `compound` = share joining two",
-    "clauses, which the prompt forbids. `len gradient` = correlation of reason",
-    "length with rank; negative means reasons shrink down the list as `pithy`",
-    "mode asks. `repeated` = non-empty reasons that are verbatim duplicates of",
-    "another. `empty at rank` = mean depth of the empty reasons (1.0 = all at",
-    "the bottom). `cuisine conflicts` = rows whose reason names a cuisine the",
-    "Option's own name contradicts.",
+    "`rhythm` = share of non-empty reasons naming the SHAPE of a habit —",
+    "an interval, a weekday, a sequence. Higher is better: it is the timing",
+    "fact the Recency chip cannot show. `vague tic` = COUNT (not share) of",
+    "reasons using the departure-from-rotation family (rotation / overdue /",
+    "drifted); the prompt caps it at one per response, so 0-1 is compliant",
+    "and more is a rule break. `opens` = share of distinct opening words —",
+    "low means the lines have settled into one construction. `compound` =",
+    "share joining two clauses; informational only, since a second clause is",
+    "allowed when it adds a different kind of fact. `len gradient` =",
+    "correlation of reason length with rank; negative means reasons shrink",
+    "down the list as `pithy` mode asks. `repeated` = non-empty reasons that",
+    "are verbatim duplicates of another. `empty at rank` = mean depth of the",
+    "empty reasons (1.0 = all at the bottom). `cuisine conflicts` = rows whose",
+    "reason names a cuisine the Option's own name contradicts.",
+    "",
+    "None of these carry a target. They are reported so a prompt change can be",
+    "compared against the run before it; optimising them directly would buy",
+    "thesaurus variety rather than better reasons.",
     "",
   );
   if (cuisineTotal) {
@@ -781,7 +874,7 @@ for (const query of queries) {
 
   const withDates = queryCells.filter((c) => c.dateRefs > 0);
   if (withDates.length) {
-    out.push("### Date / day-count rule breaks (examples)", "");
+    out.push("### Elapsed-time rule breaks (examples)", "");
     for (const c of withDates) {
       out.push(`- **${c.label}** (rep ${c.rep}), ${c.dateRefs} hits:`);
       for (const ex of c.dateExamples) out.push(`  - ${ex}`);
