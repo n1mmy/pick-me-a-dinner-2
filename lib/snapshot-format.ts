@@ -5,7 +5,7 @@
  * delimiters and format dates with their weekday (ADR-0005). The two helpers
  * live here so neither module has to import the other for them.
  */
-import { weekdayFromSqlDate } from "./local-day";
+import { WEEKDAY_NAMES, weekdayFromSqlDate } from "./local-day";
 
 /** The XML-style delimiters wrapping Household-authored free text. */
 export const HOUSEHOLD_TEXT_OPEN = "<household-text>";
@@ -35,25 +35,14 @@ export function delimitNullable(text: string | null): string | null {
   return text === null ? null : delimit(text);
 }
 
-/** Weekday names, indexed by `Date.prototype.getUTCDay()` (0 = Sunday). */
-const WEEKDAYS = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
 /**
  * Format a SQL date (`"YYYY-MM-DD"`) as `"YYYY-MM-DD (Weekday)"` so day-of-week
  * patterns are visible to the model — a bare date hides whether a dinner fell
- * on a Friday. The weekday number comes from `weekdayFromSqlDate`
- * (`lib/local-day.ts`) — the one place a SQL date is turned into a weekday
- * number — so this can never drift from the closed-days convention.
+ * on a Friday. The weekday number and name both come from `lib/local-day.ts`
+ * — the one place a SQL date is turned into a weekday — so this can never
+ * drift from the closed-days convention.
  */
 export function formatDateWithWeekday(sqlDate: string): string {
-  const weekday = WEEKDAYS[weekdayFromSqlDate(sqlDate)];
+  const weekday = WEEKDAY_NAMES[weekdayFromSqlDate(sqlDate)];
   return `${sqlDate} (${weekday})`;
 }

@@ -66,3 +66,16 @@ so the control appears there as soon as it exists (ADR-0007).
 ## Blocked by
 
 - Issue 01 (needs the column and `OptionFormValues`' backing field)
+
+## Comments
+
+- Ralph: all gate commands and every other acceptance criterion passed. The
+  "hand-measured at 375px" criterion was not verified against an actual
+  375px viewport — no browser is available in the Ralph worker or
+  orchestrator worktrees. Verified instead by inspecting `ClosedDayToggles`
+  (`app/catalog/option-form.tsx`): the row is a plain `flex` container with
+  no `flex-wrap`, and each chip is `flex-1` with a single-character label, so
+  the seven chips can only ever divide the row's available width evenly —
+  there is no fixed pixel width for a 375px viewport to overrun, and nothing
+  forces a wrap or a horizontal scrollbar. Recommend an actual hand-held
+  check before treating the visual claim as verified in production.

@@ -307,7 +307,7 @@ describe("buildSnapshot — Closed days", () => {
       buildSnapshot({
         options,
         logEntries: [],
-        rejections: [rejection("b1", TODAY, "closed and rejected")],
+        rejections: [rejection("b1", TODAY, "too tired for it")],
         asOf: TODAY,
         query: "",
       }),
@@ -315,7 +315,7 @@ describe("buildSnapshot — Closed days", () => {
     const { snapshot, idByIndex } = buildSnapshot({
       options,
       logEntries: [],
-      rejections: [rejection("b1", TODAY, "closed and rejected")],
+      rejections: [rejection("b1", TODAY, "too tired for it")],
       asOf: TODAY,
       query: "",
     });
@@ -356,7 +356,7 @@ describe("buildSnapshot — Rejections", () => {
     const { snapshot } = buildSnapshot({
       options,
       logEntries: [],
-      rejections: [rejection("b1", "2026-05-12", "closed that day")],
+      rejections: [rejection("b1", "2026-05-12", "too heavy that night")],
       asOf: TODAY,
       query: "",
     });
@@ -370,7 +370,7 @@ describe("buildSnapshot — Rejections", () => {
       logEntries: [],
       rejections: [
         rejection("b1", TODAY, "too heavy tonight"),
-        rejection("c1", "2026-05-12", "closed on Sundays"),
+        rejection("c1", "2026-05-12", "too spicy for the kids"),
       ],
       asOf: TODAY,
       query: "",
@@ -388,7 +388,7 @@ describe("buildSnapshot — Rejections", () => {
     const { snapshot } = buildSnapshot({
       options,
       logEntries: [],
-      rejections: [rejection("c1", "2026-05-24", "closed this coming Sunday")],
+      rejections: [rejection("c1", "2026-05-24", "shut this coming Sunday")],
       asOf: TODAY,
       query: "",
     });
@@ -404,7 +404,7 @@ describe("buildSnapshot — Rejections", () => {
     const { snapshot } = buildSnapshot({
       options,
       logEntries: [],
-      rejections: [rejection("c1", "2026-05-24", "closed this coming Sunday")],
+      rejections: [rejection("c1", "2026-05-24", "shut this coming Sunday")],
       asOf: TODAY,
       query: "",
     });
@@ -418,7 +418,7 @@ describe("buildSnapshot — Rejections", () => {
       logEntries: [],
       rejections: [
         rejection("b1", TODAY, "too heavy tonight"),
-        rejection("c1", "2026-05-12", "closed on Sundays"),
+        rejection("c1", "2026-05-12", "too spicy for the kids"),
       ],
       asOf: TODAY,
       query: "",
@@ -430,7 +430,7 @@ describe("buildSnapshot — Rejections", () => {
     expect(tonight.date).toBe("2026-05-20 (Wednesday)");
     const earlier = snapshot.rejections.notTodayRejections[0];
     expect(earlier.reason).toBe(
-      "<household-text>closed on Sundays</household-text>",
+      "<household-text>too spicy for the kids</household-text>",
     );
     expect(earlier.date).toBe("2026-05-12 (Tuesday)");
   });
@@ -490,7 +490,7 @@ describe("buildSnapshot — Selected day (ADR-0009)", () => {
       logEntries: [],
       // The same Rejection that was "not-today" against today is now the
       // anchor-day Rejection, suppressing its Option from the candidate set.
-      rejections: [rejection("b1", SELECTED, "closed this coming Sunday")],
+      rejections: [rejection("b1", SELECTED, "shut this coming Sunday")],
       asOf: SELECTED,
       query: "",
     });
@@ -510,7 +510,7 @@ describe("buildSnapshot — Selected day (ADR-0009)", () => {
         logEntries: [],
         rejections: [
           rejection("a1", TODAY, "too heavy tonight"),
-          rejection("b1", SELECTED, "closed this coming Sunday"),
+          rejection("b1", SELECTED, "shut this coming Sunday"),
         ],
         asOf: SELECTED,
         query: "",

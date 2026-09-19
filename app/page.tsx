@@ -1,13 +1,13 @@
 import { getTodayRejections, getTonightData } from "../db/queries";
 import { aiSearchEnabled } from "../lib/ai-search";
-import { isClosedOn } from "../lib/closed-days";
+import { partitionClosedRows } from "../lib/closed-days";
 import { lastNotesByOption } from "../lib/last-note";
 import {
   epochDayFromSqlDate,
   parseSelectedDay,
   today,
 } from "../lib/local-day";
-import { rankTonight, type TonightRow } from "../lib/ranking";
+import { rankTonight } from "../lib/ranking";
 import { splitTonight } from "../lib/tonights-dinner";
 import { TonightScreen } from "./tonight-screen";
 
@@ -98,19 +98,9 @@ export default async function TonightPage({
   // Rejection filter above and applied to what it leaves behind: a Restaurant
   // both closed and rejected for the Selected day belongs in the Rejected
   // disclosure only, never in both. Also a presentation filter, applied after
-  // `rankTonight` — `lib/ranking.ts` never learns closures exist. `closedDays`
-  // lives on `TonightOption`, not on the `RankOption` a `TonightRow` carries,
-  // so it is read from a Map keyed off the same `options` the ranking was
-  // built from, rather than off the row itself.
-  const closedDaysByOptionId = new Map(
-    options.map((option) => [option.id, option.closedDays]),
-  );
-  const isClosedRow = (row: TonightRow) =>
-    isClosedOn(closedDaysByOptionId.get(row.option.id) ?? [], selectedDay);
-  const closedForAnchor = afterRejection
-    .filter(isClosedRow)
-    .sort((a, b) => a.option.name.localeCompare(b.option.name));
-  const visiblePicker = afterRejection.filter((row) => !isClosedRow(row));
+  // `rankTonight` — `lib/ranking.ts` never learns closures exist.
+  const { visible: visiblePicker, closed: closedForAnchor } =
+    partitionClosedRows(afterRejection, options, selectedDay);
 
   // `allFiltered` distinguishes a list emptied by Rejections and/or Closed
   // days from a genuinely empty Catalog, so the screen shows honest copy —

@@ -140,7 +140,9 @@ export async function getOptionById(
  * ranking ignores both — `rankTonight` still receives exactly a `RankOption`,
  * staying structurally blind to closures (ADR-0003, ADR-0010) — but `notes`
  * feeds the AI search snapshot builder (PRD: AI search) and `closedDays`
- * feeds Tonight's closed-day suppression and badge (PRD: Closed days).
+ * feeds Tonight's closed-day suppression (PRD: Closed days) — no per-row
+ * badge; the Closed disclosure's heading is the only place that says why a
+ * row is there.
  */
 export type TonightOption = RankOption & {
   notes: string | null;
@@ -180,8 +182,8 @@ export type NotedTonightLogRow = TonightLogRow & { createdAt: Date };
  * Each Option additionally carries `url` and `phone` (both nullable; `phone` is
  * always null for a Home meal) — the fields the decided view's Menu / Call /
  * Recipe action buttons render from (PRD: Tonight — decided mode) — and its
- * `closedDays` (PRD: Closed days), for the caller to derive suppression and the
- * closed badge from. The ranking input is otherwise unchanged: `rankTonight`
+ * `closedDays` (PRD: Closed days), for the caller to derive suppression from —
+ * no per-row badge. The ranking input is otherwise unchanged: `rankTonight`
  * reads only the recency-relevant `RankOption` fields.
  *
  * `todayEntries` is the `dinner_log` rows dated *today* — with their `id`,

@@ -144,11 +144,11 @@ describe("partitionRejections — suppression set", () => {
 describe("partitionRejections — snapshot block shape", () => {
   it("wraps a reason in <household-text> delimiters", () => {
     const { block } = partition(
-      [rejection("a", TODAY, "closed on Sundays")],
+      [rejection("a", TODAY, "too spicy for the kids")],
       TODAY,
     );
     expect(block.rejectedTonight[0].reason).toBe(
-      "<household-text>closed on Sundays</household-text>",
+      "<household-text>too spicy for the kids</household-text>",
     );
   });
 

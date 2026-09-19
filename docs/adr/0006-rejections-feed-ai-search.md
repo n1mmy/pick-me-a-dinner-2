@@ -3,8 +3,8 @@
 ADR-0004 and ADR-0005 had AI search read the household's Log to find eating
 habits. But the Log records only what was *eaten* — it has no record of what was
 considered and turned *down*. When the household passes on an Option because it
-is "too heavy tonight" or because "that place is closed on Sundays", that
-reaction — their clearest signal about a bad fit — is invisible to the model.
+is "too heavy tonight" or because "too spicy for the kids", that reaction —
+their clearest signal about a bad fit — is invisible to the model.
 
 We are adding **Rejections**: from the Tonight screen the household can reject an
 Option for tonight's decision, with an optional short reason. A Rejection
@@ -14,9 +14,15 @@ ate but what they declined and why.
 
 The load-bearing choice: store every Rejection flat — its optional reason and
 its date — and let the **model itself** judge which reasons are standing
-dislikes ("closed on Sundays") and which were one-off ("too heavy tonight"). We
-deliberately encode no decay, no query-scoping, and no persistence heuristic of
-our own.
+dislikes ("too spicy for the kids") and which were one-off ("too heavy
+tonight"). We deliberately encode no decay, no query-scoping, and no
+persistence heuristic of our own.
+
+_Editorial note (ADR-0010):_ the original worked example here was "closed on
+Sundays" — a weekly closure the model was expected to infer as a standing
+dislike from flat Rejection history. ADR-0010 gives closures a first-class
+**Closed day** property instead, so the example above is replaced; the
+Rejections mechanism itself is otherwise unchanged.
 
 ## Considered options
 

@@ -351,6 +351,7 @@ export function TonightScreen({
         <RejectedTonightDisclosure
           rejections={rejectedTonight}
           dayLabel={dayLabel}
+          isToday={isToday}
         />
       )}
 
@@ -377,6 +378,35 @@ function capitalize(s: string): string {
 }
 
 /**
+ * The toggle button shared by the Rejected and Closed disclosures — same
+ * shape, same styling; only the label differs. `aria-expanded` and the
+ * click handler are the caller's, so each disclosure still owns its own
+ * `open` state.
+ */
+function DisclosureToggle({
+  open,
+  onToggle,
+  label,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      onClick={onToggle}
+      className={`min-h-11 self-start rounded-control border border-line
+        px-4 text-body font-emphasis text-action transition-colors
+        duration-short hover:bg-raised ${focusRing}`}
+    >
+      {label}
+    </button>
+  );
+}
+
+/**
  * The "Rejected tonight (N)" disclosure (PRD: Rejections on Tonight) — pinned
  * at the bottom of the picker list, collapsed by default so it costs no screen
  * space until the Household scrolls to it. The heading carries a count of
@@ -393,10 +423,12 @@ function capitalize(s: string): string {
 function RejectedTonightDisclosure({
   rejections,
   dayLabel,
+  isToday,
 }: {
   rejections: TodayRejection[];
   /** Day-aware copy noun — "tonight" or the weekday name for any other Selected day. */
   dayLabel: string;
+  isToday: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -409,18 +441,15 @@ function RejectedTonightDisclosure({
 
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((isOpen) => !isOpen)}
-        className={`min-h-11 self-start rounded-control border border-line
-          px-4 text-body font-emphasis text-action transition-colors
-          duration-short hover:bg-raised ${focusRing}`}
-      >
-        {dayLabel === "tonight"
-          ? `Rejected tonight (${rejections.length})`
-          : `Rejected for ${dayLabel} (${rejections.length})`}
-      </button>
+      <DisclosureToggle
+        open={open}
+        onToggle={() => setOpen((isOpen) => !isOpen)}
+        label={
+          isToday
+            ? `Rejected tonight (${rejections.length})`
+            : `Rejected for ${dayLabel} (${rejections.length})`
+        }
+      />
       {open && (
         <ul className="flex flex-col">
           {rejections.map((rejection) => (
@@ -494,31 +523,41 @@ function ClosedDisclosure({
 }) {
   const [open, setOpen] = useState(false);
 
+  // A submitted Rejection moves its row to the Rejected disclosure on
+  // revalidation; this live region — stable across that re-render, unlike
+  // the row itself — announces the removal, mirroring the Picker's own
+  // (DESIGN.md "Closed disclosure": "the same row-leaves-on-write feedback
+  // the picker already has").
+  const [rejectNotice, setRejectNotice] = useState("");
+
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((isOpen) => !isOpen)}
-        className={`min-h-11 self-start rounded-control border border-line
-          px-4 text-body font-emphasis text-action transition-colors
-          duration-short hover:bg-raised ${focusRing}`}
-      >
-        {dayLabel === "tonight"
-          ? `Closed tonight (${rows.length})`
-          : `Closed on ${dayLabel} (${rows.length})`}
-      </button>
+      <DisclosureToggle
+        open={open}
+        onToggle={() => setOpen((isOpen) => !isOpen)}
+        label={
+          isToday
+            ? `Closed tonight (${rows.length})`
+            : `Closed on ${dayLabel} (${rows.length})`
+        }
+      />
+      <p className="sr-only" role="status" aria-live="polite">
+        {rejectNotice}
+      </p>
       {open && (
-        <ol className="flex flex-col">
+        <ul className="flex flex-col">
           {rows.map((row) => (
             <TonightRowItem
               key={row.option.id}
               row={row}
               lastNote={lastNotes.get(row.option.id)}
               selectedDay={isToday ? undefined : selectedDay}
+              onRejected={(name) =>
+                setRejectNotice(`Rejected ${name}, removed from the list.`)
+              }
             />
           ))}
-        </ol>
+        </ul>
       )}
     </div>
   );
