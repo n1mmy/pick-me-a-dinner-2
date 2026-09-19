@@ -1,6 +1,6 @@
 # 03 — Tonight: suppression and the Closed disclosure
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
