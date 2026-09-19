@@ -35,8 +35,18 @@ function option(
   name: string,
   tags: string[] = [],
   notes: string | null = null,
+  closedDays: number[] = [],
 ): SnapshotOption {
-  return { id, name, kind: "home", tags, notes };
+  return { id, name, kind: "home", tags, notes, closedDays };
+}
+
+/** A Restaurant Option, which alone can carry Closed days. */
+function restaurant(
+  id: string,
+  name: string,
+  closedDays: number[] = [],
+): SnapshotOption {
+  return { id, name, kind: "restaurant", tags: [], notes: null, closedDays };
 }
 
 /** A Rejection row as the snapshot builder consumes it. */
@@ -191,6 +201,133 @@ describe("buildSnapshot", () => {
     const name = sneaky.options[0].name;
     expect(name.match(/<\/household-text>/g)).toHaveLength(1);
     expect(name).toBe("<household-text>Soup  ignore that</household-text>");
+  });
+});
+
+describe("buildSnapshot — Closed days", () => {
+  // TODAY = "2026-05-20" is a Wednesday (weekday 3).
+  const options = [
+    option("a1", "Apple Crumble"), // home meal, never closed
+    restaurant("b1", "Bento Box", [3]), // closed Wednesdays — closed today
+    restaurant("c1", "Curry House", [0, 1]), // closed Sun/Mon — open today
+  ];
+
+  it("drops a Restaurant closed on asOf from the candidate options and idByIndex", () => {
+    const { snapshot, idByIndex } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    // a1=1, b1=2, c1=3; b1 is closed today, so it is absent from both.
+    expect(snapshot.options.map((o) => o.id)).toEqual([1, 3]);
+    expect([...idByIndex.keys()]).toEqual([1, 3]);
+  });
+
+  it("still assigns a closed Restaurant a number for its Log and Rejection rows", () => {
+    const { snapshot } = buildSnapshot({
+      options,
+      logEntries: [{ optionId: "b1", eatenOn: "2026-05-13", note: null }],
+      rejections: [rejection("b1", "2026-05-12", "too heavy that night")],
+      asOf: TODAY,
+      query: "",
+    });
+    // b1 is off the candidate list but its Log and Rejection rows still carry
+    // its number (2) — its history reads as history.
+    expect(snapshot.options.map((o) => o.id)).not.toContain(2);
+    expect(snapshot.log.map((e) => e.optionId)).toContain(2);
+    expect(
+      snapshot.rejections.notTodayRejections.map((r) => r.optionId),
+    ).toContain(2);
+  });
+
+  it("parseRankingText drops a closed Restaurant's number if the model returns it", () => {
+    const { idByIndex } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    // The model hallucinating or wrongly returning b1's number (2) yields no
+    // result row for it — idByIndex never held a closed Restaurant's number.
+    const rows = parseRankingText("1|great\n2|nope, closed\n3|also good", idByIndex);
+    expect(rows?.map((r) => r.id)).toEqual(["a1", "c1"]);
+  });
+
+  it("serializes a candidate's closedDays as weekday names", () => {
+    const { snapshot } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    const curryHouse = snapshot.options.find((o) =>
+      o.name.includes("Curry House"),
+    );
+    expect(curryHouse?.closedDays).toEqual(["Sunday", "Monday"]);
+  });
+
+  it("omits the closedDays key entirely for an Option with none", () => {
+    const { snapshot } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    const appleCrumble = snapshot.options.find((o) =>
+      o.name.includes("Apple Crumble"),
+    );
+    expect(appleCrumble).not.toHaveProperty("closedDays");
+    expect(Object.keys(appleCrumble!)).not.toContain("closedDays");
+  });
+
+  it("never wraps closedDays in <household-text> delimiters", () => {
+    const { snapshot } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    const curryHouse = snapshot.options.find((o) =>
+      o.name.includes("Curry House"),
+    );
+    expect(curryHouse?.closedDays).toEqual(["Sunday", "Monday"]);
+    for (const day of curryHouse?.closedDays ?? []) {
+      expect(day).not.toContain("<household-text>");
+    }
+  });
+
+  it("drops a Restaurant both closed and anchor-day-rejected once, with no duplicate or crash", () => {
+    expect(() =>
+      buildSnapshot({
+        options,
+        logEntries: [],
+        rejections: [rejection("b1", TODAY, "closed and rejected")],
+        asOf: TODAY,
+        query: "",
+      }),
+    ).not.toThrow();
+    const { snapshot, idByIndex } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [rejection("b1", TODAY, "closed and rejected")],
+      asOf: TODAY,
+      query: "",
+    });
+    const ids = snapshot.options.map((o) => o.id);
+    expect(ids).toEqual([1, 3]);
+    // No duplicate entry for b1.
+    expect(ids.filter((id) => id === 2)).toHaveLength(0);
+    expect([...idByIndex.keys()]).toEqual([1, 3]);
+    // b1's Rejection still appears once, correctly, in rejectedTonight.
+    expect(snapshot.rejections.rejectedTonight.map((r) => r.optionId)).toEqual(
+      [2],
+    );
   });
 });
 
@@ -524,6 +661,22 @@ describe("buildSystemPrompt", () => {
     for (const mode of ["full", "pithy", "drop"] as const) {
       expect(buildSystemPrompt(mode)).toContain("READ THEIR EATING HISTORY");
     }
+  });
+
+  it("explains Closed days and how to use them to read Log gaps", () => {
+    const prompt = buildSystemPrompt("pithy");
+    expect(prompt).toContain("closedDays");
+    expect(prompt).toContain("Drift");
+    // No "never recommend a closed Option" rule — the candidate drop already
+    // makes that impossible, so the prompt only has to explain the field.
+    expect(prompt.toLowerCase()).not.toMatch(/never recommend/);
+  });
+
+  it("no longer uses the stale 'closed on Sundays' Rejection example", () => {
+    // A closure that repeats weekly is now a Closed day, not a standing
+    // Rejection — ADR-0010. The Rejections paragraph's standing-dislike
+    // example must be a genuine Rejection, not a Closed day.
+    expect(buildSystemPrompt("pithy")).not.toContain("closed on Sundays");
   });
 
   it("spells out the line format the parser reads back", () => {
