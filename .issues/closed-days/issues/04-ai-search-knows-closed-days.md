@@ -1,6 +1,6 @@
 # 04 — AI search: drop closed candidates, and tell the model why
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -79,3 +79,11 @@ standing Rejection. Replace it with a genuine standing-dislike example.
 ## Blocked by
 
 - Issue 01 (the column and `getTonightData`'s `closedDays`)
+
+## Comments
+
+- Ralph: all gate commands and every other acceptance criterion passed. The
+  "hand-verified smoke check against a live AI search" criterion was not
+  performed — no live Anthropic credentials are available in the Ralph worker
+  or orchestrator worktrees. Recommend a manual smoke check before treating
+  this as fully verified in production.
