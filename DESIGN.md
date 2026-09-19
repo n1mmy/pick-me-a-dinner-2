@@ -303,6 +303,32 @@ check before relying on it.
     that Cancel closes, and it is already full-bleed horizontally — so 44px
     bought ~19px of empty space around one 13px line, not reach. Menu/Call/
     Recipe are real actions and keep 44px.
+- **Closed disclosure (2026-09-19):** the Restaurants dropped from the ranked
+  list because the **Selected day** is one of their **Closed days** collect in a
+  collapsed disclosure at the foot of Tonight, **below** the Rejected one —
+  Rejected holds the time-sensitive undo, so it keeps the closer position.
+  Headed "Closed tonight (N)" / "Closed on Friday (N)", matching its sibling's
+  casing and day-aware copy exactly; the two sit adjacent, so a mismatch between
+  them would be conspicuous.
+  - Rows are the **full picker row** — same component, same chip row (Affinity,
+    Recency, Tags), same Last note line, same Pick and Reject-with-reason
+    controls. A closure is the app's best information, not a veto: the row stays
+    first-class because the Household may know better than the data. Stripping
+    its chips would make it a lesser visual species, which is the opposite of
+    the intent.
+  - **No rank numeral, but the gutter is preserved.** The list is alphabetical,
+    not ranked — a number here would refer to an order nobody is looking at. The
+    `w-6` rank gutter still renders empty so Option names stay on the same
+    vertical as the picker's above.
+  - **No per-row closure label.** The heading already states why every row is
+    there; repeating "closed Sun, Mon" on each row would put a flat untinted
+    chip into a row where every other chip is heatmap data. The full Closed-day
+    set lives on the Option detail page, which is where you ask a question about
+    one Restaurant.
+  - A row **Rejected** from here moves to the Rejected disclosure — the same
+    row-leaves-on-write feedback the picker already has.
+  - A Restaurant **Picked** anyway is never marked in the decided block. The
+    call has been made; restating the objection after the fact is nagging.
 - **Border radius:** badge/chip 3px, inputs 6px, buttons/controls 6px. Sharp
   crisp corners suit a sharp tool — no pill shapes except where a control is
   genuinely circular.
@@ -325,6 +351,17 @@ check before relying on it.
   Gaps between adjacent header controls are 4px rather than the usual 6px for
   the same reason. Don't "restore" these to 44px without re-measuring the
   header — see ADR-0009's 2026-09-08 amendment.
+  - **Closed-day toggles (2026-09-19 exception to control height):** the
+    Restaurant form's **Closed days** control is seven toggle chips in one row
+    — `S M T W T F S` — sized below the 44px floor, alongside the Tonight
+    header's stops. Seven 44px targets plus gaps overrun a 375px viewport, and
+    the alternatives both destroy what the control is for: a week is a *shape*
+    you recognise at a glance, and wrapping it to two lines or stacking it into
+    seven checkbox rows turns recognition into label-reading. The 44px floor
+    guards controls where a mis-tap costs something; this one is visible,
+    instantly reversible, and writes nothing until the form is saved. Size the
+    chips to fill the row's width evenly and measure at 375px — this is an
+    exception for *this* control, not licence to shrink form controls generally.
 
 ## Motion
 
@@ -373,3 +410,5 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-05-18 | Added `accent` (vivid violet) for the Tonight AI-search button | User asked for an "exciting" search button distinct from PICK. A dedicated UI-action accent keeps functional color intact — it never lands on a dinner row, so it does not collide with the kind or recency channels. |
 | 2026-06-17 | Recency heatmap polarity swapped (green = recent, red = overdue) and the color scale capped at 30 days, not 60 | Once Affinity drives Tonight's order (Score = affinity × readiness), the Recency chip is a factual freshness readout, not a "go ahead" signal — green-for-fresh / red-for-stale reads more naturally, and saturating at 30 days gives the recent end more resolution. Swap done by exchanging the `recency-recent` / `recency-overdue` hex values; `lib/recency-color.ts` caps at `RECENCY_COLOR_CAP = 30`. |
 | 2026-06-17 | Added an Affinity chip (first in the chip row) on the same heatmap, tinted by frequency (green = frequent) | Surfaces the preference half of the Score beside the recency half, so the row shows *both* factors behind the order. Reuses the heatmap with an inverted mapping so "good" stays green on both chips. Relaxes the prior "exactly two color channels" rule. **Trialling** — the numeral label and whether it earns a permanent slot are still being eyeballed against real data. |
+| 2026-09-19 | Closed disclosure at the foot of Tonight, below Rejected; rows are full picker rows with an empty rank gutter | **Closed days** (ADR-0010) drop a shut Restaurant out of the ranked list, but hiding it outright would remove the Household's ability to overrule wrong data. Full controls keep the row first-class; alphabetical order with no numeral stops a non-ranking from looking like one; the empty `w-6` gutter keeps names on the picker's vertical. |
+| 2026-09-19 | Closed-day toggles are seven sub-44px chips in one row | Seven 44px targets plus gaps overrun a 375px viewport, and wrapping or stacking them destroys the week-shape the control is read by. Joins the Tonight header's documented exceptions to the control-height floor: the toggle is visible, instantly reversible, and writes nothing until save. |

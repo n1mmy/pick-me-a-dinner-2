@@ -38,6 +38,21 @@ Restaurants).
 A free-form, case-insensitive label attached to an Option (e.g. `pasta`,
 `fish`, `helen: burger`). Drives the variety side of the ranking.
 
+**Closed day**:
+A weekday a Restaurant is shut. It is a property of the Restaurant — a fact
+about its trading week, not the Household's judgement about one night, which is
+what separates it from a **Rejection**. The set stored is the days the
+Restaurant is *closed*, so a Restaurant with none recorded is open all week and
+an unfilled field suppresses nothing. Weekdays only: a Closed day carries no
+opening or closing times (the app decides one meal a day), and no specific dates
+— a one-off holiday closure is a **Planned rejection**. Only a Restaurant has
+Closed days; a Home meal never does. On a day it is closed, a Restaurant leaves
+Tonight's ranked list for the **Closed disclosure** and leaves AI search's
+candidate set, exactly as a same-day Rejection does — a presentation filter that
+never touches any Score (ADR-0010).
+_Avoid_: Opening hours (a Closed day has no times); "closed" as a Rejection
+reason (record the Closed day instead — a Rejection is about one night).
+
 ### The log
 
 **Log entry**:
@@ -97,8 +112,8 @@ screen section's heading).
 
 **Rejection**:
 A record that the Household passed an Option over for one night's dinner,
-carrying an optional short reason ("closed on Sundays", "too heavy for
-tonight"). It is created two ways: live on a Tonight row in the moment —
+carrying an optional short reason ("too heavy for tonight", "we had it at
+lunch"). It is created two ways: live on a Tonight row in the moment —
 dated the **Selected day** — or entered by hand on the Log screen or the
 Option detail page for a deliberately chosen date — a past date backfills a
 Rejection never recorded live, a future date is a **Planned rejection**. On the date it carries, a Rejection removes
@@ -109,18 +124,26 @@ which were one-off. A Rejection can be edited or deleted at any time from the
 Log screen or the Option detail page. **Bring back** is the narrower
 Selected-day quick-undo on Tonight's "Rejected" disclosure (labelled
 "Rejected tonight" when the Selected day is today). A Rejection is not a Log
-entry and does not affect any Score.
+entry and does not affect any Score. A Restaurant's recurring closure is no
+longer expressed this way — that is a **Closed day** on the Restaurant itself
+(ADR-0010) — though a Rejection remains the way to record what was learned on
+one particular night, including on a night the Restaurant was already closed.
 _Avoid_: Archive (a Rejection covers one night; Archive removes an Option from
-the Catalog until un-archived). Avoid "reject" for declining a whole AI result.
+the Catalog until un-archived). Closed day (a weekly closure is a property of
+the Restaurant, not a nightly decision). Avoid "reject" for declining a whole AI
+result.
 
 **Planned rejection**:
 A Rejection dated after today — the mirror of a Planned dinner. Entered by hand
-to turn an Option down in advance for a known future night ("Aji Ichi is closed
-this coming Sunday"); when that date arrives it suppresses the Option from
-Tonight just as a same-day Rejection does. Shown in the Log screen's "Upcoming"
-section alongside Planned dinners. One specific date only — a recurring closure
-is left for the AI model to infer from Rejection history.
-_Avoid_: Recurring rejection (a Planned rejection is a single date).
+to turn an Option down in advance for a known future night ("Aji Ichi is shut
+for a private function this Friday"); when that date arrives it suppresses the
+Option from Tonight just as a same-day Rejection does. Shown in the Log screen's
+"Upcoming" section alongside Planned dinners. One specific date only. A closure
+that repeats every week is a **Closed day** on the Restaurant, not a Planned
+rejection (ADR-0010); the Planned rejection covers the one-off — a holiday, a
+private function, a night the Household already knows is out.
+_Avoid_: Recurring rejection (a Planned rejection is a single date); a Planned
+rejection for a weekly closure (that is a **Closed day**).
 
 ### Ranking
 
@@ -147,6 +170,18 @@ and once a Pick is made it surfaces the Dinner for that day — the screen has
 both jobs, deciding and showing what was decided. "Tonight" is the screen's
 name and its H1 label when the Selected day is today; on any other day the H1
 shows that day's name.
+
+**Closed disclosure**:
+The collapsed list at the foot of **Tonight** holding the Restaurants dropped
+from the ranked list because the **Selected day** falls on one of their **Closed
+days** — headed "Closed tonight (N)" when the Selected day is today and "Closed
+on Friday (N)" otherwise, sitting below the Rejected disclosure. Its rows are
+ordered alphabetically and carry no rank number: it is a list, not a ranking.
+Each row carries the same controls as a picker row, so the Household can still
+Pick a Restaurant that turns out to be open after all, or Reject it with a
+reason that records what was learned. Rejecting one moves it to the Rejected
+disclosure.
+_Avoid_: Closed list, Closed section.
 
 **Recency**:
 How long since something was last eaten, measured only from non-future Log
@@ -264,6 +299,8 @@ single-household — no user accounts, no per-person identity.
 
 - An **Option** is exactly one **kind**: a **Home meal** or a **Restaurant**.
 - An **Option** carries zero or more **Tags**.
+- A **Restaurant** carries zero or more **Closed days**; a **Home meal** never
+  carries any.
 - The **Catalog** is the set of all **Options**.
 - A **Log entry** records exactly one **Option** on one date.
 - A **Dinner** is one or more **Log entries** sharing the same date.
@@ -285,6 +322,9 @@ single-household — no user accounts, no per-person identity.
 - A **Rejection** is kept as dated history and feeds future **AI searches**; a
   **Rejection** dated after today is a **Planned rejection** and suppresses its
   Option from **Tonight** when that date arrives.
+- A **Restaurant** whose **Closed days** include the **Selected day**'s weekday
+  leaves **Tonight**'s ranked list for the **Closed disclosure** and leaves **AI
+  search**'s candidate set — without any change to its **Score**.
 - An **Option** with any **Log entry** cannot be **hard-deleted** — only
   **Archived**.
 - The **Household** shares one password; there are no user accounts.
@@ -304,6 +344,19 @@ single-household — no user accounts, no per-person identity.
 > **Dev:** "If the Household stops eating an Option, do we delete it?"
 > **Domain expert:** "Only if it has no Log entries. If it's in the Log,
 > Archive it — it leaves Tonight but its past Dinners stay intact."
+>
+> **Dev:** "Aji Ichi is shut every Monday. Is that seven Planned rejections a
+> year, or something else?"
+> **Domain expert:** "Neither — it's a **Closed day** on Aji Ichi. A Rejection
+> is us deciding something about a night; being shut on Mondays is true whether
+> or not we ever thought about it. The Planned rejection is for the one-offs:
+> they're closed this Friday for a private function."
+>
+> **Dev:** "And if we turn up on a Monday and they're actually open?"
+> **Domain expert:** "Then the Closed day is wrong and we fix it on the
+> Restaurant. The Closed disclosure still has a Pick button for that night, so
+> we're not blocked — but the fix belongs on the Restaurant, not in a nightly
+> override."
 
 ## Flagged ambiguities
 
@@ -322,6 +375,12 @@ single-household — no user accounts, no per-person identity.
   standing description on an Option. Resolved: **Note** is the Log entry's,
   **Option notes** is the Option's. Only a Note is dated, so only a Note can be
   a **Last note**.
+- "Closed" was recorded two ways: as a **Rejection** reason ("closed on
+  Sundays") on whichever night it bit, and — the intent behind it — as a
+  standing fact about the Restaurant the model was expected to infer. Resolved:
+  a closure that repeats weekly is a **Closed day** on the Restaurant; a
+  Rejection reason describes one night's decision; a one-off closure on a known
+  date is a **Planned rejection**. ADR-0010.
 - "Going back to Tonight" was used for two different things: navigating to the
   Tonight screen, and returning the **Selected day** to today while already on
   that screen. Resolved: the second is **resetting the Selected day to today**;
