@@ -6,7 +6,9 @@ import {
   shiftSqlDate,
   todayEpochDay,
   todaySqlDate,
+  weekdayFromSqlDate,
 } from "./local-day";
+import { formatDateWithWeekday } from "./snapshot-format";
 
 describe("isValidSqlDate", () => {
   it("accepts a well-formed real calendar date", () => {
@@ -48,6 +50,66 @@ describe("epochDayFromSqlDate", () => {
     expect(
       epochDayFromSqlDate("2026-03-09") - epochDayFromSqlDate("2026-03-08"),
     ).toBe(1);
+  });
+});
+
+describe("weekdayFromSqlDate", () => {
+  it("reads Sunday as 0 — the closed-days convention", () => {
+    // 2026-05-17 is a Sunday.
+    expect(weekdayFromSqlDate("2026-05-17")).toBe(0);
+  });
+
+  it("maps every day of a full week 0..6, Sunday first", () => {
+    expect(weekdayFromSqlDate("2026-05-17")).toBe(0); // Sunday
+    expect(weekdayFromSqlDate("2026-05-18")).toBe(1); // Monday
+    expect(weekdayFromSqlDate("2026-05-19")).toBe(2); // Tuesday
+    expect(weekdayFromSqlDate("2026-05-20")).toBe(3); // Wednesday
+    expect(weekdayFromSqlDate("2026-05-21")).toBe(4); // Thursday
+    expect(weekdayFromSqlDate("2026-05-22")).toBe(5); // Friday
+    expect(weekdayFromSqlDate("2026-05-23")).toBe(6); // Saturday
+  });
+
+  it("is exact across a month boundary", () => {
+    // 2026-05-31 is a Sunday, so 2026-06-01 is a Monday.
+    expect(weekdayFromSqlDate("2026-05-31")).toBe(0);
+    expect(weekdayFromSqlDate("2026-06-01")).toBe(1);
+  });
+
+  it("is exact across a year boundary", () => {
+    // 2026-12-31 is a Thursday, so 2027-01-01 is a Friday.
+    expect(weekdayFromSqlDate("2026-12-31")).toBe(4);
+    expect(weekdayFromSqlDate("2027-01-01")).toBe(5);
+  });
+
+  it("is exact across a DST transition — a SQL date carries no zone", () => {
+    // 2026-03-08 is the 23-hour spring-forward day in America/Los_Angeles;
+    // this derivation never touches a timezone, so it is unaffected.
+    expect(weekdayFromSqlDate("2026-03-08")).toBe(0); // Sunday
+    expect(weekdayFromSqlDate("2026-03-09")).toBe(1); // Monday
+  });
+
+  it("agrees with formatDateWithWeekday's weekday for the same date", () => {
+    for (const sqlDate of [
+      "2026-05-17",
+      "2026-05-31",
+      "2026-06-01",
+      "2026-12-31",
+      "2027-01-01",
+      "2026-03-08",
+    ]) {
+      const names = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ];
+      expect(formatDateWithWeekday(sqlDate)).toBe(
+        `${sqlDate} (${names[weekdayFromSqlDate(sqlDate)]})`,
+      );
+    }
   });
 });
 

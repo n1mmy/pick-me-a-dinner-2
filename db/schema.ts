@@ -4,6 +4,7 @@ import {
   date,
   doublePrecision,
   index,
+  integer,
   pgEnum,
   pgTable,
   primaryKey,
@@ -43,6 +44,19 @@ export const options = pgTable("options", {
   lng: doublePrecision("lng"),
   googlePlaceId: text("google_place_id"),
   mapsUrl: text("maps_url"),
+  /**
+   * The weekdays a Restaurant is closed, `0`–`6` with `0` = Sunday — the same
+   * indexing as the `WEEKDAYS` table in `lib/snapshot-format.ts` and
+   * `weekdayFromSqlDate` in `lib/local-day.ts`. Empty means open all week
+   * (the default, so every pre-existing row and every Home meal behaves
+   * exactly as before). Restaurant-only, like `address` / `phone` / `lat`; a
+   * Home meal leaves it empty. Not validated against all seven days — a
+   * temporary full-week closure is legitimate (Archive is for permanent).
+   */
+  closedDays: integer("closed_days")
+    .array()
+    .notNull()
+    .default(sql`'{}'::integer[]`),
 });
 
 /** A Catalog row as stored — a Home meal or a Restaurant. */

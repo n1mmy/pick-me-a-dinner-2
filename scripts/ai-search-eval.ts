@@ -197,6 +197,7 @@ async function buildSnapshotFromDb(query: string): Promise<{
       kind: option.kind,
       tags: option.tags,
       notes: option.notes,
+      closedDays: option.closedDays,
     })),
     logEntries: logEntries.map((entry) => ({
       optionId: entry.optionId,

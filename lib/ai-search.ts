@@ -45,6 +45,8 @@
  * `pnpm build`) needs no env vars.
  */
 import Anthropic from "@anthropic-ai/sdk";
+import { isClosedOn } from "./closed-days";
+import { WEEKDAY_NAMES } from "./local-day";
 import {
   partitionRejections,
   type RejectionRow,
@@ -93,6 +95,16 @@ export type SnapshotOption = {
   kind: "home" | "restaurant";
   tags: string[];
   notes: string | null;
+  /**
+   * Weekday numbers (`0`–`6`, `0` = Sunday) the Restaurant is closed on —
+   * mirrors `TonightOption.closedDays` (`db/queries.ts`); empty for an
+   * always-open Restaurant and always for a Home meal. Drives `buildSnapshot`'s
+   * candidate drop (a Restaurant closed on `asOf` leaves the candidate set,
+   * exactly as an anchor-day Rejection does) and the serialized
+   * `SnapshotModelOption.closedDays` for every candidate that remains
+   * (PRD: Closed days, ADR-0010).
+   */
+  closedDays: number[];
 };
 
 /**
@@ -123,6 +135,20 @@ export type SnapshotModelOption = {
   notes: string | null;
   /** The Tag names on this Option — each Household-authored and delimited. */
   tags: string[];
+  /**
+   * The Restaurant's Closed days, as weekday names (`"Sunday"`, `"Monday"`,
+   * …) — a name needs no arithmetic and cannot be mis-indexed, unlike a raw
+   * weekday number, matching the snapshot's other human-readable dates. Every
+   * candidate here is already open on `today` — a Restaurant closed on `asOf`
+   * never reaches this list at all (see `buildSnapshot`) — so this is not
+   * about whether the candidate is open tonight; it exists so the model can
+   * explain a thinner Log with the trading week rather than misreading it as
+   * Drift (see `buildSystemPrompt`). **Omitted entirely** — not an empty
+   * array — when the Restaurant has no Closed days, so an always-open
+   * Restaurant and every Home meal cost nothing. App-derived structure, not
+   * Household-authored text — never `<household-text>`-wrapped.
+   */
+  closedDays?: string[];
 };
 
 /**
@@ -185,9 +211,10 @@ export type BuiltSnapshot = {
    * Maps each candidate Option's snapshot integer back to its real UUID. The
    * model only ever sees and returns the integer; `parseRankingText` uses this
    * both to recover the UUID and to reject any integer that is not a candidate
-   * — a hallucinated number, or a today-rejected Option the model wrongly
-   * returned (a today-rejected Option keeps a number for its history rows but
-   * is absent from this map, so it can never resurface as a result).
+   * — a hallucinated number, a today-rejected Option, or a today-closed
+   * Restaurant the model wrongly returned (each keeps a number for its
+   * history rows but is absent from this map, so it can never resurface as a
+   * result).
    */
   idByIndex: Map<number, string>;
 };
@@ -226,6 +253,20 @@ export type BuiltSnapshot = {
  *   only; the Score and `lib/ranking` are untouched (ADR-0003, ADR-0006). A
  *   suppressed Option's eating history still appears in the Log — only its
  *   candidacy is removed.
+ * - A Restaurant **closed on the anchor day** (`isClosedOn`, `lib/closed-days`)
+ *   is dropped from the candidate `options` exactly the same way — a closed
+ *   Restaurant cannot resurface as a result even if the model returns its
+ *   number; `parseRankingText` drops it because `idByIndex` never held it. A
+ *   Restaurant both closed and anchor-day-rejected is simply dropped once —
+ *   the two checks are independent set membership tests, not a chain that
+ *   could double-remove or crash. Its number, Log rows, and Rejection rows are
+ *   unaffected — the numbering covers the whole Catalog either way (PRD:
+ *   Closed days, ADR-0010).
+ * - Every **remaining candidate**'s Closed days ride along on
+ *   `SnapshotModelOption.closedDays`, as weekday names, so the model can
+ *   explain a thinner Log with the trading week instead of misreading it as
+ *   Drift — see `buildSystemPrompt`. Every candidate is already open on
+ *   `asOf`, so this is never about whether to recommend it tonight.
  * - The **Rejections block** carries every Rejection of an active Option as
  *   raw dated history (via `lib/rejections`), split into anchor-day Rejections
  *   (the snapshot's `rejectedTonight` group, from the model's frame) and the
@@ -270,10 +311,17 @@ export function buildSnapshot(input: {
     indexByOptionId,
   );
 
-  // Anchor-day-rejected Options leave the candidate set. The Log below is
-  // still built from the *full* `options` input, so a suppressed Option's
-  // eating history reads as history even though it is no longer a candidate.
-  const candidates = byName.filter((o) => !suppressedForAsOf.has(o.id));
+  // Anchor-day-rejected and anchor-day-closed Options both leave the
+  // candidate set — two independent set-membership checks, so an Option that
+  // is both is simply dropped once, not double-removed. The Log below is
+  // still built from the *full* `options` input, so a dropped Option's eating
+  // history reads as history even though it is no longer a candidate.
+  const closedForAsOf = new Set(
+    byName.filter((o) => isClosedOn(o.closedDays, asOf)).map((o) => o.id),
+  );
+  const candidates = byName.filter(
+    (o) => !suppressedForAsOf.has(o.id) && !closedForAsOf.has(o.id),
+  );
   const modelOptions = candidates.map(
     (option): SnapshotModelOption => ({
       id: indexByOptionId.get(option.id)!,
@@ -281,6 +329,12 @@ export function buildSnapshot(input: {
       kind: option.kind,
       notes: delimitNullable(option.notes),
       tags: option.tags.map((tag) => delimit(tag)),
+      // Omitted entirely — not an empty array — when the Restaurant has no
+      // Closed days, so an always-open Restaurant and every Home meal cost
+      // nothing. Not Household-authored text, so never delimited.
+      ...(option.closedDays.length > 0
+        ? { closedDays: option.closedDays.map((day) => WEEKDAY_NAMES[day]) }
+        : {}),
     }),
   );
 
@@ -374,9 +428,9 @@ const EMPTY_RESULT_SENTINEL = "NONE";
  *
  * Hardening, so a sloppy model response still yields a clean screen:
  *
- * - Any number that is not a candidate is dropped — a hallucinated number, or
- *   a today-rejected Option the Household could not actually Pick (`idByIndex`
- *   holds candidates only).
+ * - Any number that is not a candidate is dropped — a hallucinated number, a
+ *   today-rejected Option, or a today-closed Restaurant the Household could
+ *   not actually Pick (`idByIndex` holds candidates only).
  * - A non-integer number is dropped.
  * - A repeated Option is deduped, the **first** occurrence kept — a model that
  *   lists the same Option twice never produces a duplicate result row.
@@ -783,17 +837,27 @@ export function buildSystemPrompt(mode: TailMode): string {
       "pre-digested signal — reason over it the way you reason over the Log. " +
       "Read each reason together with its date and how often it recurs, and " +
       "decide for YOURSELF which Rejections are standing — a lasting dislike, " +
-      "like \"closed on Sundays\", that should still weigh today — and which " +
-      "were one-off — a passing \"too heavy tonight\" that has since faded. Do " +
-      "not treat every Rejection as a permanent verdict. The block has two " +
-      "groups. \"Rejected tonight\" Options have deliberately been left out of " +
-      "the Catalog above and are NOT candidates to return — but their reasons " +
-      "may still inform how you rank the Options that remain. \"Other " +
-      "rejections\" are still candidates: they hold rejections from other dates, " +
-      "past or upcoming, each row carrying its own date. Reconsider them on " +
-      "their merits while weighing why they were once — or will be — passed " +
-      "over. A Rejection with no reason is a light \"passed on this\" signal, " +
-      "nothing more.",
+      "like \"too spicy for the kids\", that should still weigh today — and " +
+      "which were one-off — a passing \"too heavy tonight\" that has since " +
+      "faded. Do not treat every Rejection as a permanent verdict. The block " +
+      "has two groups. \"Rejected tonight\" Options have deliberately been " +
+      "left out of the Catalog above and are NOT candidates to return — but " +
+      "their reasons may still inform how you rank the Options that remain. " +
+      "\"Other rejections\" are still candidates: they hold rejections from " +
+      "other dates, past or upcoming, each row carrying its own date. " +
+      "Reconsider them on their merits while weighing why they were once — " +
+      "or will be — passed over. A Rejection with no reason is a light " +
+      "\"passed on this\" signal, nothing more.",
+    "",
+    "Some Restaurant candidates carry a closedDays field — the weekdays that " +
+      "Restaurant is shut, e.g. [\"Sunday\", \"Monday\"]. It is a standing fact " +
+      "about the Restaurant's trading week, not something the household " +
+      "decided, and every candidate in the snapshot is already open on " +
+      "today's date — so this is not about whether to recommend it tonight. " +
+      "Use it instead to read the Log correctly: a Restaurant closed two or " +
+      "three days a week naturally has fewer chances to appear in the Log " +
+      "than an always-open one, so a thinner history there is explained by " +
+      "its trading week — do not read that gap as Drift, a cooling interest.",
     "",
     "If there is a query, weigh it together with the patterns you found. If " +
       "the query is empty, finding and applying those patterns is the entire " +

@@ -48,6 +48,7 @@ const { snapshot } = buildSnapshot({
     kind: o.kind,
     tags: o.tags,
     notes: o.notes,
+    closedDays: o.closedDays,
   })),
   logEntries: logEntries.map((e) => ({
     optionId: e.optionId,

@@ -57,7 +57,14 @@ export function TonightRowItem({
   onRejected,
 }: {
   row: TonightRow;
-  rank: number;
+  /**
+   * The row's position in the picker ranking, or `undefined` on a row from
+   * the **Closed disclosure** (PRD: Closed days) — that list is alphabetical,
+   * not ranked, so a number there would refer to an order nobody is looking
+   * at. The `w-6` gutter still renders, just empty, so the Option name stays
+   * on the same vertical as a ranked row's above it.
+   */
+  rank?: number;
   aiReason?: string;
   /**
    * The Option's **Last note** — its newest Note dated before the Selected day

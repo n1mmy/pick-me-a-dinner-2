@@ -75,14 +75,18 @@ export function TonightScreen({
   pickerRows,
   lastNotes = NO_LAST_NOTES,
   searchEnabled,
-  allRejected = false,
+  allFiltered = false,
   rejectedTonight = [],
+  closedTonight = [],
   selectedDay,
   todaySql,
 }: {
   /** The Picked Options, in pick order — non-empty puts Tonight in decided mode. */
   tonightsDinner: TonightsDinnerEntry[];
-  /** The ranked picker rows, with Picked and Selected-day-rejected Options removed. */
+  /**
+   * The ranked picker rows, with Picked, Selected-day-rejected, and
+   * Selected-day-closed Options removed.
+   */
   pickerRows: TonightRow[];
   /**
    * Each Option's **Last note** keyed by Option id — the newest Note dated
@@ -94,12 +98,14 @@ export function TonightScreen({
   /** Whether AI search is configured — gates the search box (`aiSearchEnabled`). */
   searchEnabled: boolean;
   /**
-   * True when the picker had rows but every one was rejected for the
-   * Selected day (PRD: Rejections). It separates an all-rejected empty list —
-   * a real state, with the Options back the next day — from a genuinely
-   * empty Catalog.
+   * True when the picker had rows but every one was filtered out for the
+   * Selected day — rejected, closed, or both (PRD: Rejections; PRD: Closed
+   * days). It separates that real state, with the Options back the next day,
+   * from a genuinely empty Catalog. One flag covers both filter causes: the
+   * two disclosures directly below already say which Options landed where,
+   * so the empty-picker copy itself need not distinguish the cause.
    */
-  allRejected?: boolean;
+  allFiltered?: boolean;
   /**
    * The Selected day's Rejections (PRD: Rejections on Tonight) — what the
    * "Rejected for [day]" disclosure lists and lets the Household bring back.
@@ -107,6 +113,14 @@ export function TonightScreen({
    * rejected.
    */
   rejectedTonight?: TodayRejection[];
+  /**
+   * The Restaurants closed on the Selected day's weekday (PRD: Closed days,
+   * ADR-0010) — what the **Closed disclosure** lists, alphabetical by name. A
+   * Restaurant both closed and rejected for the Selected day is excluded here
+   * (it appears in `rejectedTonight` only). Empty by default, so the
+   * disclosure costs nothing until a Restaurant is shut for the day.
+   */
+  closedTonight?: TonightRow[];
   /**
    * The Tonight screen's **Selected day** (ADR-0009). When equal to
    * `todaySql` the screen reads as today's Tonight; when not, the H1, copy,
@@ -128,8 +142,9 @@ export function TonightScreen({
   const dayLabel = isToday ? "tonight" : weekdayName(selectedDay);
   const decided = tonightsDinner.length > 0;
   // Picker mode with nothing to rank at all — an empty Catalog, not "all Picked"
-  // and not "all rejected" (both of which are real states with their own copy).
-  const catalogEmpty = !decided && pickerRows.length === 0 && !allRejected;
+  // and not "all filtered out" (both of which are real states with their own
+  // copy).
+  const catalogEmpty = !decided && pickerRows.length === 0 && !allFiltered;
 
   // The All/Home/Restaurant kind filter lives here so its segment can sit in
   // the page header beside "Tonight"; the Picker still owns the filtering.
@@ -252,13 +267,15 @@ export function TonightScreen({
             Add your first meals →
           </Link>
         </p>
-      ) : !decided && allRejected ? (
-        // Every Option was rejected for the Selected day — a real state, not
-        // a broken screen. A Rejection means "not this day": the Options
-        // return on any other day.
+      ) : !decided && allFiltered ? (
+        // Every Option was filtered out for the Selected day — rejected,
+        // closed, or both — a real state, not a broken screen. The copy
+        // stays cause-agnostic rather than claiming a Rejection the
+        // Household never made: the disclosures below say which Options
+        // landed where. Either way the Options return on a different day.
         <p className="text-body text-muted">
-          Every Option has been rejected for {dayLabel}. They&rsquo;ll be back
-          on a different day.
+          No Options are available for {dayLabel}. They&rsquo;ll be back on a
+          different day.
         </p>
       ) : decided ? (
         <>
@@ -270,8 +287,8 @@ export function TonightScreen({
           />
           {pickerRows.length === 0 ? (
             <p className="border-t border-line pt-5.5 text-body text-muted">
-              {allRejected
-                ? `Every remaining Option has been rejected for ${dayLabel}.`
+              {allFiltered
+                ? `Every remaining Option is unavailable for ${dayLabel}.`
                 : `Every Option is already on ${dayLabel}’s dinner.`}
             </p>
           ) : (
@@ -334,6 +351,21 @@ export function TonightScreen({
         <RejectedTonightDisclosure
           rejections={rejectedTonight}
           dayLabel={dayLabel}
+          isToday={isToday}
+        />
+      )}
+
+      {/* Below the Rejected disclosure (Rejected holds the time-sensitive
+          undo, so it keeps the closer position — DESIGN.md "Closed
+          disclosure"). Rendered whenever a Restaurant is closed on the
+          Selected day's weekday. */}
+      {closedTonight.length > 0 && (
+        <ClosedDisclosure
+          rows={closedTonight}
+          lastNotes={lastNotes}
+          dayLabel={dayLabel}
+          selectedDay={selectedDay}
+          isToday={isToday}
         />
       )}
     </main>
@@ -343,6 +375,35 @@ export function TonightScreen({
 /** Capitalize a lowercase day label for sentence-start copy. */
 function capitalize(s: string): string {
   return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
+}
+
+/**
+ * The toggle button shared by the Rejected and Closed disclosures — same
+ * shape, same styling; only the label differs. `aria-expanded` and the
+ * click handler are the caller's, so each disclosure still owns its own
+ * `open` state.
+ */
+function DisclosureToggle({
+  open,
+  onToggle,
+  label,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      onClick={onToggle}
+      className={`min-h-11 self-start rounded-control border border-line
+        px-4 text-body font-emphasis text-action transition-colors
+        duration-short hover:bg-raised ${focusRing}`}
+    >
+      {label}
+    </button>
+  );
 }
 
 /**
@@ -362,10 +423,12 @@ function capitalize(s: string): string {
 function RejectedTonightDisclosure({
   rejections,
   dayLabel,
+  isToday,
 }: {
   rejections: TodayRejection[];
   /** Day-aware copy noun — "tonight" or the weekday name for any other Selected day. */
   dayLabel: string;
+  isToday: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -378,18 +441,15 @@ function RejectedTonightDisclosure({
 
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((isOpen) => !isOpen)}
-        className={`min-h-11 self-start rounded-control border border-line
-          px-4 text-body font-emphasis text-action transition-colors
-          duration-short hover:bg-raised ${focusRing}`}
-      >
-        {dayLabel === "tonight"
-          ? `Rejected tonight (${rejections.length})`
-          : `Rejected for ${dayLabel} (${rejections.length})`}
-      </button>
+      <DisclosureToggle
+        open={open}
+        onToggle={() => setOpen((isOpen) => !isOpen)}
+        label={
+          isToday
+            ? `Rejected tonight (${rejections.length})`
+            : `Rejected for ${dayLabel} (${rejections.length})`
+        }
+      />
       {open && (
         <ul className="flex flex-col">
           {rejections.map((rejection) => (
@@ -419,6 +479,83 @@ function RejectedTonightDisclosure({
                 Bring back
               </button>
             </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The "Closed tonight (N)" / "Closed on Friday (N)" disclosure (PRD: Closed
+ * days, ADR-0010; DESIGN.md "Closed disclosure") — a sibling of
+ * `RejectedTonightDisclosure`, rendered below it: Rejected holds the
+ * time-sensitive undo, so it keeps the closer position. Collapsed by default,
+ * same as its sibling, so it costs no screen space until scrolled to.
+ *
+ * Its rows are the **full picker row** (`TonightRowItem`, with `rank` left
+ * `undefined`) — the same Pick, Reject-with-reason, chip row, and Last note as
+ * the ranked list above, because a Closed day is the app's best information,
+ * not a veto: the Household may know better than the data. Rows are ordered
+ * alphabetically by the caller (`app/page.tsx`) — this is a list, not a
+ * ranking, so no row carries a rank numeral, though the `w-6` gutter still
+ * renders empty to keep names on the picker's vertical. No per-row closure
+ * label: the heading already says why every row is here.
+ *
+ * Rejecting a row writes an ordinary Rejection dated the Selected day, exactly
+ * as the ranked picker's Reject control does — revalidation then moves it into
+ * the Rejected disclosure with no special handling here. A Restaurant Picked
+ * from this list simply appears in the decided block unremarked.
+ */
+function ClosedDisclosure({
+  rows,
+  lastNotes,
+  dayLabel,
+  selectedDay,
+  isToday,
+}: {
+  rows: TonightRow[];
+  lastNotes: Map<string, LastNote>;
+  /** Day-aware copy noun — "tonight" or the weekday name for any other Selected day. */
+  dayLabel: string;
+  selectedDay: string;
+  isToday: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  // A submitted Rejection moves its row to the Rejected disclosure on
+  // revalidation; this live region — stable across that re-render, unlike
+  // the row itself — announces the removal, mirroring the Picker's own
+  // (DESIGN.md "Closed disclosure": "the same row-leaves-on-write feedback
+  // the picker already has").
+  const [rejectNotice, setRejectNotice] = useState("");
+
+  return (
+    <div className="flex flex-col gap-2">
+      <DisclosureToggle
+        open={open}
+        onToggle={() => setOpen((isOpen) => !isOpen)}
+        label={
+          isToday
+            ? `Closed tonight (${rows.length})`
+            : `Closed on ${dayLabel} (${rows.length})`
+        }
+      />
+      <p className="sr-only" role="status" aria-live="polite">
+        {rejectNotice}
+      </p>
+      {open && (
+        <ul className="flex flex-col">
+          {rows.map((row) => (
+            <TonightRowItem
+              key={row.option.id}
+              row={row}
+              lastNote={lastNotes.get(row.option.id)}
+              selectedDay={isToday ? undefined : selectedDay}
+              onRejected={(name) =>
+                setRejectNotice(`Rejected ${name}, removed from the list.`)
+              }
+            />
           ))}
         </ul>
       )}

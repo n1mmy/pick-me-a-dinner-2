@@ -36,7 +36,7 @@ vi.mock("../lib/ai-search", async (importOriginal) => ({
 
 import { aiSearchAction } from "./tonight-actions";
 import { AI_SEARCH_UNAVAILABLE } from "../lib/ai-search";
-import { todaySqlDate } from "../lib/local-day";
+import { todaySqlDate, weekdayFromSqlDate } from "../lib/local-day";
 
 const TONIGHT_DATA = {
   options: [
@@ -48,6 +48,7 @@ const TONIGHT_DATA = {
       notes: null,
       url: null,
       phone: null,
+      closedDays: [],
     },
   ],
   // `getTonightData`'s own non-future Log — `aiSearchAction` no longer reads
@@ -159,5 +160,39 @@ describe("aiSearchAction", () => {
     expect(snapshot.log.map((e: { date: string }) => e.date)).toContain(
       "2099-01-01 (Thursday)",
     );
+  });
+
+  it("passes closedDays through and drops a Restaurant closed today from the candidate set", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+    getTonightData.mockResolvedValue({
+      options: [
+        ...TONIGHT_DATA.options,
+        {
+          id: "o2",
+          name: "Bento Box",
+          kind: "restaurant" as const,
+          tags: [],
+          notes: null,
+          url: null,
+          phone: null,
+          closedDays: [weekdayFromSqlDate(today)],
+        },
+      ],
+      logEntries: TONIGHT_DATA.logEntries,
+      todayEntries: TONIGHT_DATA.todayEntries,
+    });
+    search.mockResolvedValue({ ok: true, results: [] });
+
+    await aiSearchAction("");
+
+    const [snapshot, idByIndex] = search.mock.calls[0];
+    // o2 (Bento Box) is closed today, so it never reaches the candidate set —
+    // `app/tonight-actions.ts`'s `options.map` forwards `closedDays` and
+    // `buildSnapshot` drops the Restaurant on it.
+    expect(
+      snapshot.options.map((o: { name: string }) => o.name),
+    ).not.toContain("<household-text>Bento Box</household-text>");
+    expect([...idByIndex.values()]).not.toContain("o2");
   });
 });

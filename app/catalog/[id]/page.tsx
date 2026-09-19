@@ -8,7 +8,11 @@ import {
   getTonightData,
 } from "../../../db/queries";
 import { formatDinnerDate, groupByDay } from "../../../lib/dinner-grouping";
-import { epochDayFromSqlDate, today } from "../../../lib/local-day";
+import {
+  epochDayFromSqlDate,
+  today,
+  WEEKDAY_NAMES,
+} from "../../../lib/local-day";
 import { placesEnabled } from "../../../lib/places";
 import { rankOption, type RankOption } from "../../../lib/ranking";
 import { EntryRow } from "../../log/log-entry-row";
@@ -106,13 +110,17 @@ export default async function OptionDetailPage({
   const activity = [...upcoming].reverse().concat(history);
 
   const isRestaurant = option.kind === "restaurant";
+  const closedDays = isRestaurant
+    ? closedDaysSummary(option.closedDays)
+    : null;
   const hasDetails =
     Boolean(option.notes) ||
     Boolean(option.url) ||
     (isRestaurant &&
       (Boolean(option.address) ||
         Boolean(option.phone) ||
-        Boolean(option.mapsUrl)));
+        Boolean(option.mapsUrl) ||
+        closedDays !== null));
 
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
@@ -182,6 +190,9 @@ export default async function OptionDetailPage({
                 </a>
               </Field>
             )}
+            {isRestaurant && closedDays && (
+              <Field label="Closed days">{closedDays}</Field>
+            )}
           </dl>
         </section>
       )}
@@ -225,6 +236,19 @@ export default async function OptionDetailPage({
       </section>
     </main>
   );
+}
+
+/**
+ * "Closed Sundays and Mondays" — the Closed days line on the Option detail
+ * page (PRD: Closed days). `null` for an empty set, so the caller omits the
+ * `Field` exactly like every other blank Restaurant field.
+ */
+function closedDaysSummary(closedDays: number[]): string | null {
+  if (closedDays.length === 0) return null;
+  const names = closedDays.map((day) => `${WEEKDAY_NAMES[day]}s`);
+  if (names.length === 1) return `Closed ${names[0]}`;
+  const last = names[names.length - 1];
+  return `Closed ${names.slice(0, -1).join(", ")} and ${last}`;
 }
 
 /**

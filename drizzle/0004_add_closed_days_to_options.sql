@@ -1,0 +1,1 @@
+ALTER TABLE "options" ADD COLUMN "closed_days" integer[] DEFAULT '{}'::integer[] NOT NULL;

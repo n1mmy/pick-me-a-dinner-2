@@ -8,6 +8,7 @@ import {
   useTransition,
 } from "react";
 import type { OptionWithTags } from "../../db/queries";
+import { WEEKDAY_NAMES } from "../../lib/local-day";
 import {
   createOption,
   updateOption,
@@ -23,6 +24,11 @@ const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body text-ink " +
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
   "focus-visible:outline-action";
+const focusRing =
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
+  "focus-visible:outline-action";
+/** `S M T W T F S`, Sunday first — matching the `0` = Sunday convention. */
+const SHORT_WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
 /**
  * The inline add/edit form for one Option — identical on phone and desktop. An
@@ -63,6 +69,9 @@ export function OptionForm({
     initial?.googlePlaceId ?? "",
   );
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [closedDays, setClosedDays] = useState<number[]>(
+    initial?.closedDays ?? [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -104,6 +113,7 @@ export function OptionForm({
       lng,
       googlePlaceId,
       tags,
+      closedDays,
     };
     startTransition(async () => {
       const result = initial
@@ -200,6 +210,7 @@ export function OptionForm({
             value={googlePlaceId}
             onChange={setGooglePlaceId}
           />
+          <ClosedDayToggles value={closedDays} onChange={setClosedDays} />
         </>
       )}
 
@@ -271,6 +282,60 @@ function TextField({
         onChange={(event) => onChange(event.target.value)}
       />
       {note && <p className="text-chip text-muted">{note}</p>}
+    </div>
+  );
+}
+
+/**
+ * The Restaurant form's Closed-days control — seven toggle chips in one row,
+ * `S M T W T F S`, Sunday first (`0` = Sunday). `DESIGN.md`'s "Closed-day
+ * toggles (2026-09-19 exception to control height)": seven 44px targets plus
+ * gaps overrun a 375px viewport, and wrapping or stacking destroys the
+ * week-shape the control is read by, so the chips sit at 36px (`h-9`) and
+ * fill the row's width evenly instead. Each chip carries `aria-pressed` and
+ * an accessible name naming the full day and its state — a bare "S" is
+ * ambiguous between Saturday and Sunday even visually.
+ */
+function ClosedDayToggles({
+  value,
+  onChange,
+}: {
+  value: number[];
+  onChange: (value: number[]) => void;
+}) {
+  function toggle(day: number) {
+    onChange(
+      value.includes(day)
+        ? value.filter((d) => d !== day)
+        : [...value, day].sort((a, b) => a - b),
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className={labelClass}>Closed days</span>
+      <div role="group" aria-label="Closed days" className="flex gap-1">
+        {SHORT_WEEKDAYS.map((short, day) => {
+          const closed = value.includes(day);
+          return (
+            <button
+              key={day}
+              type="button"
+              aria-pressed={closed}
+              aria-label={`${WEEKDAY_NAMES[day]}: ${closed ? "closed" : "open"}`}
+              onClick={() => toggle(day)}
+              className={`h-9 flex-1 rounded-control border text-body font-emphasis
+                transition-colors duration-short ${focusRing} ${
+                closed
+                  ? "border-action bg-action text-action-ink"
+                  : "border-line bg-surface text-ink hover:bg-raised"
+              }`}
+            >
+              {short}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

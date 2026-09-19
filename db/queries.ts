@@ -136,11 +136,19 @@ export async function getOptionById(
 }
 
 /**
- * A ranking Option plus its free-text `notes`. The ranking ignores `notes` —
- * `rankTonight` still receives exactly a `RankOption` — but the AI search
- * snapshot builder needs it (PRD: AI search).
+ * A ranking Option plus its free-text `notes` and its `closedDays`. The
+ * ranking ignores both — `rankTonight` still receives exactly a `RankOption`,
+ * staying structurally blind to closures (ADR-0003, ADR-0010) — but `notes`
+ * feeds the AI search snapshot builder (PRD: AI search) and `closedDays`
+ * feeds Tonight's closed-day suppression (PRD: Closed days) — no per-row
+ * badge; the Closed disclosure's heading is the only place that says why a
+ * row is there.
  */
-export type TonightOption = RankOption & { notes: string | null };
+export type TonightOption = RankOption & {
+  notes: string | null;
+  /** `0`–`6`, `0` = Sunday (see `lib/local-day.ts`); empty = open all week. */
+  closedDays: number[];
+};
 
 /**
  * A non-future `dinner_log` row, narrowed to what Tonight needs. The ranking
@@ -173,8 +181,10 @@ export type NotedTonightLogRow = TonightLogRow & { createdAt: Date };
  * The entries also carry `created_at` for that module's same-date tie-break.
  * Each Option additionally carries `url` and `phone` (both nullable; `phone` is
  * always null for a Home meal) — the fields the decided view's Menu / Call /
- * Recipe action buttons render from (PRD: Tonight — decided mode). The ranking input is otherwise
- * unchanged: `rankTonight` reads only the recency-relevant `RankOption` fields.
+ * Recipe action buttons render from (PRD: Tonight — decided mode) — and its
+ * `closedDays` (PRD: Closed days), for the caller to derive suppression from —
+ * no per-row badge. The ranking input is otherwise unchanged: `rankTonight`
+ * reads only the recency-relevant `RankOption` fields.
  *
  * `todayEntries` is the `dinner_log` rows dated *today* — with their `id`,
  * `created_at`, and `note` — which the decided mode of Tonight needs (PRD:
@@ -232,6 +242,7 @@ export async function getTonightData(todaySqlDate: string): Promise<{
       notes: option.notes,
       url: option.url,
       phone: option.phone,
+      closedDays: option.closedDays,
     })),
     logEntries,
     todayEntries,

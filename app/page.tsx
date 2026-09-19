@@ -1,5 +1,6 @@
 import { getTodayRejections, getTonightData } from "../db/queries";
 import { aiSearchEnabled } from "../lib/ai-search";
+import { partitionClosedRows } from "../lib/closed-days";
 import { lastNotesByOption } from "../lib/last-note";
 import {
   epochDayFromSqlDate,
@@ -84,15 +85,28 @@ export default async function TonightPage({
   // Suppression (PRD: Rejections on Tonight) — Options rejected on the
   // Selected day drop out of the deterministic picker. This is a presentation
   // filter only: it is applied after `rankTonight`, so the Score and the
-  // ranking are untouched (ADR-0003, ADR-0006). `allRejected` distinguishes a
-  // list emptied by Rejections from a genuinely empty Catalog, so the screen
-  // shows honest copy. The same `anchorRejections` result also feeds the
-  // "Rejected for [day]" disclosure, where each entry can be brought back.
+  // ranking are untouched (ADR-0003, ADR-0006). The same `anchorRejections`
+  // result also feeds the "Rejected for [day]" disclosure, where each entry
+  // can be brought back.
   const rejectedForAnchor = new Set(anchorRejections.map((r) => r.optionId));
-  const visiblePicker = picker.filter(
+  const afterRejection = picker.filter(
     (row) => !rejectedForAnchor.has(row.option.id),
   );
-  const allRejected = picker.length > 0 && visiblePicker.length === 0;
+
+  // Closed-day suppression (PRD: Closed days, ADR-0010) — a Restaurant shut on
+  // the Selected day's weekday drops out of the picker too, alongside the
+  // Rejection filter above and applied to what it leaves behind: a Restaurant
+  // both closed and rejected for the Selected day belongs in the Rejected
+  // disclosure only, never in both. Also a presentation filter, applied after
+  // `rankTonight` — `lib/ranking.ts` never learns closures exist.
+  const { visible: visiblePicker, closed: closedForAnchor } =
+    partitionClosedRows(afterRejection, options, selectedDay);
+
+  // `allFiltered` distinguishes a list emptied by Rejections and/or Closed
+  // days from a genuinely empty Catalog, so the screen shows honest copy —
+  // one flag covers both filter causes rather than a three-way matrix, since
+  // both disclosures sit directly below and say which Options landed where.
+  const allFiltered = picker.length > 0 && visiblePicker.length === 0;
 
   // AI search appears only when `ANTHROPIC_API_KEY` is configured; without it
   // Tonight is exactly v1.
@@ -102,7 +116,8 @@ export default async function TonightPage({
       pickerRows={visiblePicker}
       lastNotes={lastNotes}
       rejectedTonight={anchorRejections}
-      allRejected={allRejected}
+      closedTonight={closedForAnchor}
+      allFiltered={allFiltered}
       searchEnabled={aiSearchEnabled()}
       selectedDay={selectedDay}
       todaySql={todaySql}

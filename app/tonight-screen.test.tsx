@@ -864,3 +864,136 @@ describe("TonightScreen — scroll to top on Pick", () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "auto" });
   });
 });
+
+describe("TonightScreen — Closed disclosure", () => {
+  it("renders below the Rejected disclosure, collapsed by default, with a day-aware heading", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+        rejectedTonight={[
+          { id: "r1", optionId: "o3", optionName: "Curry House", reason: null },
+        ]}
+        closedTonight={[row("o4", "Zed Diner"), row("o5", "Aji Ichi")]}
+      />,
+    );
+
+    const rejectedButton = screen.getByRole("button", {
+      name: /^Rejected tonight/,
+    });
+    const closedButton = screen.getByRole("button", {
+      name: "Closed tonight (2)",
+    });
+    // Closed sits after Rejected in document order — Rejected keeps the
+    // closer position because it holds the time-sensitive undo.
+    expect(
+      rejectedButton.compareDocumentPosition(closedButton) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // Collapsed by default — no closed-row names on screen yet.
+    expect(screen.queryByText("Zed Diner")).toBeNull();
+    expect(closedButton.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("expands to show alphabetically-ordered rows with full Pick/Reject controls and an empty rank gutter", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+        closedTonight={[row("o4", "Aji Ichi"), row("o5", "Zed Diner")]}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Closed tonight (2)" }),
+    );
+
+    expect(screen.getByText("Aji Ichi")).toBeTruthy();
+    expect(screen.getByText("Zed Diner")).toBeTruthy();
+    // Each row still carries the full picker controls: the two ranked
+    // ROWS above plus the two closed rows.
+    expect(screen.getAllByRole("button", { name: "Pick" })).toHaveLength(4);
+    expect(screen.getAllByRole("button", { name: "Reject" })).toHaveLength(4);
+
+    // No rank numeral on a closed row — the `w-6` gutter renders, empty.
+    const li = screen.getByText("Aji Ichi").closest("li");
+    const rankGutter = li?.querySelector(".w-6");
+    expect(rankGutter?.textContent).toBe("");
+  });
+
+  it("names the heading after the Selected day's weekday when it is not today", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-22"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+        closedTonight={[row("o4", "Aji Ichi")]}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Closed on Friday (1)" }),
+    ).toBeTruthy();
+  });
+
+  it("stays absent from the screen when nothing is closed for the Selected day", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /^Closed/ }),
+    ).toBeNull();
+  });
+});
+
+describe("TonightScreen — empty-picker copy", () => {
+  it("stays honest when the list was emptied by closures alone, with no Rejection claim", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={[]}
+        allFiltered
+        searchEnabled={false}
+        closedTonight={[row("o1", "Apple Crumble")]}
+      />,
+    );
+    expect(
+      screen.getByText(/No Options are available for tonight/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/rejected/i)).toBeNull();
+  });
+
+  it("still distinguishes a genuinely empty Catalog from an all-filtered one", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={[]}
+        searchEnabled={false}
+      />,
+    );
+    // `allFiltered` defaults to false, so an empty `pickerRows` with nothing
+    // filtered reads as an empty Catalog, not the all-filtered copy.
+    expect(screen.getByText(/Your Catalog is empty\./)).toBeTruthy();
+    expect(
+      screen.queryByText(/No Options are available for/),
+    ).toBeNull();
+  });
+});
