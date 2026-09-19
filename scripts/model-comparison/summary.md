@@ -9,6 +9,14 @@ adherence counts only — ranking quality is a human read (see `README.md`).
 |---|---|---|---|---|
 | `scripts/model-comparison/2026-09-17-open.json` | _(empty)_ | 23 | 2026-09-17 (Thursday) · 35 options · 175 log | serial |
 | `scripts/model-comparison/2026-09-17-something-light.json` | "something light" | 6 | 2026-09-17 (Thursday) · 35 options · 175 log | serial |
+| `scripts/model-comparison/2026-09-18-open.json` | _(empty)_ | 3 | 2026-09-18 (Friday) · 34 options · 176 log | serial |
+
+⚠️ **2 distinct snapshots** in this set. Pooled measures
+use the largest single-snapshot group per cell and report what they
+excluded; nothing is averaged across snapshots.
+
+- 2026-09-17 (Thursday) · 35 options · 175 log
+- 2026-09-18 (Friday) · 34 options · 176 log
 
 ## Query: _(empty — open query)_
 
@@ -19,9 +27,12 @@ adherence counts only — ranking quality is a human read (see `README.md`).
 | opus-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 69.6s | 6060 | 35 | 8 | 7 | 0 | 34 | 3 |
 | opus-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 4 | yes | 84.1s | 6882 | 35 | 3 | 3 | 0 | 38 | 0 |
 | opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 1 | yes | 21.9s | 1435 | 34 | 10 | 11 | 1 | 43 | 0 |
+| opus-5 · effort low | `scripts/model-comparison/2026-09-18-open.json` | 1 | yes | 22.6s | 1368 | 34 | 9 | 5 | 1 | 59 | 0 |
 | opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 2 | yes | 21.7s | 1396 | 34 | 7 | 5 | 1 | 39 | 0 |
+| opus-5 · effort low | `scripts/model-comparison/2026-09-18-open.json` | 2 | yes | 18.6s | 1210 | 34 | 10 | 3 | 1 | 55 | 12 |
 | opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 22.0s | 1485 | 35 | 13 | 5 | 0 | 43 | 0 |
-| opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 4 | yes | 20.7s | 1459 | 35 | 3 | 6 | 1 | 30 | 0 |
+| opus-5 · effort low | `scripts/model-comparison/2026-09-18-open.json` | 3 | yes | 16.8s | 1032 | 34 | 20 | 3 | 0 | 69 | 0 |
+| opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 4 | yes | 20.7s | 1459 | 35 | 3 | 5 | 1 | 30 | 0 |
 | opus-5 · effort low | `scripts/model-comparison/2026-09-17-open.json` | 5 | yes | 20.8s | 1556 | 33 | 5 | 8 | 0 | 39 | 0 |
 | opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 1 | yes | 51.7s | 3955 | 35 | 7 | 5 | 0 | 43 | 0 |
 | opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 2 | yes | 41.7s | 3170 | 34 | 7 | 4 | 1 | 36 | 0 |
@@ -45,8 +56,11 @@ adherence counts only — ranking quality is a human read (see `README.md`).
 - **opus-5 · effort high** (scripts/model-comparison/2026-09-17-open.json, rep 3) — Taqueria Durango · West Coast Cafe · Minari Korean · bb.q Chicken San Bruno · Atlas Pizza and Indian
 - **opus-5 · effort high** (scripts/model-comparison/2026-09-17-open.json, rep 4) — West Coast Cafe · Minari Korean · Taqueria Durango · Mollie Stone's · Mazra
 - **opus-5 · effort low** (scripts/model-comparison/2026-09-17-open.json, rep 1) — Taqueria Durango · Minari Korean · Little Vietnamese Bistro · K-Grill & Tofu House · Roma Deli
+- **opus-5 · effort low** (scripts/model-comparison/2026-09-18-open.json, rep 1) — Taqueria Durango · Little Vietnamese Bistro · K-Grill & Tofu House · West Coast Cafe · Minari Korean
 - **opus-5 · effort low** (scripts/model-comparison/2026-09-17-open.json, rep 2) — Taqueria Durango · Little Vietnamese Bistro · Minari Korean · West Coast Cafe · Lotus Falafel
+- **opus-5 · effort low** (scripts/model-comparison/2026-09-18-open.json, rep 2) — Taqueria Durango · Little Vietnamese Bistro · Minari Korean · Big Mouth Burgers · K-Grill & Tofu House
 - **opus-5 · effort low** (scripts/model-comparison/2026-09-17-open.json, rep 3) — Taqueria Durango · Minari Korean · Lotus Falafel · Sofra Grill · Roma Deli
+- **opus-5 · effort low** (scripts/model-comparison/2026-09-18-open.json, rep 3) — Taqueria Durango · Little Vietnamese Bistro · Minari Korean · K-Grill & Tofu House · Mollie Stone's
 - **opus-5 · effort low** (scripts/model-comparison/2026-09-17-open.json, rep 4) — Taqueria Durango · Minari Korean · Limon · Roma Deli · Sofra Grill
 - **opus-5 · effort low** (scripts/model-comparison/2026-09-17-open.json, rep 5) — Taqueria Durango · Little Vietnamese Bistro · Minari Korean · K-Grill & Tofu House · Boiling Beijing
 - **opus-5 · effort medium** (scripts/model-comparison/2026-09-17-open.json, rep 1) — Taqueria Durango · West Coast Cafe · K-Grill & Tofu House · Little Vietnamese Bistro · Minari Korean
@@ -72,7 +86,7 @@ snapshot. `n` is how many successful reps pooled.
 - **opus-5 · effort high** — n=4, mean overlap **4.0/5**, #1 held 3/4 (Taqueria Durango)
   - snapshot: 2026-09-17 (Thursday) · 35 options · 175 log
   - sources: scripts/model-comparison/2026-09-17-open.json
-- **opus-5 · effort low** — n=5, mean overlap **2.9/5**, #1 held 5/5 (Taqueria Durango)
+- **opus-5 · effort low** — n=5, mean overlap **2.9/5**, #1 held 5/5 (Taqueria Durango)  _[3 rep(s) excluded: other snapshot]_
   - snapshot: 2026-09-17 (Thursday) · 35 options · 175 log
   - sources: scripts/model-comparison/2026-09-17-open.json
 - **opus-5 · effort medium** — n=5, mean overlap **2.3/5**, #1 held 4/5 (Taqueria Durango)
@@ -128,39 +142,43 @@ any ranking difference between them is not yet evidence of anything.
 
 ### Reason quality
 
-| cell | rep | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | cuisine conflicts |
-|---|---|---|---|---|---|---|---|---|---|
-| opus-5 · effort high | 1 | 31% | 7 | 72% | 17% | -0.89 | 3 | 0.93 | 0 |
-| opus-5 · effort high | 2 | 16% | 7 | 72% | 9% | -0.80 | 2 | 0.97 | 0 |
-| opus-5 · effort high | 3 | 30% | 5 | 85% | 15% | -0.80 | 1 | 0.90 | 0 |
-| opus-5 · effort high | 4 | 25% | 7 | 69% | 25% | -0.89 | 4 | 0.97 | 0 |
-| opus-5 · effort low | 1 | 4% | 8 | 88% | 33% | -0.88 | 2 | 0.86 | 0 |
-| opus-5 · effort low | 2 | 15% | 8 | 81% | 22% | -0.88 | 1 | 0.87 | 0 |
-| opus-5 · effort low | 3 | 18% | 9 | 77% | 27% | -0.92 | 4 | 0.83 | 0 |
-| opus-5 · effort low | 4 | 16% | 7 | 66% | 13% | -0.76 | 8 | 0.97 | 0 |
-| opus-5 · effort low | 5 | 11% | 6 | 79% | 39% | -0.96 | 4 | 0.94 | 0 |
-| opus-5 · effort medium | 1 | 29% | 10 | 75% | 32% | -0.87 | 2 | 0.91 | 0 |
-| opus-5 · effort medium | 2 | 19% | 8 | 93% | 37% | -0.78 | 0 | 0.91 | 0 |
-| opus-5 · effort medium | 3 | 18% | 8 | 86% | 29% | -0.78 | 2 | 0.91 | 0 |
-| opus-5 · effort medium | 4 | 18% | 4 | 82% | 32% | -0.80 | 0 | 0.77 | 0 |
-| opus-5 · effort medium | 5 | 12% | 6 | 88% | 52% | -0.88 | 1 | 0.87 | 0 |
-| sonnet-5 · effort high | 3 | 30% | 5 | 70% | 13% | -0.83 | 3 | 0.94 | 0 |
-| sonnet-5 · effort low | 1 | 31% | 11 | 72% | 14% | -0.69 | 3 | 0.86 | 1 |
-| sonnet-5 · effort low | 2 | 24% | 13 | 72% | 8% | -0.47 | 3 | 0.71 | 0 |
-| sonnet-5 · effort low | 3 | 22% | 11 | 70% | 4% | -0.70 | 3 | 0.67 | 1 |
-| sonnet-5 · effort low | 4 | 28% | 14 | 56% | 13% | -0.63 | 4 | 0.49 | 0 |
-| sonnet-5 · effort low | 5 | 33% | 10 | 71% | 5% | -0.40 | 1 | 0.60 | 0 |
-| sonnet-5 · effort low | 6 | 27% | 12 | 77% | 5% | -0.87 | 0 | 0.81 | 0 |
+| cell | snapshot | rep | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | cuisine conflicts |
+|---|---|---|---|---|---|---|---|---|---|---|
+| opus-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 31% | 4 | 72% | 17% | -0.89 | 3 | 0.93 | 0 |
+| opus-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 2 | 16% | 4 | 72% | 9% | -0.80 | 2 | 0.97 | 0 |
+| opus-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 3 | 30% | 4 | 85% | 15% | -0.80 | 1 | 0.90 | 0 |
+| opus-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 4 | 25% | 2 | 69% | 25% | -0.89 | 4 | 0.97 | 0 |
+| opus-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 4% | 3 | 88% | 33% | -0.88 | 2 | 0.86 | 0 |
+| opus-5 · effort low | 2026-09-18 (Friday) · 34 options · 176 log | 1 | 36% | 1 | 88% | 60% | -0.85 | 1 | 0.84 | 0 |
+| opus-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 2 | 15% | 3 | 81% | 22% | -0.88 | 1 | 0.87 | 0 |
+| opus-5 · effort low | 2026-09-18 (Friday) · 34 options · 176 log | 2 | 29% | 1 | 96% | 42% | -0.83 | 0 | 0.80 | 0 |
+| opus-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 3 | 18% | 4 | 77% | 27% | -0.92 | 4 | 0.83 | 0 |
+| opus-5 · effort low | 2026-09-18 (Friday) · 34 options · 176 log | 3 | 21% | 1 | 100% | 71% | -0.87 | 0 | 0.72 | 0 |
+| opus-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 4 | 16% | 3 | 66% | 13% | -0.76 | 8 | 0.97 | 0 |
+| opus-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 5 | 11% | 4 | 79% | 39% | -0.96 | 4 | 0.94 | 0 |
+| opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 29% | 6 | 75% | 32% | -0.87 | 2 | 0.91 | 0 |
+| opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 2 | 19% | 4 | 93% | 37% | -0.78 | 0 | 0.91 | 0 |
+| opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 3 | 18% | 5 | 86% | 29% | -0.78 | 2 | 0.91 | 0 |
+| opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 4 | 18% | 3 | 82% | 32% | -0.80 | 0 | 0.77 | 0 |
+| opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 5 | 12% | 3 | 88% | 52% | -0.88 | 1 | 0.87 | 0 |
+| sonnet-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 3 | 30% | 2 | 70% | 13% | -0.83 | 3 | 0.94 | 0 |
+| sonnet-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 31% | 5 | 72% | 14% | -0.69 | 3 | 0.86 | 1 |
+| sonnet-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 2 | 24% | 5 | 72% | 8% | -0.47 | 3 | 0.71 | 0 |
+| sonnet-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 3 | 22% | 7 | 70% | 4% | -0.70 | 3 | 0.67 | 1 |
+| sonnet-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 4 | 28% | 9 | 56% | 13% | -0.63 | 4 | 0.49 | 0 |
+| sonnet-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 5 | 33% | 4 | 71% | 5% | -0.40 | 1 | 0.60 | 0 |
+| sonnet-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 6 | 27% | 5 | 77% | 5% | -0.87 | 0 | 0.81 | 0 |
 
 #### Reason quality — per-cell means
 
-| cell | reps | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | conflicts |
-|---|---|---|---|---|---|---|---|---|---|
-| opus-5 · effort high | 4 | 25% | 6.5 | 75% | 17% | -0.84 | 2.5 | 0.94 | 0 |
-| opus-5 · effort low | 5 | 13% | 7.6 | 78% | 27% | -0.88 | 3.8 | 0.89 | 0 |
-| opus-5 · effort medium | 5 | 19% | 7.2 | 85% | 36% | -0.82 | 1.0 | 0.88 | 0 |
-| sonnet-5 · effort high | 1 | 30% | 5.0 | 70% | 13% | -0.83 | 3.0 | 0.94 | 0 |
-| sonnet-5 · effort low | 6 | 28% | 11.8 | 70% | 8% | -0.63 | 2.3 | 0.69 | 2 |
+| cell | snapshot | reps | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | conflicts |
+|---|---|---|---|---|---|---|---|---|---|---|
+| opus-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 4 | 25% | 3.5 | 75% | 17% | -0.84 | 2.5 | 0.94 | 0 |
+| opus-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 5 | 13% | 3.4 | 78% | 27% | -0.88 | 3.8 | 0.89 | 0 |
+| opus-5 · effort low | 2026-09-18 (Friday) · 34 options · 176 log | 3 | 29% | 1.0 | 95% | 58% | -0.85 | 0.3 | 0.79 | 0 |
+| opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 5 | 19% | 4.2 | 85% | 36% | -0.82 | 1.0 | 0.88 | 0 |
+| sonnet-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 30% | 2.0 | 70% | 13% | -0.83 | 3.0 | 0.94 | 0 |
+| sonnet-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 6 | 28% | 5.8 | 70% | 8% | -0.63 | 2.3 | 0.69 | 2 |
 
 `rhythm` = share of non-empty reasons naming the SHAPE of a habit —
 an interval, a weekday, a sequence. Higher is better: it is the timing
@@ -181,7 +199,7 @@ None of these carry a target. They are reported so a prompt change can be
 compared against the run before it; optimising them directly would buy
 thesaurus variety rather than better reasons.
 
-Cuisine check coverage: 42% of rows (238/565) have exactly one recognised cuisine in the Option name and could be checked at all. Extend `CUISINES` in `analyze.mjs` when the Catalog grows.
+Cuisine check coverage: 42% of rows (266/628) have exactly one recognised cuisine in the Option name and could be checked at all. Extend `CUISINES` in `analyze.mjs` when the Catalog grows.
 
 #### Cuisine conflicts (verify by hand — heuristic)
 
@@ -206,18 +224,30 @@ Cuisine check coverage: 42% of rows (238/565) have exactly one recognised cuisin
   - Minari Korean: "Korean has quietly dropped out of rotation since early summer"
   - Little Vietnamese Bistro: "Vietnamese comes around every few weeks and hasn't appeared in a while"
   - K-Grill & Tofu House: "the other Korean spot, long out of rotation"
+- **opus-5 · effort low** (rep 1), 5 hits:
+  - Taqueria Durango: "Mexican comes round every couple of weeks and that stretch is up; a break from the mediterranean and sushi run of this week"
+  - Local Kitchens: "Just used this week, and Sonia rejected her grilled cheese"
+  - Lotus Falafel: "Mediterranean already covered this week"
 - **opus-5 · effort low** (rep 2), 5 hits:
   - Taqueria Durango: "Mexican has dropped out of rotation since early this month and it's due again"
   - Minari Korean: "Korean has quietly dropped out of rotation entirely since June"
   - West Coast Cafe: "Italian tends to land on Thursdays, and it hasn't come up in months"
+- **opus-5 · effort low** (rep 2), 3 hits:
+  - K-Grill & Tofu House: "The other Korean option, barely touched all summer — kimchi fried rice landed well last time."
+  - Local Kitchens: "just used this week"
+  - Hungryroot: "none in the house this week"
 - **opus-5 · effort low** (rep 3), 5 hits:
   - Minari Korean: "Korean has quietly dropped out of rotation since early summer"
   - Mollie Stone's: "Grocery-plate night hasn't come up in over a month"
   - Little Vietnamese Bistro: "Helen already had fried rice this week"
-- **opus-5 · effort low** (rep 4), 6 hits:
-  - Taqueria Durango: "Mexican is overdue — it usually comes back around every two weeks and has slipped past that"
+- **opus-5 · effort low** (rep 3), 3 hits:
+  - K-Grill & Tofu House: "The other Korean option, barely touched all summer; kimchi fried rice worked for Helen there"
+  - West Coast Cafe: "Italian, but pasta came up at home this week"
+  - Lotus Falafel: "Mazra already covered mediterranean this week"
+- **opus-5 · effort low** (rep 4), 5 hits:
   - Minari Korean: "Korean has quietly dropped out of the rotation entirely since early summer"
   - Limon: "Peruvian has been gone for months and this one only comes up on nights you'll travel for it"
+  - Roma Deli: "sandwiches are rare but real, and this one hasn't come up since winter"
 - **opus-5 · effort low** (rep 5), 8 hits:
   - Little Vietnamese Bistro: "Vietnamese comes around every few weeks and hasn't turned up in a while"
   - Minari Korean: "Korean has quietly dropped out of the rotation since early summer"
@@ -345,23 +375,23 @@ any ranking difference between them is not yet evidence of anything.
 
 ### Reason quality
 
-| cell | rep | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | cuisine conflicts |
-|---|---|---|---|---|---|---|---|---|---|
-| opus-5 · effort high | 1 | 11% | 3 | 78% | 78% | -0.87 | 0 | — | 0 |
-| opus-5 · effort low | 1 | 0% | 2 | 83% | 83% | -0.51 | 0 | — | 0 |
-| opus-5 · effort medium | 1 | 17% | 3 | 83% | 100% | -0.86 | 0 | — | 0 |
-| sonnet-5 · effort high | 2 | 0% | 5 | 100% | 22% | -0.90 | 0 | 0.95 | 0 |
-| sonnet-5 · effort low | 1 | 0% | 4 | 50% | 67% | -0.88 | 0 | — | 0 |
+| cell | snapshot | rep | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | cuisine conflicts |
+|---|---|---|---|---|---|---|---|---|---|---|
+| opus-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 11% | 2 | 78% | 78% | -0.87 | 0 | — | 0 |
+| opus-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 0% | 1 | 83% | 83% | -0.51 | 0 | — | 0 |
+| opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 17% | 3 | 83% | 100% | -0.86 | 0 | — | 0 |
+| sonnet-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 2 | 0% | 3 | 100% | 22% | -0.90 | 0 | 0.95 | 0 |
+| sonnet-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 0% | 2 | 50% | 67% | -0.88 | 0 | — | 0 |
 
 #### Reason quality — per-cell means
 
-| cell | reps | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | conflicts |
-|---|---|---|---|---|---|---|---|---|---|
-| opus-5 · effort high | 1 | 11% | 3.0 | 78% | 78% | -0.87 | 0.0 | — | 0 |
-| opus-5 · effort low | 1 | 0% | 2.0 | 83% | 83% | -0.51 | 0.0 | — | 0 |
-| opus-5 · effort medium | 1 | 17% | 3.0 | 83% | 100% | -0.86 | 0.0 | — | 0 |
-| sonnet-5 · effort high | 1 | 0% | 5.0 | 100% | 22% | -0.90 | 0.0 | 0.95 | 0 |
-| sonnet-5 · effort low | 1 | 0% | 4.0 | 50% | 67% | -0.88 | 0.0 | — | 0 |
+| cell | snapshot | reps | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | conflicts |
+|---|---|---|---|---|---|---|---|---|---|---|
+| opus-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 11% | 2.0 | 78% | 78% | -0.87 | 0.0 | — | 0 |
+| opus-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 0% | 1.0 | 83% | 83% | -0.51 | 0.0 | — | 0 |
+| opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 17% | 3.0 | 83% | 100% | -0.86 | 0.0 | — | 0 |
+| sonnet-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 0% | 3.0 | 100% | 22% | -0.90 | 0.0 | 0.95 | 0 |
+| sonnet-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 0% | 2.0 | 50% | 67% | -0.88 | 0.0 | — | 0 |
 
 `rhythm` = share of non-empty reasons naming the SHAPE of a habit —
 an interval, a weekday, a sequence. Higher is better: it is the timing

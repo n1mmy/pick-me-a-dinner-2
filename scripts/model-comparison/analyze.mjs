@@ -80,7 +80,14 @@ import {
  * weekdays as breaks would penalise the pattern-finding that is the point of
  * the feature (ADR-0005). Cadence phrasings ("about every two weeks") are
  * likewise absent — they name an interval, which the chips cannot show, rather
- * than restating elapsed time. See `RHYTHM_VOCAB`.
+ * than restating elapsed time. See `RHYTHM_VOCAB` and `withoutIntervals`.
+ *
+ * Known false positive: `this week`. A rationale saying what the household has
+ * ALREADY eaten this week ("Mediterranean already covered this week") is a
+ * sequencing observation and legitimate; one saying how long it has been ("just
+ * used this week") is the thing banned. No regex separates those, and
+ * over-flagging is the safer direction for a metric nobody optimises against —
+ * so read the examples below the table rather than trusting the count.
  */
 const DATE_REF = new RegExp(
   [
@@ -110,6 +117,21 @@ const DATE_REF = new RegExp(
   ].join("|"),
   "i",
 );
+
+/**
+ * Interval constructions — "every two weeks", "about every three weeks",
+ * "every couple of months". These name a *cadence*, which is precisely what
+ * the prompt now requires of a timing rationale, but they embed the same
+ * duration words `DATE_REF` hunts for. Stripping them before the elapsed-time
+ * test is what keeps the metric from flagging the prompt's own model answer
+ * ("runs about every two weeks and that stretch is up") as a rule break.
+ */
+const INTERVAL = /\b(about |roughly |around )?every (other |couple of |few )?(one|two|three|four|five|six|\d+ )?\s?(day|night|week|month)s?\b/gi;
+
+/** A rationale with its cadence phrasings removed, for the elapsed-time test. */
+function withoutIntervals(reason) {
+  return reason.replace(INTERVAL, " ");
+}
 
 /** First word of the Option name appearing as the rationale's first word. */
 function opensWithName(name, reason) {
@@ -156,24 +178,27 @@ const RHYTHM_VOCAB = new RegExp(
 
 /**
  * The departure-from-rotation tic — the filler the household called out as
- * formulaic. The prompt caps the whole family at ONE use per response, so this
- * share should be near zero and a count above one per run is a rule break.
- * Distinct from `DATE_REF`: some of these ("overdue", "due") state no duration
- * at all, they are just the worn way of gesturing at one.
+ * formulaic, and the one family the prompt explicitly caps at ONE use per
+ * response. A count above one is a rule break. Distinct from `DATE_REF`: these
+ * state no duration at all, they are the worn way of gesturing at one.
+ *
+ * Scoped to exactly what the prompt caps, and no wider. "rare" / "seldom" /
+ * "overdue" were in here briefly and pulled the count to 4.3 on a run whose
+ * actual capped-family use was 1.0 — measuring a broader family than the rule
+ * covers reports a violation where the model complied. A tic that emerges
+ * outside this family (post-change, "rare" ran to 8 uses across 3 reps) shows
+ * up in `opens` and `repeated` instead; widen this only if the prompt's cap
+ * widens with it.
  */
 const VAGUE_VOCAB = new RegExp(
   [
     "\\brotation\\b",
     "\\brotat",
     "\\blineup\\b",
-    "\\bdue\\b",
-    "\\boverdue\\b",
     "\\bdrift",
     "\\bdropped out\\b",
     "\\bfallen out\\b",
     "\\bslipped out\\b",
-    "\\bseldom\\b",
-    "\\brare(ly)?\\b",
   ].join("|"),
   "i",
 );
@@ -388,7 +413,9 @@ if (!loaded.length) {
 const cells = loaded.map((run) => {
   const reasons = run.ranking.map((r) => r.reason ?? "");
   const nonEmpty = reasons.filter((r) => r.trim() !== "");
-  const dateHits = run.ranking.filter((r) => r.reason && DATE_REF.test(r.reason));
+  const dateHits = run.ranking.filter(
+    (r) => r.reason && DATE_REF.test(withoutIntervals(r.reason)),
+  );
   return {
     ...run,
     returned: run.ranking.length,
@@ -718,8 +745,8 @@ for (const query of queries) {
   // --- Reason quality -------------------------------------------------
   out.push("### Reason quality", "");
   out.push(
-    "| cell | rep | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | cuisine conflicts |",
-    "|---|---|---|---|---|---|---|---|---|---|",
+    "| cell | snapshot | rep | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | cuisine conflicts |",
+    "|---|---|---|---|---|---|---|---|---|---|---|",
   );
   const conflictRows = [];
   const qualityRows = [];
@@ -784,6 +811,7 @@ for (const query of queries) {
 
     qualityRows.push({
       label: c.label,
+      snap: c.snap,
       rhythmShare,
       vagueCount,
       openShare,
@@ -797,7 +825,7 @@ for (const query of queries) {
     });
 
     out.push(
-      `| ${c.label} | ${c.rep} | ${(rhythmShare * 100).toFixed(0)}% | ` +
+      `| ${c.label} | ${c.snap} | ${c.rep} | ${(rhythmShare * 100).toFixed(0)}% | ` +
         `${vagueCount} | ${(openShare * 100).toFixed(0)}% | ` +
         `${(compoundShare * 100).toFixed(0)}% | ` +
         `${gradient === null ? "—" : gradient.toFixed(2)} | ${repeated} | ` +
@@ -809,19 +837,22 @@ for (const query of queries) {
   // Per-cell means, so the comparison is not eyeballed across reps.
   out.push("#### Reason quality — per-cell means", "");
   out.push(
-    "| cell | reps | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | conflicts |",
-    "|---|---|---|---|---|---|---|---|---|---|",
+    "| cell | snapshot | reps | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | conflicts |",
+    "|---|---|---|---|---|---|---|---|---|---|---|",
   );
-  const qualityByLabel = groupBy(qualityRows, (r) => r.label);
+  // Keyed by cell AND snapshot, not cell alone: pooling a prompt change's runs
+  // with the runs that motivated it would average the before into the after and
+  // hide exactly the movement the sweep was run to see.
+  const qualityByLabel = groupBy(qualityRows, (r) => `${r.label} ${r.snap}`);
   const mean = (values) => {
     const nums = values.filter((v) => v !== null && v !== undefined);
     return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
   };
-  for (const [label, rs] of qualityByLabel) {
+  for (const [, rs] of qualityByLabel) {
     const g = mean(rs.map((r) => r.gradient));
     const e = mean(rs.map((r) => r.emptyAt));
     out.push(
-      `| ${label} | ${rs.length} | ` +
+      `| ${rs[0].label} | ${rs[0].snap} | ${rs.length} | ` +
         `${(mean(rs.map((r) => r.rhythmShare)) * 100).toFixed(0)}% | ` +
         `${mean(rs.map((r) => r.vagueCount)).toFixed(1)} | ` +
         `${(mean(rs.map((r) => r.openShare)) * 100).toFixed(0)}% | ` +
