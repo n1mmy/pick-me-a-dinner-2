@@ -17,7 +17,10 @@
  *   npx tsx scripts/ai-search-eval.ts --compare --reps=3   # repeat each cell
  *   npx tsx scripts/ai-search-eval.ts --compare --json     # record rankings to a file
  *   npx tsx scripts/ai-search-eval.ts --compare --cells="effort low" "light"
- *                                                          # two models, one query
+ *                                                          # one effort, one query
+ *   npx tsx scripts/ai-search-eval.ts --compare --serial \
+ *     --cells="opus-5 · effort low,opus-5 · effort high,sonnet-5 · effort low,sonnet-5 · effort high"
+ *                                                          # two models × two efforts
  *
  * The `--mode` flag (`full` | `pithy` | `drop`) overrides `AI_TAIL_MODE`
  * for the run, so the three open-query result shapes can be compared on the
@@ -26,18 +29,28 @@
  * `--compare` runs one shared snapshot through the `COMPARE_CELLS` matrix and
  * prints each run's latency and ranking. Every cell goes through
  * `createAiSearchClient` with an explicit model + `ThinkingChoice` override,
- * so the budget-API models (Sonnet, Haiku) and the adaptive-API models (Opus
- * 4.8 and 5) are all exercised through the production path. `--serial` runs
+ * so the budget-API models (Sonnet 4.6, Haiku) and the adaptive-API models
+ * (Opus 4.8, Opus 5, Sonnet 5) are all exercised through the production path.
+ * `--serial` runs
  * the cells one at a time — slower, but the per-call latencies are free of the
  * contention a parallel sweep adds. `--reps=N` repeats every cell N times and
  * the latency summary aggregates each cell to mean/min/max (interleaved under
  * `--serial`); `--json[=path]` records every run's full ranking to a file for
- * programmatic before/after comparison.
+ * programmatic before/after comparison. Each cell prints and is written to
+ * that file as soon as it lands — a sweep is readable while it runs, and a
+ * crash keeps the cells already paid for. A partial file carries
+ * `inProgress: true`. Several sweeps' files collapse into one per snapshot and
+ * query with `scripts/model-comparison/merge-runs.mjs`, which is how the
+ * comparison artifacts stay at one file per question rather than one per
+ * sweep; `scripts/model-comparison/analyze.mjs` reads either shape.
  *
  * `--compare` takes the same positional query a plain run does (empty when
- * omitted), and `--cells=<substring>` narrows the matrix to the cells whose
- * label contains it — the full matrix is eighteen live calls per rep, so a
- * two-model question should say so rather than pay for the sweep.
+ * omitted), and `--cells=<substring>[,<substring>...]` narrows the matrix to
+ * the cells whose label contains any of the substrings — the full matrix is
+ * twenty-two live calls per rep, so a two-model question should say so rather
+ * than pay for the sweep. Listing several terms keeps the chosen cells in ONE
+ * run, which is what makes them comparable: every cell in a run shares a
+ * single snapshot.
  *
  * A plain run (no `--compare`) uses the env-configured model / effort
  * (`AI_MODEL` / `AI_EFFORT`), exactly as the `aiSearchAction` server action.
@@ -89,15 +102,25 @@ const BUDGET_MODELS = [
 ];
 /** Token budgets to sweep — `0` is thinking off. */
 const BUDGET_LEVELS = [0, 1024, 2048, 4096, 6144];
-/** Opus adaptive-thinking effort levels (`null` = thinking off). */
-const OPUS_EFFORTS: ("low" | "medium" | "high" | null)[] = [
+/** Adaptive-thinking effort levels (`null` = thinking off). */
+const ADAPTIVE_EFFORTS: ("low" | "medium" | "high" | null)[] = [
   null,
   "low",
   "medium",
   "high",
 ];
-/** Opus models swept over the effort levels — the current default first. */
-const OPUS_MODELS = ["claude-opus-4-8", "claude-opus-5"];
+/**
+ * The adaptive-thinking models swept over the effort levels — the current
+ * default first. Sonnet 5 belongs here, not with its 4.6 predecessor in
+ * `BUDGET_MODELS`: it takes `output_config.effort` like Opus and rejects a
+ * `budget_tokens` call (see `usesAdaptiveThinking` in `lib/ai-search`), so it
+ * is comparable to Opus 5 level-for-level on the same knob.
+ */
+const ADAPTIVE_MODELS = [
+  "claude-opus-4-8",
+  "claude-opus-5",
+  "claude-sonnet-5",
+];
 
 /**
  * The matrix `--compare` runs — every model family on one shared snapshot.
@@ -117,8 +140,8 @@ const COMPARE_CELLS: ComparisonCell[] = [
       }),
     ),
   ),
-  ...OPUS_MODELS.flatMap((model) =>
-    OPUS_EFFORTS.map(
+  ...ADAPTIVE_MODELS.flatMap((model) =>
+    ADAPTIVE_EFFORTS.map(
       (effort): ComparisonCell => ({
         label: `${model.replace("claude-", "")} · ${
           effort ? `effort ${effort}` : "thinking off"
@@ -203,10 +226,19 @@ async function runComparison(
   const { serial, reps, jsonPath, query, cellFilter } = opts;
   // The full matrix is every model family at every thinking level — far more
   // calls than most questions need. `--cells=` narrows it to the cells whose
-  // label contains the substring, so "compare two models at the production
-  // effort" costs two calls rather than eighteen.
-  const cells = cellFilter
-    ? COMPARE_CELLS.filter((cell) => cell.label.includes(cellFilter))
+  // label contains any of the comma-separated substrings, so "compare two
+  // models at two efforts" costs four calls rather than the full sweep. A list
+  // rather than one substring matters because a cross-model comparison is only
+  // sound over ONE shared snapshot: the four cells have to run together, and no
+  // single substring selects exactly them.
+  const filterTerms = cellFilter
+    ?.split(",")
+    .map((term) => term.trim())
+    .filter((term) => term !== "");
+  const cells = filterTerms?.length
+    ? COMPARE_CELLS.filter((cell) =>
+        filterTerms.some((term) => cell.label.includes(term)),
+      )
     : COMPARE_CELLS;
   if (cells.length === 0) {
     console.error(`--cells=${cellFilter} matched no cell. Available labels:`);
@@ -254,42 +286,102 @@ async function runComparison(
     };
   };
 
-  // Serial avoids the concurrency contention that makes a parallel sweep's
-  // per-call latencies unreadable, and interleaves reps (rep-major) so
-  // API-load drift spreads evenly across cells; parallel is faster when only
-  // ranking quality, not timing, is under test.
-  let runs: ComparisonRun[];
-  if (serial) {
-    runs = [];
-    for (let rep = 1; rep <= reps; rep++) {
-      for (const cell of cells) runs.push(await runCell(cell, rep));
-    }
-  } else {
-    const jobs: Promise<ComparisonRun>[] = [];
-    for (let rep = 1; rep <= reps; rep++) {
-      for (const cell of cells) jobs.push(runCell(cell, rep));
-    }
-    runs = await Promise.all(jobs);
-  }
+  const runs: ComparisonRun[] = [];
+
+  /**
+   * Write every run recorded so far to `jsonPath`. Called after each cell
+   * completes rather than once at the end: a sweep is a long line of billed
+   * calls, and a crash — or a `max_tokens` blow-up on the last cell — must not
+   * take the finished ones with it. The file is always valid JSON for the runs
+   * it contains, so an analysis script can read it mid-sweep.
+   */
+  const writeJson = (): void => {
+    if (!jsonPath) return;
+    writeFileSync(
+      jsonPath,
+      JSON.stringify(
+        {
+          today: snapshot.today,
+          query: query || "(empty)",
+          mode: serial ? "serial" : "parallel",
+          reps,
+          catalog: snapshot.options.length,
+          logEntries: snapshot.log.length,
+          /** True until the last cell lands — a reader can tell a partial file. */
+          inProgress: runs.length < cells.length * reps,
+          runs: runs.map((run) => ({
+            rep: run.rep,
+            label: run.cell.label,
+            model: run.cell.model,
+            thinking: run.cell.thinking,
+            latencyMs: run.latencyMs,
+            outputTokens: run.outputTokens,
+            ok: run.ok,
+            ranking: run.rows.map((row, index) => ({
+              rank: index + 1,
+              name: nameById.get(row.id) ?? row.id,
+              reason: row.reason,
+            })),
+          })),
+        },
+        null,
+        2,
+      ),
+    );
+  };
 
   // Full rankings — printed once per cell (its first rep) to stay readable
   // when reps multiply the run count; the latency summary below covers them all.
   const printedRanking = new Set<string>();
-  for (const run of runs) {
+
+  /**
+   * Record one completed run: print it and persist the file immediately, so a
+   * sweep is observable while it runs instead of silent until the end.
+   */
+  const recordRun = (run: ComparisonRun): void => {
+    runs.push(run);
     const secs = (run.latencyMs / 1000).toFixed(1);
     const repTag = reps > 1 ? ` (rep ${run.rep})` : "";
     console.log(
       `\n=== ${run.cell.label}${repTag}  —  ${secs}s  —  ` +
-        `${run.ok ? `${run.rows.length} results` : "UNAVAILABLE"} ===`,
+        `${run.ok ? `${run.rows.length} results` : "UNAVAILABLE"} ` +
+        `—  ${runs.length}/${cells.length * reps} ===`,
     );
-    if (!run.ok || printedRanking.has(run.cell.label)) continue;
-    printedRanking.add(run.cell.label);
-    run.rows.forEach((row, index) => {
-      console.log(
-        `${String(index + 1).padStart(2)}. ${nameById.get(row.id) ?? row.id}`,
-      );
-      console.log(`    ${row.reason}`);
-    });
+    if (run.ok && !printedRanking.has(run.cell.label)) {
+      printedRanking.add(run.cell.label);
+      run.rows.forEach((row, index) => {
+        console.log(
+          `${String(index + 1).padStart(2)}. ${nameById.get(row.id) ?? row.id}`,
+        );
+        console.log(`    ${row.reason}`);
+      });
+    }
+    writeJson();
+  };
+
+  // Serial avoids the concurrency contention that makes a parallel sweep's
+  // per-call latencies unreadable, and interleaves reps (rep-major) so
+  // API-load drift spreads evenly across cells; parallel is faster when only
+  // ranking quality, not timing, is under test.
+  if (serial) {
+    for (let rep = 1; rep <= reps; rep++) {
+      for (const cell of cells) {
+        // Announced before the call, so a watcher sees which cell a long wait
+        // belongs to rather than an idle terminal.
+        console.log(
+          `→ ${cell.label}${reps > 1 ? ` (rep ${rep})` : ""} …`,
+        );
+        recordRun(await runCell(cell, rep));
+      }
+    }
+  } else {
+    const jobs: Promise<void>[] = [];
+    for (let rep = 1; rep <= reps; rep++) {
+      // Recorded as each call lands, so the file and the output follow
+      // completion order rather than waiting on the slowest cell.
+      for (const cell of cells) jobs.push(runCell(cell, rep).then(recordRun));
+    }
+    await Promise.all(jobs);
   }
 
   console.log("\n--- latency summary ---");
@@ -323,35 +415,9 @@ async function runComparison(
   }
 
   if (jsonPath) {
-    writeFileSync(
-      jsonPath,
-      JSON.stringify(
-        {
-          today: snapshot.today,
-          query: query || "(empty)",
-          mode: serial ? "serial" : "parallel",
-          reps,
-          catalog: snapshot.options.length,
-          logEntries: snapshot.log.length,
-          runs: runs.map((run) => ({
-            rep: run.rep,
-            label: run.cell.label,
-            model: run.cell.model,
-            thinking: run.cell.thinking,
-            latencyMs: run.latencyMs,
-            outputTokens: run.outputTokens,
-            ok: run.ok,
-            ranking: run.rows.map((row, index) => ({
-              rank: index + 1,
-              name: nameById.get(row.id) ?? row.id,
-              reason: row.reason,
-            })),
-          })),
-        },
-        null,
-        2,
-      ),
-    );
+    // Each cell already wrote the file as it landed; this final write is what
+    // clears `inProgress`.
+    writeJson();
     console.log(`\nfull rankings recorded → ${jsonPath}`);
   }
 }
