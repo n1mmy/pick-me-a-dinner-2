@@ -275,6 +275,13 @@ function EntryEditForm({
           rows={2}
           value={note}
           onChange={(event) => setNote(event.target.value)}
+          onKeyDown={(event) => {
+            if (pending) return;
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
         />
       </div>
 

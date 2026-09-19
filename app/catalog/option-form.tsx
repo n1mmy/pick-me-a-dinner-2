@@ -224,6 +224,13 @@ export function OptionForm({
           rows={2}
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
+          onKeyDown={(event) => {
+            if (pending) return;
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
         />
       </div>
 
