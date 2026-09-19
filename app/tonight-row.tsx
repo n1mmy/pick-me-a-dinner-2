@@ -206,6 +206,13 @@ export function TonightRowItem({
             autoFocus
             value={reason}
             onChange={(event) => setReason(event.target.value)}
+            onKeyDown={(event) => {
+              if (pending) return;
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
             disabled={pending}
             placeholder="Reason (optional)"
             aria-label={`Reason for rejecting ${option.name} (optional)`}
