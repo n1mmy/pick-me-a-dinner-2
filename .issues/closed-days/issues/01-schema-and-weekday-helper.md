@@ -1,6 +1,6 @@
 # 01 — Schema: `closed_days` on Options, and a shared weekday helper
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
