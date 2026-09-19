@@ -33,6 +33,7 @@ const emptyValues: OptionFormValues = {
   lng: "",
   googlePlaceId: "",
   tags: [],
+  closedDays: [],
 };
 
 /** The Tag names attached to one Option, ordered for stable assertions. */
@@ -149,6 +150,80 @@ describe("updateOption", () => {
     });
 
     expect(result).toEqual({ ok: false, error: "Enter a name" });
+  });
+});
+
+describe("Closed days on an Option", () => {
+  it("round-trips Closed days on create", async () => {
+    await createOption("restaurant", {
+      ...emptyValues,
+      name: "El Comal",
+      closedDays: [0, 3],
+    });
+
+    const [row] = await db.select().from(options);
+    expect(row.closedDays).toEqual([0, 3]);
+  });
+
+  it("round-trips Closed days on update", async () => {
+    await createOption("restaurant", {
+      ...emptyValues,
+      name: "El Comal",
+      closedDays: [0],
+    });
+    const [row] = await db.select().from(options);
+
+    const result = await updateOption(row.id, "restaurant", {
+      ...emptyValues,
+      name: "El Comal",
+      closedDays: [1, 2],
+    });
+
+    expect(result).toEqual({ ok: true });
+    const [updated] = await db
+      .select()
+      .from(options)
+      .where(eq(options.id, row.id));
+    expect(updated.closedDays).toEqual([1, 2]);
+  });
+
+  it("normalizes out-of-range, duplicate, and non-integer values rather than storing them", async () => {
+    await createOption("restaurant", {
+      ...emptyValues,
+      name: "El Comal",
+      closedDays: [3, 3, -1, 7, 1.5, 0],
+    });
+
+    const [row] = await db.select().from(options);
+    expect(row.closedDays).toEqual([0, 3]);
+  });
+
+  it("stores an empty set for a Home meal even when the payload carries days", async () => {
+    await createOption("home", {
+      ...emptyValues,
+      name: "Pasta",
+      closedDays: [0, 1],
+    });
+
+    const [row] = await db.select().from(options);
+    expect(row.closedDays).toEqual([]);
+  });
+
+  it("clears a Home meal's Closed days on update even when the payload carries days", async () => {
+    await createOption("home", { ...emptyValues, name: "Pasta" });
+    const [row] = await db.select().from(options);
+
+    await updateOption(row.id, "home", {
+      ...emptyValues,
+      name: "Pasta",
+      closedDays: [2, 4],
+    });
+
+    const [updated] = await db
+      .select()
+      .from(options)
+      .where(eq(options.id, row.id));
+    expect(updated.closedDays).toEqual([]);
   });
 });
 

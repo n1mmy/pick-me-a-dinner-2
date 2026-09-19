@@ -100,7 +100,7 @@ export function parseSelectedDay(
 }
 
 /** Weekday names, indexed by `Date.prototype.getUTCDay()` (0 = Sunday). */
-const WEEKDAY_NAMES = [
+export const WEEKDAY_NAMES = [
   "Sunday",
   "Monday",
   "Tuesday",

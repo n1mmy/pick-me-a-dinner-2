@@ -35,7 +35,27 @@ export type OptionFormValues = {
   lng: string;
   googlePlaceId: string;
   tags: string[];
+  /**
+   * Closed days as raw weekday numbers from the form's toggle chips —
+   * normalized by `normalizeClosedDays` before it reaches the DB. A Home meal
+   * ignores this field entirely (PRD: Closed days).
+   */
+  closedDays: number[];
 };
+
+/**
+ * Normalize raw Closed-day values to a deduped, ascending set of weekday
+ * integers `0`–`6` (`0` = Sunday), dropping anything out of range or
+ * non-integer. A server action is reachable from any caller, so the form's
+ * shape — chips that only ever send `0`–`6` — is not a guarantee (PRD:
+ * Closed days).
+ */
+function normalizeClosedDays(rawDays: number[]): number[] {
+  const valid = rawDays.filter(
+    (day) => Number.isInteger(day) && day >= 0 && day <= 6,
+  );
+  return [...new Set(valid)].sort((a, b) => a - b);
+}
 
 /** Parse a latitude/longitude form field to a number, or `null` when blank or non-numeric. */
 function parseCoord(value: string): number | null {
@@ -52,7 +72,9 @@ function columnsFor(kind: OptionKind, values: OptionFormValues) {
     url: trimToNull(values.url),
     notes: trimToNull(values.notes),
   };
-  if (kind === "home") return base;
+  // A Home meal never has Closed days — written explicitly rather than left
+  // out of the update, so an edit can't leave a stale set in place.
+  if (kind === "home") return { ...base, closedDays: [] };
   return {
     ...base,
     address: trimToNull(values.address),
@@ -61,6 +83,7 @@ function columnsFor(kind: OptionKind, values: OptionFormValues) {
     lat: parseCoord(values.lat),
     lng: parseCoord(values.lng),
     googlePlaceId: trimToNull(values.googlePlaceId),
+    closedDays: normalizeClosedDays(values.closedDays),
   };
 }
 
