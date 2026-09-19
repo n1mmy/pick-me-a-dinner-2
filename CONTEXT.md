@@ -232,10 +232,21 @@ _Avoid_: AI ranking (it is search — there is a query, even when empty).
 
 **AI rationale**:
 The model-generated line of prose on each AI search result row explaining why
-that Option fits — naming the query intent and/or the habit the model found in
-the Log ("Light and fast — a soup, and it's been three weeks"). Generative and
+that Option fits — naming the query intent, the habit the model found in the
+Log, or what the Household's own **Notes** say about the Option ("Light and
+fast — a soup, and the katsu was the good call last time"). Generative and
 query-aware, and unique to AI search — the deterministic Tonight list has no
 prose "why" line; it shows the Recency chip and Tag chips instead.
+
+A rationale states a **rhythm claim**, never an **elapsed-time claim**. A
+rhythm claim names the shape of a habit — "runs about every two weeks and that
+stretch is up", "the standing Thursday choice", "always follows a takeaway
+night". An elapsed-time claim restates how long it has been, at any precision —
+"9 days ago", "since early summer", "long out of rotation", "it's been a
+while". The Recency chip and Tag chips already show elapsed time as numbers on
+the same row, so an elapsed-time claim is redundant by construction however
+well it is phrased; the Option's own *interval* is the timing fact the chips
+cannot carry.
 _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).
 

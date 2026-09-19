@@ -45,6 +45,26 @@ other Options carry a higher raw recency.
   harness against real data, judged by whether the rationales surface something
   genuinely useful. Reverting to the deterministic cadence option later means
   building that math from scratch.
+- The rationale states rhythm, never elapsed time (tightened post-launch,
+  2026-09-19). The prompt originally sanctioned plain-words timing phrasings —
+  "overdue", "has dropped out of rotation", "just had it" — as the readable
+  alternative to raw dates. Measured against the real Catalog, 66-71% of
+  non-empty rationales then carried a timing word and the top six rows of every
+  run were six restatements of "it has been a while". The ban now covers
+  elapsed time in *every* granularity, vague forms included, because
+  `app/tonight-row.tsx` renders the Recency chip and the per-Tag chips directly
+  above the rationale: prose restating duration duplicates a number already on
+  the row, so precision was never the problem. What replaces it is the Option's
+  own *interval* ("runs about every two weeks and that stretch is up"), which
+  the chips cannot show — the same habit-reasoning this ADR exists for, now
+  required rather than merely invited. The prompt also names content signals
+  (Log notes, Option notes, Tags, kind, stale Rejections) as first-class
+  rationale material, allows a second clause when it adds a different kind of
+  fact, and caps the departure-from-rotation phrasing at one use per response.
+  This changes how findings are *expressed*, not the whole-Catalog contract or
+  the withheld-recency decision above. If expression alone proves insufficient
+  and the ranking itself has to return a top five that is diverse *in kind*,
+  that is a real amendment to this ADR, not another tuning.
 - The size of the AI result is query-dependent (tightened post-launch,
   2026-05-17 — the original prompt let the model freely decide how many to
   return and it under-returned on open queries). A query that genuinely
