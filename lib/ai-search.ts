@@ -454,6 +454,13 @@ const REQUEST_TIMEOUT_MS = 90_000;
  * runs needs a way to let the call finish. Read at call time, not module load,
  * so a value `dotenv` puts in the environment after import still applies.
  * Production leaves it unset and gets the 90s budget.
+ *
+ * A set value is taken as given — anything that is not a positive integer falls
+ * back to the 90s budget, but a valid one is neither capped nor sanity-checked.
+ * So this is an operator knob, not a tunable: a `.env` entry left behind raises
+ * the user-facing wait above what `createAiSearchClient` documents, and a value
+ * past 2^31-1 overflows `setTimeout`, which then fires immediately and aborts
+ * every call. Bound it here if it ever grows a second caller.
  */
 function resolveTimeoutMs(): number {
   const raw = process.env.AI_TIMEOUT_MS?.trim();
@@ -874,9 +881,10 @@ function logModelCall(fields: {
  * `AI_TAIL_MODE` (see `resolveTailMode`). `overrides` lets the eval harness
  * pin the model and an explicit `ThinkingChoice`, bypassing those env vars.
  *
- * `search` is fail-safe: the single model call carries a 90-second
- * `AbortController` timeout, is not retried, and every non-`ok` outcome
- * collapses to `AI_SEARCH_UNAVAILABLE`. The snapshot body is sent in a
+ * `search` is fail-safe: the single model call carries an `AbortController`
+ * timeout — 90 seconds unless `AI_TIMEOUT_MS` overrides it, which only the eval
+ * harness does (see `resolveTimeoutMs`) — is not retried, and every non-`ok`
+ * outcome collapses to `AI_SEARCH_UNAVAILABLE`. The snapshot body is sent in a
  * `cache_control` block — only the query trails it uncached — so a burst of
  * searches over unchanged Catalog/Log data reads the prefix from cache.
  */

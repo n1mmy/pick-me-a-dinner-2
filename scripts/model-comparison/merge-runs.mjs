@@ -21,7 +21,11 @@
  * since three files each holding "rep 1" of the same cell is not information.
  *
  * Inputs are left alone — check the merged file, then delete them with
- * `git rm`. Re-running over an already-merged file is safe.
+ * `git rm`. Re-running is safe: a run is taken once per cell and origin, so a
+ * merged file read back alongside the sweeps it was built from — which is
+ * exactly the state of this directory between the merge and the `git rm` —
+ * yields the same document rather than a doubled one. `analyze.mjs` and
+ * `where-is.mjs` de-duplicate the same way when reading (see `runs.mjs`).
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -41,7 +45,10 @@ try {
 
 /** Group key → merged document under construction. */
 const groups = new Map();
+/** Files left out entirely. */
 const skipped = [];
+/** Files taken, but with something worth saying about what was taken. */
+const notes = [];
 
 for (const file of files) {
   const name = path.basename(file);
@@ -69,6 +76,8 @@ for (const file of files) {
       modes: new Set(),
       sources: [],
       runs: [],
+      /** Origin identity (`label|source|sourceRep`) → already taken. */
+      seen: new Set(),
     });
   }
   const group = groups.get(key);
@@ -85,14 +94,37 @@ for (const file of files) {
   }
 
   group.modes.add(doc.mode ?? "unknown");
-  group.sources.push({ file: name, runs: doc.runs.length });
+  let taken = 0;
+  let duplicates = 0;
   for (const run of doc.runs) {
-    group.runs.push({
-      ...run,
-      // Keep the original provenance when re-merging an already-merged file.
-      source: run.source ?? name,
-      sourceRep: run.sourceRep ?? run.rep,
-    });
+    // Keep the original provenance when re-merging an already-merged file.
+    const source = run.source ?? name;
+    const sourceRep = run.sourceRep ?? run.rep;
+    // The same call reached this group twice: the merged output of an earlier
+    // run of this script is sitting beside the sweep files it was built from,
+    // and both are in the input set. Idempotence is the whole promise of "run
+    // it again once you have topped up the reps", so take the run once. `rep`
+    // is not part of the identity — it gets renumbered per cell below — but
+    // `source` + `sourceRep` + cell names the model call itself.
+    const key = `${run.label}|${source}|${sourceRep}`;
+    if (group.seen.has(key)) {
+      duplicates += 1;
+      continue;
+    }
+    group.seen.add(key);
+    taken += 1;
+    group.runs.push({ ...run, source, sourceRep });
+  }
+  // `duplicates` only when there were some, so a clean merge's `mergedFrom`
+  // keeps the shape it has always had.
+  group.sources.push(
+    duplicates ? { file: name, runs: taken, duplicates } : { file: name, runs: taken },
+  );
+  if (duplicates) {
+    notes.push(
+      `${name}: ${duplicates} of ${doc.runs.length} run(s) already present ` +
+        "from another input (same cell and origin) — taken once",
+    );
   }
 }
 
@@ -111,6 +143,12 @@ function slug(query) {
 if (skipped.length) {
   console.log("skipped:");
   for (const line of skipped) console.log(`  ${line}`);
+  console.log("");
+}
+
+if (notes.length) {
+  console.log("de-duplicated:");
+  for (const line of notes) console.log(`  ${line}`);
   console.log("");
 }
 
@@ -134,6 +172,19 @@ for (const group of groups.values()) {
     run.rep = next;
   }
 
+  // `mergedFrom` is derived from the runs' own `source`, not from the input
+  // filenames: re-merging reads the previous merged file as an input, and
+  // naming *that* as a source would both lose the original sweep names and
+  // make the output differ on every re-run. Sorted by code unit, the order
+  // `expandPaths` produced for a first merge.
+  const runsBySource = new Map();
+  for (const run of group.runs) {
+    runsBySource.set(run.source, (runsBySource.get(run.source) ?? 0) + 1);
+  }
+  const mergedFrom = [...runsBySource.entries()]
+    .map(([file, runs]) => ({ file, runs }))
+    .sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+
   const anchorDate = group.today.split(" ")[0];
   const outPath = path.join(outDir, `${anchorDate}-${slug(group.query)}.json`);
   const merged = {
@@ -150,7 +201,7 @@ for (const group of groups.values()) {
      * survives as the run count in `mergedFrom`.
      */
     inProgress: false,
-    mergedFrom: group.sources,
+    mergedFrom,
     runs: group.runs,
   };
 

@@ -571,7 +571,34 @@ describe("createAiSearchClient — failure model and fallback", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.AI_EFFORT;
+    delete process.env.AI_TIMEOUT_MS;
   });
+
+  /**
+   * The delays `search` armed its abort timer with. `search` sets exactly one
+   * timer — the `AbortController` deadline — so the single delay it collects is
+   * the resolved per-call budget, which is otherwise invisible from outside.
+   */
+  async function abortDelays(
+    run: (client: ReturnType<typeof createAiSearchClient>) => Promise<unknown>,
+  ) {
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+    await run(createAiSearchClient("k", { model: "claude-sonnet-4-6" }));
+    const delays = setTimeoutSpy.mock.calls.map((call) => call[1]);
+    setTimeoutSpy.mockRestore();
+    return delays;
+  }
+
+  /** The abort delay for a given `AI_TIMEOUT_MS`; `undefined` leaves it unset. */
+  async function abortDelay(raw?: string) {
+    if (raw === undefined) delete process.env.AI_TIMEOUT_MS;
+    else process.env.AI_TIMEOUT_MS = raw;
+    const delays = await abortDelays((client) =>
+      client.search(snapshot, idByIndex),
+    );
+    return delays;
+  }
 
   it("returns the validated ordered result, mapping numbers back to ids", async () => {
     messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
@@ -741,6 +768,54 @@ describe("createAiSearchClient — failure model and fallback", () => {
     expect(() =>
       createAiSearchClient("k", { model: "claude-opus-5" }),
     ).toThrow(/adaptive/i);
+  });
+
+  it("arms the abort timer at the 90s budget with AI_TIMEOUT_MS unset", async () => {
+    // Production leaves it unset, so this is the budget every real search runs
+    // under — and what `createAiSearchClient`'s docstring promises.
+    expect(await abortDelay()).toEqual([90_000]);
+  });
+
+  it("lets AI_TIMEOUT_MS raise the per-call budget", async () => {
+    // The eval harness needs a slow-but-working pairing to finish, so that its
+    // real latency can be recorded and judged against 90s separately.
+    expect(await abortDelay("300000")).toEqual([300_000]);
+  });
+
+  it("falls back to the 90s budget for a malformed AI_TIMEOUT_MS", async () => {
+    // A stray or mistyped value must not shorten the production budget — least
+    // of all `0`, which as a delay would abort the call on the next tick.
+    for (const raw of ["0", "-5", "12.5", "abc", "", " "]) {
+      expect(await abortDelay(raw)).toEqual([90_000]);
+    }
+  });
+
+  it("reads AI_TIMEOUT_MS per call, not at client construction", async () => {
+    // `dotenv` in the eval harness populates the environment after this module
+    // is imported, and the client may be built before the value lands.
+    delete process.env.AI_TIMEOUT_MS;
+    const delays = await abortDelays(async (client) => {
+      process.env.AI_TIMEOUT_MS = "120000";
+      return client.search(snapshot, idByIndex);
+    });
+    expect(delays).toEqual([120_000]);
+  });
+
+  it("routes a dated budget-model snapshot id to the budget API", async () => {
+    // `BUDGET_API_MODELS` is matched by prefix precisely so a pinned snapshot
+    // id stays with its family. An exact-match list would send this dated
+    // Haiku the adaptive params it rejects with a 400 — which the fail-safe
+    // path then swallows into a silent fallback on every search.
+    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+    await createAiSearchClient("k", {
+      model: "claude-haiku-4-5-20251001",
+    }).search(snapshot, idByIndex);
+
+    expect(messagesStream).not.toHaveBeenCalled();
+    const params = messagesCreate.mock.calls[0][0];
+    expect(params.model).toBe("claude-haiku-4-5-20251001");
+    expect(params.thinking).toEqual({ type: "enabled", budget_tokens: 1024 });
+    expect(params.output_config).toBeUndefined();
   });
 
   it("defaults to a model that takes the adaptive streaming path", async () => {

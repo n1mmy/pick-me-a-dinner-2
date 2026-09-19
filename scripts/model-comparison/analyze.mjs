@@ -231,10 +231,22 @@ function meanAbsDelta(orderA, orderB) {
   );
 }
 
-/** Set overlap of the first `k` of two orderings, as a fraction of k. */
+/**
+ * Set overlap of the first `k` of two orderings, as a fraction of the most it
+ * could have been — `min(k, |A|, |B|)`, not `k`.
+ *
+ * The denominator matters at any depth past the list's length, which is the
+ * normal case for a narrowing query: two *identical* 8-Option rankings share
+ * all 8 at k=20, and dividing by 20 scored that 0.40 — printed directly under
+ * a note asserting overlap@20 is "1.00 by construction" on a list that short.
+ * Normalising by what the shorter list can offer makes the column mean the same
+ * thing at every depth: 1.00 is full agreement over the range compared.
+ */
 function overlapAt(orderA, orderB, k) {
+  const denom = Math.min(k, orderA.length, orderB.length);
+  if (!denom) return 0;
   const b = new Set(orderB.slice(0, k));
-  return orderA.slice(0, k).filter((n) => b.has(n)).length / k;
+  return orderA.slice(0, k).filter((n) => b.has(n)).length / denom;
 }
 
 /**
@@ -358,10 +370,38 @@ for (const doc of docs) {
   out.push(
     `| \`${doc.file}\`${doc.inProgress ? " ⚠️ partial" : ""} | ${
       doc.query === "(empty)" ? "_(empty)_" : `"${doc.query}"`
-    } | ${doc.count} | ${doc.snap} | ${doc.mode ?? "—"} |`,
+    } | ${doc.count}${
+      doc.duplicates.length ? ` _(+${doc.duplicates.length} dup)_` : ""
+    } | ${doc.snap} | ${doc.mode ?? "—"} |`,
   );
 }
 out.push("");
+
+// A merged file read alongside the sweep files it was built from — the state of
+// the directory between `merge-runs.mjs` and the `git rm` it tells you to run —
+// would otherwise count every run twice, inflating `n` and pulling each cell's
+// rep-to-rep agreement toward a run's correlation with itself.
+const dupDocs = docs.filter((d) => d.duplicates.length);
+if (dupDocs.length) {
+  out.push(
+    "⚠️ **Duplicate runs de-duplicated.** Some runs appear in more than one",
+    "input file — a merge and its own sources, most likely. Each was counted",
+    "once, from the first file it was read out of:",
+    "",
+  );
+  for (const doc of dupDocs) {
+    const from = [...new Set(doc.duplicates.map((d) => d.firstSeenIn))];
+    out.push(
+      `- \`${doc.file}\` — ${doc.duplicates.length} run(s) already read from ` +
+        `${from.map((f) => `\`${f}\``).join(", ")}`,
+    );
+  }
+  out.push(
+    "",
+    "Once the merged file is checked, `git rm` the sources and this goes away.",
+    "",
+  );
+}
 
 const snapshots = [...new Set(loaded.map((r) => r.snap))];
 if (snapshots.length > 1) {

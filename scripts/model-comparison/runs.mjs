@@ -12,7 +12,9 @@
  *   node analyze.mjs runs-2027-03            # the later sweep alone
  *
  * A JSON file that is not a run document is skipped and reported, so the
- * directory can hold other JSON without breaking the tools.
+ * directory can hold other JSON without breaking the tools. A run that arrives
+ * twice — a merged file alongside a sweep file it was merged from — is loaded
+ * once and reported (see `originOf`), so no pooled number double-counts it.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -74,6 +76,32 @@ function expand(paths) {
 }
 
 /**
+ * A run's **origin identity** — which model call it actually is, independent of
+ * which file it is being read out of.
+ *
+ * `merge-runs.mjs` preserves `source` / `sourceRep` when it collapses sweep
+ * files, precisely so a merged copy of a run stays recognisable as the same
+ * call. That is what makes de-duplication possible here, and de-duplication is
+ * what keeps the documented merge workflow honest: it says to check the merged
+ * file *before* `git rm`-ing the pieces, so for that window the directory holds
+ * both, and every pooled measure would otherwise see each run twice — which
+ * inflates `n`, and drags a within-cell Spearman toward the correlation of a
+ * run with itself.
+ *
+ * Origin is the file's basename, not its path: the merged file records
+ * `sweep-1.json`, while the raw file may be read as `scripts/…/sweep-1.json`.
+ * Two same-named files in different directories therefore collide — but they
+ * would have to also share a snapshot, a cell and a rep number to be dropped,
+ * and runs matching on all five are indistinguishable anyway.
+ */
+function originOf(run, file) {
+  return {
+    source: run.source ?? path.basename(file),
+    sourceRep: run.sourceRep ?? run.rep,
+  };
+}
+
+/**
  * Load every run in `paths` as a flat list.
  *
  * Returns `{ runs, docs, skipped }`. Each run carries the document-level
@@ -81,12 +109,18 @@ function expand(paths) {
  * identity**: reps only pool if they ranked the same data. A different anchor
  * day is a different task here (weekday rhythm and same-day rejections both
  * move), so a date rollover must never masquerade as model instability.
+ *
+ * A run already seen under another file is dropped (see `originOf`); each
+ * doc reports `count` as the runs it actually contributed and `duplicates` as
+ * what was dropped, so a caller can say so rather than silently double-count.
  */
 export function loadRuns(paths) {
   const files = expandPaths(paths);
   const runs = [];
   const docs = [];
   const skipped = [];
+  /** Origin identity → the file that already supplied that run. */
+  const seen = new Map();
 
   for (const file of files) {
     const label = path.relative(process.cwd(), file);
@@ -103,18 +137,18 @@ export function loadRuns(paths) {
     }
 
     const snap = `${doc.today} · ${doc.catalog} options · ${doc.logEntries} log`;
-    docs.push({
-      file: label,
-      query: doc.query,
-      today: doc.today,
-      snap,
-      mode: doc.mode,
-      reps: doc.reps,
-      inProgress: doc.inProgress === true,
-      count: doc.runs.length,
-    });
+    /** Origin → the file it was already read from. One entry per dropped run. */
+    const duplicates = [];
 
     for (const run of doc.runs) {
+      const { source, sourceRep } = originOf(run, file);
+      const key = `${snap}|${doc.query}|${run.label}|${source}|${sourceRep}`;
+      const firstSeenIn = seen.get(key);
+      if (firstSeenIn !== undefined) {
+        duplicates.push({ label: run.label, source, sourceRep, firstSeenIn });
+        continue;
+      }
+      seen.set(key, label);
       runs.push({
         file: label,
         query: doc.query,
@@ -125,12 +159,27 @@ export function loadRuns(paths) {
         model: run.model,
         effort: run.thinking?.effort ?? run.thinking?.type ?? "—",
         rep: run.rep,
+        source,
+        sourceRep,
         ok: run.ok,
         latencyMs: run.latencyMs,
         outputTokens: run.outputTokens,
         ranking: Array.isArray(run.ranking) ? run.ranking : [],
       });
     }
+
+    docs.push({
+      file: label,
+      query: doc.query,
+      today: doc.today,
+      snap,
+      mode: doc.mode,
+      reps: doc.reps,
+      inProgress: doc.inProgress === true,
+      /** Runs this file contributed — its own total less any already seen. */
+      count: doc.runs.length - duplicates.length,
+      duplicates,
+    });
   }
 
   return { runs, docs, skipped };

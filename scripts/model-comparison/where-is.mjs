@@ -28,8 +28,15 @@ if (!needle) {
 }
 
 const cellFilter = flags.get("cells")?.toLowerCase();
-const { runs, skipped } = loadRunsOrExit(paths);
+const { runs, docs, skipped } = loadRunsOrExit(paths);
 for (const s of skipped) console.error(`skipped ${s.file}: ${s.reason}`);
+// A merge sitting beside its own sources would otherwise list every rank twice.
+for (const doc of docs.filter((d) => d.duplicates.length)) {
+  console.error(
+    `de-duplicated ${doc.file}: ${doc.duplicates.length} run(s) already read ` +
+      `from ${[...new Set(doc.duplicates.map((d) => d.firstSeenIn))].join(", ")}`,
+  );
+}
 
 const rows = [];
 for (const run of runs) {
