@@ -111,14 +111,27 @@ const WEEKDAY_NAMES = [
 ];
 
 /**
+ * The weekday number of a SQL `date` string — `0`–`6`, **`0` = Sunday**, the
+ * same indexing as `Date.prototype.getUTCDay()`. This is the one place a SQL
+ * date is turned into a weekday number: `weekdayName` and
+ * `formatDateWithWeekday` (`lib/snapshot-format.ts`) both read it, and
+ * suppression (closed-days) does too — one derivation, so the "which day is
+ * this" number can't drift between call sites. The date is anchored at UTC
+ * midnight purely to read the weekday, so this is exact and
+ * timezone-independent (a SQL date carries no time or zone).
+ */
+export function weekdayFromSqlDate(sqlDate: string): number {
+  const [year, month, day] = sqlDate.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+}
+
+/**
  * The weekday of a SQL `date` string — `"Friday"`, `"Tuesday"`, etc. Used by
  * the Tonight screen's H1 to show the Selected day's name when it is not
- * today (ADR-0009). The date is anchored at UTC midnight purely to read the
- * weekday, so this is exact and timezone-independent.
+ * today (ADR-0009).
  */
 export function weekdayName(sqlDate: string): string {
-  const [year, month, day] = sqlDate.split("-").map(Number);
-  return WEEKDAY_NAMES[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+  return WEEKDAY_NAMES[weekdayFromSqlDate(sqlDate)];
 }
 
 /**

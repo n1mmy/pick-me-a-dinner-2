@@ -29,6 +29,13 @@
       "when": 1779077738100,
       "tag": "0003_motionless_nomad",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789831363564,
+      "tag": "0004_add_closed_days_to_options",
+      "breakpoints": true
     }
   ]
 }
