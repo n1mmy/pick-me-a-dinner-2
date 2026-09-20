@@ -1,18 +1,17 @@
 import { describe, expect, it } from "vitest";
-import {
-  AFFINITY_COLOR_FULL,
-  RECENCY_COLOR_CAP,
-  affinityChipBg,
-  recencyChipBg,
-  recencyChipBgStrong,
-} from "./recency-color";
+import { affinityChipBg, recencyChipBg, recencyChipBgStrong } from "./recency-color";
 
 /**
  * The core green->tan->red heatmap strings the chip helpers wrap in an
- * opacity `color-mix()`. `recencyColor` / `affinityColor` are module-private
- * (only these chip functions are the public interface), so the heatmap rules
- * — cap, midpoint, interpolation, clamping — are asserted here through them.
+ * opacity `color-mix()`. `recencyColor` / `affinityColor` — and the
+ * `RECENCY_COLOR_CAP` (30) / `AFFINITY_COLOR_FULL` (2) constants they're built
+ * from — are all module-private (only the three chip functions are the
+ * public interface), so the heatmap rules — cap, midpoint, interpolation,
+ * clamping — are asserted here through them, with the cap/full values
+ * inlined as literals.
  */
+const RECENCY_COLOR_CAP = 30;
+const AFFINITY_COLOR_FULL = 2;
 const GREEN_END =
   "color-mix(in srgb, var(--color-recency-recent), var(--color-recency-mid) 0%)";
 const MID =

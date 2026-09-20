@@ -64,13 +64,20 @@ No ADR change, no `CONTEXT.md` change.
 
 ## Acceptance criteria
 
-- [ ] `lib/picker-view.ts` exports `pickerView`, `cycleChipState`, and
+- [x] `lib/picker-view.ts` exports `pickerView`, `cycleChipState`, and
       `chipStateLabel`; `filterTonightRows`, `distinctTags`, and `filterHint`
       are private to the module
-- [ ] `lib/tonight-filter.ts` is gone; no import of it remains
-- [ ] The `Picker` derives `visible`, `rankOf`, `choices`, `tags`, and `hint`
+- [x] `lib/tonight-filter.ts` is gone; no import of it remains
+- [x] The `Picker` derives `visible`, `rankOf`, `choices`, `tags`, and `hint`
       from one `pickerView` call
-- [ ] A test asserts rank numbers come from the unfiltered rows
-- [ ] A test asserts `choices` mirrors the picker's rows exactly
-- [ ] `app/tonight-screen.test.tsx` passes with no changes to its assertions
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] A test asserts rank numbers come from the unfiltered rows
+- [x] A test asserts `choices` mirrors the picker's rows exactly
+- [x] `app/tonight-screen.test.tsx` passes with no changes to its assertions
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+
+## Comments
+
+- Acceptance criteria were left unticked when `Status` was set to `done`;
+  ticked now. As with 05, `app/tonight-screen.test.tsx` was later touched by
+  07 and 09 — "no changes to its assertions" no longer holds literally, but
+  all 38 of its cases still pass, confirming no on-screen behaviour changed.

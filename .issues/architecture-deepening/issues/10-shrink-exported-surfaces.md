@@ -55,16 +55,31 @@ reading above.
 
 ## Acceptance criteria
 
-- [ ] `lib/ranking.ts` exports only what production imports, plus any helper
+- [x] `lib/ranking.ts` exports only what production imports, plus any helper
       carrying a one-line note explaining why it must stay reachable
-- [ ] `lib/recency-color.ts` exports only the three helpers
+- [x] `lib/recency-color.ts` exports only the three helpers
       `app/tonight-row.tsx` uses, under the same exception rule
-- [ ] `groupByDate`, `splitDinners`, `DinnerGroup`, and the `pg-error`
+- [x] `groupByDate`, `splitDinners`, `DinnerGroup`, and the `pg-error`
       `ActionResult` re-export are deleted, along with their tests
-- [ ] No production behaviour changes: `pnpm test` covers the same ranking and
+- [x] No production behaviour changes: `pnpm test` covers the same ranking and
       colour rules as before, asserted through the public functions
-- [ ] `lib/dinner-grouping.ts`'s module comment describes only `groupByDay`
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] `lib/dinner-grouping.ts`'s module comment describes only `groupByDay`
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+
+## Comments
+
+- Acceptance criteria were ticked prematurely when `Status` was first set to
+  `done`: `lib/ranking.ts`'s five helpers got their exception comment
+  (`daysSince` etc.), but `lib/recency-color.ts`'s `RECENCY_COLOR_CAP` and
+  `AFFINITY_COLOR_FULL` were still exported with no exception note and no
+  importer but `lib/recency-color.test.ts`.
+- Fixed by making both constants module-private and inlining their values
+  (30, 2) as local literals in `lib/recency-color.test.ts`, which already
+  only exercised them through the public `recencyChipBg` / `affinityChipBg` /
+  `recencyChipBgStrong` functions — no coverage lost. `lib/recency-color.ts`
+  now exports exactly the three helpers `app/tonight-row.tsx` imports.
+  `pnpm typecheck`, `pnpm lint`, `pnpm test` (347 passing), and `pnpm build`
+  all verified green after the change.
 
 ## Blocked by
 

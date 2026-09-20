@@ -116,6 +116,77 @@ export function useComboboxKeyboard({
 }
 
 /**
+ * The `role="listbox"` dropdown every Option typeahead shows beneath its
+ * input: a scrollable list of `role="option"` rows, each carrying the
+ * Tonight rows' kind bar plus a Home meal / Restaurant label. `onMouseDown` +
+ * `preventDefault` commits a pick before the input's blur fires; hovering a
+ * row moves the keyboard highlight to it.
+ *
+ * The two callers differ only in what "selected" means for `aria-selected` —
+ * `OptionCombobox` has a persisted pick (`option.id === value`), Tonight's
+ * search box has none and highlights by keyboard position instead — and in
+ * whether an empty `matches` still renders a "No matches" row, which
+ * `OptionCombobox` shows in its `"all"` (Log/detail) mode but Tonight's
+ * search box never needs (it only opens once something matches). Both are
+ * `className`/`showNoMatchesRow` inputs so the two boxes' markup and ARIA
+ * wiring stay the one implementation.
+ */
+export function OptionListbox({
+  listId,
+  matches,
+  activeIndex,
+  isSelected,
+  showNoMatchesRow = false,
+  onSelect,
+  onHover,
+  className,
+  rowClassName = "",
+}: {
+  listId: string;
+  matches: OptionChoice[];
+  activeIndex: number;
+  isSelected: (option: OptionChoice, index: number) => boolean;
+  showNoMatchesRow?: boolean;
+  onSelect: (option: OptionChoice) => void;
+  onHover: (index: number) => void;
+  className: string;
+  rowClassName?: string;
+}) {
+  return (
+    <ul id={listId} role="listbox" className={className}>
+      {matches.length === 0 && showNoMatchesRow ? (
+        <li className="px-3 py-2 text-body text-muted">No matches</li>
+      ) : (
+        matches.map((option, index) => (
+          <li key={option.id}>
+            <button
+              type="button"
+              id={`${listId}-option-${option.id}`}
+              role="option"
+              aria-selected={isSelected(option, index)}
+              className={`flex min-h-11 w-full flex-col py-1.5 text-left
+                ${kindBarClass(option.kind)} ${rowClassName} ${
+                  index === activeIndex ? "bg-raised" : "hover:bg-raised"
+                }`}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onSelect(option);
+              }}
+              onMouseEnter={() => onHover(index)}
+            >
+              <span className="text-body text-ink">{option.name}</span>
+              <span className="text-meta text-muted">
+                {kindLabel(option.kind)}
+              </span>
+            </button>
+          </li>
+        ))
+      )}
+    </ul>
+  );
+}
+
+/**
  * The type-ahead Option picker — a hand-rolled, accessible combobox shared by
  * every place an Option is chosen on the Log. It follows the `TagInput`
  * pattern: a `role="combobox"` input over a `role="listbox"` of
@@ -138,9 +209,9 @@ export function useComboboxKeyboard({
  *
  * `emptyQueryBehaviour` and `initialActiveIndex` are the only two axes Tonight's
  * search box (`app/tonight-screen.tsx`) needs to differ on — it renders this
- * same filter and keyboard contract (`filterOptionChoices`,
- * `useComboboxKeyboard`) behind its own input, since its query is shared with
- * AI search rather than owned locally here.
+ * same filter, keyboard contract, and dropdown (`filterOptionChoices`,
+ * `useComboboxKeyboard`, `OptionListbox`) behind its own input, since its
+ * query is shared with AI search rather than owned locally here.
  */
 export function OptionCombobox({
   id,
@@ -287,42 +358,18 @@ export function OptionCombobox({
       )}
 
       {showList && (
-        <ul
-          id={listId}
-          role="listbox"
+        <OptionListbox
+          listId={listId}
+          matches={matches}
+          activeIndex={activeIndex}
+          isSelected={(option) => option.id === value}
+          showNoMatchesRow
+          onSelect={selectOption}
+          onHover={setActiveIndex}
           className="absolute z-10 mt-1 flex max-h-64 w-full flex-col
             overflow-y-auto rounded-input border border-line bg-surface py-1
             shadow-sm"
-        >
-          {matches.length === 0 ? (
-            <li className="px-3 py-2 text-body text-muted">No matches</li>
-          ) : (
-            matches.map((option, index) => (
-              <li key={option.id}>
-                <button
-                  type="button"
-                  id={`${listId}-option-${option.id}`}
-                  role="option"
-                  aria-selected={option.id === value}
-                  className={`flex min-h-11 w-full flex-col py-1.5 text-left
-                    ${kindBarClass(option.kind)} ${
-                      index === activeIndex ? "bg-raised" : "hover:bg-raised"
-                    }`}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    selectOption(option);
-                  }}
-                  onMouseEnter={() => setActiveIndex(index)}
-                >
-                  <span className="text-body text-ink">{option.name}</span>
-                  <span className="text-meta text-muted">
-                    {kindLabel(option.kind)}
-                  </span>
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
+        />
       )}
     </div>
   );

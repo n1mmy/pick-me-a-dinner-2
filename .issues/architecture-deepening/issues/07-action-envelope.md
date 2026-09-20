@@ -74,19 +74,27 @@ No ADR change. No `CONTEXT.md` change.
 
 ## Acceptance criteria
 
-- [ ] No action file contains the `isValidSqlDate(...) ? ... : todaySql`
+- [x] No action file contains the `isValidSqlDate(...) ? ... : todaySql`
       ternary; all three call `parseSelectedDay`
-- [ ] `app/revalidate.ts` exports `revalidateDinnerViews` and
+- [x] `app/revalidate.ts` exports `revalidateDinnerViews` and
       `revalidateCatalogViews`; `revalidateLogViews`, `revalidateRejectionViews`,
       and `revalidateCatalog` are gone
-- [ ] Every Catalog write — `createOption`, `updateOption`, archive,
+- [x] Every Catalog write — `createOption`, `updateOption`, archive,
       un-archive, hard-delete — revalidates `/`
-- [ ] `deleteLogEntry` and `deleteRejection` return `ActionResult`, and their
+- [x] `deleteLogEntry` and `deleteRejection` return `ActionResult`, and their
       call sites (including Tonight's **Bring back**) surface a failure inline
-- [ ] `app/catalog/actions.db.test.ts`, `app/log/actions.db.test.ts`, and
+- [x] `app/catalog/actions.db.test.ts`, `app/log/actions.db.test.ts`, and
       `app/rejection-actions.db.test.ts` still pass, with the two delete tests
       updated for the new return type
-- [ ] The detail-page Reject day gap is recorded as its own issue rather than
+- [x] The detail-page Reject day gap is recorded as its own issue rather than
       fixed here
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
+
+## Comments
+
+- Acceptance criteria were left unticked when `Status` was set to `done`;
+  verified against the current code and ticked now. The db-backed test files
+  (`*.db.test.ts`) require a database and weren't re-run here (`pnpm test`
+  covers the non-db suite); `pnpm typecheck`/`lint`/`test`/`build` were
+  re-verified green.

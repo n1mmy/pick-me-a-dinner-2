@@ -52,17 +52,35 @@ change, no `CONTEXT.md` change.
 
 ## Acceptance criteria
 
-- [ ] One typeahead implementation remains; `app/tonight-screen.tsx` contains
+- [x] One typeahead implementation remains; `app/tonight-screen.tsx` contains
       no substring filter, no `activeIndex` state, and no listbox keyboard
       handler
-- [ ] `emptyQueryBehaviour` and `initialActiveIndex` default to today's form
+- [x] `emptyQueryBehaviour` and `initialActiveIndex` default to today's form
       behaviour, so the Log and detail forms are unchanged
-- [ ] Tonight's search box still: shows no suggestions on an empty query,
+- [x] Tonight's search box still: shows no suggestions on an empty query,
       submits the AI search on Enter with nothing active, and Picks on Enter
       with an option active — each covered by a test
-- [ ] `app/option-combobox.test.tsx` covers both new props
-- [ ] No visual change to either box
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] `app/option-combobox.test.tsx` covers both new props
+- [x] No visual change to either box
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+
+## Comments
+
+- Acceptance criteria were ticked prematurely when `Status` was first set to
+  `done`: the filter and keyboard contract were shared, but the listbox
+  markup and ARIA wiring were still duplicated verbatim (including a second
+  `kindLabel`), so "one typeahead implementation" was not literally true and
+  `app/tonight-screen.tsx` had netted only −12 lines, not the ~300 the issue
+  estimated.
+- Fixed by extracting the shared `<ul role="listbox">` + row rendering into a
+  new `OptionListbox` component in `app/option-combobox.tsx`, parameterized
+  on the two genuine differences (`isSelected`, `showNoMatchesRow`) plus each
+  caller's own wrapper/row classes. Both `OptionCombobox` and Tonight's
+  `SearchBox` now render it instead of hand-rolling their own markup; the
+  duplicate `kindLabel` in `tonight-screen.tsx` is deleted. No prop, class,
+  or DOM structure changed, so there is no visual change to either box.
+  `pnpm typecheck`, `pnpm lint`, `pnpm test` (347 passing), and `pnpm build`
+  all verified green after the change.
 
 ## Blocked by
 

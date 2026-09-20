@@ -24,8 +24,11 @@ import {
 } from "../lib/picker-view";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 import { DayNameReset, DayStepper } from "./day-stepper";
-import { kindBarClass } from "./kind-bar";
-import { filterOptionChoices, useComboboxKeyboard } from "./option-combobox";
+import {
+  OptionListbox,
+  filterOptionChoices,
+  useComboboxKeyboard,
+} from "./option-combobox";
 import { pickTonight } from "./log/actions";
 import { deleteRejection } from "./rejection-actions";
 import { aiSearchAction } from "./tonight-actions";
@@ -801,11 +804,6 @@ const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body " +
   `text-ink placeholder:text-muted disabled:opacity-60 ${focusRing}`;
 
-/** The per-kind label on a dropdown row, mirroring the Log combobox's rows. */
-function kindLabel(kind: "home" | "restaurant"): string {
-  return kind === "home" ? "Home meal" : "Restaurant";
-}
-
 /**
  * The Tonight search box — one input doing two jobs (treatment A). Typing
  * filters the picker's Options by name into a dropdown beneath the field;
@@ -831,12 +829,12 @@ function kindLabel(kind: "home" | "restaurant"): string {
  * violet at rest, a spinner with a live elapsed-second timer in flight, and a
  * `success` green check with the final duration once a result lands.
  *
- * The typeahead's filter and ↑/↓/Enter/Escape handling are the same
- * `filterOptionChoices`/`useComboboxKeyboard` contract `OptionCombobox` uses
- * for the Log and Option-detail forms (`emptyQueryBehaviour: "none"`,
- * `initialActiveIndex: -1`) — this box keeps only what is genuinely its own:
- * the query state shared with AI search, the submit/clear affordances, and
- * the pending/error UI.
+ * The typeahead's filter, ↑/↓/Enter/Escape handling, and dropdown markup are
+ * the same `filterOptionChoices`/`useComboboxKeyboard`/`OptionListbox`
+ * contract `OptionCombobox` uses for the Log and Option-detail forms
+ * (`emptyQueryBehaviour: "none"`, `initialActiveIndex: -1`) — this box keeps
+ * only what is genuinely its own: the query state shared with AI search, the
+ * submit/clear affordances, and the pending/error UI.
  */
 function SearchBox({
   query,
@@ -1021,38 +1019,18 @@ function SearchBox({
               below (z-20). `onMouseDown` + preventDefault commits the pick
               before the input's blur can close the dropdown. */}
           {showList && (
-            <ul
-              id={listId}
-              role="listbox"
+            <OptionListbox
+              listId={listId}
+              matches={matches}
+              activeIndex={activeIndex}
+              isSelected={(_option, index) => index === activeIndex}
+              onSelect={pick}
+              onHover={setActiveIndex}
               className="absolute left-0 right-0 top-full z-20 mt-1 flex
                 max-h-64 flex-col overflow-y-auto rounded-input border
                 border-line bg-surface py-1 shadow-sm"
-            >
-              {matches.map((option, index) => (
-                <li key={option.id}>
-                  <button
-                    type="button"
-                    id={`${listId}-option-${option.id}`}
-                    role="option"
-                    aria-selected={index === activeIndex}
-                    className={`flex min-h-11 w-full flex-col py-1.5 pr-3
-                      text-left ${kindBarClass(option.kind)} ${
-                        index === activeIndex ? "bg-raised" : "hover:bg-raised"
-                      }`}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      pick(option);
-                    }}
-                    onMouseEnter={() => setActiveIndex(index)}
-                  >
-                    <span className="text-body text-ink">{option.name}</span>
-                    <span className="text-meta text-muted">
-                      {kindLabel(option.kind)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+              rowClassName="pr-3"
+            />
           )}
         </div>
         {/* Width is pinned hard — `min-w` defeats the flex item's default

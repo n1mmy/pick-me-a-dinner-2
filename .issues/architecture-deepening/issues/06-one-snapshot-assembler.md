@@ -73,23 +73,28 @@ in the harness as well as the app. No `CONTEXT.md` change.
 
 ## Acceptance criteria
 
-- [ ] `lib/snapshot-source.ts` exports `snapshotForDay({ asOf, query })` and is
+- [x] `lib/snapshot-source.ts` exports `snapshotForDay({ asOf, query })` and is
       the only place `buildSnapshot` is called outside its own tests
-- [ ] `app/tonight-actions.ts`, `scripts/ai-search-eval.ts`, and
+- [x] `app/tonight-actions.ts`, `scripts/ai-search-eval.ts`, and
       `scripts/model-comparison/show-prompt.mjs` all route through it; none of
       the three maps `SnapshotOption` / `SnapshotLogEntry` itself
-- [ ] The eval harness and `show-prompt` both send the **full** Log
+- [x] The eval harness and `show-prompt` both send the **full** Log
       (`getFullLogForSnapshot`), matching production
-- [ ] No `process.env.APP_TZ` binding remains in `scripts/ai-search-eval.ts` or
+- [x] No `process.env.APP_TZ` binding remains in `scripts/ai-search-eval.ts` or
       `scripts/model-comparison/show-prompt.mjs` — both use `today()`
-- [ ] `lib/ai-search.ts` exports `splitUserTurn`; `createAiSearchClient` and
+- [x] `lib/ai-search.ts` exports `splitUserTurn`; `createAiSearchClient` and
       `show-prompt.mjs` both use it, and `show-prompt.mjs` contains no
       hand-copied split
-- [ ] `app/tonight-actions.test.ts` still asserts what the action forwards
-- [ ] `scripts/model-comparison/README.md` notes that the existing baseline
+- [x] `app/tonight-actions.test.ts` still asserts what the action forwards
+- [x] `scripts/model-comparison/README.md` notes that the existing baseline
       predates the Log-source fix
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
+
+## Comments
+
+- Acceptance criteria were left unticked when `Status` was set to `done`;
+  verified against the current code and ticked now.
 
 ## Blocked by
 

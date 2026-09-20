@@ -94,21 +94,30 @@ are already glossary terms and the module uses them as written.
 
 ## Acceptance criteria
 
-- [ ] `lib/tonight-day.ts` exports `tonightForDay` and is pure — no DB import,
+- [x] `lib/tonight-day.ts` exports `tonightForDay` and is pure — no DB import,
       no `today()`, no React
-- [ ] `app/page.tsx` contains no `rankTonight`, `splitTonight`,
+- [x] `app/page.tsx` contains no `rankTonight`, `splitTonight`,
       `partitionClosedRows`, `lastNotesByOption`, `epochDayFromSqlDate`, or
       rejection-`Set` call; the props passed to `<TonightScreen>` are unchanged
-- [ ] The Rejection-before-Closed order lives in `lib/tonight-day.ts` and is
+- [x] The Rejection-before-Closed order lives in `lib/tonight-day.ts` and is
       asserted by a test: an Option both rejected and closed for the Selected
       day is in neither the picker nor `closed`
-- [ ] The decided block's rows still show pre-Pick recency, covered by a test
-- [ ] `allFiltered` distinguishes "filtered empty" from "empty Catalog",
+- [x] The decided block's rows still show pre-Pick recency, covered by a test
+- [x] `allFiltered` distinguishes "filtered empty" from "empty Catalog",
       covered by a test
-- [ ] `lib/closed-days.ts` records that Tonight keeps closed rows while AI
+- [x] `lib/closed-days.ts` records that Tonight keeps closed rows while AI
       search drops them
-- [ ] Tonight's on-screen behaviour is unchanged for today, a past day, and a
+- [x] Tonight's on-screen behaviour is unchanged for today, a past day, and a
       future day — `app/tonight-screen.test.tsx` passes untouched
-- [ ] No ADR change and no `CONTEXT.md` change
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] No ADR change and no `CONTEXT.md` change
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
+
+## Comments
+
+- Acceptance criteria were left unticked when `Status` was set to `done`;
+  ticked now. `app/tonight-screen.test.tsx` was later touched by 07 (action
+  envelope) and 09 (combobox module) — its mock shapes and one new suite
+  changed, so "passes untouched" is no longer literal, but all 38 of its
+  cases (and the full 347-test suite) still pass, so Tonight's on-screen
+  behaviour is confirmed unchanged.
