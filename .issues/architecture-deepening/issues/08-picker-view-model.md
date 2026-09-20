@@ -1,6 +1,6 @@
 # 08 — Deepen `lib/tonight-filter` into the Picker's view model
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## What to build
