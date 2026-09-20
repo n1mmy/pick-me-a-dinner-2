@@ -1,6 +1,6 @@
 # 05 — Concentrate Tonight's Selected-day suppression into one module
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## What to build
