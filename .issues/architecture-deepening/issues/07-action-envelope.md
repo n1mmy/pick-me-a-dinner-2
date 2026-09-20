@@ -1,6 +1,6 @@
 # 07 — One Selected-day rule and one revalidation set for every Server Action (fixes Catalog staleness)
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## What to build
