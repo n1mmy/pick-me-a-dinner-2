@@ -44,11 +44,12 @@ vi.mock("./day-stepper", () => ({
 
 import type { AiSearchResult } from "../lib/ai-search";
 import { aiSearchAction } from "./tonight-actions";
-import { deleteLogEntry } from "./log/actions";
+import { deleteLogEntry, pickTonight } from "./log/actions";
 import { TonightScreen } from "./tonight-screen";
 
 const mockedAiSearch = vi.mocked(aiSearchAction);
 const mockedDelete = vi.mocked(deleteLogEntry);
+const mockedPick = vi.mocked(pickTonight);
 
 /**
  * A deterministic Tonight row. `tags` are the Option's Tags, which drive the
@@ -488,6 +489,76 @@ describe("TonightScreen — AI search", () => {
     // The Picked Option's AI rationale is gone — its row dropped out of the
     // AI list because it left `pickerRows`.
     expect(screen.queryByText("Sweet and quick")).toBeNull();
+  });
+});
+
+describe("TonightScreen — search typeahead", () => {
+  // The search box's typeahead half shares its filter and ↑/↓/Enter/Escape
+  // handling with `OptionCombobox` (`emptyQueryBehaviour: "none"`,
+  // `initialActiveIndex: -1`) — these pin the one behaviour that is genuinely
+  // this box's own: Enter submits the AI search unless a row is highlighted.
+
+  it("shows no suggestions on an empty query", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+
+    fireEvent.focus(searchInput());
+
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.queryByRole("option")).toBeNull();
+  });
+
+  it("leaves Enter unhandled (so the form's own submit runs the AI search) with nothing highlighted", () => {
+    // "Apple" matches "Apple Crumble", so the dropdown has a row — but
+    // nothing is highlighted (no arrow key pressed). A real browser submits
+    // the enclosing form on an unhandled Enter in a single-line text input;
+    // jsdom does not simulate that implicit submission, so this pins the
+    // component's half of the contract directly: it must not intercept the
+    // keypress (`preventDefault`) or Pick, leaving Enter free to bubble as a
+    // submit exactly like the AI-search suite's `fireEvent.click` on Search.
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+
+    fireEvent.change(searchInput(), { target: { value: "Apple" } });
+    const notPrevented = fireEvent.keyDown(searchInput(), { key: "Enter" });
+
+    expect(notPrevented).toBe(true);
+    expect(mockedPick).not.toHaveBeenCalled();
+  });
+
+  it("Picks the highlighted Option on Enter", async () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+
+    fireEvent.change(searchInput(), { target: { value: "Apple" } });
+    fireEvent.keyDown(searchInput(), { key: "ArrowDown" });
+    fireEvent.keyDown(searchInput(), { key: "Enter" });
+
+    await waitFor(() => {
+      expect(mockedPick).toHaveBeenCalledWith("o1", undefined);
+    });
+    expect(mockedAiSearch).not.toHaveBeenCalled();
   });
 });
 

@@ -16,6 +16,106 @@ function kindLabel(kind: "home" | "restaurant"): string {
 }
 
 /**
+ * What an empty query shows: `"all"` (the Log/detail forms) returns every
+ * choice; `"none"` (Tonight's search box, which doubles as an AI search
+ * field) returns nothing, so a blank field reads as a clean AI "recommend"
+ * trigger rather than the whole Catalog.
+ */
+export type EmptyQueryBehaviour = "all" | "none";
+
+/**
+ * The flat, alphabetical, case-insensitive substring filter shared by every
+ * Option typeahead. `choices` already arrives ordered by name; this sorts
+ * nothing on its own.
+ */
+export function filterOptionChoices(
+  choices: OptionChoice[],
+  query: string,
+  emptyQueryBehaviour: EmptyQueryBehaviour = "all",
+): OptionChoice[] {
+  const needle = query.trim().toLowerCase();
+  if (needle.length === 0) {
+    return emptyQueryBehaviour === "none" ? [] : choices;
+  }
+  return choices.filter((o) => o.name.toLowerCase().includes(needle));
+}
+
+/**
+ * The ↑/↓/Enter/Escape keyboard contract shared by every Option typeahead's
+ * listbox, plus the `aria-activedescendant` id it drives.
+ *
+ * `initialActiveIndex` is both the floor `ArrowUp` clamps to and the
+ * highlight a (re)opened field starts from: `0` (the Log/detail forms) so
+ * Enter immediately picks the first match; `-1` (Tonight's search box) so
+ * Enter with nothing highlighted falls through to the surrounding form's own
+ * submit instead of picking. Enter only ever picks when a highlight is
+ * actually active (`activeIndex >= 0`).
+ */
+export function useComboboxKeyboard({
+  open,
+  setOpen,
+  matches,
+  initialActiveIndex = 0,
+  onSelect,
+  onEscape,
+}: {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  matches: OptionChoice[];
+  initialActiveIndex?: 0 | -1;
+  onSelect: (option: OptionChoice) => void;
+  onEscape: () => void;
+}) {
+  const [activeIndex, setActiveIndex] = useState<number>(initialActiveIndex);
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!open) {
+        setOpen(true);
+        return;
+      }
+      setActiveIndex((index) =>
+        matches.length === 0
+          ? initialActiveIndex
+          : Math.min(index + 1, matches.length - 1),
+      );
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!open) {
+        setOpen(true);
+        return;
+      }
+      setActiveIndex((index) => Math.max(index - 1, initialActiveIndex));
+    } else if (event.key === "Enter") {
+      if (open && matches.length > 0 && activeIndex >= 0) {
+        event.preventDefault();
+        onSelect(matches[activeIndex] ?? matches[0]);
+      }
+    } else if (event.key === "Escape") {
+      if (open) {
+        event.preventDefault();
+        setActiveIndex(initialActiveIndex);
+        onEscape();
+      }
+    }
+  }
+
+  function activeId(listId: string): string | undefined {
+    if (!(open && matches.length > 0 && activeIndex >= 0)) return undefined;
+    return `${listId}-option-${matches[activeIndex]?.id ?? matches[0].id}`;
+  }
+
+  return {
+    activeIndex,
+    setActiveIndex,
+    resetActiveIndex: () => setActiveIndex(initialActiveIndex),
+    handleKeyDown,
+    activeId,
+  };
+}
+
+/**
  * The type-ahead Option picker — a hand-rolled, accessible combobox shared by
  * every place an Option is chosen on the Log. It follows the `TagInput`
  * pattern: a `role="combobox"` input over a `role="listbox"` of
@@ -35,6 +135,12 @@ function kindLabel(kind: "home" | "restaurant"): string {
  * `choices` — an Archived Option a Log entry is still logged against — together
  * with `valueName` so the field can display it; that name is the reconcile
  * target until the pick is changed.
+ *
+ * `emptyQueryBehaviour` and `initialActiveIndex` are the only two axes Tonight's
+ * search box (`app/tonight-screen.tsx`) needs to differ on — it renders this
+ * same filter and keyboard contract (`filterOptionChoices`,
+ * `useComboboxKeyboard`) behind its own input, since its query is shared with
+ * AI search rather than owned locally here.
  */
 export function OptionCombobox({
   id,
@@ -44,6 +150,8 @@ export function OptionCombobox({
   onChange,
   placeholder = "Search Options",
   autoFocus = false,
+  emptyQueryBehaviour = "all",
+  initialActiveIndex = 0,
 }: {
   /** Associates an external `<label htmlFor>` with the combobox input. */
   id: string;
@@ -58,6 +166,10 @@ export function OptionCombobox({
   placeholder?: string;
   /** Focus the input on mount — for a form that opens with this as its field. */
   autoFocus?: boolean;
+  /** What an empty query shows. Defaults to `"all"` — today's form behaviour. */
+  emptyQueryBehaviour?: EmptyQueryBehaviour;
+  /** The keyboard highlight a (re)opened field starts from. Defaults to `0`. */
+  initialActiveIndex?: 0 | -1;
 }) {
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,11 +181,9 @@ export function OptionCombobox({
   }, [value, valueName, choices]);
 
   // `query` is what the input shows. While closed it mirrors `pickedName`;
-  // opening it lets the Household type freely. `open` gates the listbox and
-  // `activeIndex` is the keyboard highlight into the filtered list.
+  // opening it lets the Household type freely. `open` gates the listbox.
   const [query, setQuery] = useState(pickedName);
   const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
   // Track the last name the input synced from, so an external `value` change
   // (e.g. the "×" clear) flows into the closed field without an effect.
   const [syncedName, setSyncedName] = useState(pickedName);
@@ -82,13 +192,10 @@ export function OptionCombobox({
     setQuery(pickedName);
   }
 
-  // Flat, alphabetical, case-insensitive substring filter. With no query every
-  // choice shows; `choices` already arrives ordered by name.
-  const matches = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (needle.length === 0) return choices;
-    return choices.filter((o) => o.name.toLowerCase().includes(needle));
-  }, [query, choices]);
+  const matches = useMemo(
+    () => filterOptionChoices(choices, query, emptyQueryBehaviour),
+    [query, choices, emptyQueryBehaviour],
+  );
 
   function selectOption(option: OptionChoice) {
     onChange(option.id);
@@ -113,40 +220,21 @@ export function OptionCombobox({
     setQuery(pickedName);
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      if (!open) {
-        setOpen(true);
-        return;
-      }
-      setActiveIndex((index) =>
-        matches.length === 0 ? 0 : Math.min(index + 1, matches.length - 1),
-      );
-    } else if (event.key === "ArrowUp") {
-      event.preventDefault();
-      if (!open) {
-        setOpen(true);
-        return;
-      }
-      setActiveIndex((index) => Math.max(index - 1, 0));
-    } else if (event.key === "Enter") {
-      if (open && matches.length > 0) {
-        event.preventDefault();
-        selectOption(matches[activeIndex] ?? matches[0]);
-      }
-    } else if (event.key === "Escape") {
-      if (open) {
-        event.preventDefault();
-        reconcile();
-      }
-    }
-  }
+  const { activeIndex, setActiveIndex, resetActiveIndex, handleKeyDown, activeId } =
+    useComboboxKeyboard({
+      open,
+      setOpen,
+      matches,
+      initialActiveIndex,
+      onSelect: selectOption,
+      onEscape: reconcile,
+    });
 
-  const activeId =
-    open && matches.length > 0
-      ? `${listId}-option-${matches[activeIndex]?.id ?? matches[0].id}`
-      : undefined;
+  // The list shows whenever open, unless an empty query is defined to show
+  // nothing — mirroring Tonight's "quiet unless something matches" box, which
+  // never surfaces a "No matches" row even for a non-matching typed query.
+  const showList =
+    open && (emptyQueryBehaviour === "all" || matches.length > 0);
 
   return (
     <div className="relative">
@@ -160,14 +248,14 @@ export function OptionCombobox({
         placeholder={placeholder}
         autoComplete="off"
         role="combobox"
-        aria-expanded={open}
+        aria-expanded={showList}
         aria-controls={listId}
         aria-autocomplete="list"
-        aria-activedescendant={activeId}
+        aria-activedescendant={activeId(listId)}
         onChange={(event) => {
           setQuery(event.target.value);
           setOpen(true);
-          setActiveIndex(0);
+          resetActiveIndex();
         }}
         onKeyDown={handleKeyDown}
         onFocus={() => {
@@ -176,7 +264,7 @@ export function OptionCombobox({
           // blur reconciles the field back to it if nothing new is chosen.
           setQuery("");
           setOpen(true);
-          setActiveIndex(0);
+          resetActiveIndex();
         }}
         onBlur={reconcile}
       />
@@ -198,7 +286,7 @@ export function OptionCombobox({
         </button>
       )}
 
-      {open && (
+      {showList && (
         <ul
           id={listId}
           role="listbox"

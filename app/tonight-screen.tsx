@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
   useTransition,
-  type KeyboardEvent,
 } from "react";
 import Link from "next/link";
 import type { OptionChoice, TodayRejection } from "../db/queries";
@@ -26,6 +25,7 @@ import {
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 import { DayNameReset, DayStepper } from "./day-stepper";
 import { kindBarClass } from "./kind-bar";
+import { filterOptionChoices, useComboboxKeyboard } from "./option-combobox";
 import { pickTonight } from "./log/actions";
 import { deleteRejection } from "./rejection-actions";
 import { aiSearchAction } from "./tonight-actions";
@@ -830,6 +830,13 @@ function kindLabel(kind: "home" | "restaurant"): string {
  * time. The Search button tracks the search through three states: `accent`
  * violet at rest, a spinner with a live elapsed-second timer in flight, and a
  * `success` green check with the final duration once a result lands.
+ *
+ * The typeahead's filter and ↑/↓/Enter/Escape handling are the same
+ * `filterOptionChoices`/`useComboboxKeyboard` contract `OptionCombobox` uses
+ * for the Log and Option-detail forms (`emptyQueryBehaviour: "none"`,
+ * `initialActiveIndex: -1`) — this box keeps only what is genuinely its own:
+ * the query state shared with AI search, the submit/clear affordances, and
+ * the pending/error UI.
  */
 function SearchBox({
   query,
@@ -892,25 +899,19 @@ function SearchBox({
     }
   }, [pending, error]);
 
-  // Typeahead state: `open` gates the dropdown, `activeIndex` is the keyboard
-  // highlight — −1 means nothing is highlighted, so Enter runs the AI search
-  // rather than picking. A pick logs through its own transition; a failure
-  // shows inline below the box.
+  // Typeahead state: `open` gates the dropdown. A pick logs through its own
+  // transition; a failure shows inline below the box.
   const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
   const [pickError, setPickError] = useState<string | null>(null);
   const [, startPick] = useTransition();
 
-  // Flat, case-insensitive substring match over the picker's Options. An empty
-  // query matches nothing, so a blank box stays a clean AI "recommend" trigger
-  // rather than dropping down the whole Catalog.
-  const matches = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (needle.length === 0) return [];
-    return choices.filter((option) =>
-      option.name.toLowerCase().includes(needle),
-    );
-  }, [query, choices]);
+  // The same substring filter every Option typeahead uses (`option-combobox`).
+  // An empty query matches nothing here (`"none"`), so a blank box stays a
+  // clean AI "recommend" trigger rather than dropping down the whole Catalog.
+  const matches = useMemo(
+    () => filterOptionChoices(choices, query, "none"),
+    [query, choices],
+  );
 
   // The dropdown shows only when there is something to pick.
   const showList = open && matches.length > 0;
@@ -930,40 +931,27 @@ function SearchBox({
       // page's scroll-to-top effect confirms the pick.
       onQueryChange("");
       setOpen(false);
-      setActiveIndex(-1);
     });
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "ArrowDown") {
-      if (matches.length === 0) return;
-      event.preventDefault();
-      setOpen(true);
-      setActiveIndex((index) => Math.min(index + 1, matches.length - 1));
-    } else if (event.key === "ArrowUp") {
-      if (matches.length === 0) return;
-      event.preventDefault();
-      setActiveIndex((index) => Math.max(index - 1, -1));
-    } else if (event.key === "Enter") {
-      // A highlighted match is picked; with nothing highlighted the keypress
-      // falls through to the form's submit, which runs the AI search.
-      if (showList && activeIndex >= 0) {
-        event.preventDefault();
-        pick(matches[activeIndex]);
-      }
-    } else if (event.key === "Escape") {
-      if (showList) {
-        event.preventDefault();
-        setOpen(false);
-        setActiveIndex(-1);
-      }
-    }
-  }
-
-  const activeId =
-    showList && activeIndex >= 0
-      ? `${listId}-option-${matches[activeIndex].id}`
-      : undefined;
+  // The same ↑/↓/Enter/Escape contract every Option typeahead uses
+  // (`option-combobox`), with `initialActiveIndex: -1` so Enter with nothing
+  // highlighted falls through to the form's own submit — the AI search —
+  // rather than picking.
+  const {
+    activeIndex,
+    setActiveIndex,
+    resetActiveIndex,
+    handleKeyDown,
+    activeId,
+  } = useComboboxKeyboard({
+    open,
+    setOpen,
+    matches,
+    initialActiveIndex: -1,
+    onSelect: pick,
+    onEscape: () => setOpen(false),
+  });
 
   // The done badge shows only while a successful AI result is on screen —
   // `showClear && !error`, no search in flight. Clearing the search drops
@@ -981,7 +969,7 @@ function SearchBox({
         event.preventDefault();
         // Submitting is the AI search path; close any open dropdown first.
         setOpen(false);
-        setActiveIndex(-1);
+        resetActiveIndex();
         onSubmit();
       }}
       className="flex flex-col gap-1"
@@ -997,7 +985,7 @@ function SearchBox({
             onChange={(event) => {
               onQueryChange(event.target.value);
               setOpen(true);
-              setActiveIndex(-1);
+              resetActiveIndex();
             }}
             onKeyDown={handleKeyDown}
             onFocus={() => setOpen(true)}
@@ -1008,7 +996,7 @@ function SearchBox({
             aria-expanded={showList}
             aria-controls={listId}
             aria-autocomplete="list"
-            aria-activedescendant={activeId}
+            aria-activedescendant={activeId(listId)}
             aria-label="Find a dinner by name, or describe a craving"
             // Extra right padding only when the ✕ is shown, so query text
             // never runs under it.
