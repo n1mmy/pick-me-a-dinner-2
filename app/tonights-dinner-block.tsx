@@ -128,6 +128,7 @@ function DecidedRow({
   const { entryId, row, note } = entry;
   const actions = decidedActions(row.option);
   const [editing, setEditing] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   // A light wash of the Option's kind hue tints each decided row, so the
   // "Tonight's dinner" block reads as a distinct shaded area above the picker.
   const washClass =
@@ -147,8 +148,13 @@ function DecidedRow({
         >
           {row.option.name}
         </Link>
-        <RemoveControl entryId={entryId} />
+        <RemoveControl entryId={entryId} onError={setRemoveError} />
       </div>
+      {removeError && (
+        <p className="mt-1 text-chip text-danger" role="alert">
+          {removeError}
+        </p>
+      )}
       <RowChips
         affinity={row.affinity}
         recencyDays={row.recencyDays}
@@ -358,18 +364,29 @@ const removeButton =
  * then deletes today's Log entry for the Option via the existing
  * `deleteLogEntry` server action, and "Cancel" disarms it.
  *
- * `deleteLogEntry` revalidates Tonight, so on the next render the server drops
- * this row from the block (and, if it was the last one, returns the whole
- * screen to picker mode). The control therefore needs no post-delete cleanup —
- * it simply unmounts with its row.
+ * `deleteLogEntry` revalidates Tonight, so on a successful delete the server
+ * drops this row from the block (and, if it was the last one, returns the
+ * whole screen to picker mode) — the control needs no post-delete cleanup of
+ * its own, it simply unmounts with its row. A failed delete (e.g. a
+ * double-tap race) reports `{ ok: false }` instead, which the parent row
+ * surfaces inline via `onError` rather than leaving the confirm silently
+ * armed with nothing having happened.
  */
-function RemoveControl({ entryId }: { entryId: string }) {
+function RemoveControl({
+  entryId,
+  onError,
+}: {
+  entryId: string;
+  onError: (message: string | null) => void;
+}) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function runRemove() {
+    onError(null);
     startTransition(async () => {
-      await deleteLogEntry(entryId);
+      const result = await deleteLogEntry(entryId);
+      if (!result.ok) onError(result.error);
     });
   }
 

@@ -1,7 +1,7 @@
 /**
  * Pure logic behind the "Search Google" box on the Restaurant form — kept
  * apart from the React component so it is directly unit-testable (the
- * `lib/tonight-filter.ts` pattern). The component is a thin renderer of the
+ * `lib/picker-view.ts` pattern). The component is a thin renderer of the
  * state these functions produce.
  */
 import type {

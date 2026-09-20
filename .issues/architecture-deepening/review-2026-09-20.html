@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review — pick-me-a-dinner-2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .hatch {
+        background-image: repeating-linear-gradient(
+          45deg, transparent, transparent 5px, rgba(220,38,38,.10) 5px, rgba(220,38,38,.10) 10px
+        );
+      }
+      .label { font-size: .625rem; letter-spacing: .08em; text-transform: uppercase; }
+      pre.mermaid { text-align: center; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans antialiased">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-14">
+
+      <header class="space-y-5">
+        <div class="flex items-baseline justify-between flex-wrap gap-3">
+          <h1 class="font-serif text-4xl tracking-tight">Architecture review</h1>
+          <p class="font-mono text-sm text-slate-500">pick-me-a-dinner-2 · 2026-09-20</p>
+        </div>
+        <p class="text-slate-600 max-w-2xl">
+          Six deepening candidates, weighted toward the hot spots of the last ~60 commits:
+          the Selected day, Closed days, and AI search.
+          The four issues under <span class="font-mono text-xs">.issues/architecture-deepening/</span> are all done and are not repeated here.
+        </p>
+        <div class="flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-600 border-y border-slate-200 py-3">
+          <span class="flex items-center gap-2"><span class="inline-block w-6 h-4 border border-slate-400 bg-white"></span> module</span>
+          <span class="flex items-center gap-2">
+            <svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="#475569" stroke-width="2" class="seam"/></svg> seam
+          </span>
+          <span class="flex items-center gap-2">
+            <svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="#dc2626" stroke-width="2"/></svg> leakage
+          </span>
+          <span class="flex items-center gap-2"><span class="inline-block w-6 h-4 deep"></span> deep module</span>
+          <span class="flex items-center gap-2"><span class="inline-block w-6 h-4 hatch border border-red-300"></span> duplicated rule</span>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-14">
+
+        <!-- ============ 1 ============ -->
+        <article id="c1" class="space-y-5 scroll-mt-8">
+          <div class="space-y-2">
+            <h2 class="font-serif text-2xl">1. One module answers “is this Option choosable on day D?”</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-emerald-100 text-emerald-900 px-3 py-1 text-xs font-medium">Strong</span>
+              <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-mono">in-process</span>
+            </div>
+          </div>
+
+          <p class="font-mono text-sm text-slate-600">
+            app/page.tsx:41–109 · lib/closed-days.ts:44 · lib/tonights-dinner.ts:65 · lib/rejections.ts:136 · lib/ai-search.ts:308–324 · db/queries.ts:195,357
+          </p>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="label text-slate-500 mb-2">Before — the rule is the page</p>
+              <pre class="mermaid">
+flowchart TD
+  P["app/page.tsx<br/>(no test imports it)"]
+  Q1["getTonightData(day)<br/>SQL: active = true"]
+  Q2["getTodayRejections(day)"]
+  R["rankTonight"]
+  R2["rankTonight #2<br/>(entries &lt; day)"]
+  S["splitTonight<br/>already Picked"]
+  F1["inline Set filter<br/>page.tsx:91-94"]
+  F2["partitionClosedRows"]
+  AI["lib/ai-search.ts<br/>buildSnapshot"]
+  PR["partitionRejections"]
+  P --> Q1 --> R --> S
+  P --> Q2 --> F1
+  P --> R2 --> S
+  S --> F1 --> F2
+  AI --> PR
+  AI -. same rule, retyped .-> F1
+  AI -. order not shared .-> F2
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#7f1d1d;
+  classDef page fill:#fef3c7,stroke:#d97706;
+  class F1,PR leak
+  class P page
+              </pre>
+            </div>
+            <div class="rounded-lg border-2 border-slate-900 bg-white p-4">
+              <p class="label text-slate-500 mb-2">After — one interface, both callers</p>
+              <pre class="mermaid">
+flowchart TD
+  P2["app/page.tsx<br/>(wiring only)"]
+  AI2["aiSearchAction"]
+  D["candidatesForDay(day)<br/>→ picker · decided · rejected · closed"]
+  RK["rankTonight (pure)"]
+  CD["isClosedOn (pure)"]
+  P2 --> D
+  AI2 --> D
+  D --> RK
+  D --> CD
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a,stroke-width:3px;
+  class D deep
+              </pre>
+            </div>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            <div>
+              <dt class="label text-slate-500">Problem</dt>
+              <dd class="text-slate-700">Four suppression reasons — Archived (SQL), Picked, Rejected, Closed — live in four modules, and the order the last two apply in is load-bearing but recorded only in prose.</dd>
+            </div>
+            <div>
+              <dt class="label text-slate-500">Solution</dt>
+              <dd class="text-slate-700">One module takes the Selected day and returns the day's partition: picker rows, decided rows, rejected rows, closed rows. Tonight and AI search both read it.</dd>
+            </div>
+          </dl>
+
+          <ul class="grid sm:grid-cols-2 gap-x-8 gap-y-1 text-sm text-slate-700 list-disc list-inside">
+            <li>Locality: one module owns suppression</li>
+            <li>Filter order becomes testable</li>
+            <li>Leverage: two callers, one interface</li>
+            <li>Page drops to wiring</li>
+            <li>Double <span class="font-mono text-xs">rankTonight</span> hides inside</li>
+            <li>Interface is the test surface</li>
+          </ul>
+
+          <div class="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+            Compatible with ADR-0003 and ADR-0010: suppression stays a presentation filter over a pure ranking, and no Score moves. The module is the place that fact finally gets asserted.
+          </div>
+
+          <div class="rounded-md bg-white border border-slate-200 px-4 py-3 text-sm text-slate-700">
+            <span class="label text-slate-500">Open question for the grilling</span><br/>
+            The same predicate has opposite consequences today: Tonight <em>keeps</em> closed Restaurants in the Closed disclosure with full controls; AI search <em>removes</em> them from <span class="font-mono text-xs">idByIndex</span> so the model cannot return them. Deliberate per ADR-0010, but nothing records it.
+          </div>
+        </article>
+
+        <!-- ============ 2 ============ -->
+        <article id="c2" class="space-y-5 scroll-mt-8">
+          <div class="space-y-2">
+            <h2 class="font-serif text-2xl">2. The AI snapshot is assembled three times, and the eval harness measures a different one</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-emerald-100 text-emerald-900 px-3 py-1 text-xs font-medium">Strong</span>
+              <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-mono">local-substitutable</span>
+            </div>
+          </div>
+
+          <p class="font-mono text-sm text-slate-600">
+            app/tonight-actions.ts:56–79 · scripts/ai-search-eval.ts:183–215 · scripts/model-comparison/show-prompt.mjs:39–66 · lib/ai-search.ts:283
+          </p>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+              <p class="label text-slate-500">Before — three assemblers, two Log sources</p>
+              <div class="space-y-2">
+                <div class="border border-slate-300 rounded p-2">
+                  <p class="label text-slate-500">app/tonight-actions.ts</p>
+                  <p class="font-mono text-[11px] text-emerald-700">getFullLogForSnapshot() ← past + Planned</p>
+                  <p class="font-mono text-[11px] text-slate-500">getTonightData · getRejections · map ×2</p>
+                </div>
+                <div class="hatch border border-red-300 rounded p-2">
+                  <p class="label text-red-700">scripts/ai-search-eval.ts</p>
+                  <p class="font-mono text-[11px] text-red-700">getTonightData().logEntries ← non-future only</p>
+                  <p class="font-mono text-[11px] text-slate-500">its own today() binding · map ×2</p>
+                </div>
+                <div class="hatch border border-red-300 rounded p-2">
+                  <p class="label text-red-700">model-comparison/show-prompt.mjs</p>
+                  <p class="font-mono text-[11px] text-red-700">getTonightData().logEntries ← non-future only</p>
+                  <p class="font-mono text-[11px] text-slate-500">hand-copies the user-turn split</p>
+                </div>
+              </div>
+              <svg width="100%" height="34" viewBox="0 0 320 34">
+                <line x1="10" y1="17" x2="310" y2="17" stroke="#dc2626" stroke-width="2"/>
+                <polygon points="310,17 302,13 302,21" fill="#dc2626"/>
+                <text x="30" y="12" font-size="9" fill="#7f1d1d">the sweep you tuned Opus 5 on ≠ production</text>
+              </svg>
+            </div>
+
+            <div class="rounded-lg border-2 border-slate-900 bg-white p-4 space-y-3">
+              <p class="label text-slate-500">After — one assembler, three callers</p>
+              <div class="deep rounded p-3 text-slate-100">
+                <p class="label text-slate-300">deep module</p>
+                <p class="font-mono text-xs">snapshotForDay({ asOf, query })</p>
+                <p class="text-[11px] text-slate-400 mt-1">owns the reads, the mapping, the Log-source choice</p>
+              </div>
+              <div class="grid grid-cols-3 gap-2 text-center">
+                <div class="border border-slate-300 rounded p-2 font-mono text-[10px]">action</div>
+                <div class="border border-slate-300 rounded p-2 font-mono text-[10px]">eval</div>
+                <div class="border border-slate-300 rounded p-2 font-mono text-[10px]">show-prompt</div>
+              </div>
+              <p class="text-[11px] text-slate-500">Two live adapters plus the prompt dump — a real seam, not a hypothetical one.</p>
+            </div>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            <div>
+              <dt class="label text-slate-500">Problem</dt>
+              <dd class="text-slate-700">The snapshot the model comparison scored, and the prompt dump used to reason about it, both omit Planned dinners that production sends. The drift is silent.</dd>
+            </div>
+            <div>
+              <dt class="label text-slate-500">Solution</dt>
+              <dd class="text-slate-700">One module builds the snapshot for a day, including its DB reads. The action, the eval harness, and the prompt dump each become one call.</dd>
+            </div>
+          </dl>
+
+          <ul class="grid sm:grid-cols-2 gap-x-8 gap-y-1 text-sm text-slate-700 list-disc list-inside">
+            <li>Eval measures production's snapshot</li>
+            <li>Log-source choice lives in one place</li>
+            <li>Locality: prompt changes land once</li>
+            <li>Scripts stop re-deriving <span class="font-mono text-xs">today()</span></li>
+            <li>Leverage: one interface, three callers</li>
+            <li>Deletes ~60 lines of mapping</li>
+          </ul>
+        </article>
+
+        <!-- ============ 3 ============ -->
+        <article id="c3" class="space-y-5 scroll-mt-8">
+          <div class="space-y-2">
+            <h2 class="font-serif text-2xl">3. The Server Action envelope: one Selected-day rule, one revalidation set</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-emerald-100 text-emerald-900 px-3 py-1 text-xs font-medium">Strong</span>
+              <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-mono">in-process</span>
+            </div>
+          </div>
+
+          <p class="font-mono text-sm text-slate-600">
+            app/catalog/actions.ts:147–169 · app/log/actions.ts:19–23,45–49 · app/rejection-actions.ts:29–33,176–180 · app/tonight-actions.ts:50–54 · app/catalog/[id]/option-controls.tsx:69
+          </p>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="label text-slate-500 mb-3">Before — each action file re-derives both</p>
+              <table class="w-full text-[11px] font-mono">
+                <thead class="text-slate-500">
+                  <tr class="border-b border-slate-200"><th class="text-left py-1">action file</th><th class="text-left">revalidates</th><th class="text-left">day rule</th></tr>
+                </thead>
+                <tbody class="align-top">
+                  <tr class="border-b border-slate-100"><td class="py-1">log/actions</td><td>/ · /log · /catalog/[id]</td><td>copy #1</td></tr>
+                  <tr class="border-b border-slate-100"><td class="py-1">rejection-actions</td><td>/ · /log · /catalog/[id]</td><td>copy #2</td></tr>
+                  <tr class="border-b border-slate-100"><td class="py-1">tonight-actions</td><td>—</td><td>copy #3</td></tr>
+                  <tr class="hatch"><td class="py-1 text-red-700">catalog/actions</td><td class="text-red-700">/catalog only — no “/”</td><td>—</td></tr>
+                  <tr><td class="py-1 text-red-700">catalog/createOption</td><td class="text-red-700">/catalog only</td><td>—</td></tr>
+                </tbody>
+              </table>
+              <p class="text-[11px] text-red-700 mt-3">Archive an Option → it stays on Tonight until a hard reload.</p>
+            </div>
+
+            <div class="rounded-lg border-2 border-slate-900 bg-white p-4 space-y-3">
+              <p class="label text-slate-500">After — a cross-section that collapses</p>
+              <div class="space-y-1">
+                <div class="deep rounded px-3 py-4 text-slate-100">
+                  <p class="font-mono text-xs">authedAction + day + revalidation</p>
+                  <p class="text-[11px] text-slate-400">one envelope every mutating action wears</p>
+                </div>
+                <div class="border border-slate-300 rounded px-3 py-2 font-mono text-[11px] text-slate-600">action body: parse → write → ActionResult</div>
+              </div>
+              <p class="text-[11px] text-slate-500">
+                Keep it to the envelope the actions already share — the writes stay as they are, as issue 01 decided.
+              </p>
+            </div>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            <div>
+              <dt class="label text-slate-500">Problem</dt>
+              <dd class="text-slate-700">The Selected-day fallback is written out verbatim three times, the revalidation set four times — and the Catalog copy is missing <span class="font-mono text-xs">/</span>, which is a live staleness bug.</dd>
+            </div>
+            <div>
+              <dt class="label text-slate-500">Solution</dt>
+              <dd class="text-slate-700">One module owns “which day did this write happen on” and one owns “what a write to X invalidates”. Two small interfaces, both directly testable.</dd>
+            </div>
+          </dl>
+
+          <ul class="grid sm:grid-cols-2 gap-x-8 gap-y-1 text-sm text-slate-700 list-disc list-inside">
+            <li>Fixes the Catalog staleness bug</li>
+            <li>Locality: one day rule, not three</li>
+            <li>Detail-page Reject can carry the day</li>
+            <li>Two <span class="font-mono text-xs">void</span> actions gain ActionResult</li>
+          </ul>
+
+          <div class="rounded-md bg-white border border-slate-200 px-4 py-3 text-sm text-slate-700">
+            <span class="label text-slate-500">Also found here</span><br/>
+            <span class="font-mono text-xs">option-controls.tsx:69</span> calls <span class="font-mono text-xs">rejectOption(id, reason)</span> with no day, so a Reject from an Option detail page reached from Friday's Tonight is recorded against today.
+          </div>
+        </article>
+
+        <!-- ============ 4 ============ -->
+        <article id="c4" class="space-y-5 scroll-mt-8">
+          <div class="space-y-2">
+            <h2 class="font-serif text-2xl">4. <span class="font-mono text-lg">lib/tonight-filter.ts</span> is shallow — the Picker's real rules aren't in it</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-amber-100 text-amber-900 px-3 py-1 text-xs font-medium">Worth exploring</span>
+              <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-mono">in-process</span>
+            </div>
+          </div>
+
+          <p class="font-mono text-sm text-slate-600">
+            lib/tonight-filter.ts (5 exports, 1 consumer) · app/tonight-screen.tsx:625–678
+          </p>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="label text-slate-500 mb-3">Before — mass diagram</p>
+              <div class="flex items-end gap-6 h-56">
+                <div class="flex-1 flex flex-col justify-end">
+                  <div class="border border-slate-400 bg-amber-50 h-24 flex items-center justify-center label text-slate-600">interface · 5 exports</div>
+                  <div class="border border-t-0 border-slate-400 bg-white h-24 flex items-center justify-center label text-slate-500">implementation</div>
+                  <p class="text-center text-[11px] text-slate-500 mt-2">tonight-filter</p>
+                </div>
+                <div class="flex-1 flex flex-col justify-end">
+                  <div class="border border-red-300 hatch h-40 flex items-center justify-center text-[11px] text-red-800 text-center px-2">rankOf from unfiltered rows · choices · aiRows · searchStatus</div>
+                  <p class="text-center text-[11px] text-red-700 mt-2">in the screen, untested except by render</p>
+                </div>
+              </div>
+            </div>
+            <div class="rounded-lg border-2 border-slate-900 bg-white p-4">
+              <p class="label text-slate-500 mb-3">After</p>
+              <div class="flex items-end gap-6 h-56">
+                <div class="flex-1 flex flex-col justify-end">
+                  <div class="border-2 border-slate-900 bg-emerald-50 h-10 flex items-center justify-center label text-slate-700">interface · 1</div>
+                  <div class="deep h-40 flex items-center justify-center label text-slate-200 text-center px-2">pickerView(rows, kind, tagFilters)<br/>→ visible · rankOf · choices · hint</div>
+                  <p class="text-center text-[11px] text-slate-500 mt-2">the Picker's view model</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            <div>
+              <dt class="label text-slate-500">Problem</dt>
+              <dd class="text-slate-700">The module was extracted for testability, but the rule most likely to break — rank numbers come from the <em>unfiltered</em> rows — stayed in the screen. Deleting the module today would move complexity, not concentrate it.</dd>
+            </div>
+            <div>
+              <dt class="label text-slate-500">Solution</dt>
+              <dd class="text-slate-700">Pull the Picker's derivations in behind one call, so the module produces everything the Picker renders rather than one predicate it uses.</dd>
+            </div>
+          </dl>
+
+          <ul class="grid sm:grid-cols-2 gap-x-8 gap-y-1 text-sm text-slate-700 list-disc list-inside">
+            <li>Interface shrinks 5 → 1</li>
+            <li>Rank-numbering rule gets a test</li>
+            <li>Screen keeps markup, loses derivations</li>
+            <li>Locality: filtering lives in one module</li>
+          </ul>
+        </article>
+
+        <!-- ============ 5 ============ -->
+        <article id="c5" class="space-y-5 scroll-mt-8">
+          <div class="space-y-2">
+            <h2 class="font-serif text-2xl">5. Two typeaheads, one tested</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-amber-100 text-amber-900 px-3 py-1 text-xs font-medium">Worth exploring</span>
+              <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-mono">in-process</span>
+            </div>
+          </div>
+
+          <p class="font-mono text-sm text-slate-600">
+            app/option-combobox.tsx:76–91 · app/tonight-screen.tsx:834–1135 (SearchBox)
+          </p>
+
+          <div class="rounded-lg border border-slate-200 bg-white p-4">
+            <pre class="mermaid">
+flowchart LR
+  subgraph now["today"]
+    OC["option-combobox.tsx<br/>activeIndex = 0<br/>empty query → all choices<br/>tested"]
+    SB["SearchBox inside tonight-screen<br/>activeIndex = -1<br/>empty query → []<br/>own keydown, own pick state"]
+  end
+  subgraph after["deepened"]
+    CB["one combobox module<br/>emptyQuery + initialActive as inputs"]
+    A1["Log / detail forms"]
+    A2["Tonight search box"]
+    CB --> A1
+    CB --> A2
+  end
+  now ==> after
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  classDef deep fill:#0f172a,color:#f8fafc,stroke-width:3px;
+  class SB leak
+  class CB deep
+            </pre>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            <div>
+              <dt class="label text-slate-500">Problem</dt>
+              <dd class="text-slate-700">The same substring-match-and-keyboard-navigate logic exists twice with deliberately different defaults; only one copy has tests, and the untested copy is the one on the home screen.</dd>
+            </div>
+            <div>
+              <dt class="label text-slate-500">Solution</dt>
+              <dd class="text-slate-700">Make the two differences — empty-query behaviour and initial active index — inputs to the tested module, and let Tonight's search box wrap it.</dd>
+            </div>
+          </dl>
+
+          <ul class="grid sm:grid-cols-2 gap-x-8 gap-y-1 text-sm text-slate-700 list-disc list-inside">
+            <li>Keyboard behaviour tested once</li>
+            <li>Leverage: one module, two call sites</li>
+            <li>tonight-screen.tsx sheds ~300 lines</li>
+            <li>Divergence becomes a parameter</li>
+          </ul>
+        </article>
+
+        <!-- ============ 6 ============ -->
+        <article id="c6" class="space-y-5 scroll-mt-8">
+          <div class="space-y-2">
+            <h2 class="font-serif text-2xl">6. Stop exporting for tests; delete what nothing calls</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-slate-200 text-slate-700 px-3 py-1 text-xs font-medium">Speculative</span>
+              <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-mono">in-process</span>
+            </div>
+          </div>
+
+          <p class="font-mono text-sm text-slate-600">
+            lib/ranking.ts:161–247 · lib/recency-color.ts · lib/dinner-grouping.ts:33,56 · app/log/log-entry-row.tsx:28 · lib/pg-error.ts:68
+          </p>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="label text-slate-500 mb-3">Before — interface wider than the seam</p>
+              <div class="space-y-1 text-[11px] font-mono">
+                <div class="flex items-center gap-2"><span class="w-40 truncate">rankTonight / rankOption</span><span class="h-3 bg-emerald-500 flex-1"></span><span class="text-emerald-700">live</span></div>
+                <div class="flex items-center gap-2"><span class="w-40 truncate">daysSince, lastEaten,</span><span class="h-3 bg-red-300 flex-1 hatch"></span><span class="text-red-700">tests only</span></div>
+                <div class="flex items-center gap-2"><span class="w-40 truncate">lastTagUse, decayed×2</span><span class="h-3 bg-red-300 flex-1 hatch"></span><span class="text-red-700">tests only</span></div>
+                <div class="flex items-center gap-2"><span class="w-40 truncate">recencyColor, affinityColor</span><span class="h-3 bg-red-300 flex-1 hatch"></span><span class="text-red-700">tests only</span></div>
+                <div class="flex items-center gap-2"><span class="w-40 truncate">groupByDate, splitDinners</span><span class="h-3 bg-red-400 flex-1"></span><span class="text-red-700">dead + 75 test lines</span></div>
+                <div class="flex items-center gap-2"><span class="w-40 truncate">DinnerGroup, pg-error re-export</span><span class="h-3 bg-red-400 flex-1"></span><span class="text-red-700">dead</span></div>
+              </div>
+            </div>
+            <div class="rounded-lg border-2 border-slate-900 bg-white p-4">
+              <p class="label text-slate-500 mb-3">After</p>
+              <div class="space-y-1 text-[11px] font-mono">
+                <div class="flex items-center gap-2"><span class="w-40 truncate">rankTonight / rankOption</span><span class="h-3 bg-emerald-500 flex-1"></span><span class="text-emerald-700">live</span></div>
+                <div class="flex items-center gap-2"><span class="w-40 truncate">(internals, private)</span><span class="h-3 bg-slate-200 flex-1"></span><span class="text-slate-500">behind the seam</span></div>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-4">
+                Table tests move to the two public functions — the reference pattern ADR-0003 already names — and the dead exports go, tests included.
+              </p>
+            </div>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            <div>
+              <dt class="label text-slate-500">Problem</dt>
+              <dd class="text-slate-700">Tests reach past the intended interface, so an internal rename is a test edit; and five exports across three modules have no production caller at all.</dd>
+            </div>
+            <div>
+              <dt class="label text-slate-500">Solution</dt>
+              <dd class="text-slate-700">Narrow the exported surface to what production calls; delete the dead exports and the tests that only keep them alive.</dd>
+            </div>
+          </dl>
+
+          <ul class="grid sm:grid-cols-2 gap-x-8 gap-y-1 text-sm text-slate-700 list-disc list-inside">
+            <li>Interface is the test surface</li>
+            <li>Refactors stop breaking tests</li>
+            <li>Reader stops guessing what's live</li>
+          </ul>
+
+          <div class="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+            Weakest candidate on the page — it buys navigability, not behaviour. Take it only if it rides along with candidate 1, which touches <span class="font-mono text-xs">lib/ranking.ts</span>'s callers anyway.
+          </div>
+        </article>
+      </section>
+
+      <section id="top-recommendation" class="rounded-xl border-2 border-slate-900 bg-white p-8 space-y-3">
+        <p class="label text-slate-500">Top recommendation</p>
+        <h2 class="font-serif text-3xl">
+          <a href="#c1" class="underline decoration-emerald-400 decoration-4 underline-offset-4">1. One module answers “is this Option choosable on day D?”</a>
+        </h2>
+        <p class="text-slate-700 max-w-2xl">
+          It is where the last three features all landed — Selected day, Rejections, Closed days — and the one rule they share is currently a sequence of statements in a page component no test imports. Deepening it makes the filter order assertable, gives AI search and Tonight the same answer by construction, and leaves
+          <a href="#c2" class="underline decoration-slate-300 underline-offset-2">candidate 2</a> a much smaller job.
+        </p>
+      </section>
+
+    </main>
+  </body>
+</html>

@@ -923,6 +923,26 @@ export function buildSystemPrompt(mode: TailMode): string {
   ].join("\n");
 }
 
+/**
+ * Split a built snapshot into the two blocks a model call's user turn sends —
+ * the stable snapshot body (everything but the query) and the query block
+ * that trails it. The snapshot body is stable between searches minutes apart,
+ * so `createAiSearchClient` sends it in a `cache_control` block; the query is
+ * the one part that varies per search, so it trails uncached. Exported so
+ * `scripts/model-comparison/show-prompt.mjs` prints exactly what
+ * `createAiSearchClient` sends, rather than hand-copying the split.
+ */
+export function splitUserTurn(snapshot: ModelSnapshot): {
+  snapshotBody: Omit<ModelSnapshot, "query">;
+  queryBlock: string;
+} {
+  const { query, ...snapshotBody } = snapshot;
+  return {
+    snapshotBody,
+    queryBlock: `The household's query for this search (may be empty):\n${query}`,
+  };
+}
+
 /** The small interface the `aiSearchAction` server action depends on. */
 export interface AiSearchClient {
   search(
@@ -1018,7 +1038,7 @@ export function createAiSearchClient(
       // burst of searches over unchanged data reads it from cache. The query
       // is the one part that varies per search, so it trails the block
       // uncached.
-      const { query, ...snapshotBody } = snapshot;
+      const { snapshotBody, queryBlock } = splitUserTurn(snapshot);
 
       // One model call, no retry. A timeout has already spent the full
       // budget, and a transient HTTP or network error was already retried
@@ -1047,7 +1067,7 @@ export function createAiSearchClient(
                 },
                 {
                   type: "text",
-                  text: `The household's query for this search (may be empty):\n${query}`,
+                  text: queryBlock,
                 },
               ],
             },

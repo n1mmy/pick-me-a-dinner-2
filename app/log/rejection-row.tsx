@@ -248,10 +248,9 @@ export function RejectionRow({
   function runDelete() {
     setDeleteError(null);
     startTransition(async () => {
-      try {
-        await deleteRejection(rejection.id);
-      } catch {
-        setDeleteError("Couldn't delete that — try again");
+      const result = await deleteRejection(rejection.id);
+      if (!result.ok) {
+        setDeleteError(result.error);
         setConfirmDelete(false);
       }
     });

@@ -15,7 +15,7 @@
  */
 
 /** Days at which the heatmap reaches its red (overdue) end; beyond this the tint is flat. */
-export const RECENCY_COLOR_CAP = 30;
+const RECENCY_COLOR_CAP = 30;
 
 /** Clamp `value` into the inclusive `[min, max]` range. */
 function clamp(value: number, min: number, max: number): number {
@@ -44,7 +44,7 @@ function heatmapColor(t: number): string {
  * recently eaten, red when long overdue, fading through tan. Caps at
  * `RECENCY_COLOR_CAP` days.
  */
-export function recencyColor(days: number): string {
+function recencyColor(days: number): string {
   return heatmapColor(clamp(days, 0, RECENCY_COLOR_CAP) / RECENCY_COLOR_CAP);
 }
 
@@ -53,7 +53,7 @@ export function recencyColor(days: number): string {
  * frequent" extreme. Average affinity (~1.0) lands at the tan midpoint and 0 at
  * the red end, so a favorite reads green and an avoided dish red.
  */
-export const AFFINITY_COLOR_FULL = 2;
+const AFFINITY_COLOR_FULL = 2;
 
 /**
  * The heatmap color for an `affinity` (the normalized eat-frequency factor):
@@ -61,7 +61,7 @@ export const AFFINITY_COLOR_FULL = 2;
  * recency — there a low day-count is green — so that the "good" end is green on
  * both chips: fresh and frequent both read green.
  */
-export function affinityColor(affinity: number): string {
+function affinityColor(affinity: number): string {
   return heatmapColor(
     1 - clamp(affinity, 0, AFFINITY_COLOR_FULL) / AFFINITY_COLOR_FULL,
   );

@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { optionTags, options, tags } from "../../db/schema";
@@ -9,6 +8,7 @@ import { normalizeTag } from "../../lib/normalize-tag";
 import type { ActionResult } from "../../lib/action-result";
 import { trimToNull } from "../../lib/action-result";
 import { pgErrorMessage } from "../../lib/pg-error";
+import { revalidateCatalogViews } from "../revalidate";
 
 /** Which kind of Option a form is editing. */
 export type OptionKind = "home" | "restaurant";
@@ -139,17 +139,6 @@ async function syncOptionTags(
 }
 
 /**
- * Revalidate every screen a Catalog mutation changes: the Catalog list and the
- * Option detail page. An Edit, Archive, or Delete invoked from the detail page
- * must refresh it in place there too — a control behaves identically wherever
- * it is invoked (PRD: Option detail page, ADR-0007).
- */
-function revalidateCatalog(): void {
-  revalidatePath("/catalog");
-  revalidatePath("/catalog/[id]", "page");
-}
-
-/**
  * Add a Home meal or Restaurant to the Catalog. The Option insert and its Tag
  * sync run in one transaction, so a mid-write failure rolls back rather than
  * leaving an Option with missing Tags.
@@ -166,7 +155,7 @@ export const createOption = authedAction(
         .returning({ id: options.id });
       await syncOptionTags(tx, created.id, values.tags);
     });
-    revalidatePath("/catalog");
+    revalidateCatalogViews();
     return { ok: true };
   },
 );
@@ -198,7 +187,7 @@ export const updateOption = authedAction(
         missingOption: "That option is no longer available",
       });
     }
-    revalidateCatalog();
+    revalidateCatalogViews();
     return { ok: true };
   },
 );
@@ -216,7 +205,7 @@ export const archiveOption = authedAction(
         missingOption: "That option is no longer available",
       });
     }
-    revalidateCatalog();
+    revalidateCatalogViews();
     return { ok: true };
   },
 );
@@ -235,7 +224,7 @@ export const unarchiveOption = authedAction(
         missingOption: "That option is no longer available",
       });
     }
-    revalidateCatalog();
+    revalidateCatalogViews();
     return { ok: true };
   },
 );
@@ -255,7 +244,7 @@ export const deleteOption = authedAction(
         missingOption: "That option is no longer available",
       });
     }
-    revalidateCatalog();
+    revalidateCatalogViews();
     return { ok: true };
   },
 );

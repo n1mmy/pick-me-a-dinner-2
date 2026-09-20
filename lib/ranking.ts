@@ -157,6 +157,11 @@ function positiveMean(values: number[]): number {
  * ("never eaten" / "never used") returns `CAP` so it cannot dominate the
  * ranking. A `day` after `asOf` — which `lastEaten` / `lastTagUse` already
  * exclude — is guarded to 0 so it can never push a value negative.
+ *
+ * Exported only so `ranking.test.ts` can drive that future-day guard
+ * directly: every real caller feeds `daysSince` a value already filtered by
+ * `lastEaten` / `lastTagUse`, so no `rankTonight` / `rankOption` input can
+ * reach that branch.
  */
 export function daysSince(day: number | null, asOf: number): number {
   if (day === null) return CAP;
@@ -170,7 +175,7 @@ export function daysSince(day: number | null, asOf: number): number {
  * Selected day must not make its dish look recently eaten *for* the Selected
  * day.
  */
-export function lastEaten(
+function lastEaten(
   entries: LogEntry[],
   optionId: string,
   asOf: number,
@@ -190,7 +195,7 @@ export function lastEaten(
  * such a Log entry. Entries dated after the anchor are excluded, exactly as
  * for `lastEaten`.
  */
-export function lastTagUse(
+function lastTagUse(
   entries: LogEntry[],
   // Only `id` and `tags` are read, so any Option-shaped value works — the AI
   // search snapshot passes its own `SnapshotOption`, which has no url/phone.
@@ -224,7 +229,7 @@ function decayWeight(age: number): number {
  * `decayWeight` over the Option's own non-future Log entries. The raw per-Option
  * affinity signal, before normalization.
  */
-export function decayedEatCount(
+function decayedEatCount(
   entries: LogEntry[],
   optionId: string,
   asOf: number,
@@ -244,7 +249,7 @@ export function decayedEatCount(
  * per-cuisine affinity signal — how much the Household has been into this
  * cuisine lately — before normalization.
  */
-export function decayedTagCount(
+function decayedTagCount(
   entries: LogEntry[],
   options: { id: string; tags: string[] }[],
   tag: string,

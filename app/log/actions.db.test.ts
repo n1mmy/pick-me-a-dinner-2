@@ -324,8 +324,9 @@ describe("deleteLogEntry", () => {
     const pizza = await makeOption("Pizza");
     const id = await makeEntry(pizza, "2026-05-01");
 
-    await deleteLogEntry(id);
+    const result = await deleteLogEntry(id);
 
+    expect(result).toEqual({ ok: true });
     expect(await db.select().from(dinnerLog)).toHaveLength(0);
   });
 });

@@ -25,9 +25,13 @@ import { config } from "dotenv";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getRejections, getTonightData } from "../../db/queries.ts";
-import { buildSnapshot, buildSystemPrompt, resolveTailMode } from "../../lib/ai-search.ts";
-import { todaySqlDate } from "../../lib/local-day.ts";
+import {
+  buildSystemPrompt,
+  resolveTailMode,
+  splitUserTurn,
+} from "../../lib/ai-search.ts";
+import { today } from "../../lib/local-day.ts";
+import { snapshotForDay } from "../../lib/snapshot-source.ts";
 
 config({ override: true });
 
@@ -36,34 +40,13 @@ const query = process.argv[2] ?? "";
 const tailMode = resolveTailMode();
 const systemPrompt = buildSystemPrompt(tailMode);
 
-const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
-const [{ options, logEntries }, rejections] = await Promise.all([
-  getTonightData(today),
-  getRejections(),
-]);
-const { snapshot } = buildSnapshot({
-  options: options.map((o) => ({
-    id: o.id,
-    name: o.name,
-    kind: o.kind,
-    tags: o.tags,
-    notes: o.notes,
-    closedDays: o.closedDays,
-  })),
-  logEntries: logEntries.map((e) => ({
-    optionId: e.optionId,
-    eatenOn: e.eatenOn,
-    note: e.note,
-  })),
-  rejections,
-  asOf: today,
-  query,
-});
+// `snapshotForDay` owns the reads and mapping — this is now the exact
+// snapshot `aiSearchAction` builds, full Log (Planned dinners) included.
+const { snapshot } = await snapshotForDay({ asOf: today(), query });
 
-// Exactly how `createAiSearchClient` splits the user turn: the stable snapshot
-// body in a cache_control block, the volatile query trailing it uncached.
-const { query: delimitedQuery, ...snapshotBody } = snapshot;
-const queryBlock = `The household's query for this search (may be empty):\n${delimitedQuery}`;
+// The same split `createAiSearchClient` sends, from `lib/ai-search` — the
+// printed prompt is the issued prompt by construction, not a hand-copy.
+const { snapshotBody, queryBlock } = splitUserTurn(snapshot);
 
 console.log(`=== SYSTEM PROMPT (tail mode: ${tailMode}) ===\n`);
 console.log(systemPrompt);

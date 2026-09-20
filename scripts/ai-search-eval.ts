@@ -62,16 +62,15 @@
 import "dotenv/config";
 import { config } from "dotenv";
 import { writeFileSync } from "node:fs";
-import { getRejections, getTonightData } from "../db/queries";
 import {
-  buildSnapshot,
   createAiSearchClient,
   resolveModel,
   type AiSearchResult,
   type ModelSnapshot,
   type ThinkingChoice,
 } from "../lib/ai-search";
-import { todaySqlDate } from "../lib/local-day";
+import { today } from "../lib/local-day";
+import { snapshotForDay } from "../lib/snapshot-source";
 
 /** Tail modes accepted by `--mode` — see `resolveTailMode` in `lib/ai-search`. */
 const TAIL_MODES = ["full", "pithy", "drop"] as const;
@@ -185,33 +184,10 @@ async function buildSnapshotFromDb(query: string): Promise<{
   idByIndex: Map<number, string>;
   nameById: Map<string, string>;
 }> {
-  const today = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
-  const [{ options, logEntries }, rejections] = await Promise.all([
-    getTonightData(today),
-    getRejections(),
-  ]);
-  const { snapshot, idByIndex } = buildSnapshot({
-    options: options.map((option) => ({
-      id: option.id,
-      name: option.name,
-      kind: option.kind,
-      tags: option.tags,
-      notes: option.notes,
-      closedDays: option.closedDays,
-    })),
-    logEntries: logEntries.map((entry) => ({
-      optionId: entry.optionId,
-      eatenOn: entry.eatenOn,
-      note: entry.note,
-    })),
-    rejections,
-    asOf: today,
-    query,
-  });
-  // Result rows carry the real UUID (`parseAndValidate` maps the snapshot
-  // integer back), so the display map is keyed by UUID.
-  const nameById = new Map(options.map((o) => [o.id, o.name]));
-  return { snapshot, idByIndex, nameById };
+  // `snapshotForDay` owns the reads and the mapping — this now measures
+  // exactly the snapshot `aiSearchAction` builds, full Log (Planned dinners)
+  // included, rather than the deterministic ranking's non-future Log.
+  return snapshotForDay({ asOf: today(), query });
 }
 
 async function runComparison(

@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
   useTransition,
-  type KeyboardEvent,
 } from "react";
 import Link from "next/link";
 import type { OptionChoice, TodayRejection } from "../db/queries";
@@ -18,16 +17,18 @@ import type { TonightRow } from "../lib/ranking";
 import {
   chipStateLabel,
   cycleChipState,
-  distinctTags,
-  filterHint,
-  filterTonightRows,
+  pickerView,
   type ChipState,
   type KindFilter,
   type TagFilters,
-} from "../lib/tonight-filter";
+} from "../lib/picker-view";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 import { DayNameReset, DayStepper } from "./day-stepper";
-import { kindBarClass } from "./kind-bar";
+import {
+  OptionListbox,
+  filterOptionChoices,
+  useComboboxKeyboard,
+} from "./option-combobox";
 import { pickTonight } from "./log/actions";
 import { deleteRejection } from "./rejection-actions";
 import { aiSearchAction } from "./tonight-actions";
@@ -417,6 +418,8 @@ function DisclosureToggle({
  * calls `deleteRejection`, which **deletes** the Rejection record: the
  * Option returns to tonight's list immediately and — because the record is
  * gone, not merely expired — a mis-tapped Rejection never reaches AI search.
+ * A failed delete (e.g. a double-tap race) reports `{ ok: false }`, shown
+ * inline under that row rather than silently leaving "Bring back" a no-op.
  * Only today's Rejections appear here; managing the historical Rejection log
  * is out of scope (PRD: Out of Scope).
  */
@@ -432,10 +435,23 @@ function RejectedTonightDisclosure({
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Keyed by rejection id, since more than one row's "Bring back" could be
+  // armed at once — a plain single error slot would drop one row's failure
+  // when another row's write also failed.
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   function bringBack(rejectionId: string) {
+    setErrors((prev) => {
+      if (!(rejectionId in prev)) return prev;
+      const next = { ...prev };
+      delete next[rejectionId];
+      return next;
+    });
     startTransition(async () => {
-      await deleteRejection(rejectionId);
+      const result = await deleteRejection(rejectionId);
+      if (!result.ok) {
+        setErrors((prev) => ({ ...prev, [rejectionId]: result.error }));
+      }
     });
   }
 
@@ -464,6 +480,11 @@ function RejectedTonightDisclosure({
                 {rejection.reason && (
                   <p className="mt-0.5 text-meta text-muted">
                     {rejection.reason}
+                  </p>
+                )}
+                {errors[rejection.id] && (
+                  <p className="mt-0.5 text-meta text-danger" role="alert">
+                    {errors[rejection.id]}
                   </p>
                 )}
               </div>
@@ -622,33 +643,15 @@ function Picker({
   // announces the removal to assistive tech (PRD: Rejections, story 33).
   const [rejectNotice, setRejectNotice] = useState("");
 
-  const tags = useMemo(() => distinctTags(rows), [rows]);
-  // The search box's typeahead candidates: the ranked rows reduced to
-  // OptionChoices and re-sorted by name (the rows arrive score-ordered; the
-  // dropdown lists by name). It mirrors the picker exactly, so a typeahead
-  // pick can never hit an already-picked or Selected-day-rejected Option.
-  const choices = useMemo(
-    () =>
-      rows
-        .map((row) => ({
-          id: row.option.id,
-          name: row.option.name,
-          kind: row.option.kind,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [rows],
-  );
-  // Rank reflects each Option's position in the picker ranking, so a filtered
-  // row keeps its true rank (#4, #7, ...) rather than being renumbered.
-  const rankOf = useMemo(
-    () => new Map(rows.map((row, index) => [row.option.id, index + 1])),
-    [rows],
-  );
-  const visible = useMemo(
-    () => filterTonightRows(rows, kind, tagFilters),
+  // The Picker's view model: the filtered rows in rank order, each Option's
+  // true rank and typeahead candidates from the unfiltered `rows` (so a
+  // filtered row keeps its true rank instead of being renumbered, and a
+  // typeahead pick can never hit an already-Picked or Selected-day-rejected
+  // Option), the chip row's Tags, and the hint line.
+  const { visible, rankOf, choices, tags, hint } = useMemo(
+    () => pickerView(rows, kind, tagFilters),
     [rows, kind, tagFilters],
   );
-  const hint = filterHint(kind, tagFilters);
 
   // The AI search mode restated for assistive tech: a polite announcement of
   // the pending state and of the swap between the deterministic list and the
@@ -801,11 +804,6 @@ const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body " +
   `text-ink placeholder:text-muted disabled:opacity-60 ${focusRing}`;
 
-/** The per-kind label on a dropdown row, mirroring the Log combobox's rows. */
-function kindLabel(kind: "home" | "restaurant"): string {
-  return kind === "home" ? "Home meal" : "Restaurant";
-}
-
 /**
  * The Tonight search box — one input doing two jobs (treatment A). Typing
  * filters the picker's Options by name into a dropdown beneath the field;
@@ -830,6 +828,13 @@ function kindLabel(kind: "home" | "restaurant"): string {
  * time. The Search button tracks the search through three states: `accent`
  * violet at rest, a spinner with a live elapsed-second timer in flight, and a
  * `success` green check with the final duration once a result lands.
+ *
+ * The typeahead's filter, ↑/↓/Enter/Escape handling, and dropdown markup are
+ * the same `filterOptionChoices`/`useComboboxKeyboard`/`OptionListbox`
+ * contract `OptionCombobox` uses for the Log and Option-detail forms
+ * (`emptyQueryBehaviour: "none"`, `initialActiveIndex: -1`) — this box keeps
+ * only what is genuinely its own: the query state shared with AI search, the
+ * submit/clear affordances, and the pending/error UI.
  */
 function SearchBox({
   query,
@@ -892,25 +897,19 @@ function SearchBox({
     }
   }, [pending, error]);
 
-  // Typeahead state: `open` gates the dropdown, `activeIndex` is the keyboard
-  // highlight — −1 means nothing is highlighted, so Enter runs the AI search
-  // rather than picking. A pick logs through its own transition; a failure
-  // shows inline below the box.
+  // Typeahead state: `open` gates the dropdown. A pick logs through its own
+  // transition; a failure shows inline below the box.
   const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
   const [pickError, setPickError] = useState<string | null>(null);
   const [, startPick] = useTransition();
 
-  // Flat, case-insensitive substring match over the picker's Options. An empty
-  // query matches nothing, so a blank box stays a clean AI "recommend" trigger
-  // rather than dropping down the whole Catalog.
-  const matches = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (needle.length === 0) return [];
-    return choices.filter((option) =>
-      option.name.toLowerCase().includes(needle),
-    );
-  }, [query, choices]);
+  // The same substring filter every Option typeahead uses (`option-combobox`).
+  // An empty query matches nothing here (`"none"`), so a blank box stays a
+  // clean AI "recommend" trigger rather than dropping down the whole Catalog.
+  const matches = useMemo(
+    () => filterOptionChoices(choices, query, "none"),
+    [query, choices],
+  );
 
   // The dropdown shows only when there is something to pick.
   const showList = open && matches.length > 0;
@@ -930,40 +929,27 @@ function SearchBox({
       // page's scroll-to-top effect confirms the pick.
       onQueryChange("");
       setOpen(false);
-      setActiveIndex(-1);
     });
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "ArrowDown") {
-      if (matches.length === 0) return;
-      event.preventDefault();
-      setOpen(true);
-      setActiveIndex((index) => Math.min(index + 1, matches.length - 1));
-    } else if (event.key === "ArrowUp") {
-      if (matches.length === 0) return;
-      event.preventDefault();
-      setActiveIndex((index) => Math.max(index - 1, -1));
-    } else if (event.key === "Enter") {
-      // A highlighted match is picked; with nothing highlighted the keypress
-      // falls through to the form's submit, which runs the AI search.
-      if (showList && activeIndex >= 0) {
-        event.preventDefault();
-        pick(matches[activeIndex]);
-      }
-    } else if (event.key === "Escape") {
-      if (showList) {
-        event.preventDefault();
-        setOpen(false);
-        setActiveIndex(-1);
-      }
-    }
-  }
-
-  const activeId =
-    showList && activeIndex >= 0
-      ? `${listId}-option-${matches[activeIndex].id}`
-      : undefined;
+  // The same ↑/↓/Enter/Escape contract every Option typeahead uses
+  // (`option-combobox`), with `initialActiveIndex: -1` so Enter with nothing
+  // highlighted falls through to the form's own submit — the AI search —
+  // rather than picking.
+  const {
+    activeIndex,
+    setActiveIndex,
+    resetActiveIndex,
+    handleKeyDown,
+    activeId,
+  } = useComboboxKeyboard({
+    open,
+    setOpen,
+    matches,
+    initialActiveIndex: -1,
+    onSelect: pick,
+    onEscape: () => setOpen(false),
+  });
 
   // The done badge shows only while a successful AI result is on screen —
   // `showClear && !error`, no search in flight. Clearing the search drops
@@ -981,7 +967,7 @@ function SearchBox({
         event.preventDefault();
         // Submitting is the AI search path; close any open dropdown first.
         setOpen(false);
-        setActiveIndex(-1);
+        resetActiveIndex();
         onSubmit();
       }}
       className="flex flex-col gap-1"
@@ -997,7 +983,7 @@ function SearchBox({
             onChange={(event) => {
               onQueryChange(event.target.value);
               setOpen(true);
-              setActiveIndex(-1);
+              resetActiveIndex();
             }}
             onKeyDown={handleKeyDown}
             onFocus={() => setOpen(true)}
@@ -1008,7 +994,7 @@ function SearchBox({
             aria-expanded={showList}
             aria-controls={listId}
             aria-autocomplete="list"
-            aria-activedescendant={activeId}
+            aria-activedescendant={activeId(listId)}
             aria-label="Find a dinner by name, or describe a craving"
             // Extra right padding only when the ✕ is shown, so query text
             // never runs under it.
@@ -1033,38 +1019,18 @@ function SearchBox({
               below (z-20). `onMouseDown` + preventDefault commits the pick
               before the input's blur can close the dropdown. */}
           {showList && (
-            <ul
-              id={listId}
-              role="listbox"
+            <OptionListbox
+              listId={listId}
+              matches={matches}
+              activeIndex={activeIndex}
+              isSelected={(_option, index) => index === activeIndex}
+              onSelect={pick}
+              onHover={setActiveIndex}
               className="absolute left-0 right-0 top-full z-20 mt-1 flex
                 max-h-64 flex-col overflow-y-auto rounded-input border
                 border-line bg-surface py-1 shadow-sm"
-            >
-              {matches.map((option, index) => (
-                <li key={option.id}>
-                  <button
-                    type="button"
-                    id={`${listId}-option-${option.id}`}
-                    role="option"
-                    aria-selected={index === activeIndex}
-                    className={`flex min-h-11 w-full flex-col py-1.5 pr-3
-                      text-left ${kindBarClass(option.kind)} ${
-                        index === activeIndex ? "bg-raised" : "hover:bg-raised"
-                      }`}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      pick(option);
-                    }}
-                    onMouseEnter={() => setActiveIndex(index)}
-                  >
-                    <span className="text-body text-ink">{option.name}</span>
-                    <span className="text-meta text-muted">
-                      {kindLabel(option.kind)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+              rowClassName="pr-3"
+            />
           )}
         </div>
         {/* Width is pinned hard — `min-w` defeats the flex item's default

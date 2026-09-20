@@ -8,6 +8,12 @@
  * (ADR-0008's "suppression stays purely date-driven"): a weekday match is a
  * weekday match regardless of which calendar date it falls on, so there is no
  * today-or-later branch here to carry forever.
+ *
+ * Tonight and AI search share this predicate but not its consequence: Tonight
+ * keeps a closed Restaurant visible, in the Closed disclosure, with full
+ * controls; AI search's candidate set drops closed Restaurants entirely. Only
+ * `isClosedOn` is shared — each caller decides what "closed" means for its
+ * own list.
  */
 import type { TonightRow } from "./ranking";
 import { weekdayFromSqlDate } from "./local-day";
@@ -32,10 +38,10 @@ export function isClosedOn(
 /**
  * Split `rows` into what stays on the picker and what is closed on
  * `selectedDaySql` (PRD: Closed days, ADR-0010) — the closed-day half of
- * Tonight's picker filtering (`app/page.tsx` applies the Rejection filter
- * first, so a row both closed and rejected never reaches here). `closedDays`
- * lives on the Catalog's `TonightOption`, not on the `RankOption` a
- * `TonightRow` carries, so `options` supplies it, keyed by id.
+ * Tonight's picker filtering (`lib/tonight-day.ts` applies the Rejection
+ * filter first, so a row both closed and rejected never reaches here).
+ * `closedDays` lives on the Catalog's `TonightOption`, not on the
+ * `RankOption` a `TonightRow` carries, so `options` supplies it, keyed by id.
  *
  * `closed` comes back alphabetical by name, matching the Closed disclosure's
  * own ordering (DESIGN.md "Closed disclosure": "the list is alphabetical, not

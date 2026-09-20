@@ -189,4 +189,93 @@ describe("OptionCombobox", () => {
     setup("archived-id", "Old Archived Dish");
     expect(input().value).toBe("Old Archived Dish");
   });
+
+  describe("emptyQueryBehaviour", () => {
+    it('shows no listbox on an empty query when "none" (Tonight\'s search box)', () => {
+      render(
+        <OptionCombobox
+          id="opt"
+          choices={CHOICES}
+          value={null}
+          onChange={vi.fn()}
+          emptyQueryBehaviour="none"
+        />,
+      );
+      fireEvent.focus(input());
+
+      expect(screen.queryByRole("listbox")).toBeNull();
+      expect(screen.queryByRole("option")).toBeNull();
+    });
+
+    it('still shows matches once a query narrows the list when "none"', () => {
+      render(
+        <OptionCombobox
+          id="opt"
+          choices={CHOICES}
+          value={null}
+          onChange={vi.fn()}
+          emptyQueryBehaviour="none"
+        />,
+      );
+      fireEvent.focus(input());
+      fireEvent.change(input(), { target: { value: "thai" } });
+
+      const names = screen.getAllByRole("option").map((o) => o.textContent);
+      expect(names).toEqual(["Pad ThaiRestaurant", "Thai GardenRestaurant"]);
+    });
+
+    it('never shows a "No matches" row when "none" and the query matches nothing', () => {
+      render(
+        <OptionCombobox
+          id="opt"
+          choices={CHOICES}
+          value={null}
+          onChange={vi.fn()}
+          emptyQueryBehaviour="none"
+        />,
+      );
+      fireEvent.focus(input());
+      fireEvent.change(input(), { target: { value: "zzz nonsense" } });
+
+      expect(screen.queryByRole("listbox")).toBeNull();
+    });
+  });
+
+  describe("initialActiveIndex", () => {
+    it("leaves no option active until the first arrow key when -1", () => {
+      render(
+        <OptionCombobox
+          id="opt"
+          choices={CHOICES}
+          value={null}
+          onChange={vi.fn()}
+          initialActiveIndex={-1}
+        />,
+      );
+      fireEvent.focus(input());
+
+      expect(input().getAttribute("aria-activedescendant")).toBeNull();
+
+      fireEvent.keyDown(input(), { key: "ArrowDown" });
+      const first = screen.getAllByRole("option")[0];
+      expect(input().getAttribute("aria-activedescendant")).toBe(first.id);
+    });
+
+    it("does not select on Enter with nothing active when -1", () => {
+      const onChange = vi.fn();
+      render(
+        <OptionCombobox
+          id="opt"
+          choices={CHOICES}
+          value={null}
+          onChange={onChange}
+          initialActiveIndex={-1}
+        />,
+      );
+      fireEvent.focus(input());
+      fireEvent.keyDown(input(), { key: "Enter" });
+
+      expect(onChange).not.toHaveBeenCalled();
+    });
+  });
 });

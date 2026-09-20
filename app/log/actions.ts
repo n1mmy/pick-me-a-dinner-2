@@ -1,26 +1,14 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { dinnerLog } from "../../db/schema";
 import { authedAction } from "../../lib/authed-action";
-import { isValidSqlDate, today } from "../../lib/local-day";
+import { isValidSqlDate, parseSelectedDay, today } from "../../lib/local-day";
 import type { ActionResult } from "../../lib/action-result";
 import { trimToNull } from "../../lib/action-result";
 import { pgErrorMessage } from "../../lib/pg-error";
-
-/**
- * Revalidate every screen a Log write changes: Tonight's ranking, the Log, and
- * the Option detail page's History section — a Log entry edited or deleted
- * from the detail page must refresh in place there too (PRD: Option detail
- * page — controls behave identically wherever invoked).
- */
-function revalidateLogViews(): void {
-  revalidatePath("/");
-  revalidatePath("/log");
-  revalidatePath("/catalog/[id]", "page");
-}
+import { revalidateDinnerViews } from "../revalidate";
 
 /**
  * Pick tonight: log the Option for the Selected day — `pick = log`. The insert
@@ -42,11 +30,7 @@ function revalidateLogViews(): void {
  */
 export const pickTonight = authedAction(
   async (optionId: string, selectedDay?: string): Promise<ActionResult> => {
-    const todaySql = today();
-    const eatenOn =
-      typeof selectedDay === "string" && isValidSqlDate(selectedDay)
-        ? selectedDay
-        : todaySql;
+    const eatenOn = parseSelectedDay(selectedDay, today());
     try {
       await db
         .insert(dinnerLog)
@@ -55,7 +39,7 @@ export const pickTonight = authedAction(
     } catch {
       return { ok: false, error: "Couldn't log that — try again" };
     }
-    revalidateLogViews();
+    revalidateDinnerViews();
     return { ok: true };
   },
 );
@@ -87,7 +71,7 @@ export const logForDate = authedAction(
         missingOption: "That option is no longer available",
       });
     }
-    revalidateLogViews();
+    revalidateDinnerViews();
     return { ok: true };
   },
 );
@@ -120,13 +104,26 @@ export const updateLogEntry = authedAction(
         missingOption: "That option is no longer available",
       });
     }
-    revalidateLogViews();
+    revalidateDinnerViews();
     return { ok: true };
   },
 );
 
-/** Delete a Log entry — a plan that didn't happen, or a pick not actually eaten. */
-export const deleteLogEntry = authedAction(async (id: string): Promise<void> => {
-  await db.delete(dinnerLog).where(eq(dinnerLog.id, id));
-  revalidateLogViews();
-});
+/**
+ * Delete a Log entry — a plan that didn't happen, or a pick not actually
+ * eaten. Returns an `ActionResult` so a write failure (e.g. a double-tap race
+ * against an already-deleted entry) is reported, never silently swallowed —
+ * notably Tonight's decided-row "Remove" control, which surfaces
+ * `{ ok: false }` inline the way the other delete affordances already do.
+ */
+export const deleteLogEntry = authedAction(
+  async (id: string): Promise<ActionResult> => {
+    try {
+      await db.delete(dinnerLog).where(eq(dinnerLog.id, id));
+    } catch {
+      return { ok: false, error: "Couldn't remove that — try again" };
+    }
+    revalidateDinnerViews();
+    return { ok: true };
+  },
+);

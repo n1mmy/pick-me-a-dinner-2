@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogEntryRow, OptionChoice } from "../../db/queries";
-import { type Dinner, formatDinnerDate } from "../../lib/dinner-grouping";
 import { OptionCombobox } from "../option-combobox";
 import { PickButton } from "../pick-button";
 import { deleteLogEntry, updateLogEntry } from "./actions";
@@ -24,34 +23,6 @@ const actionButton =
   "min-h-11 rounded-control px-2 text-chip focus-visible:outline " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
 
-/** One Dinner: a date header above its one-or-more Log entry rows. */
-export function DinnerGroup({
-  dinner,
-  optionChoices,
-  today,
-}: {
-  dinner: Dinner<LogEntryRow>;
-  optionChoices: OptionChoice[];
-  today: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <h3 className="text-chip font-emphasis text-muted">
-        {formatDinnerDate(dinner.date, today)}
-      </h3>
-      <ul className="flex flex-col">
-        {dinner.entries.map((entry) => (
-          <EntryRow
-            key={entry.id}
-            entry={entry}
-            optionChoices={optionChoices}
-          />
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 /**
  * One Log entry row. Shows the Option name and note with Edit / Delete actions;
  * Edit expands the row in place into the form, Delete uses the §17
@@ -67,13 +38,16 @@ export function EntryRow({
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const kindBg =
     entry.kind === "restaurant" ? "bg-kind-restaurant-wash" : "bg-kind-home-wash";
 
   function runDelete() {
+    setDeleteError(null);
     startTransition(async () => {
-      await deleteLogEntry(entry.id);
+      const result = await deleteLogEntry(entry.id);
+      if (!result.ok) setDeleteError(result.error);
     });
   }
 
@@ -157,6 +131,11 @@ export function EntryRow({
         </div>
       </div>
       {entry.note && <p className="text-chip text-muted">{entry.note}</p>}
+      {deleteError && (
+        <p className="text-chip text-danger" role="alert">
+          {deleteError}
+        </p>
+      )}
     </li>
   );
 }
