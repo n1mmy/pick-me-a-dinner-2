@@ -417,6 +417,8 @@ function DisclosureToggle({
  * calls `deleteRejection`, which **deletes** the Rejection record: the
  * Option returns to tonight's list immediately and — because the record is
  * gone, not merely expired — a mis-tapped Rejection never reaches AI search.
+ * A failed delete (e.g. a double-tap race) reports `{ ok: false }`, shown
+ * inline under that row rather than silently leaving "Bring back" a no-op.
  * Only today's Rejections appear here; managing the historical Rejection log
  * is out of scope (PRD: Out of Scope).
  */
@@ -432,10 +434,23 @@ function RejectedTonightDisclosure({
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Keyed by rejection id, since more than one row's "Bring back" could be
+  // armed at once — a plain single error slot would drop one row's failure
+  // when another row's write also failed.
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   function bringBack(rejectionId: string) {
+    setErrors((prev) => {
+      if (!(rejectionId in prev)) return prev;
+      const next = { ...prev };
+      delete next[rejectionId];
+      return next;
+    });
     startTransition(async () => {
-      await deleteRejection(rejectionId);
+      const result = await deleteRejection(rejectionId);
+      if (!result.ok) {
+        setErrors((prev) => ({ ...prev, [rejectionId]: result.error }));
+      }
     });
   }
 
@@ -464,6 +479,11 @@ function RejectedTonightDisclosure({
                 {rejection.reason && (
                   <p className="mt-0.5 text-meta text-muted">
                     {rejection.reason}
+                  </p>
+                )}
+                {errors[rejection.id] && (
+                  <p className="mt-0.5 text-meta text-danger" role="alert">
+                    {errors[rejection.id]}
                   </p>
                 )}
               </div>

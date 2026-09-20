@@ -6,7 +6,7 @@ import {
   type AiSearchResult,
 } from "../lib/ai-search";
 import { authedAction } from "../lib/authed-action";
-import { isValidSqlDate, today } from "../lib/local-day";
+import { parseSelectedDay, today } from "../lib/local-day";
 import { snapshotForDay } from "../lib/snapshot-source";
 
 /**
@@ -42,11 +42,7 @@ export const aiSearchAction = authedAction(
     // any caller, so a hand-edited request could carry a malformed date. Any
     // real SQL date is honoured (past or future); only a malformed/missing
     // value falls back to today.
-    const todaySql = today();
-    const asOf =
-      typeof selectedDay === "string" && isValidSqlDate(selectedDay)
-        ? selectedDay
-        : todaySql;
+    const asOf = parseSelectedDay(selectedDay, today());
 
     const { snapshot, idByIndex } = await snapshotForDay({ asOf, query });
 

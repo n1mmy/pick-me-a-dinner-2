@@ -205,8 +205,9 @@ describe("deleteRejection", () => {
     const pizza = await makeOption("Pizza");
     const id = await makeRejection(pizza, "2026-05-01");
 
-    await deleteRejection(id);
+    const result = await deleteRejection(id);
 
+    expect(result).toEqual({ ok: true });
     expect(await db.select().from(rejections)).toHaveLength(0);
   });
 });

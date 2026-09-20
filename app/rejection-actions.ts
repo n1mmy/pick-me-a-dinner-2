@@ -1,13 +1,13 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { rejections } from "../db/schema";
 import { authedAction } from "../lib/authed-action";
 import { type ActionResult, trimToNull } from "../lib/action-result";
-import { isValidSqlDate, today } from "../lib/local-day";
+import { isValidSqlDate, parseSelectedDay, today } from "../lib/local-day";
 import { pgErrorMessage } from "../lib/pg-error";
+import { revalidateDinnerViews } from "./revalidate";
 
 /**
  * Every write to the `rejections` table lives in this one module — the
@@ -17,20 +17,6 @@ import { pgErrorMessage } from "../lib/pg-error";
  * constraint) is handled in exactly one place, so a copy of the insert can
  * never drift out of sync and skip it again.
  */
-
-/**
- * Revalidate every screen a Rejection write changes: Tonight's suppression (a
- * Rejection dated today drops its Option from the picker), the Log (which now
- * renders that date's Rejections), and the Option detail page's Rejections
- * section — a Rejection edited or deleted from the detail page must refresh in
- * place there too (PRD: Dated Rejections — Option detail page parity). Every
- * Rejection write goes through here, so the three screens never disagree.
- */
-function revalidateRejectionViews(): void {
-  revalidatePath("/");
-  revalidatePath("/log");
-  revalidatePath("/catalog/[id]", "page");
-}
 
 /**
  * Translate an *expected* Postgres driver error from a Rejection write into an
@@ -51,7 +37,7 @@ function rejectionWriteError(error: unknown): { ok: false; error: string } {
  * `createRejection` and the live-Tonight `rejectOption` both run through here,
  * so both inherit the `23505` collision handling. Inserts a `rejections` row
  * for `optionId` dated `rejectedOn`, storing an empty or whitespace-only
- * reason as `null`, then revalidates the three Rejection views. A driver error
+ * reason as `null`, then revalidates the three Dinner views. A driver error
  * is mapped to an inline message; the date is assumed already validated by the
  * caller.
  */
@@ -67,7 +53,7 @@ async function recordRejection(
   } catch (error) {
     return rejectionWriteError(error);
   }
-  revalidateRejectionViews();
+  revalidateDinnerViews();
   return { ok: true };
 }
 
@@ -126,7 +112,7 @@ export const updateRejection = authedAction(
     } catch (error) {
       return rejectionWriteError(error);
     }
-    revalidateRejectionViews();
+    revalidateDinnerViews();
     return { ok: true };
   },
 );
@@ -137,13 +123,19 @@ export const updateRejection = authedAction(
  * (ADR-0006: a deleted Rejection never teaches the model anything). This is
  * also the action behind Tonight's "Bring back" affordance: bringing back a
  * Rejection the Household made today is the same row delete, so there is one
- * shared action rather than a duplicate. Thin by design, mirroring
- * `deleteLogEntry`.
+ * shared action rather than a duplicate. Returns an `ActionResult` so a
+ * write failure (e.g. a double-tap race against an already-deleted row) is
+ * reported inline rather than silently swallowed, mirroring `deleteLogEntry`.
  */
 export const deleteRejection = authedAction(
-  async (id: string): Promise<void> => {
-    await db.delete(rejections).where(eq(rejections.id, id));
-    revalidateRejectionViews();
+  async (id: string): Promise<ActionResult> => {
+    try {
+      await db.delete(rejections).where(eq(rejections.id, id));
+    } catch {
+      return { ok: false, error: "Couldn't bring that back — try again" };
+    }
+    revalidateDinnerViews();
+    return { ok: true };
   },
 );
 
@@ -173,11 +165,7 @@ export const rejectOption = authedAction(
     reason: string,
     selectedDay?: string,
   ): Promise<ActionResult> => {
-    const todaySql = today();
-    const rejectedOn =
-      typeof selectedDay === "string" && isValidSqlDate(selectedDay)
-        ? selectedDay
-        : todaySql;
+    const rejectedOn = parseSelectedDay(selectedDay, today());
     return recordRejection(optionId, rejectedOn, reason);
   },
 );

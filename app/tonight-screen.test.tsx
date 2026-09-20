@@ -23,14 +23,14 @@ vi.mock("./tonight-actions", () => ({
 // Stub both so importing them never pulls in the database client.
 vi.mock("./rejection-actions", () => ({
   rejectOption: vi.fn(async () => ({ ok: true })),
-  deleteRejection: vi.fn(async () => {}),
+  deleteRejection: vi.fn(async () => ({ ok: true })),
 }));
 // `tonight-row` calls `pickTonight` and the decided block calls
 // `deleteLogEntry`; stub both so importing them never pulls in the database
 // client, and so the Remove flow can be asserted on the mock.
 vi.mock("./log/actions", () => ({
   pickTonight: vi.fn(async () => ({ ok: true })),
-  deleteLogEntry: vi.fn(async () => {}),
+  deleteLogEntry: vi.fn(async () => ({ ok: true })),
 }));
 // Both day-navigation controls use Next.js router hooks (`useRouter`,
 // `useSearchParams`, `usePathname`) that aren't wired up in this jsdom render.
