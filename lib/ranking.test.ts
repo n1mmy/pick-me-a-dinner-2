@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import { CAP, NEUTRAL_AFFINITY, OVERDUE_THRESHOLD } from "./ranking.config";
 import {
   daysSince,
-  lastEaten,
-  lastTagUse,
   rankOption,
   rankTonight,
   type LogEntry,
@@ -26,74 +24,16 @@ function option(
 }
 
 describe("daysSince", () => {
-  it("returns CAP for a null date (never eaten / never used)", () => {
-    expect(daysSince(null, TODAY)).toBe(CAP);
-  });
-
-  it("returns the plain difference for a recent date", () => {
-    expect(daysSince(95, TODAY)).toBe(5);
-  });
-
-  it("caps a very old date at CAP", () => {
-    expect(daysSince(10, TODAY)).toBe(CAP);
-  });
-
+  // The other three `daysSince` rules (null → CAP, a plain difference, an
+  // old date capped at CAP) are exercised through `rankTonight` below — see
+  // "ranks a more-overdue Option above a recently-eaten one" and "does not
+  // let a rarely-eaten stale Option pin above a frequent favorite". This
+  // guard is the one rule that cannot be: every real caller already filters
+  // out future days via `lastEaten` / `lastTagUse` before reaching
+  // `daysSince`, so no `rankTonight` / `rankOption` input can drive this
+  // branch — `daysSince` stays exported for this test alone.
   it("guards a future date to 0 so a Score can never go negative", () => {
     expect(daysSince(TODAY + 5, TODAY)).toBe(0);
-  });
-});
-
-describe("lastEaten", () => {
-  it("returns the most-recent non-future eatenOn for the Option", () => {
-    const entries: LogEntry[] = [
-      { optionId: "o1", eatenOn: 80 },
-      { optionId: "o1", eatenOn: 95 },
-      { optionId: "o2", eatenOn: 99 },
-    ];
-    expect(lastEaten(entries, "o1", TODAY)).toBe(95);
-  });
-
-  it("excludes future entries (Planned dinners)", () => {
-    const entries: LogEntry[] = [
-      { optionId: "o1", eatenOn: 90 },
-      { optionId: "o1", eatenOn: 110 },
-    ];
-    expect(lastEaten(entries, "o1", TODAY)).toBe(90);
-  });
-
-  it("returns null when the Option has no Log history", () => {
-    expect(lastEaten([{ optionId: "o2", eatenOn: 90 }], "o1", TODAY)).toBe(
-      null,
-    );
-  });
-});
-
-describe("lastTagUse", () => {
-  const options = [
-    option("o1", "Salmon", ["fish"]),
-    option("o2", "Cod", ["fish"]),
-    option("o3", "Pasta", ["pasta"]),
-  ];
-
-  it("returns the most-recent non-future use across every carrier of the Tag", () => {
-    const entries: LogEntry[] = [
-      { optionId: "o1", eatenOn: 80 },
-      { optionId: "o2", eatenOn: 95 },
-    ];
-    expect(lastTagUse(entries, options, "fish", TODAY)).toBe(95);
-  });
-
-  it("excludes future entries", () => {
-    const entries: LogEntry[] = [
-      { optionId: "o1", eatenOn: 80 },
-      { optionId: "o2", eatenOn: 120 },
-    ];
-    expect(lastTagUse(entries, options, "fish", TODAY)).toBe(80);
-  });
-
-  it("returns null when no carrier of the Tag has Log history", () => {
-    const entries: LogEntry[] = [{ optionId: "o3", eatenOn: 90 }];
-    expect(lastTagUse(entries, options, "fish", TODAY)).toBe(null);
   });
 });
 
@@ -128,6 +68,10 @@ describe("affinity (Score = affinity × readiness)", () => {
     ];
     const rows = rankTonight(options, entries, TODAY);
     expect(rows[0].option.id).toBe("pet");
+    // `dud`'s last eat is 200 days back — capped at CAP, not the raw 200.
+    expect(rows.find((row) => row.option.id === "dud")!.recencyDays).toBe(
+      CAP,
+    );
   });
 
   it("inherits cuisine affinity for a never-eaten Option (cold-start)", () => {
@@ -214,6 +158,39 @@ describe("rankTonight", () => {
     expect(rows.map((row) => row.option.id)).toEqual(["stale", "recent"]);
     // Both Options have a non-future Log entry, so neither reads as never eaten.
     expect(rows.every((row) => row.neverEaten === false)).toBe(true);
+    // recencyDays is the plain day difference below CAP.
+    expect(rows.find((row) => row.option.id === "recent")!.recencyDays).toBe(
+      2,
+    );
+    expect(rows.find((row) => row.option.id === "stale")!.recencyDays).toBe(
+      30,
+    );
+  });
+
+  it("derives per-Option and per-Tag recency from the most-recent non-future entry among several", () => {
+    // Two Options share the "fish" Tag. `o1` has three past entries — its
+    // recency must pick the most-recent (10d), not the oldest. `o2` has only
+    // a future entry, which must be excluded from both its own recency and
+    // the shared Tag's recency.
+    const options = [
+      option("o1", "Salmon", ["fish"]),
+      option("o2", "Trout", ["fish"]),
+    ];
+    const entries: LogEntry[] = [
+      { optionId: "o1", eatenOn: TODAY - 40 },
+      { optionId: "o1", eatenOn: TODAY - 25 },
+      { optionId: "o1", eatenOn: TODAY - 10 },
+      { optionId: "o2", eatenOn: TODAY + 5 },
+    ];
+    const rows = rankTonight(options, entries, TODAY);
+    const o1 = rows.find((row) => row.option.id === "o1")!;
+    const o2 = rows.find((row) => row.option.id === "o2")!;
+    expect(o1.recencyDays).toBe(10);
+    expect(o2.neverEaten).toBe(true);
+    // The Tag's recency comes from o1's most-recent past entry (10d) on both
+    // rows — o2's future entry never counts toward it.
+    expect(o1.tags[0]).toEqual({ tag: "fish", days: 10, overdue: false });
+    expect(o2.tags[0]).toEqual({ tag: "fish", days: 10, overdue: false });
   });
 
   it("falls back to alphabetical order on cold start (zero non-future entries)", () => {

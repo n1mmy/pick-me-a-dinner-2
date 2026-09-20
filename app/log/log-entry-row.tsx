@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogEntryRow, OptionChoice } from "../../db/queries";
-import { type Dinner, formatDinnerDate } from "../../lib/dinner-grouping";
 import { OptionCombobox } from "../option-combobox";
 import { PickButton } from "../pick-button";
 import { deleteLogEntry, updateLogEntry } from "./actions";
@@ -23,34 +22,6 @@ export const inputClass =
 const actionButton =
   "min-h-11 rounded-control px-2 text-chip focus-visible:outline " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
-
-/** One Dinner: a date header above its one-or-more Log entry rows. */
-export function DinnerGroup({
-  dinner,
-  optionChoices,
-  today,
-}: {
-  dinner: Dinner<LogEntryRow>;
-  optionChoices: OptionChoice[];
-  today: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <h3 className="text-chip font-emphasis text-muted">
-        {formatDinnerDate(dinner.date, today)}
-      </h3>
-      <ul className="flex flex-col">
-        {dinner.entries.map((entry) => (
-          <EntryRow
-            key={entry.id}
-            entry={entry}
-            optionChoices={optionChoices}
-          />
-        ))}
-      </ul>
-    </div>
-  );
-}
 
 /**
  * One Log entry row. Shows the Option name and note with Edit / Delete actions;

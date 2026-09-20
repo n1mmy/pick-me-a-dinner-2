@@ -1,5 +1,3 @@
-import type { ActionResult } from "./action-result";
-
 /**
  * The SQLSTATE code on a thrown error, or `undefined` when the error is not a
  * Postgres driver error. Server actions branch on this to turn an *expected*
@@ -62,7 +60,3 @@ export function pgErrorMessage(
   }
   throw error;
 }
-
-// `ActionResult` is re-exported so a caller importing the translator has the
-// failure-shape type to hand without a second import path.
-export type { ActionResult };

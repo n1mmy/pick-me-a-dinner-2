@@ -44,7 +44,7 @@ function heatmapColor(t: number): string {
  * recently eaten, red when long overdue, fading through tan. Caps at
  * `RECENCY_COLOR_CAP` days.
  */
-export function recencyColor(days: number): string {
+function recencyColor(days: number): string {
   return heatmapColor(clamp(days, 0, RECENCY_COLOR_CAP) / RECENCY_COLOR_CAP);
 }
 
@@ -61,7 +61,7 @@ export const AFFINITY_COLOR_FULL = 2;
  * recency — there a low day-count is green — so that the "good" end is green on
  * both chips: fresh and frequent both read green.
  */
-export function affinityColor(affinity: number): string {
+function affinityColor(affinity: number): string {
   return heatmapColor(
     1 - clamp(affinity, 0, AFFINITY_COLOR_FULL) / AFFINITY_COLOR_FULL,
   );
