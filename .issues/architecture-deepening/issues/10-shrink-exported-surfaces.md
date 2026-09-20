@@ -1,6 +1,6 @@
 # 10 — Shrink the exported surfaces; delete the exports nothing calls
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## What to build
