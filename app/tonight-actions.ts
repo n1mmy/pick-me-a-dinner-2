@@ -1,18 +1,13 @@
 "use server";
 
 import {
-  getFullLogForSnapshot,
-  getRejections,
-  getTonightData,
-} from "../db/queries";
-import {
   AI_SEARCH_UNAVAILABLE,
-  buildSnapshot,
   createAiSearchClient,
   type AiSearchResult,
 } from "../lib/ai-search";
 import { authedAction } from "../lib/authed-action";
 import { isValidSqlDate, today } from "../lib/local-day";
+import { snapshotForDay } from "../lib/snapshot-source";
 
 /**
  * Run an AI search over Tonight for the **Selected day** (ADR-0009): build the
@@ -53,30 +48,7 @@ export const aiSearchAction = authedAction(
         ? selectedDay
         : todaySql;
 
-    const [{ options }, logEntries, rejections] = await Promise.all([
-      getTonightData(asOf),
-      getFullLogForSnapshot(),
-      getRejections(),
-    ]);
-
-    const { snapshot, idByIndex } = buildSnapshot({
-      options: options.map((option) => ({
-        id: option.id,
-        name: option.name,
-        kind: option.kind,
-        tags: option.tags,
-        notes: option.notes,
-        closedDays: option.closedDays,
-      })),
-      logEntries: logEntries.map((entry) => ({
-        optionId: entry.optionId,
-        eatenOn: entry.eatenOn,
-        note: entry.note,
-      })),
-      rejections,
-      asOf,
-      query,
-    });
+    const { snapshot, idByIndex } = await snapshotForDay({ asOf, query });
 
     // `buildSnapshot` has already dropped Selected-day-rejected Options from
     // the snapshot's candidate `options`; `idByIndex` covers only those
