@@ -1,6 +1,6 @@
 # 06 — Build the AI snapshot in one place (the eval harness is measuring a different one)
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## What to build
