@@ -18,13 +18,11 @@ import type { TonightRow } from "../lib/ranking";
 import {
   chipStateLabel,
   cycleChipState,
-  distinctTags,
-  filterHint,
-  filterTonightRows,
+  pickerView,
   type ChipState,
   type KindFilter,
   type TagFilters,
-} from "../lib/tonight-filter";
+} from "../lib/picker-view";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 import { DayNameReset, DayStepper } from "./day-stepper";
 import { kindBarClass } from "./kind-bar";
@@ -642,33 +640,15 @@ function Picker({
   // announces the removal to assistive tech (PRD: Rejections, story 33).
   const [rejectNotice, setRejectNotice] = useState("");
 
-  const tags = useMemo(() => distinctTags(rows), [rows]);
-  // The search box's typeahead candidates: the ranked rows reduced to
-  // OptionChoices and re-sorted by name (the rows arrive score-ordered; the
-  // dropdown lists by name). It mirrors the picker exactly, so a typeahead
-  // pick can never hit an already-picked or Selected-day-rejected Option.
-  const choices = useMemo(
-    () =>
-      rows
-        .map((row) => ({
-          id: row.option.id,
-          name: row.option.name,
-          kind: row.option.kind,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [rows],
-  );
-  // Rank reflects each Option's position in the picker ranking, so a filtered
-  // row keeps its true rank (#4, #7, ...) rather than being renumbered.
-  const rankOf = useMemo(
-    () => new Map(rows.map((row, index) => [row.option.id, index + 1])),
-    [rows],
-  );
-  const visible = useMemo(
-    () => filterTonightRows(rows, kind, tagFilters),
+  // The Picker's view model: the filtered rows in rank order, each Option's
+  // true rank and typeahead candidates from the unfiltered `rows` (so a
+  // filtered row keeps its true rank instead of being renumbered, and a
+  // typeahead pick can never hit an already-Picked or Selected-day-rejected
+  // Option), the chip row's Tags, and the hint line.
+  const { visible, rankOf, choices, tags, hint } = useMemo(
+    () => pickerView(rows, kind, tagFilters),
     [rows, kind, tagFilters],
   );
-  const hint = filterHint(kind, tagFilters);
 
   // The AI search mode restated for assistive tech: a polite announcement of
   // the pending state and of the swap between the deterministic list and the
