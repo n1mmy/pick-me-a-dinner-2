@@ -1038,7 +1038,13 @@ function SearchBox({
             in-flight spinner + timer, the done check + time — ever resizes the
             button or the flex-1 input. `accent` violet sets the AI search
             apart from the charcoal PICK; the done badge turns `success`
-            green. */}
+            green. The label switches to `action-ink` on that green fill —
+            `accent-ink` is tuned for the violet fill and is white in both
+            themes, but dark-theme `success` must stay light enough to also
+            work as body text elsewhere, which leaves a white label on it at
+            2.91:1 (fails AA). `action-ink` is the token for "ink that sits on
+            a filled surface" and clears 4.5:1 against `success` in both
+            themes — see docs/design-review-2026-09-21.md A2. */}
         <button
           type="submit"
           disabled={pending}
@@ -1051,9 +1057,11 @@ function SearchBox({
           }
           className={`flex min-h-11 w-[7rem] min-w-[7rem] shrink-0
             items-center justify-center gap-1.5 rounded-control px-4 text-body
-            font-emphasis text-accent-ink transition-colors duration-short
-            disabled:opacity-60 ${
-              completed ? "bg-success" : "bg-accent hover:bg-accent-hover"
+            font-emphasis transition-colors duration-short disabled:opacity-60
+            ${
+              completed
+                ? "bg-success text-action-ink"
+                : "bg-accent text-accent-ink hover:bg-accent-hover"
             } ${focusRing}`}
         >
           {pending ? (

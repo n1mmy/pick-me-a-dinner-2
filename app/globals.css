@@ -16,7 +16,11 @@
   --color-surface: #ffffff;
   --color-raised: #e8eaed;
   --color-ink: #25282d;
-  --color-muted: #767a82;
+  /* #656970, not the DESIGN.md-listed #767a82: darkened to clear 4.5:1 against
+   * every light surface (bg/surface/raised) it renders on — the source hex
+   * lands 3.57-4.31:1, an AA fail for a token used at 12-13px in 60+ places.
+   * See docs/design-review-2026-09-21.md A1. */
+  --color-muted: #656970;
   --color-line: #d8dade;
   /* Meal-kind left bar — teal for home-cooked, plum for restaurant. */
   --color-kind-home: #2c6e6e;
@@ -44,11 +48,17 @@
   --color-accent: #6d4ed6;
   --color-accent-hover: #5c3ec4;
   --color-accent-ink: #ffffff;
-  --color-success: #3f8a4a;
+  /* #367740, not the DESIGN.md-listed #3f8a4a: darkened to clear 4.5:1 against
+   * `raised`, where "Logged ✓" renders (3.52:1 at the source hex). See
+   * docs/design-review-2026-09-21.md A2. */
+  --color-success: #367740;
   /* Much-lighter wash of the success green — the tinted background of a logged
    * (accepted) Dinner row in the Log, mirroring the rejected-row danger wash. */
   --color-success-wash: #dee9db;
-  --color-danger: #c4453a;
+  /* #b84137, not the DESIGN.md-listed #c4453a: darkened to clear 4.5:1 against
+   * `bg`, where inline error copy renders (4.48:1 at the source hex — an AA
+   * fail by a hair, but a fail). See docs/design-review-2026-09-21.md A2. */
+  --color-danger: #b84137;
   /* Much-lighter wash of the danger red — the tinted background of a rejected
    * row in the Log, so a Rejection reads as distinct from a logged Dinner. */
   --color-danger-wash: #f3ddda;
@@ -100,6 +110,24 @@
   /* Layout — centered column 560px phone / 700px desktop; ~200px desktop rail. */
   --column-max: 560px;
   --rail-width: 200px;
+
+  /* Scroll-padding reserves (WCAG 2.2 "Focus Not Obscured") so keyboard focus
+   * scrolled into view never lands under Tonight's sticky filter zone or the
+   * mobile bottom nav — both are fixed/sticky and neither is accounted for by
+   * the page's own bottom padding, which only protects the end of the
+   * document, not focus landing mid-list. `--scroll-reserve-top` is a
+   * deliberately generous estimate of the sticky filter zone's tallest state
+   * (search box + a two-line-wrapped tag row + hint, see
+   * app/tonight-screen.tsx's `Picker`) rather than a pixel-exact measurement —
+   * over-reserving costs nothing (it only affects the browser's own
+   * scroll-into-view margin) where under-reserving reproduces the bug. Applied
+   * globally rather than scoped to Tonight: the other screens have no sticky
+   * top bar, so the reserve is merely unused headroom there, not wrong. */
+  --scroll-reserve-top: 180px;
+  /* The mobile bottom nav's tallest row (`min-h-14`, Tailwind's un-tokenized
+   * default = 52.5px at this project's 15px root) plus its 1px border,
+   * rounded up, plus the safe-area inset on notched devices. */
+  --scroll-reserve-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Dark theme — derived from the light theme: cool dark surfaces, the same
@@ -124,12 +152,18 @@
     --color-action: #e6e7ea;
     --color-action-hover: #d0d2d6;
     --color-action-ink: #1a1c1f;
-    --color-accent: #8b73ee;
+    /* #7a65d1, not the DESIGN.md-listed #8b73ee: darkened to clear 4.5:1
+     * against the white `accent-ink` label on the AI Search button (3.63:1 at
+     * the source hex). See docs/design-review-2026-09-21.md A2. */
+    --color-accent: #7a65d1;
     --color-accent-hover: #7a60e3;
     --color-accent-ink: #ffffff;
     --color-success: #5aa863;
     --color-success-wash: #26312a;
-    --color-danger: #d65a4f;
+    /* #de7970, not the DESIGN.md-listed #d65a4f: lightened to clear 4.5:1
+     * against `surface`, where inline error copy renders (3.94:1 at the
+     * source hex). See docs/design-review-2026-09-21.md A2. */
+    --color-danger: #de7970;
     --color-danger-wash: #33272a;
     --color-planned: #cf9a45;
   }
@@ -142,6 +176,9 @@
   :root {
     --column-max: 700px;
     --text-h1: 28px;
+    /* The nav is a left rail here, not a bottom bar — nothing at the bottom
+     * of the viewport to reserve scroll space against. */
+    --scroll-reserve-bottom: 0px;
   }
 
   body {
@@ -160,6 +197,11 @@
      * The app has no above-the-fold async content that benefits from
      * anchoring, so turning it off is safe. */
     overflow-anchor: none;
+    /* WCAG 2.2 "Focus Not Obscured" — see --scroll-reserve-* above. The
+     * bottom reserve is dropped at the `desktop:` breakpoint below, where the
+     * nav becomes a left rail and no longer overlaps scrolled content. */
+    scroll-padding-top: var(--scroll-reserve-top);
+    scroll-padding-bottom: var(--scroll-reserve-bottom);
   }
 
   body {
