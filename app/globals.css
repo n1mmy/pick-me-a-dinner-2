@@ -132,8 +132,11 @@
 
 /* Dark theme — derived from the light theme: cool dark surfaces, the same
  * kind / recency / action hues lifted for contrast. Not yet visually verified.
- * `action-hover`, `success`, `danger` are derived (absent from the DESIGN.md
- * dark table); success/danger share the recency green/red. */
+ * `action-hover` is derived (absent from the DESIGN.md dark table); `success`
+ * shares `recency-recent`'s hex, `danger` and `accent` were independently
+ * retuned off their recency/light-theme counterparts for AA text/label
+ * contrast (see DESIGN.md's dark theme table and Decisions Log,
+ * 2026-09-21). */
 @media (prefers-color-scheme: dark) {
   :root {
     --color-bg: #1a1c1f;

@@ -6,7 +6,7 @@ claims are computed WCAG ratios (sRGB relative luminance), not eyeballed.
 Findings are grouped into three passes:
 
 - **(a)** token-contrast fixes + `scroll-padding` — small, mechanical, done first ✅ 2026-09-21
-- **(b)** `DESIGN.md` corrections — doc-only, the code is right in every case but D4
+- **(b)** `DESIGN.md` corrections — doc-only, the code is right in every case but D4 ✅ 2026-09-21
 - **(c)** the desktop row collapse (D3) — its own piece of work, not done here
 
 This file is the working record; strike through or annotate items as they're
@@ -15,7 +15,7 @@ survives past the commits that fix it.
 
 ## 1. Where `DESIGN.md` and the code disagree
 
-### D1 — Tag rendering and heatmap polarity are stale in the Layout section
+### D1 — Tag rendering and heatmap polarity are stale in the Layout section ✅ fixed
 `DESIGN.md:236-237` still says tags are *"plain lowercase Geist text directly
 under the name, each tinted on the recency heatmap … (overdue greener, recent
 redder)"*.
@@ -29,7 +29,7 @@ The Color section (`DESIGN.md:104`, and the 2026-06-17 log entry) is already
 correct. Only the Layout section was never updated — **including the polarity
 parenthetical, which is now backwards**. `DESIGN.md` is the wrong side here.
 
-### D2 — The "Explanation chip" no longer exists
+### D2 — The "Explanation chip" no longer exists ✅ fixed
 `DESIGN.md:224`, `:227`, `:236-238` all describe a single *Explanation chip*.
 The code renders `RowChips` = **Affinity chip + Recency chip + Tag chips**
 (`app/tonight-row.tsx:320`). Again the Color section documents this correctly
@@ -47,7 +47,7 @@ Tonight header's reflow. So desktop is a 700px-wide phone — which is precisely
 the outcome the 2026-05-16 decision *"Desktop = persistent left rail, not a
 wider column"* was chosen to avoid.
 
-### D4 — Two tokens are specified but dead
+### D4 — Two tokens are specified but dead ✅ fixed (doc corrected, tokens left unwired)
 - `planned` (`DESIGN.md:137`, "Amber — the Upcoming planned-dinner section") —
   zero references in `app/`. The Log's Upcoming section
   (`app/log/log-screen.tsx:81-97`) uses the same muted `labelClass` as History.
@@ -56,14 +56,14 @@ wider column"* was chosen to avoid.
   washes instead, which `DESIGN.md` scopes to the Tonight decided block only.
   (`danger-wash` *is* used as documented, `rejection-row.tsx:267,286`.)
 
-### D5 — Kind hues are used as button fills, undocumented
+### D5 — Kind hues are used as button fills, undocumented ✅ fixed
 `app/catalog/catalog-screen.tsx:107` fills the two Catalog add buttons with
 `bg-kind-home` / `bg-kind-restaurant`. `DESIGN.md:164-168` explicitly claims
 *"the kind hues still carry no data on any screen; the icon is chrome"*. These
 buttons carry kind, on a screen. It reads well and the contrast is fine (5.89 /
 6.65 light, 5.19 / 4.93 dark) — amend the doc, not the code.
 
-### D6 — The spacing scale in `DESIGN.md` matches neither the CSS nor Tailwind
+### D6 — The spacing scale in `DESIGN.md` matches neither the CSS nor Tailwind ✅ fixed
 `DESIGN.md:216`: `2xs(2) xs(4) sm(8) md(12) lg(16) xl(24) 2xl(32) 3xl(48)`.
 `globals.css:79` and `tailwind.config.ts:57-70`: `4 / 6 / 8 / 12 / 16 / 22`
 (+ the 36/44 control stops). 24/32/48 don't exist; 6 and 22 aren't on the
@@ -75,7 +75,7 @@ about. Concretely, at the 15px root: `app-nav.tsx:53` `min-h-14` →
 **52.5px** (not 56), `app/login/page.tsx` `gap-6` → **22.5px**,
 `app/option-combobox.tsx:347` `w-8` → **30px**.
 
-### D7 — Chip type size
+### D7 — Chip type size ✅ fixed
 `DESIGN.md:70` specifies chip text at 13px (`--text-chip`). Every chip
 (`AffinityChip`, `RecencyChip`, `TagChip`) renders `text-meta` = **12px**.
 
