@@ -245,9 +245,12 @@ check before relying on it.
   a note exists, and the single line is what keeps the ledger scannable. Rows
   without a note are unchanged. Do not let this grow into a second prose line, a
   two-line clamp, or a per-row expansion that reflows the list — a longer note is
-  read by tapping it (below) or on the Option detail page. On an AI search row
-  the Last note sits **above** the AI rationale: row data first, the model's
-  voice second on its `raised` surface.
+  read by tapping it (below) or on the Option detail page.
+  - **AI search rows omit it (2026-09-21 amendment):** an AI search row already
+    carries the model's own prose rationale line on its `raised` surface;
+    stacking the Last note above it read as two aside lines on one row — too
+    busy. An AI row shows the chip row and the AI rationale only, no Last note.
+    Deterministic (picker, decided, Closed disclosure) rows are unchanged.
   - **Density (2026-09-10):** the line is a quiet step below and inside the chip
     row, not a paragraph after it — `leading-tight` like the chips, a 4px gap
     above, an 8px indent, and the picker row itself at **10px** padding (the

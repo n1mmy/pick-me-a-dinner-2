@@ -46,7 +46,9 @@ const focusRing =
  * model deliberately returns no rationale for an obviously bad pick — and an
  * empty `aiReason` renders no line at all, so that row reads like a
  * deterministic one. The Recency and Tag chips render the same on AI and
- * deterministic rows.
+ * deterministic rows. `lastNote` is never passed on an AI row — the caller
+ * omits it (DESIGN.md, "Last note line") — because the AI rationale already
+ * carries a prose line and stacking a second one reads as too busy.
  */
 export function TonightRowItem({
   row,

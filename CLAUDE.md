@@ -191,6 +191,11 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 
 Loop config and worker permissions. See `docs/agents/ralph.md`.
 
+### Dev server
+
+"Start the dev server" means: `.env.k8s` copied in as `.env.local`, bound to
+`0.0.0.0`. See `docs/agents/dev-server.md`.
+
 ## Design System
 
 Always read `DESIGN.md` before making any visual or UI decision. Font choices,
