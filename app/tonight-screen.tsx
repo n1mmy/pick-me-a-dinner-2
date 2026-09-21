@@ -767,7 +767,6 @@ function Picker({
                 row={row}
                 rank={index + 1}
                 aiReason={reason}
-                lastNote={lastNotes.get(row.option.id)}
                 selectedDay={isToday ? undefined : selectedDay}
                 onRejected={(name) =>
                   setRejectNotice(`Rejected ${name}, removed from the list.`)

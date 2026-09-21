@@ -788,7 +788,7 @@ describe("TonightScreen — Last note", () => {
     expect(note.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("shows the note on an AI result row, above the AI rationale", async () => {
+  it("omits the Last note on an AI result row, showing only the AI rationale", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,
       results: [{ id: "o1", reason: "Light and quick" }],
@@ -806,13 +806,10 @@ describe("TonightScreen — Last note", () => {
     );
     await submitSearchAndSettle();
 
-    const note = await screen.findByRole("button", { name: /^Last note,/ });
-    const rationale = screen.getByText("Light and quick");
-    // Row data first, the model's voice second (DESIGN.md, "Last note line").
-    expect(
-      note.compareDocumentPosition(rationale) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    // An AI row already carries the model's own rationale line; stacking the
+    // Last note above it read as too busy (DESIGN.md, "Last note line").
+    expect(screen.getByText("Light and quick")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Last note,/ })).toBeNull();
   });
 
   it("shows the note in full on a decided row, labelled and inert", () => {
