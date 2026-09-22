@@ -9,6 +9,7 @@ import {
   type TonightsDinnerEntry,
 } from "../lib/tonights-dinner";
 import { kindBarClass } from "./kind-bar";
+import { ConfirmPair } from "./confirm-pair";
 import { deleteLogEntry, updateLogEntry } from "./log/actions";
 import { inputClass, labelClass } from "./log/log-entry-row";
 import { RowChips } from "./tonight-row";
@@ -364,10 +365,9 @@ const removeButton =
  * then deletes today's Log entry for the Option via the existing
  * `deleteLogEntry` server action, and "Cancel" disarms it.
  *
- * The armed group renders Cancel first, Remove last — the row is
- * `justify-between`, so the *last* child lands at the same right edge the
- * single rest-state "Remove" occupied. Confirming is then a double-tap in
- * one spot; Cancel sits further away, not under the finger by accident.
+ * The armed group is the shared `ConfirmPair`; the row is `justify-between`,
+ * so its last child lands at the same right edge the single rest-state
+ * "Remove" occupied.
  *
  * `deleteLogEntry` revalidates Tonight, so on a successful delete the server
  * drops this row from the block (and, if it was the last one, returns the
@@ -409,25 +409,13 @@ function RemoveControl({
 
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() => setConfirming(false)}
-        className={`${removeButton} text-muted disabled:opacity-60`}
-      >
-        Cancel
-      </button>
-      <span aria-hidden="true" className="text-chip text-muted">
-        ·
-      </span>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={runRemove}
-        className={`${removeButton} font-emphasis text-danger disabled:opacity-60`}
-      >
-        Remove
-      </button>
+      <ConfirmPair
+        buttonClass={removeButton}
+        label="Remove"
+        pending={pending}
+        onConfirm={runRemove}
+        onCancel={() => setConfirming(false)}
+      />
     </div>
   );
 }

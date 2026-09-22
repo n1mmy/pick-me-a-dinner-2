@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogRejectionRow, OptionChoice } from "../../db/queries";
 import { OptionCombobox } from "../option-combobox";
+import { ConfirmPair } from "../confirm-pair";
 import { inputClass, labelClass } from "./log-entry-row";
 import {
   createRejection,
@@ -232,11 +233,9 @@ export function AddRejectionForm({
  * Both screens that render it — the Log screen and the Option detail page —
  * group Rejections under a date header, so the row itself carries no date.
  *
- * The armed pair renders Cancel then Delete, not Delete then Cancel: this
- * group is the row's own right edge (`justify-between`, nothing after it),
- * so the *last* child lands where rest-state Delete already was — confirming
- * is then a double-tap in one spot, and Cancel isn't under the finger by
- * accident.
+ * The armed `ConfirmPair` is the row's own right edge (`justify-between`,
+ * nothing after it), so its last child lands where rest-state Delete
+ * already was.
  */
 export function RejectionRow({
   rejection,
@@ -311,27 +310,13 @@ export function RejectionRow({
             </span>
           )}
           {confirmDelete ? (
-            <>
-              <button
-                type="button"
-                disabled={pending}
-                className={`${actionButton} text-muted`}
-                onClick={() => setConfirmDelete(false)}
-              >
-                Cancel
-              </button>
-              <span aria-hidden="true" className="text-chip text-muted">
-                ·
-              </span>
-              <button
-                type="button"
-                disabled={pending}
-                className={`${actionButton} font-emphasis text-danger`}
-                onClick={runDelete}
-              >
-                Delete
-              </button>
-            </>
+            <ConfirmPair
+              buttonClass={actionButton}
+              label="Delete"
+              pending={pending}
+              onConfirm={runDelete}
+              onCancel={() => setConfirmDelete(false)}
+            />
           ) : (
             <>
               <button

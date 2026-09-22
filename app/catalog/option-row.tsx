@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { OptionWithTags } from "../../db/queries";
 import { PickButton } from "../pick-button";
+import { ConfirmPair } from "../confirm-pair";
 import { archiveOption, deleteOption } from "./actions";
 import { OptionForm } from "./option-form";
 
@@ -14,13 +15,9 @@ const actionButton =
 /**
  * One Catalog row. Shows the Option name with Edit / Archive / Delete actions;
  * Edit expands the row in place into the form, and the destructive actions use
- * the §17 inline-confirm pattern ("Cancel · Archive" / "Cancel · Delete").
- *
- * The armed pair renders Cancel first — `PickButton` pins to the row's right
- * edge either way, so the confirm action (last, immediately left of it) lands
- * where rest-state Delete already was, letting a Delete confirm be a
- * double-tap in one spot; Cancel takes Edit's old slot instead, not under the
- * finger by accident.
+ * the §17 inline-confirm pattern — the armed `ConfirmPair` ("Cancel · Archive"
+ * / "Cancel · Delete"). `PickButton` pins to the row's right edge either way,
+ * so the pair's last child lands where rest-state Delete already was.
  */
 export function OptionRow({
   option,
@@ -113,29 +110,14 @@ export function OptionRow({
               </button>
             </>
           ) : (
-            <>
-              <button
-                type="button"
-                disabled={pending}
-                className={`${actionButton} text-muted`}
-                onClick={() => setConfirm(null)}
-              >
-                Cancel
-              </button>
-              <span aria-hidden="true" className="text-chip text-muted">
-                ·
-              </span>
-              <button
-                type="button"
-                disabled={pending}
-                className={`${actionButton} font-emphasis ${
-                  confirm === "delete" ? "text-danger" : "text-action"
-                }`}
-                onClick={confirm === "delete" ? runDelete : runArchive}
-              >
-                {confirm === "delete" ? "Delete" : "Archive"}
-              </button>
-            </>
+            <ConfirmPair
+              buttonClass={actionButton}
+              label={confirm === "delete" ? "Delete" : "Archive"}
+              tone={confirm === "delete" ? "danger" : "action"}
+              pending={pending}
+              onConfirm={confirm === "delete" ? runDelete : runArchive}
+              onCancel={() => setConfirm(null)}
+            />
           )}
           <PickButton optionId={option.id} />
         </div>

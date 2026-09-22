@@ -160,6 +160,7 @@ same day, `line` was split into `line` (a control's own border) and the
 lighter `divider` (row/section rules): 3:1 read as too heavy once it was the
 color behind every list divider in the app, not only the one hairline rule
 idea #2 measured.
+
 `success` and `danger` no longer share an exact hex with `recency-recent` /
 `recency-overdue`: the recency anchors are tuned only for the low-opacity
 `color-mix()` chip backgrounds in `lib/recency-color.ts`, which is a different
@@ -288,7 +289,7 @@ button label — see the AI search "done" badge note in
   squeezed twice at once. Past 900px PICK moves to the row's right edge,
   Reject to its left.
 - **Tonight row anatomy:** A flat, uniform ledger — every row the same height,
-  separated by a 1px `line` rule, no cards, no shadows, no row given a
+  separated by a 1px `divider` rule, no cards, no shadows, no row given a
   different background. A 3px vertical meal-kind bar (`kind-home` /
   `kind-restaurant`) sits flush on the row's left edge. Rank number in Geist
   Mono `muted`. Option name in Fraunces, uncolored. Directly under the name

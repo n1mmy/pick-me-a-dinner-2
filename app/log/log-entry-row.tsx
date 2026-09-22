@@ -5,6 +5,7 @@ import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogEntryRow, OptionChoice } from "../../db/queries";
 import { OptionCombobox } from "../option-combobox";
 import { PickButton } from "../pick-button";
+import { ConfirmPair } from "../confirm-pair";
 import { deleteLogEntry, updateLogEntry } from "./actions";
 
 /**
@@ -26,13 +27,9 @@ const actionButton =
 /**
  * One Log entry row. Shows the Option name and note with Edit / Delete actions;
  * Edit expands the row in place into the form, Delete uses the §17
- * inline-confirm pattern. A saved edit collapses with a quiet "Saved".
- *
- * The armed pair renders Cancel then Delete — `PickButton` pins to the row's
- * right edge either way, so Delete (last, immediately left of it) lands where
- * rest-state Delete already was, letting a confirm be a double-tap in one
- * spot; Cancel takes Edit's old slot instead, not under the finger by
- * accident.
+ * inline-confirm pattern — the armed `ConfirmPair`. A saved edit collapses
+ * with a quiet "Saved". `PickButton` pins to the row's right edge either way,
+ * so the pair's last child lands where rest-state Delete already was.
  */
 export function EntryRow({
   entry,
@@ -94,27 +91,13 @@ export function EntryRow({
             </span>
           )}
           {confirmDelete ? (
-            <>
-              <button
-                type="button"
-                disabled={pending}
-                className={`${actionButton} text-muted`}
-                onClick={() => setConfirmDelete(false)}
-              >
-                Cancel
-              </button>
-              <span aria-hidden="true" className="text-chip text-muted">
-                ·
-              </span>
-              <button
-                type="button"
-                disabled={pending}
-                className={`${actionButton} font-emphasis text-danger`}
-                onClick={runDelete}
-              >
-                Delete
-              </button>
-            </>
+            <ConfirmPair
+              buttonClass={actionButton}
+              label="Delete"
+              pending={pending}
+              onConfirm={runDelete}
+              onCancel={() => setConfirmDelete(false)}
+            />
           ) : (
             <>
               <button
