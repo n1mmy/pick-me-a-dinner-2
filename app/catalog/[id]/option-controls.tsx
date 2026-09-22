@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { OptionWithTags } from "../../../db/queries";
+import { escapeToCancel } from "../../escape-to-cancel";
 import { PickButton } from "../../pick-button";
 import { ConfirmPair } from "../../confirm-pair";
 import { rejectOption } from "../../rejection-actions";
@@ -64,6 +65,11 @@ export function OptionControls({
   const [pending, startTransition] = useTransition();
 
   const boxId = `reject-box-${option.id}`;
+
+  function cancelReject() {
+    setRejecting(false);
+    setReason("");
+  }
 
   function submitReject() {
     setError(null);
@@ -203,6 +209,7 @@ export function OptionControls({
             event.preventDefault();
             submitReject();
           }}
+          onKeyDown={escapeToCancel(cancelReject, pending)}
           className="flex items-center gap-2"
         >
           <input
@@ -235,10 +242,7 @@ export function OptionControls({
           </button>
           <button
             type="button"
-            onClick={() => {
-              setRejecting(false);
-              setReason("");
-            }}
+            onClick={cancelReject}
             disabled={pending}
             className={`min-h-11 shrink-0 rounded-control px-3 text-body
               text-muted transition-colors duration-short disabled:opacity-60

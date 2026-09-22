@@ -324,7 +324,7 @@ export function OptionForm({
           tab bar (its own height plus the safe-area inset); desktop has no
           bottom bar, so it sits flush with the viewport edge. Taking the bar
           out of flow means the form needs its own trailing clearance so the
-          fixed bar never covers the last field — see the `pb-20` on
+          fixed bar never covers the last field — see the `pb-[80px]` on
           `<form>`. The inner `.column` re-applies the page's own centering
           and padding so Save/Cancel land under the same fields above them,
           instead of hugging the far-left edge of the now much wider bar. */}
