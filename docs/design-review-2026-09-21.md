@@ -207,32 +207,33 @@ match the Tonight search box's identical clear (`absolute inset-y-0 right-0
 w-11`, 44×44px) and widened the input's `pr-9` to `pr-11` to keep query text
 clear of the wider button.
 
-### Stale code comments (fix opportunistically, not urgent)
-- `tonight-row.tsx:373` says the never-eaten `new` chip is "tinted green like
-  a long-overdue one." Post-swap, overdue is red — and
-  `recencyChipBgStrong(60)` does render red. The comment is backwards.
-- `tonight-screen.tsx:1188` calls the exclude chip "a filled danger exclude
-  chip"; it's `bg-exclude`, not danger.
+### Stale code comments ✅ fixed (2026-09-22)
+- `tonight-row.tsx` said the never-eaten `new` chip is "tinted green like a
+  long-overdue one." Post-swap, overdue is red — and `recencyChipBgStrong(60)`
+  does render red. Corrected to "red."
+- `tonight-screen.tsx` called the exclude chip "a filled danger exclude chip";
+  it's `bg-exclude`, not danger. The word "danger" dropped from the comment.
 
 ## 3. UX improvement ideas (not scheduled into a/b/c — proposals only)
 
-Ranked by value, kept inside the "sharp instrument" brief:
+Ranked by value, kept inside the "sharp instrument" brief. #1-3 are done;
+#4-7 remain proposals.
 
-1. **Build the desktop row (D3).** Highest perceived-quality return, and it's
-   already specified so it needs no new design decisions. At 700px the current
-   two-line row + right-floated Pick/Reject stack shows roughly half the
-   Options a single-line row would. Density is the whole product thesis.
-2. **Darken the ledger rule.** `line` on `bg` is **1.27:1**. Dividers are
-   decorative so there's no WCAG failure — but the flat hairline-separated
-   ledger *is* the aesthetic, and at 1.27:1 it effectively vanishes on a
-   bright screen in a kitchen. `#d8dade → #adaeb2` puts it at 2.0:1;
-   `#8a8c8e` at 3.0:1. Worth a look at both.
-3. **Let the Household out of a 50–90s AI search.** `SearchBox` disables the
-   input *and* the button for the whole run (`tonight-screen.tsx:991`,
-   `:1044`) with no exit. A minute of a fully-locked filter zone is a long
-   time at 5:37pm. Two cheap moves: don't disable the text input (typing
-   during the wait costs nothing), and give the button a Cancel state that
-   drops the pending result client-side and re-enables the box.
+1. ~~**Build the desktop row (D3).**~~ ✅ done — cherry-picked from `7d6a4f7`
+   (pass c); see D3 above.
+2. ~~**Darken the ledger rule.**~~ ✅ done (2026-09-22) — `line` went from
+   1.27:1 against `bg` to 3.0:1 (`#8a8c8e`). See the Decisions Log.
+3. ~~**Let the Household out of a 50–90s AI search.**~~ ✅ done (2026-09-22) —
+   the search input and its in-field Clear are never disabled anymore, so
+   typing and picking by name during the wait works exactly as it does at
+   rest; the Search button becomes a Cancel affordance while pending (still
+   showing the live elapsed-second count) that returns the Household to
+   "Search" immediately, without waiting on the model call already dispatched
+   server-side. A `searchGenerationRef` bump on Cancel/Clear/day-change guards
+   a since-abandoned response from landing late and overwriting state nobody
+   is waiting on. Covered by three `tonight-screen.test.tsx` cases: the box
+   staying enabled in flight, a typeahead Pick succeeding while a search never
+   resolves, and Cancel dropping a late-arriving result.
 4. **Auto-expand the disclosures when the picker is empty.** In the
    `allFiltered` state the screen says *"No Options are available for
    Friday"* and the actual explanation is two **collapsed** buttons further

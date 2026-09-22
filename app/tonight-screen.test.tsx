@@ -98,30 +98,19 @@ afterEach(() => {
 });
 
 /**
- * Wait for the in-flight AI-search transition to *fully* settle.
- *
- * The search runs inside an async `useTransition` (`startTransition(async …)`).
- * Under React 19 the transition's `pending` flag does not flip back to `false`
- * in the same commit that renders the AI result — it settles a commit later. A
- * bare `await screen.findByText(<result>)` therefore resolves while `pending`
- * is still `true`, and the search input and Search/Clear buttons are all
- * `disabled={pending}`: a `fireEvent.click` fired in that window hits a
- * still-disabled control and is silently dropped, and an `input.disabled`
- * assertion reads the not-yet-flushed value. That race is what made this block
- * flaky.
- *
- * The submit button is `disabled` only while `pending`, so waiting for it to
- * be enabled again pins `pending` back to `false` — and the AI result (or the
- * inline error) lands in that same transition commit. The button is matched by
- * the `/^Search/` prefix so the wait rides out its label cycling through
- * "Search" → "Searching — …" → "Search complete …".
+ * Wait for the in-flight AI-search transition to *fully* settle — the button
+ * reverts from its pending "Cancel search — …" label back to "Search" or
+ * "Search complete …" once the result (or the inline error) has landed.
+ * Nothing here is `disabled` while pending (design review UX idea #3 — the
+ * Household is never locked out of the box or the rest of the screen while a
+ * search runs), so this only needs to wait on the label, not on any
+ * `disabled` flag.
  */
 async function waitForSearchSettled() {
   await waitFor(() => {
-    const button = screen.getByRole("button", {
-      name: /^Search/,
-    }) as HTMLButtonElement;
-    expect(button.disabled).toBe(false);
+    expect(
+      screen.queryByRole("button", { name: /^Cancel search/ }),
+    ).toBeNull();
   });
 }
 
@@ -344,7 +333,7 @@ describe("TonightScreen — AI search", () => {
     expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeTruthy();
   });
 
-  it("disables the search box in flight and keeps the deterministic list visible", async () => {
+  it("never disables the search box in flight, and keeps the deterministic list visible", async () => {
     // A deferred result lets the test observe the in-flight state.
     let resolveSearch: (result: AiSearchResult) => void = () => {};
     mockedAiSearch.mockReturnValue(
@@ -358,17 +347,16 @@ describe("TonightScreen — AI search", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
-    // While the search is in flight the box is disabled — so only one search
-    // runs at a time — and the deterministic list stays visible underneath.
-    // In flight the Search button is a spinner; its accessible name carries
-    // the elapsed-second count, so it is matched by prefix.
-    await screen.findByRole("button", { name: /^Searching/ });
-    expect(searchInput().disabled).toBe(true);
+    // While the search is in flight the box stays enabled (UX idea #3 — the
+    // Household is never locked out of it) and the deterministic list stays
+    // visible underneath. The Search button becomes Cancel; its accessible
+    // name carries the elapsed-second count, so it is matched by prefix.
+    await screen.findByRole("button", { name: /^Cancel search/ });
+    expect(searchInput().disabled).toBe(false);
     expect(screen.getByText("Apple Crumble")).toBeTruthy();
 
-    // The result arrives, swaps in, and re-enables the box. Resolving inside
-    // `act` flushes the transition — input and result both settle — so the
-    // disabled assertion no longer races the not-yet-committed `pending` flip.
+    // The result arrives and swaps in. Resolving inside `act` flushes the
+    // transition so the result and the button's reverted label both settle.
     await act(async () => {
       resolveSearch({
         ok: true,
@@ -378,6 +366,57 @@ describe("TonightScreen — AI search", () => {
     await screen.findByText("Light and quick");
     await waitForSearchSettled();
     expect(searchInput().disabled).toBe(false);
+  });
+
+  it("still Picks by typing while an AI search is in flight", async () => {
+    // The complaint this fixes: a Household member who already knows what
+    // they want for dinner shouldn't have to wait out someone else's 50–90s
+    // AI search just to type a name and pick it (UX idea #3). The search's
+    // own result never resolves in this test — if picking depended on it,
+    // this test would hang.
+    mockedAiSearch.mockReturnValue(new Promise<AiSearchResult>(() => {}));
+
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByRole("button", { name: /^Cancel search/ });
+
+    fireEvent.change(searchInput(), { target: { value: "Apple" } });
+    fireEvent.keyDown(searchInput(), { key: "ArrowDown" });
+    fireEvent.keyDown(searchInput(), { key: "Enter" });
+
+    await waitFor(() => {
+      expect(mockedPick).toHaveBeenCalledWith("o1", undefined);
+    });
+  });
+
+  it("Cancel returns control immediately and drops a late-arriving result", async () => {
+    let resolveSearch: (result: AiSearchResult) => void = () => {};
+    mockedAiSearch.mockReturnValue(
+      new Promise<AiSearchResult>((resolve) => {
+        resolveSearch = resolve;
+      }),
+    );
+
+    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByRole("button", { name: /^Cancel search/ });
+
+    // Cancel does not wait on the network call it is giving up on.
+    fireEvent.click(screen.getByRole("button", { name: /^Cancel search/ }));
+    expect(screen.getByRole("button", { name: "Search" })).toBeTruthy();
+    expect(screen.getByText("Apple Crumble")).toBeTruthy();
+
+    // The model call that was already dispatched still finishes server-side;
+    // its result must not resurrect after the Household has moved on.
+    await act(async () => {
+      resolveSearch({
+        ok: true,
+        results: [{ id: "o2", reason: "Light and quick" }],
+      });
+    });
+    expect(screen.queryByText("Light and quick")).toBeNull();
+    expect(screen.getByText("Apple Crumble")).toBeTruthy();
   });
 
   it("clears the error when a later search succeeds", async () => {
