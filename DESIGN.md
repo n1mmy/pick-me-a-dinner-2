@@ -125,7 +125,7 @@ work — see the Decisions Log.)
 | `raised` | `#e8eaed` | Input fill, neutral (non-recency) chip background |
 | `ink` | `#25282d` | Primary text |
 | `muted` | `#656970` | Tags baseline, dates, secondary text, rank numbers |
-| `line` | `#d8dade` | Hairline rules and borders |
+| `line` | `#8a8c8e` | Hairline rules and borders |
 | `kind-home` | `#2c6e6e` | Meal-kind left bar — home-cooked (teal) |
 | `kind-restaurant` | `#7a4f6b` | Meal-kind left bar — restaurant (plum) |
 | `kind-home-wash` | `#dde8e8` | Decided-row background — much-lighter home wash |
@@ -153,6 +153,8 @@ button is a neutral charcoal so it never collides with the heatmap.
 
 `muted`, `success`, and `danger` were retuned 2026-09-21 for AA text contrast
 (4.5:1 against every surface they render text on) — see the Decisions Log.
+`line` was darkened 2026-09-22 from a 1.27:1 hairline (functionally invisible
+on a bright kitchen screen) to 3:1 against `bg` — see the Decisions Log.
 `success` and `danger` no longer share an exact hex with `recency-recent` /
 `recency-overdue`: the recency anchors are tuned only for the low-opacity
 `color-mix()` chip backgrounds in `lib/recency-color.ts`, which is a different
@@ -471,3 +473,4 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-09-19 | Closed-day toggles are seven sub-44px chips in one row | Seven 44px targets plus gaps overrun a 375px viewport, and wrapping or stacking them destroys the week-shape the control is read by. Joins the Tonight header's documented exceptions to the control-height floor: the toggle is visible, instantly reversible, and writes nothing until save. |
 | 2026-09-21 | `muted`, `danger`, `success` (light) and `danger`, `accent` (dark) retuned for AA text/label contrast; `DESIGN.md` corrected against the code it had drifted from | A design-intelligence audit (`docs/design-review-2026-09-21.md`) found the Layout section still describing the pre-Affinity-chip "Explanation chip" and plain-text tags (both superseded 2026-06-17 in the Color section only), the documented spacing scale not matching `globals.css`/`tailwind.config.ts`, `planned`/`success-wash` documented as consumed when no screen renders them, and five color tokens failing 4.5:1 in the role they actually render (secondary text, inline errors, a button label). Fixed the drifted doc sections in place rather than re-deriving them from scratch, and retuned only the failing tokens — the recency heatmap anchors (`recency-*`) are untouched, since their contrast problem (a translucent chip fill under `text-ink`) is different from a token used as solid text or a button label. |
 | 2026-09-21 | Desktop Tonight row: dropped the single-dense-line / centered Explanation chip; widened the desktop column to 900px; PICK/Reject swap gated behind 900px, not the 720px rail breakpoint | A literal single dense line never fit rows with an Affinity chip, tags, a Last note, or an AI reason, and an earlier attempt to merge the name+chip lines only fit sometimes — depending on name/tag length — so chips inconsistently rode the name's line. Chips now stack under the name at every width, same order and position always. Separately: the rail's ~200px and the column's desktop max-width land at the same 720px step, so right after it the column is briefly narrower than its own mobile cap; letting PICK/Reject go horizontal at that same step squeezed the row twice at once, so that swap was moved to a later 900px breakpoint. |
+| 2026-09-22 | `line` (light) darkened `#d8dade` → `#8a8c8e` | `docs/design-review-2026-09-21.md` UX idea #2: the hairline ledger rule measured 1.27:1 against `bg`, near-invisible on a bright kitchen screen. `#8a8c8e` clears 3:1. Dark theme's `line` was left as-is — it wasn't part of the measured finding and dark is separately flagged as not yet visually verified. |

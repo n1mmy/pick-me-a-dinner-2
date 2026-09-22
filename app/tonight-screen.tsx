@@ -1192,7 +1192,7 @@ function KindSegment({
 /**
  * One tri-state tag filter chip. It cycles off → include → exclude → off on
  * tap. Each state has its own fill — a neutral off chip, a filled action
- * include chip, a filled danger exclude chip — plus a text decoration
+ * include chip, a filled exclude chip — plus a text decoration
  * (underline / strikethrough) so state stays legible without relying on color
  * alone (§18). The border is present in every state so toggling never changes
  * the chip's width and the wrapped rows never reflow. The chip's accessible

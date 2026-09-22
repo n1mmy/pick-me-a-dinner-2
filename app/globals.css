@@ -21,7 +21,10 @@
    * lands 3.57-4.31:1, an AA fail for a token used at 12-13px in 60+ places.
    * See docs/design-review-2026-09-21.md A1. */
   --color-muted: #656970;
-  --color-line: #d8dade;
+  /* #8a8c8e, not the DESIGN.md-listed #d8dade: darkened from 1.27:1 against
+   * `bg` to 3:1 — the hairline rule was near-invisible on a bright kitchen
+   * screen. See docs/design-review-2026-09-21.md, UX idea #2. */
+  --color-line: #8a8c8e;
   /* Meal-kind left bar — teal for home-cooked, plum for restaurant. */
   --color-kind-home: #2c6e6e;
   --color-kind-restaurant: #7a4f6b;

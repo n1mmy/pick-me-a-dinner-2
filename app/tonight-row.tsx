@@ -396,7 +396,7 @@ function recencyLabel(days: number): string {
  * The Recency chip — the Option's per-Option recency: days since it was last
  * eaten (`18d`, or `60d+` at the cap), or `new` when it has never been eaten.
  * A never-eaten Option sits at the `CAP`-day overdue end of the heatmap, so
- * the `new` chip is tinted green like a long-overdue one. The stronger fill
+ * the `new` chip is tinted red like a long-overdue one. The stronger fill
  * (`recencyChipBgStrong`) sets it apart from the fainter Tag chips.
  */
 function RecencyChip({
