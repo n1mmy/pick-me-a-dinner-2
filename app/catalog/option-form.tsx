@@ -165,7 +165,13 @@ export function OptionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+    // `pb-[80px]` (not an on-scale step — an explicit px value, per
+    // DESIGN.md's spacing-scale note on why arbitrary Tailwind defaults are
+    // unsafe here) reserves the space the `fixed` Save/Cancel bar no longer
+    // holds in flow (~69px: the 44px buttons, its own 24px vertical padding,
+    // its 1px top border) — otherwise the bar would overlap the form's own
+    // last field once it's out of flow.
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 pb-[80px]">
       {isRestaurant && placesEnabled && (
         <PlacesSearchBox
           onAutofill={applyAutofill}
@@ -302,45 +308,55 @@ export function OptionForm({
         </p>
       )}
 
-      {/* Bleeds full-width out of the form's own column padding so it reads
-          as a footer bar, not one more gapped row. Sticks on both
-          breakpoints so Save/Cancel are never a scroll away on a long
-          Restaurant form: on mobile it clears the tab bar (its own height
-          plus the safe-area inset); on desktop there's no bottom bar in the
-          way (the nav is a left rail), so it just sticks to the viewport
-          edge. */}
+      {/* A fixed footer bar, not a `sticky` one — `sticky` only ever bleeds
+          to the edges of `.column`'s own padding, and on desktop `.column`
+          is a 900px box centered with leftover margin on either side (see
+          `.column` in globals.css), so the bar read as inset rather than
+          full-width. `fixed` escapes that entirely: `inset-x-0` on mobile,
+          `desktop:left-[var(--rail-width)]` (matching `AppNav`'s own left
+          rail) with `right: 0` carried over from `inset-x-0` on desktop —
+          truly edge-to-edge either way. The bottom offset clears the mobile
+          tab bar (its own height plus the safe-area inset); desktop has no
+          bottom bar, so it sits flush with the viewport edge. Taking the bar
+          out of flow means the form needs its own trailing clearance so the
+          fixed bar never covers the last field — see the `pb-20` on
+          `<form>`. The inner `.column` re-applies the page's own centering
+          and padding so Save/Cancel land under the same fields above them,
+          instead of hugging the far-left edge of the now much wider bar. */}
       <div
-        className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))]
-          desktop:bottom-0 z-10 -mx-4 flex items-center gap-2 border-t
-          border-divider bg-surface px-4 py-3"
+        className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))]
+          z-10 border-t border-divider bg-surface desktop:bottom-0
+          desktop:left-[var(--rail-width)]"
       >
-        <button
-          type="submit"
-          disabled={pending || justSaved}
-          className={`min-h-11 rounded-control px-4 text-body font-emphasis
-            transition-colors duration-micro disabled:opacity-60 ${focusRing} ${
-              justSaved
-                ? "bg-raised text-success"
-                : "bg-action text-action-ink hover:bg-action-hover"
-            }`}
-        >
-          {justSaved ? "Saved ✓" : initial ? "Save" : "Add"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending || justSaved}
-          className={`min-h-11 rounded-control px-3 text-body text-muted
-            disabled:opacity-60 ${focusRing}`}
-        >
-          Cancel
-        </button>
-        {/* A sibling live region, not `aria-live` on the button itself — the
-            button is usually still focused when its label flips (PickButton's
-            same reasoning). */}
-        <p className="sr-only" role="status" aria-live="polite">
-          {justSaved ? "Saved" : ""}
-        </p>
+        <div className="column flex items-center gap-2 py-3">
+          <button
+            type="submit"
+            disabled={pending || justSaved}
+            className={`min-h-11 rounded-control px-4 text-body font-emphasis
+              transition-colors duration-micro disabled:opacity-60 ${focusRing} ${
+                justSaved
+                  ? "bg-raised text-success"
+                  : "bg-action text-action-ink hover:bg-action-hover"
+              }`}
+          >
+            {justSaved ? "Saved ✓" : initial ? "Save" : "Add"}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={pending || justSaved}
+            className={`min-h-11 rounded-control px-3 text-body text-muted
+              disabled:opacity-60 ${focusRing}`}
+          >
+            Cancel
+          </button>
+          {/* A sibling live region, not `aria-live` on the button itself —
+              the button is usually still focused when its label flips
+              (PickButton's same reasoning). */}
+          <p className="sr-only" role="status" aria-live="polite">
+            {justSaved ? "Saved" : ""}
+          </p>
+        </div>
       </div>
     </form>
   );
