@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { OptionWithTags } from "../../../db/queries";
@@ -7,7 +8,6 @@ import { PickButton } from "../../pick-button";
 import { ConfirmPair } from "../../confirm-pair";
 import { rejectOption } from "../../rejection-actions";
 import { archiveOption, deleteOption, unarchiveOption } from "../actions";
-import { OptionForm } from "../option-form";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
@@ -27,15 +27,17 @@ const editButton =
  * its full view, not only from the screen that happens to carry each control.
  *
  * Every control reuses the existing server action: `pickTonight` (via the
- * shared `PickButton`), `rejectOption`, `updateOption` (via the reused
- * `OptionForm`), `archiveOption` / `unarchiveOption`, and `deleteOption`.
- * Pick, Reject, and Edit update the page in place — the reused actions
- * revalidate `/catalog/[id]`. Delete is offered only when the Option has no
- * Log entries (`canDelete`): the Hard-delete rule (ADR-0001) would otherwise
- * block it, so the control is hidden rather than shown to fail. A successful
- * Delete navigates back to the Catalog, since the Option no longer exists;
- * `runDelete` still keeps its inline-error path as a guard against a Log
- * entry being added between page load and the click.
+ * shared `PickButton`), `rejectOption`, `archiveOption` / `unarchiveOption`,
+ * and `deleteOption`. Edit is a link to `?edit=1`, where `EditPanel` renders
+ * the reused `OptionForm` in place of this whole section (see `page.tsx`) —
+ * a real URL state rather than a client toggle, so Back cancels it and nothing
+ * stale is left showing underneath. Pick and Reject update the page in
+ * place — the reused actions revalidate `/catalog/[id]`. Delete is offered
+ * only when the Option has no Log entries (`canDelete`): the Hard-delete rule
+ * (ADR-0001) would otherwise block it, so the control is hidden rather than
+ * shown to fail. A successful Delete navigates back to the Catalog, since
+ * the Option no longer exists; `runDelete` still keeps its inline-error path
+ * as a guard against a Log entry being added between page load and the click.
  *
  * The Archive control is a toggle: an active Option offers Archive, an Archived
  * one Un-archive — keeping the member on the page and turning it back into a
@@ -45,17 +47,12 @@ const editButton =
  */
 export function OptionControls({
   option,
-  allTags,
-  placesEnabled,
   canDelete,
 }: {
   option: OptionWithTags;
-  allTags: string[];
-  placesEnabled: boolean;
   canDelete: boolean;
 }) {
   const router = useRouter();
-  const [editing, setEditing] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [confirm, setConfirm] = useState<"archive" | "delete" | null>(null);
@@ -114,36 +111,17 @@ export function OptionControls({
     });
   }
 
-  // Edit reuses the Option form inline; a save revalidates `/catalog/[id]`,
-  // so the page's fields and ranking refresh in place under the collapsed form.
-  if (editing) {
-    return (
-      <OptionForm
-        kind={option.kind}
-        initial={option}
-        allTags={allTags}
-        placesEnabled={placesEnabled}
-        onCancel={() => setEditing(false)}
-        onSaved={() => setEditing(false)}
-      />
-    );
-  }
-
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-1">
         {confirm === null ? (
           <>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setEditing(true);
-              }}
+            <Link
+              href={`/catalog/${option.id}?edit=1`}
               className={editButton}
             >
               Edit
-            </button>
+            </Link>
             {option.active ? (
               <button
                 type="button"

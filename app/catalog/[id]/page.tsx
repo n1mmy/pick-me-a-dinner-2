@@ -20,6 +20,7 @@ import { EntryRow } from "../../log/log-entry-row";
 import { RejectionRow } from "../../log/rejection-row";
 import { kindBarClass } from "../../kind-bar";
 import { RowChips } from "../../tonight-row";
+import { EditPanel } from "./edit-panel";
 import { OptionControls } from "./option-controls";
 
 /**
@@ -48,13 +49,22 @@ const sectionHeading =
  * The recency is computed by `rankOption` over the same inputs the Tonight
  * page assembles, so the two screens never disagree. An id matching no Option
  * — a stale link, a Deleted Option, or junk — renders Next's `notFound()`.
+ *
+ * `?edit=1` swaps the Recency/Actions/Details block for `EditPanel` (the
+ * reused `OptionForm`), History unchanged below it — edit is a real URL
+ * state, not a client toggle, so it's back-button-able and the read-only
+ * fields below it are never rendered stale under an open form.
  */
 export default async function OptionDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ edit?: string | string[] }>;
 }) {
   const { id } = await params;
+  const { edit: rawEdit } = await searchParams;
+  const editing = rawEdit === "1";
   const option = await getOptionById(id);
   if (!option) notFound();
 
@@ -139,76 +149,87 @@ export default async function OptionDetailPage({
         </h1>
       </header>
 
-      <section className="flex flex-col gap-2">
-        <h2 className={sectionHeading}>Recency</h2>
-        <RowChips
-          recencyDays={ranking.recencyDays}
-          neverEaten={ranking.neverEaten}
-          tags={ranking.tags}
-        />
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className={sectionHeading}>Actions</h2>
-        <OptionControls
-          option={option}
-          allTags={allTags}
-          placesEnabled={placesEnabled()}
-          canDelete={optionLog.length === 0}
-        />
-      </section>
-
-      {hasDetails && (
+      {editing ? (
         <section className="flex flex-col gap-2">
-          <dl className="flex flex-col">
-            {option.notes && <Field label="Notes">{option.notes}</Field>}
-            {option.url && (
-              <Field label="Link">
-                {linkHref ? (
-                  <a
-                    href={linkHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={linkClass}
-                  >
-                    {option.url}
-                  </a>
-                ) : (
-                  option.url
-                )}
-              </Field>
-            )}
-            {isRestaurant && option.address && (
-              <Field label="Address">{option.address}</Field>
-            )}
-            {isRestaurant && option.phone && (
-              <Field label="Phone">
-                <a href={`tel:${option.phone}`} className={linkClass}>
-                  {option.phone}
-                </a>
-              </Field>
-            )}
-            {isRestaurant && option.mapsUrl && (
-              <Field label="Map">
-                {mapsHref ? (
-                  <a
-                    href={mapsHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={linkClass}
-                  >
-                    Google Maps
-                  </a>
-                ) : (
-                  option.mapsUrl
-                )}
-              </Field>
-            )}
-            {isRestaurant && closedDays && (
-              <Field label="Closed days">{closedDays}</Field>
-            )}
-          </dl>
+          <h2 className={sectionHeading}>Edit</h2>
+          <EditPanel
+            option={option}
+            allTags={allTags}
+            placesEnabled={placesEnabled()}
+          />
         </section>
+      ) : (
+        <>
+          <section className="flex flex-col gap-2">
+            <h2 className={sectionHeading}>Recency</h2>
+            <RowChips
+              recencyDays={ranking.recencyDays}
+              neverEaten={ranking.neverEaten}
+              tags={ranking.tags}
+            />
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <h2 className={sectionHeading}>Actions</h2>
+            <OptionControls
+              option={option}
+              canDelete={optionLog.length === 0}
+            />
+          </section>
+
+          {hasDetails && (
+            <section className="flex flex-col gap-2">
+              <dl className="flex flex-col">
+                {option.notes && <Field label="Notes">{option.notes}</Field>}
+                {option.url && (
+                  <Field label="Link">
+                    {linkHref ? (
+                      <a
+                        href={linkHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={linkClass}
+                      >
+                        {option.url}
+                      </a>
+                    ) : (
+                      option.url
+                    )}
+                  </Field>
+                )}
+                {isRestaurant && option.address && (
+                  <Field label="Address">{option.address}</Field>
+                )}
+                {isRestaurant && option.phone && (
+                  <Field label="Phone">
+                    <a href={`tel:${option.phone}`} className={linkClass}>
+                      {option.phone}
+                    </a>
+                  </Field>
+                )}
+                {isRestaurant && option.mapsUrl && (
+                  <Field label="Map">
+                    {mapsHref ? (
+                      <a
+                        href={mapsHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={linkClass}
+                      >
+                        Google Maps
+                      </a>
+                    ) : (
+                      option.mapsUrl
+                    )}
+                  </Field>
+                )}
+                {isRestaurant && closedDays && (
+                  <Field label="Closed days">{closedDays}</Field>
+                )}
+              </dl>
+            </section>
+          )}
+        </>
       )}
 
       <section className="flex flex-col gap-2">
