@@ -19,6 +19,7 @@ import {
   buildSnapshot,
   buildSystemPrompt,
   createAiSearchClient,
+  OMITTED_CANDIDATE_REASON,
   parseRankingText,
   resolveModel,
   resolveTailMode,
@@ -252,8 +253,8 @@ describe("buildSnapshot — Closed days", () => {
     });
     // The model hallucinating or wrongly returning b1's number (2) yields no
     // result row for it — idByIndex never held a closed Restaurant's number.
-    const rows = parseRankingText("1|great\n2|nope, closed\n3|also good", idByIndex);
-    expect(rows?.map((r) => r.id)).toEqual(["a1", "c1"]);
+    const parsed = parseRankingText("1|great\n2|nope, closed\n3|also good", idByIndex);
+    expect(parsed?.rows.map((r) => r.id)).toEqual(["a1", "c1"]);
   });
 
   it("serializes a candidate's closedDays as weekday names", () => {
@@ -328,6 +329,42 @@ describe("buildSnapshot — Closed days", () => {
     expect(snapshot.rejections.rejectedTonight.map((r) => r.optionId)).toEqual(
       [2],
     );
+  });
+});
+
+describe("buildSnapshot — Picked on the anchor day", () => {
+  const options = [
+    option("a1", "Apple Crumble"),
+    option("b1", "Banana Bread"),
+    option("c1", "Carrot Cake"),
+  ];
+
+  it("drops Options logged on asOf from the candidates but keeps their Log rows", () => {
+    const { snapshot, idByIndex } = buildSnapshot({
+      options,
+      logEntries: [
+        { optionId: "b1", eatenOn: TODAY, note: null },
+        { optionId: "c1", eatenOn: "2026-05-19", note: null },
+      ],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    // b1 (2) is tonight's Pick; c1 (3), eaten yesterday, stays a candidate.
+    expect(snapshot.options.map((o) => o.id)).toEqual([1, 3]);
+    expect([...idByIndex.keys()]).toEqual([1, 3]);
+    expect(snapshot.log.map((e) => e.optionId)).toContain(2);
+  });
+
+  it("keeps an Option Planned for a later day as a candidate", () => {
+    const { snapshot } = buildSnapshot({
+      options,
+      logEntries: [{ optionId: "b1", eatenOn: "2026-05-21", note: null }],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    expect(snapshot.options.map((o) => o.id)).toEqual([1, 2, 3]);
   });
 });
 
@@ -561,21 +598,29 @@ describe("parseRankingText", () => {
     [2, "b1"],
   ]);
 
+  /** The parsed rows, or `null` for a malformed body. */
+  function rowsOf(text: string) {
+    return parseRankingText(text, idByIndex)?.rows ?? null;
+  }
+
   it("reads one number|rationale line per Option, in written order", () => {
-    expect(parseRankingText("2|first\n1|second", idByIndex)).toEqual([
-      { id: "b1", reason: "first" },
-      { id: "a1", reason: "second" },
-    ]);
+    expect(parseRankingText("2|first\n1|second", idByIndex)).toEqual({
+      rows: [
+        { id: "b1", reason: "first" },
+        { id: "a1", reason: "second" },
+      ],
+      open: false,
+    });
   });
 
   it("applies the same hardening as the tool parser", () => {
     // A hallucinated number, a repeat, and a non-integer number are each
     // dropped; the first placement of a repeated Option is the one kept.
-    const result = parseRankingText(
-      "99|not a real Option\n1|kept\n1|duplicate\n1.5|not an integer\n2|also kept",
-      idByIndex,
-    );
-    expect(result).toEqual([
+    expect(
+      rowsOf(
+        "99|not a real Option\n1|kept\n1|duplicate\n1.5|not an integer\n2|also kept",
+      ),
+    ).toEqual([
       { id: "a1", reason: "kept" },
       { id: "b1", reason: "also kept" },
     ]);
@@ -584,14 +629,14 @@ describe("parseRankingText", () => {
   it("trims whitespace and keeps an empty rationale after the bar", () => {
     // The empty rationale is what `pithy` mode asks for on an obviously bad
     // pick — a bare number and its bar.
-    expect(parseRankingText("  1 | spaced out \n2|", idByIndex)).toEqual([
+    expect(rowsOf("  1 | spaced out \n2|")).toEqual([
       { id: "a1", reason: "spaced out" },
       { id: "b1", reason: "" },
     ]);
   });
 
   it("splits on the first bar only, so a rationale may contain one", () => {
-    expect(parseRankingText("1|overdue | and cheap", idByIndex)).toEqual([
+    expect(rowsOf("1|overdue | and cheap")).toEqual([
       { id: "a1", reason: "overdue | and cheap" },
     ]);
   });
@@ -599,21 +644,63 @@ describe("parseRankingText", () => {
   it("skips a stray line rather than failing the whole response", () => {
     // The prompt forbids a preamble; a model that writes one anyway should
     // cost the household nothing.
-    expect(
-      parseRankingText("Here is my ranking:\n\n1|overdue\n\nHope that helps!", idByIndex),
-    ).toEqual([{ id: "a1", reason: "overdue" }]);
+    expect(rowsOf("Here is my ranking:\n\n1|overdue\n\nHope that helps!")).toEqual([
+      { id: "a1", reason: "overdue" },
+    ]);
   });
 
   it("truncates an over-long rationale", () => {
     const long = "x".repeat(250);
-    const [row] = parseRankingText(`1|${long}`, idByIndex) ?? [];
+    const [row] = rowsOf(`1|${long}`) ?? [];
     expect(row.reason).toHaveLength(201); // 200 characters plus the ellipsis
     expect(row.reason.endsWith("…")).toBe(true);
   });
 
   it("reads the NONE sentinel as a genuinely empty result", () => {
-    expect(parseRankingText("NONE", idByIndex)).toEqual([]);
-    expect(parseRankingText("none\n", idByIndex)).toEqual([]);
+    expect(parseRankingText("NONE", idByIndex)).toEqual({ rows: [], open: false });
+    expect(rowsOf("none\n")).toEqual([]);
+  });
+
+  it("reads an OPEN first line as the model calling the query open", () => {
+    expect(parseRankingText("OPEN\n1|overdue", idByIndex)).toEqual({
+      rows: [{ id: "a1", reason: "overdue" }],
+      open: true,
+    });
+  });
+
+  it("finds OPEN behind a stray preamble, in any case or stray punctuation", () => {
+    for (const text of [
+      "Here is my ranking:\nOPEN\n1|overdue",
+      "open\n1|overdue",
+      "OPEN:\n1|overdue",
+      "**OPEN**\n1|overdue",
+    ]) {
+      expect(parseRankingText(text, idByIndex)?.open).toBe(true);
+    }
+  });
+
+  it("ignores OPEN once the rows have started", () => {
+    // The prompt asks for it first; a late one is not the model's verdict.
+    expect(parseRankingText("1|overdue\nOPEN\n2|fine", idByIndex)).toEqual({
+      rows: [
+        { id: "a1", reason: "overdue" },
+        { id: "b1", reason: "fine" },
+      ],
+      open: false,
+    });
+  });
+
+  it("never mistakes a row or prose mentioning open for the marker", () => {
+    expect(parseRankingText("1|Open late tonight", idByIndex)).toEqual({
+      rows: [{ id: "a1", reason: "Open late tonight" }],
+      open: false,
+    });
+    expect(parseRankingText("Open to anything.\n1|fine", idByIndex)?.open).toBe(false);
+  });
+
+  it("returns null for an OPEN line with no rows after it", () => {
+    // A body cut off after the marker is truncated output, not a ranking.
+    expect(parseRankingText("OPEN", idByIndex)).toBeNull();
   });
 
   it("returns null for a body with no rows and no sentinel", () => {
@@ -670,6 +757,29 @@ describe("buildSystemPrompt", () => {
     // No "never recommend a closed Option" rule — the candidate drop already
     // makes that impossible, so the prompt only has to explain the field.
     expect(prompt.toLowerCase()).not.toMatch(/never recommend/);
+  });
+
+  it("tells the whole-Catalog modes to rank every candidate, history or not", () => {
+    expect(buildSystemPrompt("pithy")).toContain("Every candidate must appear exactly once");
+    expect(buildSystemPrompt("full")).toContain("Every candidate must appear exactly once");
+    expect(buildSystemPrompt("drop")).not.toContain("Every candidate must appear");
+  });
+
+  it("tells the model today's Log rows are tonight's chosen dinner, not candidates", () => {
+    const prompt = buildSystemPrompt("pithy");
+    expect(prompt).toContain("Log rows dated today");
+    expect(prompt).toContain("never return them");
+    // They stay in the snapshot — numbered, with Log rows — so the prompt must
+    // not claim they left the Catalog.
+    expect(prompt).not.toContain("left out of the Catalog");
+  });
+
+  it("asks for an OPEN line above an open query's ranking, in every mode", () => {
+    for (const mode of ["full", "pithy", "drop"] as const) {
+      expect(buildSystemPrompt(mode)).toContain(
+        "first write the single word OPEN alone on a line",
+      );
+    }
   });
 
   it("no longer uses the stale 'closed on Sundays' Rejection example", () => {
@@ -808,11 +918,21 @@ describe("createAiSearchClient — failure model and fallback", () => {
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
   });
 
-  it("keeps the NONE sentinel as an ok empty result", async () => {
+  it("keeps the NONE sentinel as an ok empty result for a narrowing query", async () => {
     // The model legitimately finding nothing — `ok: true`, distinct from the
     // unparseable-body fallback above.
+    const narrowed = buildSnapshot({
+      options: [option("opt-a", "Apple")],
+      logEntries: [],
+      rejections: [],
+      asOf: TODAY,
+      query: "something spicy",
+    });
     messagesCreate.mockResolvedValue(rankingResponse("NONE"));
-    const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(snapshot, idByIndex);
+    const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(
+      narrowed.snapshot,
+      narrowed.idByIndex,
+    );
     expect(result).toEqual({ ok: true, results: [] });
   });
 
@@ -988,5 +1108,186 @@ describe("createAiSearchClient — failure model and fallback", () => {
     expect(params.model).toBe(resolveModel());
     expect(params.thinking).toEqual({ type: "adaptive" });
     expect(params.output_config).toEqual({ effort: "low" });
+  });
+});
+
+describe("createAiSearchClient — backfilling omitted candidates", () => {
+  const options = [
+    option("a1", "Apple Crumble"),
+    option("b1", "Banana Bread"),
+    option("c1", "Carrot Cake"),
+  ];
+
+  /**
+   * Search with a response that ranks only Carrot Cake (3), then Apple (1) —
+   * by default with no `OPEN` line, as a narrowing answer would be written.
+   */
+  async function searchWith(
+    query: string,
+    {
+      text = "3|due\n1|fine",
+      ...overrides
+    }: { text?: string; onResponseText?: (text: string) => void } = {},
+  ) {
+    const { snapshot, idByIndex } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [],
+      asOf: TODAY,
+      query,
+    });
+    messagesCreate.mockResolvedValueOnce({
+      content: [{ type: "text", text }],
+      usage: { input_tokens: 100, output_tokens: 10 },
+    });
+    return createAiSearchClient("k", {
+      model: "claude-sonnet-4-6",
+      ...overrides,
+    }).search(snapshot, idByIndex);
+  }
+
+  beforeEach(() => {
+    messagesCreate.mockReset();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.AI_TAIL_MODE;
+  });
+
+  it("appends an omitted candidate, marked as not ranked, on an empty query", async () => {
+    const result = await searchWith("");
+    expect(result).toEqual({
+      ok: true,
+      results: [
+        { id: "c1", reason: "due" },
+        { id: "a1", reason: "fine" },
+        { id: "b1", reason: OMITTED_CANDIDATE_REASON },
+      ],
+    });
+    const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
+    expect(line).toMatchObject({ resultCount: 3, backfilledCount: 1 });
+  });
+
+  it("appends on a non-empty query the model declared OPEN", async () => {
+    const result = await searchWith("anything good?", {
+      text: "OPEN\n3|due\n1|fine",
+    });
+    expect(result.ok && result.results.map((r) => r.id)).toEqual([
+      "c1",
+      "a1",
+      "b1",
+    ]);
+  });
+
+  it("leaves a non-empty query's shortlist alone when the model did not declare it OPEN", async () => {
+    const result = await searchWith("something sweet");
+    expect(result.ok && result.results.map((r) => r.id)).toEqual(["c1", "a1"]);
+  });
+
+  it("appends in drop mode too — every open query shows the whole Catalog", async () => {
+    process.env.AI_TAIL_MODE = "drop";
+    const result = await searchWith("");
+    expect(result.ok && result.results.map((r) => r.id)).toEqual([
+      "c1",
+      "a1",
+      "b1",
+    ]);
+  });
+
+  it("appends every candidate on an empty query even when the model wrote NONE", async () => {
+    // Nothing can fail to fit a query that asks for nothing.
+    const result = await searchWith("", { text: "NONE" });
+    expect(result).toEqual({
+      ok: true,
+      results: [
+        { id: "a1", reason: OMITTED_CANDIDATE_REASON },
+        { id: "b1", reason: OMITTED_CANDIDATE_REASON },
+        { id: "c1", reason: OMITTED_CANDIDATE_REASON },
+      ],
+    });
+    const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
+    expect(line).toMatchObject({ resultCount: 3, backfilledCount: 3 });
+  });
+
+  it("appends every candidate when the model declared OPEN and then wrote NONE", async () => {
+    const result = await searchWith("anything good?", { text: "OPEN\nNONE" });
+    expect(result.ok && result.results.map((r) => r.id)).toEqual([
+      "a1",
+      "b1",
+      "c1",
+    ]);
+  });
+
+  it("treats a whitespace-only query as empty, so open", async () => {
+    const result = await searchWith("   ");
+    expect(result.ok && result.results.map((r) => r.id)).toEqual([
+      "c1",
+      "a1",
+      "b1",
+    ]);
+  });
+
+  it("appends on an OPEN the model put behind a preamble", async () => {
+    const result = await searchWith("anything good?", {
+      text: "Here is my ranking:\nOPEN\n3|due\n1|fine",
+    });
+    expect(result.ok && result.results.map((r) => r.id)).toEqual([
+      "c1",
+      "a1",
+      "b1",
+    ]);
+  });
+
+  it("appends nothing, and duplicates nothing, when the model ranked every candidate", async () => {
+    const result = await searchWith("", { text: "3|due\n1|fine\n2|ok" });
+    expect(result.ok && result.results.map((r) => r.id)).toEqual([
+      "c1",
+      "a1",
+      "b1",
+    ]);
+    const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
+    expect(line).toMatchObject({ resultCount: 3, backfilledCount: 0 });
+  });
+
+  it("never appends an Option Picked, Rejected, or Closed for the day", async () => {
+    // TODAY is a Wednesday (weekday 3).
+    const { snapshot, idByIndex } = buildSnapshot({
+      options: [
+        option("a1", "Apple Crumble"),
+        option("b1", "Banana Bread"), // Picked today
+        option("c1", "Carrot Cake"), // Rejected today
+        restaurant("d1", "Dumpling Bar", [3]), // closed Wednesdays
+      ],
+      logEntries: [{ optionId: "b1", eatenOn: TODAY, note: null }],
+      rejections: [rejection("c1", TODAY)],
+      asOf: TODAY,
+      query: "",
+    });
+    messagesCreate.mockResolvedValueOnce({
+      content: [{ type: "text", text: "NONE" }],
+      usage: { input_tokens: 100, output_tokens: 10 },
+    });
+    const result = await createAiSearchClient("k", {
+      model: "claude-sonnet-4-6",
+    }).search(snapshot, idByIndex);
+    expect(result).toEqual({
+      ok: true,
+      results: [{ id: "a1", reason: OMITTED_CANDIDATE_REASON }],
+    });
+  });
+
+  it("logs a non-empty query's length without its delimiters", async () => {
+    await searchWith("anything good?", { text: "OPEN\n3|due\n1|fine" });
+    const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
+    expect(line.queryLength).toBe("anything good?".length);
+  });
+
+  it("hands the raw ranking text to onResponseText", async () => {
+    const onResponseText = vi.fn();
+    await searchWith("", { onResponseText });
+    // The text as the model wrote it — before the backfill appended Banana.
+    expect(onResponseText).toHaveBeenCalledWith("3|due\n1|fine");
   });
 });

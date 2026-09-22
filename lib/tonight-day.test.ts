@@ -48,6 +48,33 @@ function dayEntry(
 const SUNDAY = "2026-05-17";
 
 describe("tonightForDay", () => {
+  it("lists closed rows alphabetically, not in rank order", () => {
+    const closedSundays = { closedDays: [0] };
+    const result = tonightForDay({
+      options: [
+        option("c", "Charlie", closedSundays),
+        option("a", "Alpha", closedSundays),
+        option("b", "Beta", closedSundays),
+      ],
+      // Charlie longest ago, Alpha most recently: rank order is Charlie, Beta,
+      // Alpha — the reverse of alphabetical.
+      logEntries: [
+        logEntry("c", "2026-04-01"),
+        logEntry("b", "2026-05-01"),
+        logEntry("a", "2026-05-16"),
+      ],
+      dayEntries: [],
+      rejectedOptionIds: [],
+      selectedDay: SUNDAY,
+    });
+    expect(result.picker).toEqual([]);
+    expect(result.closed.map((r) => r.option.name)).toEqual([
+      "Alpha",
+      "Beta",
+      "Charlie",
+    ]);
+  });
+
   it("puts a Restaurant both closed and rejected for the Selected day in neither the picker nor closed", () => {
     const options = [
       option("a", "Alpha", { closedDays: [0] }), // closed Sundays

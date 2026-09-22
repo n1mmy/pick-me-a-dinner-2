@@ -10,17 +10,19 @@
  *   - **Archived** — stays in SQL (`getTonightData` only selects active
  *     Options). This module treats "every `options` row is active" as an
  *     input precondition, not a rule it re-checks.
- *   - Already **Picked** for the day — `splitTonight` (`./tonights-dinner`),
- *     called from step 4 below.
- *   - **Rejected** for the Selected day — step 5 below.
- *   - **Closed** on the Selected day — `partitionClosedRows`
- *     (`./closed-days`), called from step 6 below.
+ *   - Already **Picked** for the day,
+ *   - **Rejected** for the Selected day, or
+ *   - **Closed** on the Selected day —
  *
- * The order of the last two is load-bearing and now lives in exactly one
- * place: Rejection is applied first, so an Option both closed and rejected
- * for the Selected day lands in the Rejected disclosure only — it is dropped
- * before `partitionClosedRows` ever sees it, so it can never also appear in
- * `closed`.
+ * all three decided by `suppressionsOn` (`./day-suppressions`), the one
+ * statement of the per-day rules. AI search (`lib/ai-search.ts`) calls it too,
+ * so the AI candidate set and the picker can never disagree about which
+ * Options are off for the day.
+ *
+ * The precedence is load-bearing and lives in `suppressionsOn` alone: Picked,
+ * then Rejected, then Closed, each Option carrying only its first. So an
+ * Option both closed and rejected for the Selected day lands in the Rejected
+ * disclosure only — it can never also appear in `closed`.
  *
  * The composition, in order:
  *
@@ -30,17 +32,16 @@
  *      so the decided block shows each Picked Option's pre-Pick recency
  *      rather than a meaningless "0d";
  *   4. `splitTonight` → `tonightsDinner` + `picker`;
- *   5. drop `rejectedOptionIds` from the picker;
- *   6. `partitionClosedRows` over what is left → `picker` + `closed`;
- *   7. `lastNotesByOption` for every row type;
- *   8. `allFiltered` — the picker had rows before steps 5–6 and none after,
- *      so the screen can tell "filtered empty" from "genuinely empty
- *      Catalog".
+ *   5. `suppressionsOn` → drop every suppressed row from the picker, keeping
+ *      the Closed ones aside as `closed`;
+ *   6. `lastNotesByOption` for every row type;
+ *   7. `allFiltered` — the picker had rows before step 5 and none after, so
+ *      the screen can tell "filtered empty" from "genuinely empty Catalog".
  *
  * This is a presentation composition only: it runs after `rankTonight`, so
  * the Score and the ranking stay untouched (ADR-0003, ADR-0006, ADR-0010).
  */
-import { partitionClosedRows } from "./closed-days";
+import { suppressionsOn } from "./day-suppressions";
 import {
   lastNotesByOption,
   type LastNote,
@@ -120,8 +121,8 @@ export type TonightForDay = {
 
 /**
  * Compose Tonight's full Selected-day suppression: rank, split into decided
- * vs. picker, drop Rejections, partition Closed days, and reduce the Log to
- * Last notes — see the module doc for the order and why it is load-bearing.
+ * vs. picker, drop every `suppressionsOn` row, and reduce the Log to Last
+ * notes — see the module doc for the order.
  */
 export function tonightForDay({
   options,
@@ -155,21 +156,25 @@ export function tonightForDay({
     decidedRows,
   );
 
-  // 5. drop Rejections dated the Selected day — before Closed days, so a row
-  // both rejected and closed never reaches step 6.
-  const rejectedIds = new Set(rejectedOptionIds);
-  const afterRejection = picker.filter(
-    (row) => !rejectedIds.has(row.option.id),
-  );
-
-  // 6. partition what is left into the visible picker and the Closed rows.
-  const { visible: visiblePicker, closed } = partitionClosedRows(
-    afterRejection,
+  // 5. drop every suppressed row. `splitTonight` already took the Picked ones
+  // out, so passing them here changes nothing on Tonight — it keeps the call
+  // the same full rule set AI search applies. The Closed ones go to the
+  // Closed disclosure, which is alphabetical, not ranked (DESIGN.md "Closed
+  // disclosure"). The picker keeps rank order.
+  const suppressions = suppressionsOn({
     options,
-    selectedDay,
+    pickedOptionIds: dayEntries.map((entry) => entry.optionId),
+    rejectedOptionIds,
+    day: selectedDay,
+  });
+  const visiblePicker = picker.filter(
+    (row) => !suppressions.has(row.option.id),
   );
+  const closed = picker
+    .filter((row) => suppressions.get(row.option.id) === "closed")
+    .sort((a, b) => a.option.name.localeCompare(b.option.name));
 
-  // 7. Last notes, for every row type — one Map serves picker, AI result,
+  // 6. Last notes, for every row type — one Map serves picker, AI result,
   // and decided rows alike.
   const lastNotes = lastNotesByOption(
     logEntries.map(
@@ -183,7 +188,7 @@ export function tonightForDay({
     anchorEpochDay,
   );
 
-  // 8. "filtered empty" vs. "genuinely empty Catalog".
+  // 7. "filtered empty" vs. "genuinely empty Catalog".
   const allFiltered = picker.length > 0 && visiblePicker.length === 0;
 
   return {

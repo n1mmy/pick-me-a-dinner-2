@@ -1,0 +1,180 @@
+{
+  "today": "2026-09-22 (Tuesday)",
+  "query": "(empty)",
+  "mode": "serial",
+  "reps": 1,
+  "catalog": 32,
+  "logEntries": 185,
+  "inProgress": false,
+  "runs": [
+    {
+      "rep": 1,
+      "label": "opus-5-5 · effort low",
+      "model": "claude-opus-5-5",
+      "thinking": {
+        "type": "effort",
+        "effort": "low"
+      },
+      "latencyMs": 12261,
+      "outputTokens": 1044,
+      "ok": true,
+      "ranking": [
+        {
+          "rank": 1,
+          "name": "Mazra",
+          "reason": "Comes round about every two to three weeks and that stretch is up; Sonia's rice without repeating tonight's cuisines."
+        },
+        {
+          "rank": 2,
+          "name": "Quiche",
+          "reason": "The second quiche of the Costco pack should be eaten before Oct 16, and they run it roughly every two weeks."
+        },
+        {
+          "rank": 3,
+          "name": "Societea Tea House & Eatery",
+          "reason": "Anchors the Tuesday swim-night rotation, but tonight's swim order is already covered by three spots."
+        },
+        {
+          "rank": 4,
+          "name": "Big Mouth Burgers",
+          "reason": "Burgers and fries suit Helen and Sonia; a roughly monthly pick that fits after tonight's rice-heavy order."
+        },
+        {
+          "rank": 5,
+          "name": "Lotus Falafel",
+          "reason": "Fried chicken and fries suit both girls; they do space out Mediterranean, so it pairs poorly with Mazra."
+        },
+        {
+          "rank": 6,
+          "name": "Leftovers",
+          "reason": "Jen's Indian leftovers may still be around to stretch tonight."
+        },
+        {
+          "rank": 7,
+          "name": "Chicken and Rice",
+          "reason": "Simple sous vide backup, though once called too plain."
+        },
+        {
+          "rank": 8,
+          "name": "Pasta",
+          "reason": "Home pasta was just had."
+        },
+        {
+          "rank": 9,
+          "name": "Frozen food",
+          "reason": "Easy home fallback"
+        },
+        {
+          "rank": 10,
+          "name": "Local Kitchens",
+          "reason": "Sonia wouldn't touch her grilled cheese"
+        },
+        {
+          "rank": 11,
+          "name": "West Coast Cafe",
+          "reason": "Helen likes the red sauce, but Italian is rare."
+        },
+        {
+          "rank": 12,
+          "name": "K-Grill & Tofu House",
+          "reason": "Helen's fried rice is covered tonight"
+        },
+        {
+          "rank": 13,
+          "name": "Boiling Beijing",
+          "reason": "Helen's fried rice is covered tonight"
+        },
+        {
+          "rank": 14,
+          "name": "Minari Korean",
+          "reason": "Helen's fried rice is covered tonight"
+        },
+        {
+          "rank": 15,
+          "name": "bb.q Chicken San Bruno",
+          "reason": "No history here"
+        },
+        {
+          "rank": 16,
+          "name": "BJ's",
+          "reason": "Never chosen"
+        },
+        {
+          "rank": 17,
+          "name": "Chili's",
+          "reason": "Rare American pick"
+        },
+        {
+          "rank": 18,
+          "name": "Jack's",
+          "reason": "Rare pick"
+        },
+        {
+          "rank": 19,
+          "name": "Roma Deli",
+          "reason": "Sandwiches are rare"
+        },
+        {
+          "rank": 20,
+          "name": "Mollie Stone's",
+          "reason": "Occasional grocery dinner"
+        },
+        {
+          "rank": 21,
+          "name": "Cocina Milonga",
+          "reason": "Only when Jen restocks empanadas"
+        },
+        {
+          "rank": 22,
+          "name": "Limon",
+          "reason": "Too far on a weeknight"
+        },
+        {
+          "rank": 23,
+          "name": "Roosters Peruvian",
+          "reason": "Mediocre last time"
+        },
+        {
+          "rank": 24,
+          "name": "Atlas Pizza and Indian",
+          "reason": ""
+        },
+        {
+          "rank": 25,
+          "name": "Quesadilla",
+          "reason": ""
+        },
+        {
+          "rank": 26,
+          "name": "Hungryroot",
+          "reason": ""
+        },
+        {
+          "rank": 27,
+          "name": "Tadu Ethiopian",
+          "reason": ""
+        },
+        {
+          "rank": 28,
+          "name": "Ninja Sushi",
+          "reason": ""
+        },
+        {
+          "rank": 29,
+          "name": "Aji Ichi Japanese Restaurant",
+          "reason": ""
+        },
+        {
+          "rank": 30,
+          "name": "Spiral Japanese",
+          "reason": ""
+        },
+        {
+          "rank": 31,
+          "name": "Tomato Salad",
+          "reason": ""
+        }
+      ]
+    }
+  ]
+}

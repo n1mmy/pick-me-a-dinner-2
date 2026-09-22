@@ -311,6 +311,49 @@ near-identical "Rarely chosen" rows. It is outside the family the prompt caps,
 so `vague tic` does not see it; `opens` and `repeated` would catch it if it
 spreads.
 
+**14. Opus 5.5 replaced Opus 5 as the production model, at `effort: low`.**
+`claude-opus-5-5` on the 2026-09-22 anchor (Tuesday, 35 Options, 185 Log
+entries), open query only — `2026-09-22-open.json`:
+
+| cell | n | latency | out tok | Spearman | top-5 overlap | #1 held | vague tic |
+|---|---|---|---|---|---|---|---|
+| `opus-5-5 · low` | 5 | **13.8s** | ~1,210 | **0.84** | **3.9/5** | 3/5 | **0.0** |
+| `opus-5-5 · medium` | 4 | 19.4s | ~1,910 | 0.51 | 2.7/5 | 2/4 | 0.3 |
+
+Against Opus 5 (finding 7 and 13: `low` 19-21s, Spearman 0.76, overlap 2.9/5,
+vague tic 1.0 on the reworked prompt; `medium` 44.5s) it is faster at both
+levels and breaks the capped-vocabulary rule less. The comparison crosses
+**anchor days** — `summary.md` refuses to pair the cells for that reason — so
+it is a latency-and-style read, not an ordering one.
+
+`low` over `medium`: `medium` is the less stable of the two, and the cause is
+specific. Thai Nakorn, Little Vietnamese Bistro and Taqueria Durango were
+already Picked for the anchor day — `medium` put them at #1-3 in reps 1 and 4
+and at #32-34 in the other two, while every `low` rep buried them. The
+instability was the model disagreeing with itself about what an already-Picked
+Option means, not about the Catalog. That motivated dropping anchor-day Picked
+Options from the candidates (`buildSnapshot`); `medium` has not been re-run
+since, so whether it steadies without them is open.
+
+**15. Opus 5.5 leaves out the one Option with nothing to say about it.** Sofra
+Grill has no Log history, notes or Rejections, and it is missing from all 10
+Opus 5.5 rankings — 9 in `2026-09-22-open.json` plus the one in
+`2026-09-22-open-picked-out.json`. The screen shows only returned rows in AI
+view, so it silently vanished. Two fixes followed that run: a prompt line
+requiring every candidate (with a never-tried Option allowed to rank high for
+novelty), and `search` appending any candidate still omitted on an open query,
+marked "Not ranked — the AI left this one out" rather than left blank (a blank
+reads as the model's "obviously bad pick" in `pithy` mode).
+
+**The prompt line did not work; the append did.** One `opus-5-5 · low` run on
+the final prompt (`2026-09-22-open-every-candidate.json`, n=1): its `rawText`
+holds 31 ranked lines and still no Sofra Grill — 11 of 11 runs now — and
+`backfilledCount` is 1, the append putting it back at #32. The same run's
+first line was `OPEN`, the marker `search` reads to treat a non-empty
+non-narrowing query as open, so that half of the contract is followed. The
+every-candidate line is cheap and kept, but the append is what the screen
+relies on.
+
 ## Fireworks exploration (2026-09-22, not part of the baseline)
 
 A separate, one-off look at whether a non-Anthropic model on Fireworks could
@@ -379,7 +422,15 @@ A **cell** is one model at one thinking setting, named by the label
 | `sonnet-5 · effort low` | `claude-sonnet-5` | `{type: "adaptive"}` + `output_config.effort: low` |
 | `sonnet-5 · effort high` | `claude-sonnet-5` | `{type: "adaptive"}` + `output_config.effort: high` |
 
-`low` is the app's production default (`EFFORT_DEFAULT` in `lib/ai-search.ts`).
+Finding 14 added two more, on its own anchor day:
+
+| Label | Model | Thinking |
+|---|---|---|
+| `opus-5-5 · effort low` | `claude-opus-5-5` | `{type: "adaptive"}` + `output_config.effort: low` |
+| `opus-5-5 · effort medium` | `claude-opus-5-5` | `{type: "adaptive"}` + `output_config.effort: medium` |
+
+`opus-5-5 · effort low` is the app's production setting (`MODEL_DEFAULT` and
+`EFFORT_DEFAULT` in `lib/ai-search.ts`).
 Both models take effort through the same `output_config.effort` knob, so the
 cells are comparable level-for-level.
 
@@ -444,17 +495,30 @@ the models were ranking, which is also what decides whether two sweeps may be
 pooled. (The baseline was executed on 2026-09-18 against a 2026-09-17 anchor;
 the file is named for the latter.)
 
+When a code change alters the snapshot or the prompt mid-day — same anchor
+day and query — the runs after it cannot pool with the runs before. They go
+in `<anchor-date>-<query>-<change>.json`, the suffix naming what changed.
+`merge-runs.mjs` refuses a snapshot change on its own, but it cannot see a
+prompt change, so never run it over two such files.
+
 | File | Contents |
 |---|---|
 | `2026-09-17-open.json` | 23 runs: 5 cells × the empty query. Reps per cell: `opus-5 · low` 5, `· medium` 5, `· high` 4, `sonnet-5 · low` 6, `· high` 3 (only 1 usable — see below) |
 | `2026-09-17-something-light.json` | 6 runs: 5 cells × `"something light"`, 1 rep each, plus a second `sonnet-5 · high` rep after the first timed out (1 of those 2 usable) |
 | `2026-09-18-open.json` | 3 runs: `opus-5 · low` × the empty query, the first sweep on the reworked rationale prompt — see finding 13. A different anchor day from the baseline, so it pools with nothing above |
+| `2026-09-22-open.json` | 9 runs: `opus-5-5 · low` 5, `· medium` 4, × the empty query — see finding 14. Merged from three sweeps (`mergedFrom`). Pools with the Fireworks files below (same snapshot), nothing above |
+| `2026-09-22-open-picked-out.json` | 1 run: `opus-5-5 · low` after anchor-day Picked Options left the candidates — 32 Options against 35, so it pools with nothing. A single unmerged sweep, hence no `source` / `mergedFrom`. n=1: a spot-check of the change, below the three-rep floor, not a measurement. Predates the every-candidate prompt line (finding 15) |
+| `2026-09-22-open-every-candidate.json` | 1 run: `opus-5-5 · low` on the final prompt — every-candidate line, `OPEN` marker, append. Same 32-Option snapshot as `-picked-out`, but a different prompt, so do not merge the two. n=1 spot-check; the first file to carry `rawText` and `backfilledCount` — see finding 15 |
 | `kimi-test.json`, `kimi-k2p6-test.json`, `gpt-oss-120b-test.json` | One Fireworks cell each, n=1, 2026-09-22 anchor — see [Fireworks exploration](#fireworks-exploration-2026-09-22-not-part-of-the-baseline). Pool with nothing above: different anchor day and provider |
 | `summary.md` | Generated by `analyze.mjs`; regenerate rather than edit |
-| `system-prompt.txt` | The static system prompt the baseline ran against — diff a later sweep's against it before blaming the model for a change |
+| `system-prompt.txt` | The static system prompt as of the last prompt change — currently the one `2026-09-22-open-every-candidate.json` ran against. Diff a later sweep's against it, and `git log -p` it to see what an older sweep ran against, before blaming the model for a change |
 
 Each run carries cell, rep, model, thinking config, latency, output tokens, and
-the full ranking; rows hold Option **names**, not UUIDs. `source` and
+the full ranking; rows hold Option **names**, not UUIDs. Runs from 2026-09-22's
+later sweeps also carry `rawText` — the model's response exactly as written,
+before parsing — and `backfilledCount`, how many ranking rows `search` appended
+because the model left them out (they sit at the bottom with the reason "Not
+ranked — the AI left this one out"). `source` and
 `sourceRep` record which original sweep a run arrived in, since both files are
 merges of several — `mergedFrom` lists them. Three runs are `ok: false` (two in
 the open file, one in the narrowing one), all of them `sonnet-5 · high` calls
