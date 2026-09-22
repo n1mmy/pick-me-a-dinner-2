@@ -10,17 +10,19 @@ adherence counts only — ranking quality is a human read (see `README.md`).
 | `scripts/model-comparison/2026-09-17-open.json` | _(empty)_ | 23 | 2026-09-17 (Thursday) · 35 options · 175 log | serial |
 | `scripts/model-comparison/2026-09-17-something-light.json` | "something light" | 6 | 2026-09-17 (Thursday) · 35 options · 175 log | serial |
 | `scripts/model-comparison/2026-09-18-open.json` | _(empty)_ | 3 | 2026-09-18 (Friday) · 34 options · 176 log | serial |
+| `scripts/model-comparison/2026-09-22-open-picked-out.json` | _(empty)_ | 1 | 2026-09-22 (Tuesday) · 32 options · 185 log | serial |
 | `scripts/model-comparison/2026-09-22-open.json` | _(empty)_ | 9 | 2026-09-22 (Tuesday) · 35 options · 185 log | serial |
 | `scripts/model-comparison/gpt-oss-120b-test.json` | _(empty)_ | 1 | 2026-09-22 (Tuesday) · 35 options · 185 log | parallel |
 | `scripts/model-comparison/kimi-k2p6-test.json` | _(empty)_ | 1 | 2026-09-22 (Tuesday) · 35 options · 185 log | parallel |
 | `scripts/model-comparison/kimi-test.json` | _(empty)_ | 1 | 2026-09-22 (Tuesday) · 35 options · 185 log | parallel |
 
-⚠️ **3 distinct snapshots** in this set. Pooled measures
+⚠️ **4 distinct snapshots** in this set. Pooled measures
 use the largest single-snapshot group per cell and report what they
 excluded; nothing is averaged across snapshots.
 
 - 2026-09-17 (Thursday) · 35 options · 175 log
 - 2026-09-18 (Friday) · 34 options · 176 log
+- 2026-09-22 (Tuesday) · 32 options · 185 log
 - 2026-09-22 (Tuesday) · 35 options · 185 log
 
 ## Query: _(empty — open query)_
@@ -47,6 +49,7 @@ excluded; nothing is averaged across snapshots.
 | opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 45.9s | 3670 | 35 | 7 | 8 | 0 | 37 | 8 |
 | opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 4 | yes | 41.3s | 3116 | 34 | 12 | 5 | 0 | 44 | 0 |
 | opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 5 | yes | 42.1s | 3402 | 35 | 10 | 7 | 0 | 51 | 25 |
+| opus-5-5 · effort low | `scripts/model-comparison/2026-09-22-open-picked-out.json` | 1 | yes | 12.3s | 1044 | 31 | 8 | 2 | 0 | 46 | 9 |
 | opus-5-5 · effort low | `scripts/model-comparison/2026-09-22-open.json` | 1 | yes | 14.5s | 1308 | 34 | 12 | 2 | 0 | 41 | 0 |
 | opus-5-5 · effort low | `scripts/model-comparison/2026-09-22-open.json` | 2 | yes | 12.9s | 1303 | 34 | 20 | 0 | 0 | 50 | 0 |
 | opus-5-5 · effort low | `scripts/model-comparison/2026-09-22-open.json` | 3 | yes | 14.3s | 1165 | 34 | 17 | 0 | 0 | 45 | 0 |
@@ -88,6 +91,7 @@ excluded; nothing is averaged across snapshots.
 - **opus-5 · effort medium** (scripts/model-comparison/2026-09-17-open.json, rep 3) — Taqueria Durango · Minari Korean · Little Vietnamese Bistro · West Coast Cafe · K-Grill & Tofu House
 - **opus-5 · effort medium** (scripts/model-comparison/2026-09-17-open.json, rep 4) — Minari Korean · Limon · Jack's · West Coast Cafe · bb.q Chicken San Bruno
 - **opus-5 · effort medium** (scripts/model-comparison/2026-09-17-open.json, rep 5) — Taqueria Durango · Mollie Stone's · Minari Korean · Chicken and Rice · Roma Deli
+- **opus-5-5 · effort low** (scripts/model-comparison/2026-09-22-open-picked-out.json, rep 1) — Mazra · Quiche · Societea Tea House & Eatery · Big Mouth Burgers · Lotus Falafel
 - **opus-5-5 · effort low** (scripts/model-comparison/2026-09-22-open.json, rep 1) — Minari Korean · Societea Tea House & Eatery · Mazra · Big Mouth Burgers · Leftovers
 - **opus-5-5 · effort low** (scripts/model-comparison/2026-09-22-open.json, rep 2) — Societea Tea House & Eatery · Minari Korean · Roma Deli · Mazra · Big Mouth Burgers
 - **opus-5-5 · effort low** (scripts/model-comparison/2026-09-22-open.json, rep 3) — Minari Korean · Mazra · Societea Tea House & Eatery · Roma Deli · Big Mouth Burgers
@@ -124,7 +128,7 @@ snapshot. `n` is how many successful reps pooled.
 - **opus-5 · effort medium** — n=5, mean overlap **2.3/5**, #1 held 4/5 (Taqueria Durango)
   - snapshot: 2026-09-17 (Thursday) · 35 options · 175 log
   - sources: scripts/model-comparison/2026-09-17-open.json
-- **opus-5-5 · effort low** — n=5, mean overlap **3.9/5**, #1 held 3/5 (Societea Tea House & Eatery)
+- **opus-5-5 · effort low** — n=5, mean overlap **3.9/5**, #1 held 3/5 (Societea Tea House & Eatery)  _[1 rep(s) excluded: other snapshot]_
   - snapshot: 2026-09-22 (Tuesday) · 35 options · 185 log
   - sources: scripts/model-comparison/2026-09-22-open.json
 - **opus-5-5 · effort medium** — n=4, mean overlap **2.7/5**, #1 held 2/4 (Taqueria Durango)
@@ -223,6 +227,7 @@ any ranking difference between them is not yet evidence of anything.
 | opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 3 | 18% | 5 | 86% | 29% | -0.78 | 2 | 0.91 | 0 |
 | opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 4 | 18% | 3 | 82% | 32% | -0.80 | 0 | 0.77 | 0 |
 | opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 5 | 12% | 3 | 88% | 52% | -0.88 | 1 | 0.87 | 0 |
+| opus-5-5 · effort low | 2026-09-22 (Tuesday) · 32 options · 185 log | 1 | 22% | 1 | 87% | 30% | -0.86 | 2 | 0.89 | 0 |
 | opus-5-5 · effort low | 2026-09-22 (Tuesday) · 35 options · 185 log | 1 | 32% | 0 | 86% | 32% | -0.80 | 2 | 0.84 | 0 |
 | opus-5-5 · effort low | 2026-09-22 (Tuesday) · 35 options · 185 log | 2 | 36% | 0 | 86% | 57% | -0.81 | 1 | 0.72 | 0 |
 | opus-5-5 · effort low | 2026-09-22 (Tuesday) · 35 options · 185 log | 3 | 12% | 0 | 88% | 53% | -0.84 | 1 | 0.76 | 0 |
@@ -249,6 +254,7 @@ any ranking difference between them is not yet evidence of anything.
 | opus-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 5 | 13% | 3.4 | 78% | 27% | -0.88 | 3.8 | 0.89 | 0 |
 | opus-5 · effort low | 2026-09-18 (Friday) · 34 options · 176 log | 3 | 29% | 1.0 | 95% | 58% | -0.85 | 0.3 | 0.79 | 0 |
 | opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 5 | 19% | 4.2 | 85% | 36% | -0.82 | 1.0 | 0.88 | 0 |
+| opus-5-5 · effort low | 2026-09-22 (Tuesday) · 32 options · 185 log | 1 | 22% | 1.0 | 87% | 30% | -0.86 | 2.0 | 0.89 | 0 |
 | opus-5-5 · effort low | 2026-09-22 (Tuesday) · 35 options · 185 log | 5 | 29% | 0.0 | 90% | 52% | -0.82 | 1.0 | 0.75 | 0 |
 | opus-5-5 · effort medium | 2026-09-22 (Tuesday) · 35 options · 185 log | 4 | 35% | 0.3 | 92% | 43% | -0.85 | 0.8 | 0.78 | 0 |
 | sonnet-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 30% | 2.0 | 70% | 13% | -0.83 | 3.0 | 0.94 | 0 |
@@ -273,7 +279,7 @@ None of these carry a target. They are reported so a prompt change can be
 compared against the run before it; optimising them directly would buy
 thesaurus variety rather than better reasons.
 
-Cuisine check coverage: 41% of rows (332/817) have exactly one recognised cuisine in the Option name and could be checked at all. Extend `CUISINES` in `analyze.mjs` when the Catalog grows.
+Cuisine check coverage: 40% of rows (339/840) have exactly one recognised cuisine in the Option name and could be checked at all. Extend `CUISINES` in `analyze.mjs` when the Catalog grows.
 
 #### Cuisine conflicts (verify by hand — heuristic)
 
@@ -350,6 +356,9 @@ Cuisine check coverage: 41% of rows (332/817) have exactly one recognised cuisin
   - Taqueria Durango: "Comes around every couple of weeks and is now due; mexican hasn't come up since the last visit."
   - Minari Korean: "Korean has been absent from the rotation for months, and it avoids the fried rice Helen just had."
   - Chicken and Rice: "Sous-vide home night that hasn't come up in weeks, and no home cooking is blocked tonight."
+- **opus-5-5 · effort low** (rep 1), 2 hits:
+  - Mazra: "Comes round about every two to three weeks and that stretch is up; Sonia's rice without repeating tonight's cuisines."
+  - Leftovers: "Jen's Indian leftovers may still be around to stretch tonight."
 - **opus-5-5 · effort low** (rep 1), 2 hits:
   - Leftovers: "Quiche leftovers from Thursday were plentiful and may still need eating"
   - Quiche: "Second quiche is due before mid-October, not yet"

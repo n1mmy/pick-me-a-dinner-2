@@ -30,6 +30,17 @@ export function delimit(text: string): string {
   return `${HOUSEHOLD_TEXT_OPEN}${stripped}${HOUSEHOLD_TEXT_CLOSE}`;
 }
 
+/**
+ * Recover the Household's text from a `delimit`ed field — the text after the
+ * stripping `delimit` did, which is the text the model actually read.
+ */
+export function undelimit(delimited: string): string {
+  return delimited.slice(
+    HOUSEHOLD_TEXT_OPEN.length,
+    delimited.length - HOUSEHOLD_TEXT_CLOSE.length,
+  );
+}
+
 /** Delimit a nullable note — `null` stays `null`, there is nothing to wrap. */
 export function delimitNullable(text: string | null): string | null {
   return text === null ? null : delimit(text);

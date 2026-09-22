@@ -56,8 +56,7 @@ import {
   delimit,
   delimitNullable,
   formatDateWithWeekday,
-  HOUSEHOLD_TEXT_CLOSE,
-  HOUSEHOLD_TEXT_OPEN,
+  undelimit,
 } from "./snapshot-format";
 
 /** One AI search result row: an Option id and its AI rationale, in rank order. */
@@ -500,7 +499,7 @@ export function parseRankingText(
  * omitted Option would otherwise vanish. Appended in `idByIndex` order
  * (alphabetical by name).
  */
-export function backfillOmittedCandidates(
+function backfillOmittedCandidates(
   rows: AiRankingRow[],
   idByIndex: ReadonlyMap<number, string>,
 ): AiRankingRow[] {
@@ -742,9 +741,21 @@ export function resolveTailMode(): TailMode {
 }
 
 /**
- * Shared by the whole-Catalog tail modes. Opus 5.5 reliably left out the one
- * candidate with no Log history, notes, or Rejections — nothing to say about it
- * read as nothing to rank.
+ * Which tail modes return every candidate on an open query. The one source
+ * for both halves of that promise: the prompt adds
+ * `EVERY_CANDIDATE_INSTRUCTION` for these modes, and `search` appends any
+ * candidate the model still left out.
+ */
+const RETURNS_EVERY_CANDIDATE: Record<TailMode, boolean> = {
+  full: true,
+  pithy: true,
+  drop: false,
+};
+
+/**
+ * Appended to the open-query instruction of every `RETURNS_EVERY_CANDIDATE`
+ * mode. Opus 5.5 reliably left out the one candidate with no Log history,
+ * notes, or Rejections — nothing to say about it read as nothing to rank.
  */
 const EVERY_CANDIDATE_INSTRUCTION =
   " Every candidate must appear exactly once, including an Option with no " +
@@ -758,8 +769,7 @@ const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
     "candidate Option from the snapshot, ranked best first. For an Option " +
     "high in the ranking the rationale says why it is a strong pick tonight; " +
     "for an Option low in the ranking it says why it is a weaker pick. Every " +
-    "rationale is one short line, roughly 140 characters at most." +
-    EVERY_CANDIDATE_INSTRUCTION,
+    "rationale is one short line, roughly 140 characters at most.",
   pithy:
     "- If the query is empty or does not narrow the Catalog, return every " +
     "candidate Option from the snapshot, ranked best first, varying how " +
@@ -774,8 +784,7 @@ const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
     "obviously bad pick tonight (just eaten, plainly not a fit, a standing " +
     "reason against it), give an empty string as the reason — no text at " +
     "all. You decide which tier each Option falls in; the weaker the " +
-    "pick, the less needs to be said." +
-    EVERY_CANDIDATE_INSTRUCTION,
+    "pick, the less needs to be said.",
   drop:
     "- If the query is empty or does not narrow the Catalog, return only the " +
     "Options genuinely worth considering for tonight, ranked best first, and " +
@@ -836,7 +845,7 @@ export function buildSystemPrompt(mode: TailMode): string {
       "event from an upcoming plan. After the snapshot, the household's " +
       "free-text query is given on its own line; it may be empty.",
     "",
-    "Log rows dated today are dinners the household has already chosen for " +
+    "Log rows dated today are what the household has already Picked for " +
       "tonight. Those Options have been left out of the Catalog and are not " +
       "candidates — never return them. Read those rows as what tonight " +
       "already covers when you rank the Options that remain.",
@@ -918,7 +927,8 @@ export function buildSystemPrompt(mode: TailMode): string {
       "that fit it — a focused shortlist, ranked best first, not the whole " +
       "Catalog re-sorted, each rationale a short line naming why that Option " +
       "fits.",
-    OPEN_QUERY_INSTRUCTION[mode],
+    OPEN_QUERY_INSTRUCTION[mode] +
+      (RETURNS_EVERY_CANDIDATE[mode] ? EVERY_CANDIDATE_INSTRUCTION : ""),
     "Every number must be copied exactly from an Option in the snapshot. " +
       "Each rationale must be specific — name the actual pattern or reason " +
       "behind that Option's placement, not a generic justification. Be " +
@@ -1053,7 +1063,8 @@ function logModelCall(fields: {
  * The model is `AI_MODEL` (a current Opus by default), the thinking effort
  * is `AI_EFFORT` (see `AiEffort`), and the open-query result shape is
  * `AI_TAIL_MODE` (see `resolveTailMode`). `overrides` lets the eval harness
- * pin the model and an explicit `ThinkingChoice`, bypassing those env vars.
+ * pin the model and an explicit `ThinkingChoice`, bypassing those env vars,
+ * and record the model's raw ranking text via `onResponseText`.
  *
  * `search` is fail-safe: the single model call carries an `AbortController`
  * timeout — 90 seconds unless `AI_TIMEOUT_MS` overrides it, which only the eval
@@ -1091,13 +1102,11 @@ export function createAiSearchClient(
       // is the one part that varies per search, so it trails the block
       // uncached.
       const { snapshotBody, queryBlock } = splitUserTurn(snapshot);
-      const queryText = snapshot.query.slice(
-        HOUSEHOLD_TEXT_OPEN.length,
-        snapshot.query.length - HOUSEHOLD_TEXT_CLOSE.length,
-      );
+      const queryText = undelimit(snapshot.query);
       // Only an empty query is known to be open: a non-empty one may narrow
       // the Catalog, and `drop` mode omits weak picks on purpose.
-      const backfill = queryText.trim() === "" && tailMode !== "drop";
+      const backfill =
+        queryText.trim() === "" && RETURNS_EVERY_CANDIDATE[tailMode];
       let backfilledCount = 0;
 
       // One model call, no retry. A timeout has already spent the full
@@ -1173,9 +1182,8 @@ export function createAiSearchClient(
       }
 
       // One structured log line per model call, on both the ok and the
-      // fallback path. `query` is delimited in the snapshot, so its raw
-      // household length is the field length minus the two delimiters; a
-      // fallback whose latency is near the timeout was a timed-out call.
+      // fallback path. A fallback whose latency is near the timeout was a
+      // timed-out call.
       logModelCall({
         queryLength: queryText.length,
         model,

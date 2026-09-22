@@ -1047,7 +1047,10 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
   ];
 
   /** Search with a response that ranks only Carrot Cake (3), then Apple (1). */
-  async function searchWith(query: string) {
+  async function searchWith(
+    query: string,
+    overrides: { onResponseText?: (text: string) => void } = {},
+  ) {
     const { snapshot, idByIndex } = buildSnapshot({
       options,
       logEntries: [],
@@ -1059,10 +1062,10 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
       content: [{ type: "text", text: "3|due\n1|fine" }],
       usage: { input_tokens: 100, output_tokens: 10 },
     });
-    return createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(
-      snapshot,
-      idByIndex,
-    );
+    return createAiSearchClient("k", {
+      model: "claude-sonnet-4-6",
+      ...overrides,
+    }).search(snapshot, idByIndex);
   }
 
   beforeEach(() => {
@@ -1101,22 +1104,9 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
   });
 
   it("hands the raw ranking text to onResponseText", async () => {
-    const { snapshot, idByIndex } = buildSnapshot({
-      options,
-      logEntries: [],
-      rejections: [],
-      asOf: TODAY,
-      query: "",
-    });
-    messagesCreate.mockResolvedValueOnce({
-      content: [{ type: "text", text: "3|due" }],
-      usage: { input_tokens: 100, output_tokens: 10 },
-    });
     const onResponseText = vi.fn();
-    await createAiSearchClient("k", {
-      model: "claude-sonnet-4-6",
-      onResponseText,
-    }).search(snapshot, idByIndex);
-    expect(onResponseText).toHaveBeenCalledWith("3|due");
+    await searchWith("", { onResponseText });
+    // The text as the model wrote it — before the backfill appended Banana.
+    expect(onResponseText).toHaveBeenCalledWith("3|due\n1|fine");
   });
 });
