@@ -4,7 +4,7 @@
  * into its input shape.
  *
  * Before this module existed, the assembly was written out three times —
- * `app/tonight-actions.ts` (production), `scripts/ai-search-eval.ts`, and
+ * `app/api/ai-search/route.ts` (production), `scripts/ai-search-eval.ts`, and
  * `scripts/model-comparison/show-prompt.mjs` — and the two scripts drifted:
  * they read `getTonightData(asOf).logEntries` (non-future only, the
  * deterministic ranking's Log) instead of `getFullLogForSnapshot()` (past

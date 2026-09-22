@@ -13,9 +13,10 @@ import type { TonightRow } from "../lib/ranking";
 import type { LastNote } from "../lib/last-note";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 
-// `aiSearchAction` is the AI search server action; the screen test drives the
+// `aiSearchAction` is the client-side fetch wrapper around AI search's Route
+// Handler (`app/api/ai-search/route.ts`); the screen test drives the
 // component with it mocked (PRD: AI search — "with aiSearchAction mocked").
-vi.mock("./tonight-actions", () => ({
+vi.mock("./tonight-search-client", () => ({
   aiSearchAction: vi.fn(),
 }));
 // The Rejection-write actions live in `rejection-actions`; the screen calls
@@ -43,7 +44,7 @@ vi.mock("./day-stepper", () => ({
 }));
 
 import type { AiSearchResult } from "../lib/ai-search";
-import { aiSearchAction } from "./tonight-actions";
+import { aiSearchAction } from "./tonight-search-client";
 import { deleteLogEntry, pickTonight } from "./log/actions";
 import { TonightScreen } from "./tonight-screen";
 

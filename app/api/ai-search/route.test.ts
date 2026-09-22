@@ -11,32 +11,25 @@ const { getTonightData, getFullLogForSnapshot, getRejections, search } =
   }));
 
 // `getTonightData`, `getFullLogForSnapshot`, and `getRejections` are the DB
-// reads `aiSearchAction` makes — stub them so the test never touches a
-// database, and so the snapshot wiring can be asserted.
-vi.mock("../db/queries", () => ({
+// reads the route makes — stub them so the test never touches a database,
+// and so the snapshot wiring can be asserted.
+vi.mock("../../../db/queries", () => ({
   getTonightData,
   getFullLogForSnapshot,
   getRejections,
 }));
 
-// `authedAction` wraps the action with the shared-password session check;
-// that check has its own coverage, so here it is a pass-through and the test
-// exercises the action body directly.
-vi.mock("../lib/authed-action", () => ({
-  authedAction: (fn: unknown) => fn,
-}));
-
 // The Anthropic client is replaced so no live call is made; `search` is the
-// spy the action's forwarded result is asserted against. `buildSnapshot` and
+// spy the route's forwarded result is asserted against. `buildSnapshot` and
 // `AI_SEARCH_UNAVAILABLE` stay real, so the snapshot is genuinely built.
-vi.mock("../lib/ai-search", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../lib/ai-search")>()),
+vi.mock("../../../lib/ai-search", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../lib/ai-search")>()),
   createAiSearchClient: () => ({ search }),
 }));
 
-import { aiSearchAction } from "./tonight-actions";
-import { AI_SEARCH_UNAVAILABLE } from "../lib/ai-search";
-import { todaySqlDate, weekdayFromSqlDate } from "../lib/local-day";
+import { POST } from "./route";
+import { AI_SEARCH_UNAVAILABLE } from "../../../lib/ai-search";
+import { todaySqlDate, weekdayFromSqlDate } from "../../../lib/local-day";
 
 const TONIGHT_DATA = {
   options: [
@@ -51,14 +44,24 @@ const TONIGHT_DATA = {
       closedDays: [],
     },
   ],
-  // `getTonightData`'s own non-future Log — `aiSearchAction` no longer reads
-  // it; the AI snapshot's Log comes from `getFullLogForSnapshot` instead.
+  // `getTonightData`'s own non-future Log — the route no longer reads it; the
+  // AI snapshot's Log comes from `getFullLogForSnapshot` instead.
   logEntries: [{ optionId: "o1", eatenOn: "2026-05-10", note: null }],
   todayEntries: [],
 };
 
 /** The full Log `getFullLogForSnapshot` feeds the AI snapshot — any date. */
 const FULL_LOG = [{ optionId: "o1", eatenOn: "2026-05-10", note: null }];
+
+function post(body: Record<string, unknown>): Promise<Response> {
+  return POST(
+    new Request("http://localhost/api/ai-search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
+}
 
 beforeEach(() => {
   getTonightData.mockReset();
@@ -71,10 +74,11 @@ beforeEach(() => {
   delete process.env.ANTHROPIC_API_KEY;
 });
 
-describe("aiSearchAction", () => {
+describe("POST /api/ai-search", () => {
   it("returns the typed unavailable when ANTHROPIC_API_KEY is unset", async () => {
-    const result = await aiSearchAction("something light");
-    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    const response = await post({ query: "something light" });
+
+    expect(await response.json()).toEqual(AI_SEARCH_UNAVAILABLE);
     // Unconfigured — no DB read and no model call.
     expect(getTonightData).not.toHaveBeenCalled();
     expect(search).not.toHaveBeenCalled();
@@ -87,9 +91,9 @@ describe("aiSearchAction", () => {
       results: [{ id: "o1", reason: "fits" }],
     });
 
-    const result = await aiSearchAction("something sweet");
+    const response = await post({ query: "something sweet" });
 
-    expect(result).toEqual({
+    expect(await response.json()).toEqual({
       ok: true,
       results: [{ id: "o1", reason: "fits" }],
     });
@@ -118,7 +122,7 @@ describe("aiSearchAction", () => {
     ]);
     search.mockResolvedValue({ ok: true, results: [] });
 
-    await aiSearchAction("something sweet");
+    await post({ query: "something sweet" });
 
     const [snapshot, idByIndex] = search.mock.calls[0];
     // o1 was rejected today — gone from the candidate options and absent from
@@ -138,7 +142,7 @@ describe("aiSearchAction", () => {
     process.env.ANTHROPIC_API_KEY = "test-key";
     search.mockResolvedValue({ ok: true, results: [] });
 
-    await aiSearchAction("");
+    await post({ query: "" });
 
     const [snapshot] = search.mock.calls[0];
     expect(snapshot.query).toBe("<household-text></household-text>");
@@ -154,7 +158,7 @@ describe("aiSearchAction", () => {
     ]);
     search.mockResolvedValue({ ok: true, results: [] });
 
-    await aiSearchAction("");
+    await post({ query: "" });
 
     const [snapshot] = search.mock.calls[0];
     expect(snapshot.log.map((e: { date: string }) => e.date)).toContain(
@@ -184,15 +188,25 @@ describe("aiSearchAction", () => {
     });
     search.mockResolvedValue({ ok: true, results: [] });
 
-    await aiSearchAction("");
+    await post({ query: "" });
 
     const [snapshot, idByIndex] = search.mock.calls[0];
     // o2 (Bento Box) is closed today, so it never reaches the candidate set —
-    // `app/tonight-actions.ts`'s `options.map` forwards `closedDays` and
-    // `buildSnapshot` drops the Restaurant on it.
+    // the route's `options.map` forwards `closedDays` and `buildSnapshot`
+    // drops the Restaurant on it.
     expect(
       snapshot.options.map((o: { name: string }) => o.name),
     ).not.toContain("<household-text>Bento Box</household-text>");
     expect([...idByIndex.values()]).not.toContain("o2");
+  });
+
+  it("defaults a malformed or missing selectedDay to today rather than throwing", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    search.mockResolvedValue({ ok: true, results: [] });
+
+    const response = await post({ query: "", selectedDay: 12345 });
+
+    expect(response.status).toBe(200);
+    expect(search).toHaveBeenCalledTimes(1);
   });
 });

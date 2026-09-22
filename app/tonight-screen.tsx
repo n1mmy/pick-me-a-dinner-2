@@ -31,7 +31,7 @@ import {
 } from "./option-combobox";
 import { pickTonight } from "./log/actions";
 import { deleteRejection } from "./rejection-actions";
-import { aiSearchAction } from "./tonight-actions";
+import { aiSearchAction } from "./tonight-search-client";
 import { TonightRowItem } from "./tonight-row";
 import { TonightsDinnerBlock } from "./tonights-dinner-block";
 
