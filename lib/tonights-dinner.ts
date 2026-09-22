@@ -13,6 +13,7 @@
  * right thing whether that day is today or Friday.
  */
 import type { TonightRow } from "./ranking";
+import { safeHttpUrl } from "./safe-http-url";
 
 /**
  * A `dinner_log` row dated on the anchor day, narrowed to what the decided
@@ -103,22 +104,6 @@ export type DecidedAction = {
   label: DecidedActionLabel;
   href: string;
 };
-
-/**
- * Return `url` only when it parses as an `http(s)` link. A Catalog `url` is
- * free text the Household typed and is never scheme-checked on save, so a
- * `javascript:` or `data:` value must not become a clickable action button —
- * the decided row's Menu / Recipe `href` is the first place a Catalog `url`
- * is rendered as a live link. Anything that is not http/https yields no button.
- */
-function safeHttpUrl(url: string): string | null {
-  try {
-    const { protocol } = new URL(url);
-    return protocol === "http:" || protocol === "https:" ? url : null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * The action buttons a Picked Option's decided row should render.

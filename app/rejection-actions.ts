@@ -132,7 +132,7 @@ export const deleteRejection = authedAction(
     try {
       await db.delete(rejections).where(eq(rejections.id, id));
     } catch {
-      return { ok: false, error: "Couldn't bring that back — try again" };
+      return { ok: false, error: "Couldn't delete that — try again" };
     }
     revalidateDinnerViews();
     return { ok: true };

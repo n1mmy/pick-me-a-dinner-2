@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { OptionWithTags } from "../../../db/queries";
 import { PickButton } from "../../pick-button";
+import { ConfirmPair } from "../../confirm-pair";
 import { rejectOption } from "../../rejection-actions";
 import { archiveOption, deleteOption, unarchiveOption } from "../actions";
 import { OptionForm } from "../option-form";
@@ -184,29 +185,14 @@ export function OptionControls({
             )}
           </>
         ) : (
-          <>
-            <button
-              type="button"
-              disabled={pending}
-              className={`${actionButton} font-emphasis disabled:opacity-60 ${
-                confirm === "delete" ? "text-danger" : "text-action"
-              }`}
-              onClick={confirm === "delete" ? runDelete : runArchive}
-            >
-              {confirm === "delete" ? "Delete" : "Archive"}
-            </button>
-            <span aria-hidden="true" className="text-chip text-muted">
-              ·
-            </span>
-            <button
-              type="button"
-              disabled={pending}
-              className={`${actionButton} text-muted disabled:opacity-60`}
-              onClick={() => setConfirm(null)}
-            >
-              Cancel
-            </button>
-          </>
+          <ConfirmPair
+            buttonClass={actionButton}
+            label={confirm === "delete" ? "Delete" : "Archive"}
+            tone={confirm === "delete" ? "danger" : "action"}
+            pending={pending}
+            onConfirm={confirm === "delete" ? runDelete : runArchive}
+            onCancel={() => setConfirm(null)}
+          />
         )}
         <div className="ml-auto flex items-center gap-1">
           {confirm === null && (

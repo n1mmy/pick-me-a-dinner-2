@@ -15,6 +15,7 @@ import {
 } from "../../../lib/local-day";
 import { placesEnabled } from "../../../lib/places";
 import { rankOption, type RankOption } from "../../../lib/ranking";
+import { safeHttpUrl } from "../../../lib/safe-http-url";
 import { EntryRow } from "../../log/log-entry-row";
 import { RejectionRow } from "../../log/rejection-row";
 import { kindBarClass } from "../../kind-bar";
@@ -113,6 +114,11 @@ export default async function OptionDetailPage({
   const closedDays = isRestaurant
     ? closedDaysSummary(option.closedDays)
     : null;
+  // A Catalog `url` / `mapsUrl` is free text, never scheme-checked on save —
+  // only an http(s) value may render as a live link; anything else stays
+  // visible as plain text (see `safeHttpUrl`).
+  const linkHref = option.url ? safeHttpUrl(option.url) : null;
+  const mapsHref = option.mapsUrl ? safeHttpUrl(option.mapsUrl) : null;
   const hasDetails =
     Boolean(option.notes) ||
     Boolean(option.url) ||
@@ -158,14 +164,18 @@ export default async function OptionDetailPage({
             {option.notes && <Field label="Notes">{option.notes}</Field>}
             {option.url && (
               <Field label="Link">
-                <a
-                  href={option.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={linkClass}
-                >
-                  {option.url}
-                </a>
+                {linkHref ? (
+                  <a
+                    href={linkHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={linkClass}
+                  >
+                    {option.url}
+                  </a>
+                ) : (
+                  option.url
+                )}
               </Field>
             )}
             {isRestaurant && option.address && (
@@ -180,14 +190,18 @@ export default async function OptionDetailPage({
             )}
             {isRestaurant && option.mapsUrl && (
               <Field label="Map">
-                <a
-                  href={option.mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={linkClass}
-                >
-                  Google Maps
-                </a>
+                {mapsHref ? (
+                  <a
+                    href={mapsHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={linkClass}
+                  >
+                    Google Maps
+                  </a>
+                ) : (
+                  option.mapsUrl
+                )}
               </Field>
             )}
             {isRestaurant && closedDays && (
