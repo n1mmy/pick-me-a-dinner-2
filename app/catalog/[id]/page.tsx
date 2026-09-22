@@ -51,9 +51,11 @@ const sectionHeading =
  * — a stale link, a Deleted Option, or junk — renders Next's `notFound()`.
  *
  * `?edit=1` swaps the Recency/Actions/Details block for `EditPanel` (the
- * reused `OptionForm`), History unchanged below it — edit is a real URL
- * state, not a client toggle, so it's back-button-able and the read-only
- * fields below it are never rendered stale under an open form.
+ * reused `OptionForm`) and hides History below it too — it's read-only
+ * reference material, unrelated to the fields being edited, and would just
+ * add scroll length under the form and its fixed Save/Cancel bar. Edit is a
+ * real URL state, not a client toggle, so it's back-button-able and nothing
+ * is ever rendered stale under an open form.
  */
 export default async function OptionDetailPage({
   params,
@@ -232,43 +234,48 @@ export default async function OptionDetailPage({
         </>
       )}
 
-      <section className="flex flex-col gap-2">
-        <h2 className={sectionHeading}>History</h2>
-        {activity.length === 0 ? (
-          <p className="text-body text-muted">
-            Nothing logged or rejected yet for this Option.
-          </p>
-        ) : (
-          // Each date-group interleaves that day's logged dinners and
-          // Rejections, reusing the Log screen's `EntryRow` / `RejectionRow`
-          // so the two screens manage a Dinner and a Rejection identically
-          // (PRD: Option detail page parity). Their actions revalidate
-          // `/catalog/[id]`, so an edit or delete refreshes this page in place.
-          activity.map((record) => (
-            <div key={record.date} className="flex flex-col gap-1">
-              <h3 className="text-chip font-emphasis text-muted">
-                {formatDinnerDate(record.date, todaySql)}
-              </h3>
-              <ul className="flex flex-col">
-                {record.entries.map((entry) => (
-                  <EntryRow
-                    key={entry.id}
-                    entry={entry}
-                    optionChoices={optionChoices}
-                  />
-                ))}
-                {record.rejections.map((rejection) => (
-                  <RejectionRow
-                    key={rejection.id}
-                    rejection={rejection}
-                    optionChoices={optionChoices}
-                  />
-                ))}
-              </ul>
-            </div>
-          ))
-        )}
-      </section>
+      {/* History is hidden while editing: it's read-only reference material
+          unrelated to the fields being changed, and would just add scroll
+          length below the form and its fixed Save/Cancel bar. */}
+      {!editing && (
+        <section className="flex flex-col gap-2">
+          <h2 className={sectionHeading}>History</h2>
+          {activity.length === 0 ? (
+            <p className="text-body text-muted">
+              Nothing logged or rejected yet for this Option.
+            </p>
+          ) : (
+            // Each date-group interleaves that day's logged dinners and
+            // Rejections, reusing the Log screen's `EntryRow` / `RejectionRow`
+            // so the two screens manage a Dinner and a Rejection identically
+            // (PRD: Option detail page parity). Their actions revalidate
+            // `/catalog/[id]`, so an edit or delete refreshes this page in place.
+            activity.map((record) => (
+              <div key={record.date} className="flex flex-col gap-1">
+                <h3 className="text-chip font-emphasis text-muted">
+                  {formatDinnerDate(record.date, todaySql)}
+                </h3>
+                <ul className="flex flex-col">
+                  {record.entries.map((entry) => (
+                    <EntryRow
+                      key={entry.id}
+                      entry={entry}
+                      optionChoices={optionChoices}
+                    />
+                  ))}
+                  {record.rejections.map((rejection) => (
+                    <RejectionRow
+                      key={rejection.id}
+                      rejection={rejection}
+                      optionChoices={optionChoices}
+                    />
+                  ))}
+                </ul>
+              </div>
+            ))
+          )}
+        </section>
+      )}
     </main>
   );
 }
