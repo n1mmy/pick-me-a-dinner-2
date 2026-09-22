@@ -9,13 +9,12 @@
  * weekday match regardless of which calendar date it falls on, so there is no
  * today-or-later branch here to carry forever.
  *
- * Tonight and AI search share this predicate but not its consequence: Tonight
- * keeps a closed Restaurant visible, in the Closed disclosure, with full
- * controls; AI search's candidate set drops closed Restaurants entirely. Only
- * `isClosedOn` is shared — each caller decides what "closed" means for its
- * own list.
+ * Its one caller is `suppressionsOn` (`lib/tonight-day.ts`), which ranks it
+ * after Picked and Rejected. Tonight and AI search share that answer but not
+ * its consequence: Tonight keeps a closed Restaurant visible, in the Closed
+ * disclosure, with full controls; AI search's candidate set drops closed
+ * Restaurants entirely.
  */
-import type { TonightRow } from "./ranking";
 import { weekdayFromSqlDate } from "./local-day";
 
 /**
@@ -33,39 +32,4 @@ export function isClosedOn(
 ): boolean {
   if (closedDays.length === 0) return false;
   return closedDays.includes(weekdayFromSqlDate(selectedDaySql));
-}
-
-/**
- * Split `rows` into what stays on the picker and what is closed on
- * `selectedDaySql` (PRD: Closed days, ADR-0010) — the closed-day half of
- * Tonight's picker filtering (`lib/tonight-day.ts` applies the Rejection
- * filter first, so a row both closed and rejected never reaches here).
- * `closedDays` lives on the Catalog's `TonightOption`, not on the
- * `RankOption` a `TonightRow` carries, so `options` supplies it, keyed by id.
- *
- * `closed` comes back alphabetical by name, matching the Closed disclosure's
- * own ordering (DESIGN.md "Closed disclosure": "the list is alphabetical, not
- * ranked"); `visible` keeps the caller's order — the ranking.
- */
-export function partitionClosedRows(
-  rows: TonightRow[],
-  options: { id: string; closedDays: number[] }[],
-  selectedDaySql: string,
-): { visible: TonightRow[]; closed: TonightRow[] } {
-  const closedDaysById = new Map(
-    options.map((option) => [option.id, option.closedDays]),
-  );
-  const visible: TonightRow[] = [];
-  const closed: TonightRow[] = [];
-
-  for (const row of rows) {
-    const shut = isClosedOn(
-      closedDaysById.get(row.option.id) ?? [],
-      selectedDaySql,
-    );
-    (shut ? closed : visible).push(row);
-  }
-
-  closed.sort((a, b) => a.option.name.localeCompare(b.option.name));
-  return { visible, closed };
 }

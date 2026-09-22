@@ -45,7 +45,6 @@
  * `pnpm build`) needs no env vars.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { isClosedOn } from "./closed-days";
 import { WEEKDAY_NAMES } from "./local-day";
 import {
   partitionRejections,
@@ -58,6 +57,7 @@ import {
   formatDateWithWeekday,
   undelimit,
 } from "./snapshot-format";
+import { suppressionsOn } from "./tonight-day";
 
 /** One AI search result row: an Option id and its AI rationale, in rank order. */
 export type AiRankingRow = { id: string; reason: string };
@@ -252,20 +252,20 @@ export type BuiltSnapshot = {
  *   only; the Score and `lib/ranking` are untouched (ADR-0003, ADR-0006). A
  *   suppressed Option's eating history still appears in the Log — only its
  *   candidacy is removed.
- * - A Restaurant **closed on the anchor day** (`isClosedOn`, `lib/closed-days`)
- *   is dropped from the candidate `options` exactly the same way — a closed
- *   Restaurant cannot resurface as a result even if the model returns its
- *   number; `parseRankingText` drops it because `idByIndex` never held it. A
- *   Restaurant both closed and anchor-day-rejected is simply dropped once —
- *   the two checks are independent set membership tests, not a chain that
- *   could double-remove or crash. Its number, Log rows, and Rejection rows are
- *   unaffected — the numbering covers the whole Catalog either way (PRD:
- *   Closed days, ADR-0010).
+ * - A Restaurant **closed on the anchor day** is dropped from the candidate
+ *   `options` exactly the same way — a closed Restaurant cannot resurface as a
+ *   result even if the model returns its number; `parseRankingText` drops it
+ *   because `idByIndex` never held it. Its number, Log rows, and Rejection
+ *   rows are unaffected — the numbering covers the whole Catalog either way
+ *   (PRD: Closed days, ADR-0010).
  * - Options already **in the Log on the anchor day** (Picked for it) are
  *   dropped from the candidate `options` the same way. The Tonight screen
  *   removes a Picked Option from the ranked list, so any row the model wrote
  *   for it would never be shown; its Log row stays, so the model still reads
  *   what tonight's dinner already covers.
+ * - All three drops come from one call to `suppressionsOn` (`lib/tonight-day`)
+ *   — the same rules the Tonight picker applies — so an Option that is
+ *   several at once is dropped once, and the two lists cannot drift apart.
  * - Every **remaining candidate**'s Closed days ride along on
  *   `SnapshotModelOption.closedDays`, as weekday names, so the model can
  *   explain a thinner Log with the trading week instead of misreading it as
@@ -315,23 +315,20 @@ export function buildSnapshot(input: {
     indexByOptionId,
   );
 
-  // Anchor-day-rejected, anchor-day-closed, and anchor-day-Picked Options all
-  // leave the candidate set — independent set-membership checks, so an Option
-  // that is several is simply dropped once, not double-removed. The Log below
+  // Every Option the Tonight picker suppresses for the anchor day — Picked,
+  // Rejected, or Closed — leaves the candidate set; `suppressionsOn` is the
+  // one statement of those rules, shared with `tonightForDay`. The Log below
   // is still built from the *full* `options` input, so a dropped Option's
   // eating history reads as history even though it is no longer a candidate.
-  const closedForAsOf = new Set(
-    byName.filter((o) => isClosedOn(o.closedDays, asOf)).map((o) => o.id),
-  );
-  const pickedForAsOf = new Set(
-    logEntries.filter((e) => e.eatenOn === asOf).map((e) => e.optionId),
-  );
-  const candidates = byName.filter(
-    (o) =>
-      !suppressedForAsOf.has(o.id) &&
-      !closedForAsOf.has(o.id) &&
-      !pickedForAsOf.has(o.id),
-  );
+  const suppressions = suppressionsOn({
+    options: byName,
+    pickedOptionIds: logEntries
+      .filter((entry) => entry.eatenOn === asOf)
+      .map((entry) => entry.optionId),
+    rejectedOptionIds: suppressedForAsOf,
+    day: asOf,
+  });
+  const candidates = byName.filter((o) => !suppressions.has(o.id));
   const modelOptions = candidates.map(
     (option): SnapshotModelOption => ({
       id: indexByOptionId.get(option.id)!,
@@ -429,6 +426,21 @@ function toIndex(id: string): number | null {
 const EMPTY_RESULT_SENTINEL = "NONE";
 
 /**
+ * The line the model writes above its ranking when it judged the query open —
+ * empty, or not narrowing the Catalog. Only the model can tell "anything
+ * good?" from "something light", and `search` needs to know which it was:
+ * an open query's result is the whole Catalog, so an omitted candidate is
+ * appended back; a narrowing query's shortlist is left alone.
+ */
+const OPEN_QUERY_MARKER = "OPEN";
+
+/** Whether the model's first line is `OPEN_QUERY_MARKER`. */
+function declaresOpenQuery(text: string): boolean {
+  const firstLine = text.split("\n").find((line) => line.trim() !== "");
+  return firstLine?.trim().toUpperCase() === OPEN_QUERY_MARKER;
+}
+
+/**
  * Validate the model's response body into an ordered result, mapping each
  * Option number back to its real UUID. The model writes one
  * `<number>|<rationale>` line per Option, in rank order (see
@@ -494,10 +506,17 @@ export function parseRankingText(
 }
 
 /**
- * Append, with an empty reason, every candidate the model left out of an
- * open-query ranking. The screen shows only returned rows in AI view, so an
- * omitted Option would otherwise vanish. Appended in `idByIndex` order
- * (alphabetical by name).
+ * The reason an appended candidate carries. Not empty: in `pithy` mode an
+ * empty reason is the model's verdict "obviously bad pick", and an Option the
+ * model merely skipped — often one never tried at all — must not read as one.
+ */
+export const OMITTED_CANDIDATE_REASON = "Not ranked — the AI left this one out";
+
+/**
+ * Append every candidate the model left out of an open-query ranking, each
+ * with `OMITTED_CANDIDATE_REASON`. The screen shows only returned rows in AI
+ * view, so an omitted Option would otherwise vanish. Appended in `idByIndex`
+ * order (alphabetical by name).
  */
 function backfillOmittedCandidates(
   rows: AiRankingRow[],
@@ -506,7 +525,7 @@ function backfillOmittedCandidates(
   const returned = new Set(rows.map((row) => row.id));
   const omitted = [...idByIndex.values()]
     .filter((id) => !returned.has(id))
-    .map((id) => ({ id, reason: "" }));
+    .map((id) => ({ id, reason: OMITTED_CANDIDATE_REASON }));
   return [...rows, ...omitted];
 }
 
@@ -729,9 +748,12 @@ export type TailMode = "full" | "pithy" | "drop";
  *   no rationale at all. The default — it preserves ADR-0005's whole-Catalog
  *   result while trimming the output the model has to generate.
  * - `drop`  — the model omits Options it judges clearly bad picks and returns
- *   only a short shortlist. This departs from ADR-0005's "return the whole
- *   Catalog on an open query", so it is kept behind the env var, not made the
- *   default; making it the default would warrant an ADR-0005 amendment.
+ *   only a short shortlist, which saves output tokens. `search` still appends
+ *   the omitted ones, as it does in every mode on an open query, so the screen
+ *   shows the shortlist followed by the rest, marked "Not ranked". The model's
+ *   answer departs from ADR-0005's "return the whole Catalog on an open
+ *   query", so it is kept behind the env var, not made the default; making it
+ *   the default would warrant an ADR-0005 amendment.
  *
  * An unset or unrecognized value resolves to `pithy`.
  */
@@ -741,21 +763,9 @@ export function resolveTailMode(): TailMode {
 }
 
 /**
- * Which tail modes return every candidate on an open query. The one source
- * for both halves of that promise: the prompt adds
- * `EVERY_CANDIDATE_INSTRUCTION` for these modes, and `search` appends any
- * candidate the model still left out.
- */
-const RETURNS_EVERY_CANDIDATE: Record<TailMode, boolean> = {
-  full: true,
-  pithy: true,
-  drop: false,
-};
-
-/**
- * Appended to the open-query instruction of every `RETURNS_EVERY_CANDIDATE`
- * mode. Opus 5.5 reliably left out the one candidate with no Log history,
- * notes, or Rejections — nothing to say about it read as nothing to rank.
+ * Shared by the whole-Catalog tail modes. Opus 5.5 reliably left out the one
+ * candidate with no Log history, notes, or Rejections — nothing to say about it
+ * read as nothing to rank.
  */
 const EVERY_CANDIDATE_INSTRUCTION =
   " Every candidate must appear exactly once, including an Option with no " +
@@ -769,7 +779,8 @@ const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
     "candidate Option from the snapshot, ranked best first. For an Option " +
     "high in the ranking the rationale says why it is a strong pick tonight; " +
     "for an Option low in the ranking it says why it is a weaker pick. Every " +
-    "rationale is one short line, roughly 140 characters at most.",
+    "rationale is one short line, roughly 140 characters at most." +
+    EVERY_CANDIDATE_INSTRUCTION,
   pithy:
     "- If the query is empty or does not narrow the Catalog, return every " +
     "candidate Option from the snapshot, ranked best first, varying how " +
@@ -784,7 +795,8 @@ const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
     "obviously bad pick tonight (just eaten, plainly not a fit, a standing " +
     "reason against it), give an empty string as the reason — no text at " +
     "all. You decide which tier each Option falls in; the weaker the " +
-    "pick, the less needs to be said.",
+    "pick, the less needs to be said." +
+    EVERY_CANDIDATE_INSTRUCTION,
   drop:
     "- If the query is empty or does not narrow the Catalog, return only the " +
     "Options genuinely worth considering for tonight, ranked best first, and " +
@@ -810,8 +822,10 @@ const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
  */
 const TEXT_FORMAT_INSTRUCTION = [
   "",
-  "Output format — follow it exactly. Write ONE LINE per Option, in rank " +
-    "order, best first:",
+  "Output format — follow it exactly. If the query is empty or does not " +
+    `narrow the Catalog, first write the single word ${OPEN_QUERY_MARKER} ` +
+    "alone on a line; for a query that narrows it, write no such line. Then " +
+    "write ONE LINE per Option, in rank order, best first:",
   "<number>|<rationale>",
   "That is the Option's number copied exactly from the snapshot, then a " +
     "single | character, then the rationale as plain text on the same line. " +
@@ -846,8 +860,8 @@ export function buildSystemPrompt(mode: TailMode): string {
       "free-text query is given on its own line; it may be empty.",
     "",
     "Log rows dated today are what the household has already Picked for " +
-      "tonight. Those Options have been left out of the Catalog and are not " +
-      "candidates — never return them. Read those rows as what tonight " +
+      "tonight. Those Options have been left out of the candidates — never " +
+      "return them. Read those rows as what tonight " +
       "already covers when you rank the Options that remain.",
     "",
     "Your job is NOT to re-sort the Catalog by how long ago each Option was " +
@@ -895,7 +909,7 @@ export function buildSystemPrompt(mode: TailMode): string {
       "which were one-off — a passing \"too heavy tonight\" that has since " +
       "faded. Do not treat every Rejection as a permanent verdict. The block " +
       "has two groups. \"Rejected tonight\" Options have deliberately been " +
-      "left out of the Catalog above and are NOT candidates to return — but " +
+      "left out of the candidates and must NOT be returned — but " +
       "their reasons may still inform how you rank the Options that remain. " +
       "\"Other rejections\" are still candidates: they hold rejections from " +
       "other dates, past or upcoming, each row carrying its own date. " +
@@ -927,8 +941,7 @@ export function buildSystemPrompt(mode: TailMode): string {
       "that fit it — a focused shortlist, ranked best first, not the whole " +
       "Catalog re-sorted, each rationale a short line naming why that Option " +
       "fits.",
-    OPEN_QUERY_INSTRUCTION[mode] +
-      (RETURNS_EVERY_CANDIDATE[mode] ? EVERY_CANDIDATE_INSTRUCTION : ""),
+    OPEN_QUERY_INSTRUCTION[mode],
     "Every number must be copied exactly from an Option in the snapshot. " +
       "Each rationale must be specific — name the actual pattern or reason " +
       "behind that Option's placement, not a generic justification. Be " +
@@ -1103,10 +1116,6 @@ export function createAiSearchClient(
       // uncached.
       const { snapshotBody, queryBlock } = splitUserTurn(snapshot);
       const queryText = undelimit(snapshot.query);
-      // Only an empty query is known to be open: a non-empty one may narrow
-      // the Catalog, and `drop` mode omits weak picks on purpose.
-      const backfill =
-        queryText.trim() === "" && RETURNS_EVERY_CANDIDATE[tailMode];
       let backfilledCount = 0;
 
       // One model call, no retry. A timeout has already spent the full
@@ -1166,9 +1175,14 @@ export function createAiSearchClient(
         overrides?.onResponseText?.(text);
         const rows = parseRankingText(text, idByIndex);
         if (rows !== null) {
-          // A `NONE` answer stays the genuinely empty result (PRD §8).
+          // An open query's result is the whole Catalog, in every tail mode —
+          // an empty query is open by definition; a non-empty one is open
+          // only if the model said so. A narrowing query's shortlist is left
+          // alone, and a `NONE` answer stays the genuinely empty result
+          // (PRD §8).
+          const open = queryText.trim() === "" || declaresOpenQuery(text);
           const results =
-            backfill && rows.length > 0
+            open && rows.length > 0
               ? backfillOmittedCandidates(rows, idByIndex)
               : rows;
           backfilledCount = results.length - rows.length;

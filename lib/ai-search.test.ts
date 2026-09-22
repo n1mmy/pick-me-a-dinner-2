@@ -19,6 +19,7 @@ import {
   buildSnapshot,
   buildSystemPrompt,
   createAiSearchClient,
+  OMITTED_CANDIDATE_REASON,
   parseRankingText,
   resolveModel,
   resolveTailMode,
@@ -718,6 +719,17 @@ describe("buildSystemPrompt", () => {
     const prompt = buildSystemPrompt("pithy");
     expect(prompt).toContain("Log rows dated today");
     expect(prompt).toContain("never return them");
+    // They stay in the snapshot — numbered, with Log rows — so the prompt must
+    // not claim they left the Catalog.
+    expect(prompt).not.toContain("left out of the Catalog");
+  });
+
+  it("asks for an OPEN line above an open query's ranking, in every mode", () => {
+    for (const mode of ["full", "pithy", "drop"] as const) {
+      expect(buildSystemPrompt(mode)).toContain(
+        "first write the single word OPEN alone on a line",
+      );
+    }
   });
 
   it("no longer uses the stale 'closed on Sundays' Rejection example", () => {
@@ -1046,10 +1058,16 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
     option("c1", "Carrot Cake"),
   ];
 
-  /** Search with a response that ranks only Carrot Cake (3), then Apple (1). */
+  /**
+   * Search with a response that ranks only Carrot Cake (3), then Apple (1) —
+   * by default with no `OPEN` line, as a narrowing answer would be written.
+   */
   async function searchWith(
     query: string,
-    overrides: { onResponseText?: (text: string) => void } = {},
+    {
+      text = "3|due\n1|fine",
+      ...overrides
+    }: { text?: string; onResponseText?: (text: string) => void } = {},
   ) {
     const { snapshot, idByIndex } = buildSnapshot({
       options,
@@ -1059,7 +1077,7 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
       query,
     });
     messagesCreate.mockResolvedValueOnce({
-      content: [{ type: "text", text: "3|due\n1|fine" }],
+      content: [{ type: "text", text }],
       usage: { input_tokens: 100, output_tokens: 10 },
     });
     return createAiSearchClient("k", {
@@ -1078,29 +1096,44 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
     delete process.env.AI_TAIL_MODE;
   });
 
-  it("appends an omitted candidate with an empty reason on an empty query", async () => {
+  it("appends an omitted candidate, marked as not ranked, on an empty query", async () => {
     const result = await searchWith("");
     expect(result).toEqual({
       ok: true,
       results: [
         { id: "c1", reason: "due" },
         { id: "a1", reason: "fine" },
-        { id: "b1", reason: "" },
+        { id: "b1", reason: OMITTED_CANDIDATE_REASON },
       ],
     });
     const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
     expect(line).toMatchObject({ resultCount: 3, backfilledCount: 1 });
   });
 
-  it("leaves a non-empty query's shortlist alone — it may have narrowed", async () => {
+  it("appends on a non-empty query the model declared OPEN", async () => {
+    const result = await searchWith("anything good?", {
+      text: "OPEN\n3|due\n1|fine",
+    });
+    expect(result.ok && result.results.map((r) => r.id)).toEqual([
+      "c1",
+      "a1",
+      "b1",
+    ]);
+  });
+
+  it("leaves a non-empty query's shortlist alone when the model did not declare it OPEN", async () => {
     const result = await searchWith("something sweet");
     expect(result.ok && result.results.map((r) => r.id)).toEqual(["c1", "a1"]);
   });
 
-  it("leaves drop mode's shortlist alone — it omits weak picks on purpose", async () => {
+  it("appends in drop mode too — every open query shows the whole Catalog", async () => {
     process.env.AI_TAIL_MODE = "drop";
     const result = await searchWith("");
-    expect(result.ok && result.results.map((r) => r.id)).toEqual(["c1", "a1"]);
+    expect(result.ok && result.results.map((r) => r.id)).toEqual([
+      "c1",
+      "a1",
+      "b1",
+    ]);
   });
 
   it("hands the raw ranking text to onResponseText", async () => {

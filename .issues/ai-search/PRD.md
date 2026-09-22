@@ -280,6 +280,17 @@ pure parts and one impure call.
 
 - One structured log line per model call: query length, model id, latency,
   outcome (`ok` or `fallback:<class>`), and the count of Options returned.
+  - _As built (2026-09-22):_ the `ai_search` line carries `queryLength`,
+    `model`, `tailMode`, `thinking`, `latencyMs`, `outcome` (`ok` or
+    `fallback`, unclassified), `resultCount`, `backfilledCount` — of
+    `resultCount`, the candidates the model left out of an open query and
+    `search` appended — and the usage fields `inputTokens`, `outputTokens`,
+    `thinkingTokens`, `cacheReadTokens`, `cacheCreationTokens` (absent when
+    the call threw before a response).
+  - The eval harness (`scripts/ai-search-eval.ts`) additionally records each
+    run's raw response text (`rawText`, via `createAiSearchClient`'s
+    `onResponseText` override) and `backfilledCount`, so a missing Option can
+    be traced to the model or the parser. Production never records the text.
 
 ## Testing Decisions
 
