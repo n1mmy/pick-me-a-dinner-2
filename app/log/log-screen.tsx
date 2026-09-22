@@ -145,7 +145,7 @@ function TopAddControls({
 
   if (open === "dinner") {
     return (
-      <div className="border-b border-line py-3">
+      <div className="border-b border-divider py-3">
         <AddEntryForm
           optionChoices={optionChoices}
           defaultDate={today}
@@ -157,7 +157,7 @@ function TopAddControls({
   }
   if (open === "rejection") {
     return (
-      <div className="border-b border-line py-3">
+      <div className="border-b border-divider py-3">
         <AddRejectionForm
           optionChoices={optionChoices}
           defaultDate={today}
@@ -212,7 +212,7 @@ function DayGroup({
       className={
         isFirst
           ? "flex flex-col gap-1"
-          : "flex flex-col gap-1 border-t-2 border-line pt-5.5"
+          : "flex flex-col gap-1 border-t-2 border-divider pt-5.5"
       }
     >
       <h3 className="text-chip font-emphasis text-muted">

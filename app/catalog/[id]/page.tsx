@@ -263,7 +263,7 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 border-b border-line py-3">
+    <div className="flex flex-col gap-0.5 border-b border-divider py-3">
       <dt className={sectionHeading}>{label}</dt>
       <dd className="text-body text-ink">{children}</dd>
     </div>

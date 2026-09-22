@@ -42,7 +42,6 @@ export function PickButton({ optionId }: { optionId: string }) {
         type="button"
         onClick={pick}
         disabled={pending}
-        aria-live="polite"
         className={`min-h-11 rounded-control px-4 text-body font-emphasis
           transition-colors duration-short disabled:opacity-60 ${focusRing} ${
             justLogged
@@ -52,6 +51,13 @@ export function PickButton({ optionId }: { optionId: string }) {
       >
         {justLogged ? "Logged ✓" : "Pick"}
       </button>
+      {/* A sibling live region, not `aria-live` on the button itself — the
+          button is usually still focused when its label flips, and making an
+          interactive element its own live region risks a double announcement
+          or gets skipped by some screen readers. */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {justLogged ? "Logged" : ""}
+      </p>
       {pickError && (
         <p className="text-chip text-danger" aria-live="polite">
           {pickError}

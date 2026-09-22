@@ -5,6 +5,7 @@ import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogEntryRow, OptionChoice } from "../../db/queries";
 import { OptionCombobox } from "../option-combobox";
 import { PickButton } from "../pick-button";
+import { ConfirmPair } from "../confirm-pair";
 import { deleteLogEntry, updateLogEntry } from "./actions";
 
 /**
@@ -26,7 +27,9 @@ const actionButton =
 /**
  * One Log entry row. Shows the Option name and note with Edit / Delete actions;
  * Edit expands the row in place into the form, Delete uses the §17
- * inline-confirm pattern. A saved edit collapses with a quiet "Saved".
+ * inline-confirm pattern — the armed `ConfirmPair`. A saved edit collapses
+ * with a quiet "Saved". `PickButton` pins to the row's right edge either way,
+ * so the pair's last child lands where rest-state Delete already was.
  */
 export function EntryRow({
   entry,
@@ -59,7 +62,7 @@ export function EntryRow({
 
   if (editing) {
     return (
-      <li className={`border-b border-line ${kindBg} px-3 py-3`}>
+      <li className={`border-b border-divider ${kindBg} px-3 py-3`}>
         <EntryEditForm
           entry={entry}
           optionChoices={optionChoices}
@@ -71,7 +74,7 @@ export function EntryRow({
   }
 
   return (
-    <li className={`flex flex-col gap-1 border-b border-line ${kindBg} px-3 py-3`}>
+    <li className={`flex flex-col gap-1 border-b border-divider ${kindBg} px-3 py-3`}>
       <div className="flex items-center justify-between gap-3">
         <Link
           href={`/catalog/${entry.optionId}`}
@@ -88,27 +91,13 @@ export function EntryRow({
             </span>
           )}
           {confirmDelete ? (
-            <>
-              <button
-                type="button"
-                disabled={pending}
-                className={`${actionButton} font-emphasis text-danger`}
-                onClick={runDelete}
-              >
-                Delete
-              </button>
-              <span aria-hidden="true" className="text-chip text-muted">
-                ·
-              </span>
-              <button
-                type="button"
-                disabled={pending}
-                className={`${actionButton} text-muted`}
-                onClick={() => setConfirmDelete(false)}
-              >
-                Cancel
-              </button>
-            </>
+            <ConfirmPair
+              buttonClass={actionButton}
+              label="Delete"
+              pending={pending}
+              onConfirm={runDelete}
+              onCancel={() => setConfirmDelete(false)}
+            />
           ) : (
             <>
               <button
@@ -238,7 +227,11 @@ function EntryEditForm({
           }
         />
         {error && error !== "Pick an Option" && (
-          <p id={`${fieldId}-error`} className="text-chip text-danger">
+          <p
+            id={`${fieldId}-error`}
+            className="text-chip text-danger"
+            role="alert"
+          >
             {error}
           </p>
         )}

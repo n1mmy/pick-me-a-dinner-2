@@ -8,7 +8,8 @@ import {
   type DecidedAction,
   type TonightsDinnerEntry,
 } from "../lib/tonights-dinner";
-import { kindBarClass } from "./kind-bar";
+import { kindBarClass, kindWashClass } from "./kind-bar";
+import { ConfirmPair } from "./confirm-pair";
 import { deleteLogEntry, updateLogEntry } from "./log/actions";
 import { inputClass, labelClass } from "./log/log-entry-row";
 import { RowChips } from "./tonight-row";
@@ -129,16 +130,10 @@ function DecidedRow({
   const actions = decidedActions(row.option);
   const [editing, setEditing] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
-  // A light wash of the Option's kind hue tints each decided row, so the
-  // "Tonight's dinner" block reads as a distinct shaded area above the picker.
-  const washClass =
-    row.option.kind === "home"
-      ? "bg-kind-home-wash"
-      : "bg-kind-restaurant-wash";
   return (
     <li
-      className={`border-b border-line py-[10px] last:border-b-0 ${washClass}
-        ${kindBarClass(row.option.kind)}`}
+      className={`border-b border-divider py-[10px] last:border-b-0
+        ${kindWashClass(row.option.kind)} ${kindBarClass(row.option.kind)}`}
     >
       <div className="flex items-center justify-between gap-2">
         <Link
@@ -364,6 +359,10 @@ const removeButton =
  * then deletes today's Log entry for the Option via the existing
  * `deleteLogEntry` server action, and "Cancel" disarms it.
  *
+ * The armed group is the shared `ConfirmPair`; the row is `justify-between`,
+ * so its last child lands at the same right edge the single rest-state
+ * "Remove" occupied.
+ *
  * `deleteLogEntry` revalidates Tonight, so on a successful delete the server
  * drops this row from the block (and, if it was the last one, returns the
  * whole screen to picker mode) — the control needs no post-delete cleanup of
@@ -404,25 +403,13 @@ function RemoveControl({
 
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <button
-        type="button"
-        disabled={pending}
-        onClick={runRemove}
-        className={`${removeButton} font-emphasis text-danger disabled:opacity-60`}
-      >
-        Remove
-      </button>
-      <span aria-hidden="true" className="text-chip text-muted">
-        ·
-      </span>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() => setConfirming(false)}
-        className={`${removeButton} text-muted disabled:opacity-60`}
-      >
-        Cancel
-      </button>
+      <ConfirmPair
+        buttonClass={removeButton}
+        label="Remove"
+        pending={pending}
+        onConfirm={runRemove}
+        onCancel={() => setConfirming(false)}
+      />
     </div>
   );
 }

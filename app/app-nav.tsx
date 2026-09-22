@@ -28,7 +28,7 @@ export function AppNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface
+      className="fixed inset-x-0 bottom-0 z-20 border-t border-divider bg-surface
         pb-[env(safe-area-inset-bottom)] desktop:inset-x-auto desktop:inset-y-0
         desktop:left-0 desktop:flex desktop:w-[var(--rail-width)] desktop:flex-col
         desktop:border-r desktop:border-t-0 desktop:pb-0"

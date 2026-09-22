@@ -5,7 +5,7 @@ import type { OptionChoice } from "../db/queries";
 import { kindBarClass } from "./kind-bar";
 
 const inputClass =
-  "min-h-11 w-full rounded-input border border-line bg-surface px-3 pr-9 " +
+  "min-h-11 w-full rounded-input border border-line bg-surface px-3 pr-11 " +
   "text-body text-ink placeholder:text-muted focus-visible:outline " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 " +
   "focus-visible:outline-action";
@@ -122,6 +122,14 @@ export function useComboboxKeyboard({
  * `preventDefault` commits a pick before the input's blur fires; hovering a
  * row moves the keyboard highlight to it.
  *
+ * Each row is a `tabIndex={-1}` `div`, not a `button` — a listbox's ownership
+ * contract is the input holds DOM focus throughout, driving the highlighted
+ * option purely via `aria-activedescendant` (wired by the input in
+ * `OptionCombobox`/`SearchBox`). A focusable option row would give
+ * assistive tech two competing focus models at once. The `<li>` wrapper
+ * carries `role="presentation"` so a listbox's only exposed children are
+ * `option` rows, per the ARIA listbox content model.
+ *
  * The two callers differ only in what "selected" means for `aria-selected` —
  * `OptionCombobox` has a persisted pick (`option.id === value`), Tonight's
  * search box has none and highlights by keyboard position instead — and in
@@ -155,16 +163,19 @@ export function OptionListbox({
   return (
     <ul id={listId} role="listbox" className={className}>
       {matches.length === 0 && showNoMatchesRow ? (
-        <li className="px-3 py-2 text-body text-muted">No matches</li>
+        <li role="presentation" className="px-3 py-2 text-body text-muted">
+          No matches
+        </li>
       ) : (
         matches.map((option, index) => (
-          <li key={option.id}>
-            <button
-              type="button"
+          <li key={option.id} role="presentation">
+            <div
               id={`${listId}-option-${option.id}`}
               role="option"
+              tabIndex={-1}
               aria-selected={isSelected(option, index)}
-              className={`flex min-h-11 w-full flex-col py-1.5 text-left
+              className={`flex min-h-11 w-full cursor-pointer flex-col py-1.5
+                text-left
                 ${kindBarClass(option.kind)} ${rowClassName} ${
                   index === activeIndex ? "bg-raised" : "hover:bg-raised"
                 }`}
@@ -178,7 +189,7 @@ export function OptionListbox({
               <span className="text-meta text-muted">
                 {kindLabel(option.kind)}
               </span>
-            </button>
+            </div>
           </li>
         ))
       )}
@@ -344,9 +355,9 @@ export function OptionCombobox({
         <button
           type="button"
           aria-label="Clear Option"
-          className="absolute right-1 top-1/2 flex h-9 w-8 -translate-y-1/2
-            items-center justify-center rounded-control text-muted
-            hover:text-ink focus-visible:outline focus-visible:outline-2
+          className="absolute inset-y-0 right-0 flex w-11 items-center
+            justify-center rounded-control text-muted hover:text-ink
+            focus-visible:outline focus-visible:outline-2
             focus-visible:outline-offset-2 focus-visible:outline-action"
           onMouseDown={(event) => {
             event.preventDefault();

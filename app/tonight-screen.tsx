@@ -31,7 +31,7 @@ import {
 } from "./option-combobox";
 import { pickTonight } from "./log/actions";
 import { deleteRejection } from "./rejection-actions";
-import { aiSearchAction } from "./tonight-actions";
+import { aiSearchAction } from "./tonight-search-client";
 import { TonightRowItem } from "./tonight-row";
 import { TonightsDinnerBlock } from "./tonights-dinner-block";
 
@@ -160,15 +160,40 @@ export function TonightScreen({
   const [query, setQuery] = useState("");
   const [aiResults, setAiResults] = useState<AiRankingRow[] | null>(null);
   const [aiError, setAiError] = useState(false);
-  const [searchPending, startSearchTransition] = useTransition();
+  // `searchPending` is our own flag, not `useTransition`'s — Cancel needs to
+  // drop the Household back into control the instant they ask, and React
+  // gives no way to make a transition's `isPending` go false before its
+  // callback actually returns.
+  const [searchPending, setSearchPending] = useState(false);
+  // `startSearchTransition` wraps only the *post-fetch* state updates so they
+  // land as a low-priority update. It must not wrap the `await` itself: an
+  // async transition stays pending until its callback returns, and React
+  // entangles any transition scheduled meanwhile with it — so a Pick's
+  // revalidated props (which Next's router applies in a transition) would be
+  // held off-screen for the whole 50–90s search.
+  const [, startSearchTransition] = useTransition();
+  // Bumped on every new search and on Cancel/Clear/day-change, so a search
+  // response that lands after the Household has moved on — cancelled,
+  // superseded by a newer query, or the day changed under it — is silently
+  // dropped instead of overwriting state nobody is waiting on anymore. The
+  // in-flight request itself still runs to completion server-side; only the
+  // client stops waiting on it.
+  const searchGenerationRef = useRef(0);
   const aiActive = aiResults !== null;
 
-  function runSearch() {
-    startSearchTransition(async () => {
-      const result = await aiSearchAction(
-        query,
-        isToday ? undefined : selectedDay,
-      );
+  // An ordinary async function, deliberately not an async transition — see the
+  // `startSearchTransition` comment above. The fetch itself is not a state
+  // update, so nothing here needs transition semantics until the result lands.
+  async function runSearch() {
+    const generation = ++searchGenerationRef.current;
+    setSearchPending(true);
+    const result = await aiSearchAction(
+      query,
+      isToday ? undefined : selectedDay,
+    );
+    if (searchGenerationRef.current !== generation) return;
+    startSearchTransition(() => {
+      setSearchPending(false);
       if (!result.ok) {
         // A failed search leaves the deterministic list exactly as it was. The
         // inline error is persistent — it is not cleared on submit, only when a
@@ -181,7 +206,19 @@ export function TonightScreen({
     });
   }
 
+  // Lets the Household out of a 50–90s search without waiting on it — the
+  // Search button becomes this while one is in flight (design review UX idea
+  // #3). Only the client stops waiting; the model call already dispatched
+  // keeps running server-side and its (now-ignored) result is dropped by the
+  // generation check in `runSearch`.
+  function cancelSearch() {
+    searchGenerationRef.current++;
+    setSearchPending(false);
+  }
+
   function clearSearch() {
+    searchGenerationRef.current++;
+    setSearchPending(false);
     setAiResults(null);
     setAiError(false);
     setQuery("");
@@ -196,6 +233,8 @@ export function TonightScreen({
   // kind filters deliberately survive — "show me pasta" means the same thing on
   // any day. On mount every setter is a no-op, the state being empty already.
   useEffect(() => {
+    searchGenerationRef.current++;
+    setSearchPending(false);
     setAiResults(null);
     setAiError(false);
     setQuery("");
@@ -287,7 +326,7 @@ export function TonightScreen({
             eatenOn={selectedDay}
           />
           {pickerRows.length === 0 ? (
-            <p className="border-t border-line pt-5.5 text-body text-muted">
+            <p className="border-t border-divider pt-5.5 text-body text-muted">
               {allFiltered
                 ? `Every remaining Option is unavailable for ${dayLabel}.`
                 : `Every Option is already on ${dayLabel}’s dinner.`}
@@ -299,7 +338,7 @@ export function TonightScreen({
             // hint say so.
             <section
               aria-label="Add another option"
-              className="flex flex-col gap-2 border-t border-line pt-5.5"
+              className="flex flex-col gap-2 border-t border-divider pt-5.5"
             >
               <h2 className="text-meta uppercase tracking-wide text-muted">
                 Add another option
@@ -319,6 +358,7 @@ export function TonightScreen({
                 aiError={aiError}
                 searchPending={searchPending}
                 onSubmitSearch={runSearch}
+                onCancelSearch={cancelSearch}
                 onClearSearch={clearSearch}
                 selectedDay={selectedDay}
                 isToday={isToday}
@@ -338,6 +378,7 @@ export function TonightScreen({
           aiError={aiError}
           searchPending={searchPending}
           onSubmitSearch={runSearch}
+          onCancelSearch={cancelSearch}
           onClearSearch={clearSearch}
           selectedDay={selectedDay}
           isToday={isToday}
@@ -471,7 +512,7 @@ function RejectedTonightDisclosure({
           {rejections.map((rejection) => (
             <li
               key={rejection.id}
-              className="flex items-start gap-3 border-b border-line py-3"
+              className="flex items-start gap-3 border-b border-divider py-3"
             >
               <div className="min-w-0 flex-1">
                 <span className="font-display text-name font-name text-ink">
@@ -615,6 +656,7 @@ function Picker({
   aiError,
   searchPending,
   onSubmitSearch,
+  onCancelSearch,
   onClearSearch,
   selectedDay,
   isToday,
@@ -630,6 +672,7 @@ function Picker({
   aiError: boolean;
   searchPending: boolean;
   onSubmitSearch: () => void;
+  onCancelSearch: () => void;
   onClearSearch: () => void;
   /** The Selected day — threaded into Pick/Reject writes and AI search. */
   selectedDay: string;
@@ -698,6 +741,7 @@ function Picker({
               query={query}
               onQueryChange={onQueryChange}
               onSubmit={onSubmitSearch}
+              onCancel={onCancelSearch}
               onClear={onClearSearch}
               pending={searchPending}
               error={aiError}
@@ -823,10 +867,15 @@ const inputClass =
  *
  * An in-field Clear (✕) control (shown whenever there is query text, an AI
  * result, or a failed search) clears the query and restores the deterministic
- * list; the box is disabled while a search is in flight so only one runs at a
- * time. The Search button tracks the search through three states: `accent`
- * violet at rest, a spinner with a live elapsed-second timer in flight, and a
- * `success` green check with the final duration once a result lands.
+ * list. The input itself is never disabled — an AI search runs 50–90s, and a
+ * Household member typing a name to pick by hand while it thinks shouldn't
+ * have to wait on it (design review UX idea #3); their pick and the AI search
+ * are independent writes/reads that simply race. The Search button tracks the
+ * search through three states: `accent` violet "Search" at rest, an in-flight
+ * state that trades the button's own affordance for a **Cancel** one — a
+ * live elapsed-second timer, clicking it gives up on the wait without
+ * touching the model call already dispatched server-side — and a `success`
+ * green check with the final duration once a result lands.
  *
  * The typeahead's filter, ↑/↓/Enter/Escape handling, and dropdown markup are
  * the same `filterOptionChoices`/`useComboboxKeyboard`/`OptionListbox`
@@ -839,6 +888,7 @@ function SearchBox({
   query,
   onQueryChange,
   onSubmit,
+  onCancel,
   onClear,
   pending,
   error,
@@ -850,6 +900,7 @@ function SearchBox({
   query: string;
   onQueryChange: (next: string) => void;
   onSubmit: () => void;
+  onCancel: () => void;
   onClear: () => void;
   pending: boolean;
   error: boolean;
@@ -964,6 +1015,12 @@ function SearchBox({
     <form
       onSubmit={(event) => {
         event.preventDefault();
+        // Guards the same race the Cancel button's own `preventDefault`
+        // closes below: an Enter keypress reaches the form directly (no
+        // click, no button involved), so if it lands in the instant the
+        // button's type is flipping from "button" back to "submit" it can
+        // still fire a submit here even though the Household meant Cancel.
+        if (pending) return;
         // Submitting is the AI search path; close any open dropdown first.
         setOpen(false);
         resetActiveIndex();
@@ -987,7 +1044,6 @@ function SearchBox({
             onKeyDown={handleKeyDown}
             onFocus={() => setOpen(true)}
             onBlur={() => setOpen(false)}
-            disabled={pending}
             placeholder="Find a dinner, or describe a craving"
             role="combobox"
             aria-expanded={showList}
@@ -1003,7 +1059,6 @@ function SearchBox({
             <button
               type="button"
               onClick={onClear}
-              disabled={pending}
               aria-label="Clear search"
               className={`absolute inset-y-0 right-0 flex w-11 items-center
                 justify-center rounded-input text-muted transition-colors
@@ -1034,33 +1089,63 @@ function SearchBox({
         </div>
         {/* Width is pinned hard — `min-w` defeats the flex item's default
             `min-width: auto`, which would otherwise let the in-flight content
-            grow the button. So none of the three states — "Search", the
-            in-flight spinner + timer, the done check + time — ever resizes the
-            button or the flex-1 input. `accent` violet sets the AI search
-            apart from the charcoal PICK; the done badge turns `success`
-            green. */}
+            grow the button. So none of the three states — "Search", Cancel +
+            timer, the done check + time — ever resizes the button or the
+            flex-1 input. `accent` violet sets the AI search apart from the
+            charcoal PICK; the done badge turns `success` green. The label
+            switches to `action-ink` on that green fill — `accent-ink` is
+            tuned for the violet fill and is white in both themes, but
+            dark-theme `success` must stay light enough to also work as body
+            text elsewhere, which leaves a white label on it at 2.91:1 (fails
+            AA). `action-ink` is the token for "ink that sits on a filled
+            surface" and clears 4.5:1 against `success` in both themes — see
+            docs/design-review-2026-09-21.md A2.
+
+            While pending the button trades its "Search"/submit role for
+            Cancel (`type="button"`, so Enter elsewhere in the form can't
+            re-trigger it) — never disabled, so the Household is never stuck
+            waiting on the 50–90s call (UX idea #3). */}
         <button
-          type="submit"
-          disabled={pending}
+          type={pending ? "button" : "submit"}
+          onClick={
+            pending
+              ? (event) => {
+                  // `type="button"` alone isn't enough: this same click's
+                  // `onCancel` flips `pending` to false, and React commits
+                  // that re-render — swapping this button's own `type` to
+                  // "submit" — before the browser finishes deciding this
+                  // click's default action, so the click can still submit
+                  // the form it just un-typed itself into. Explicitly
+                  // cancelling the click's default action closes that race
+                  // regardless of what `type` ends up as.
+                  event.preventDefault();
+                  onCancel();
+                }
+              : undefined
+          }
           aria-label={
             pending
-              ? `Searching — ${elapsed} seconds elapsed`
+              ? `Cancel search — ${elapsed} seconds elapsed`
               : completed
                 ? `Search complete in ${doneElapsed} seconds`
                 : undefined
           }
           className={`flex min-h-11 w-[7rem] min-w-[7rem] shrink-0
             items-center justify-center gap-1.5 rounded-control px-4 text-body
-            font-emphasis text-accent-ink transition-colors duration-short
-            disabled:opacity-60 ${
-              completed ? "bg-success" : "bg-accent hover:bg-accent-hover"
+            font-emphasis transition-colors duration-short
+            ${
+              completed
+                ? "bg-success text-action-ink"
+                : "bg-accent text-accent-ink hover:bg-accent-hover"
             } ${focusRing}`}
         >
           {pending ? (
             <>
-              <Spinner />
-              {/* Fixed-width, centered slot so the spinner stays put as the
-                  second count gains digits. */}
+              {/* The ✕ (not the old spinner) says this is now a Cancel
+                  control; the ticking elapsed count still carries the
+                  in-progress signal — including for reduced-motion, which
+                  the spinner's spin animation always deferred to anyway. */}
+              <ClearIcon />
               <span className="w-10 text-center font-mono tabular-nums">
                 {elapsed}s
               </span>
@@ -1091,23 +1176,7 @@ function SearchBox({
   );
 }
 
-/**
- * A small indeterminate spinner — a single arc rotating on a transparent ring.
- * Shown on the Search button while a search is in flight; the rotation is
- * gated on `motion-safe` (DESIGN.md Motion), with the live second count
- * carrying the progress signal for reduced-motion users.
- */
-function Spinner() {
-  return (
-    <span
-      aria-hidden
-      className="h-4 w-4 shrink-0 rounded-full border-2 border-transparent
-        border-t-accent-ink motion-safe:animate-spin"
-    />
-  );
-}
-
-/** The ✕ glyph for the in-field Clear-search control. */
+/** The ✕ glyph for the in-field Clear-search control, and the Search button's Cancel state. */
 function ClearIcon() {
   return (
     <svg
@@ -1184,7 +1253,7 @@ function KindSegment({
 /**
  * One tri-state tag filter chip. It cycles off → include → exclude → off on
  * tap. Each state has its own fill — a neutral off chip, a filled action
- * include chip, a filled danger exclude chip — plus a text decoration
+ * include chip, a filled exclude chip — plus a text decoration
  * (underline / strikethrough) so state stays legible without relying on color
  * alone (§18). The border is present in every state so toggling never changes
  * the chip's width and the wrapped rows never reflow. The chip's accessible

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogRejectionRow, OptionChoice } from "../../db/queries";
 import { OptionCombobox } from "../option-combobox";
+import { ConfirmPair } from "../confirm-pair";
 import { inputClass, labelClass } from "./log-entry-row";
 import {
   createRejection,
@@ -231,6 +232,10 @@ export function AddRejectionForm({
  *
  * Both screens that render it — the Log screen and the Option detail page —
  * group Rejections under a date header, so the row itself carries no date.
+ *
+ * The armed `ConfirmPair` is the row's own right edge (`justify-between`,
+ * nothing after it), so its last child lands where rest-state Delete
+ * already was.
  */
 export function RejectionRow({
   rejection,
@@ -264,7 +269,7 @@ export function RejectionRow({
 
   if (editing) {
     return (
-      <li className="border-b border-line bg-danger-wash px-3 py-3">
+      <li className="border-b border-divider bg-danger-wash px-3 py-3">
         <RejectionForm
           optionChoices={optionChoices}
           initialOptionId={rejection.optionId}
@@ -283,7 +288,7 @@ export function RejectionRow({
   }
 
   return (
-    <li className="flex flex-col gap-1 border-b border-line bg-danger-wash px-3 py-3">
+    <li className="flex flex-col gap-1 border-b border-divider bg-danger-wash px-3 py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-meta font-emphasis uppercase tracking-wide text-danger">
@@ -305,27 +310,13 @@ export function RejectionRow({
             </span>
           )}
           {confirmDelete ? (
-            <>
-              <button
-                type="button"
-                disabled={pending}
-                className={`${actionButton} font-emphasis text-danger`}
-                onClick={runDelete}
-              >
-                Delete
-              </button>
-              <span aria-hidden="true" className="text-chip text-muted">
-                ·
-              </span>
-              <button
-                type="button"
-                disabled={pending}
-                className={`${actionButton} text-muted`}
-                onClick={() => setConfirmDelete(false)}
-              >
-                Cancel
-              </button>
-            </>
+            <ConfirmPair
+              buttonClass={actionButton}
+              label="Delete"
+              pending={pending}
+              onConfirm={runDelete}
+              onCancel={() => setConfirmDelete(false)}
+            />
           ) : (
             <>
               <button

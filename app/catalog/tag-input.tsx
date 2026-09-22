@@ -12,6 +12,12 @@ const labelClass = "text-meta font-emphasis uppercase tracking-wide text-muted";
  * through `normalizeTag` on the way in, so the tokens shown are already the
  * canonical (trimmed, lowercased) form — this is the only place Tags are
  * created or changed (there is no separate Tags screen).
+ *
+ * The suggestion menu follows the same `aria-activedescendant` listbox
+ * contract as `OptionCombobox`'s dropdown: ↑/↓ move a highlight tracked in
+ * `activeIndex` over the combined matches + "create" row, Enter commits the
+ * highlighted one (or the typed draft, when nothing is highlighted), and
+ * Escape dismisses the menu without blurring the field.
  */
 export function TagInput({
   value,
@@ -25,29 +31,19 @@ export function TagInput({
   const fieldId = useId();
   const [draft, setDraft] = useState("");
   const [focused, setFocused] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
 
   function addTag(raw: string) {
     const tag = normalizeTag(raw);
     if (tag.length === 0) return;
     if (!value.includes(tag)) onChange([...value, tag]);
     setDraft("");
+    setActiveIndex(-1);
   }
 
   function removeTag(tag: string) {
     onChange(value.filter((t) => t !== tag));
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter" || event.key === ",") {
-      event.preventDefault();
-      addTag(draft);
-    } else if (
-      event.key === "Backspace" &&
-      draft.length === 0 &&
-      value.length > 0
-    ) {
-      removeTag(value[value.length - 1]);
-    }
   }
 
   const normalizedDraft = normalizeTag(draft);
@@ -61,7 +57,61 @@ export function TagInput({
     normalizedDraft.length > 0 &&
     !value.includes(normalizedDraft) &&
     !suggestions.includes(normalizedDraft);
-  const showMenu = focused && (matches.length > 0 || canCreate);
+
+  // The combined, indexable menu: existing-Tag matches, then the "create" row
+  // when the typed draft has no exact match — the same order they render in.
+  const menuItems: { id: string; label: string; commit: () => void }[] = [
+    ...matches.map((name) => ({
+      id: name,
+      label: name,
+      commit: () => addTag(name),
+    })),
+    ...(canCreate
+      ? [
+          {
+            id: `__create__`,
+            label: `Create “${normalizedDraft}”`,
+            commit: () => addTag(normalizedDraft),
+          },
+        ]
+      : []),
+  ];
+  const showMenu = focused && !dismissed && menuItems.length > 0;
+  const listId = `${fieldId}-list`;
+  const activeId =
+    showMenu && activeIndex >= 0 && activeIndex < menuItems.length
+      ? `${listId}-option-${activeIndex}`
+      : undefined;
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown") {
+      if (!showMenu) return;
+      event.preventDefault();
+      setActiveIndex((index) => Math.min(index + 1, menuItems.length - 1));
+    } else if (event.key === "ArrowUp") {
+      if (!showMenu) return;
+      event.preventDefault();
+      setActiveIndex((index) => Math.max(index - 1, -1));
+    } else if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      if (showMenu && activeIndex >= 0) {
+        menuItems[activeIndex].commit();
+      } else {
+        addTag(draft);
+      }
+    } else if (event.key === "Escape") {
+      if (showMenu) {
+        event.preventDefault();
+        setDismissed(true);
+      }
+    } else if (
+      event.key === "Backspace" &&
+      draft.length === 0 &&
+      value.length > 0
+    ) {
+      removeTag(value[value.length - 1]);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-1">
@@ -102,55 +152,50 @@ export function TagInput({
           autoComplete="off"
           role="combobox"
           aria-expanded={showMenu}
-          aria-controls={`${fieldId}-list`}
+          aria-controls={listId}
           aria-autocomplete="list"
-          onChange={(event) => setDraft(event.target.value)}
+          aria-activedescendant={activeId}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setDismissed(false);
+            setActiveIndex(-1);
+          }}
           onKeyDown={handleKeyDown}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            setDismissed(false);
+          }}
           onBlur={() => setFocused(false)}
         />
 
         {showMenu && (
           <ul
-            id={`${fieldId}-list`}
+            id={listId}
             role="listbox"
             className="absolute z-10 mt-1 flex w-full flex-col rounded-input border
               border-line bg-surface py-1 shadow-sm"
           >
-            {matches.map((name) => (
-              <li key={name}>
-                <button
-                  type="button"
+            {menuItems.map((item, index) => (
+              <li key={item.id} role="presentation">
+                <div
+                  id={`${listId}-option-${index}`}
                   role="option"
-                  aria-selected="false"
-                  className="min-h-11 w-full px-3 text-left text-body text-ink
-                    hover:bg-raised"
+                  tabIndex={-1}
+                  aria-selected={index === activeIndex}
+                  className={`min-h-11 w-full cursor-pointer px-3 py-2 text-left
+                    text-body
+                    ${item.id === "__create__" ? "text-action" : "text-ink"}
+                    ${index === activeIndex ? "bg-raised" : "hover:bg-raised"}`}
                   onMouseDown={(event) => {
                     event.preventDefault();
-                    addTag(name);
+                    item.commit();
                   }}
+                  onMouseEnter={() => setActiveIndex(index)}
                 >
-                  {name}
-                </button>
+                  {item.label}
+                </div>
               </li>
             ))}
-            {canCreate && (
-              <li>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected="false"
-                  className="min-h-11 w-full px-3 text-left text-body text-action
-                    hover:bg-raised"
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    addTag(normalizedDraft);
-                  }}
-                >
-                  Create “{normalizedDraft}”
-                </button>
-              </li>
-            )}
           </ul>
         )}
       </div>

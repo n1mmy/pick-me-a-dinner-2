@@ -10,7 +10,7 @@ import {
   recencyChipBg,
   recencyChipBgStrong,
 } from "../lib/recency-color";
-import { kindBarClass } from "./kind-bar";
+import { kindBarClass, kindTintClass } from "./kind-bar";
 import { pickTonight } from "./log/actions";
 import { rejectOption } from "./rejection-actions";
 
@@ -19,9 +19,12 @@ const focusRing =
   "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
- * One Tonight row of the flat ledger (DESIGN.md "Tonight row anatomy"). The
- * name sits above a chip row — the Recency chip then the Tag chips — with the
- * "Pick" action pinned to the row's right edge on every width. "Pick" is the
+ * One Tonight row of the flat ledger (DESIGN.md "Tonight row anatomy") — a
+ * faint tint of the Option's kind hue (a step below the decided rows' wash)
+ * under the 3px kind bar on its left edge. The name sits above a chip row —
+ * the Recency chip then the Tag
+ * chips — with the "Pick" action pinned to the row's right edge on every
+ * width. "Pick" is the
  * one-tap `pick = log` path; the picked button briefly marks "Logged ✓". To
  * log a dinner for any other date, use the Log screen.
  *
@@ -49,6 +52,24 @@ const focusRing =
  * deterministic rows. `lastNote` is never passed on an AI row — the caller
  * omits it (DESIGN.md, "Last note line") — because the AI rationale already
  * carries a prose line and stacking a second one reads as too busy.
+ *
+ * The rank+name line and `RowChips` below it stay stacked at every width —
+ * unlike an earlier draft, they never merge onto one flex line, because
+ * whether that merge fit on one line depended on name/tag length, so chips
+ * sometimes rode the name's line and sometimes didn't. Stacking unconditionally
+ * keeps chip order and position identical at every width instead.
+ *
+ * Pick and Reject swap places once the viewport clears 900px (deliberately
+ * past DESIGN.md's 720px desktop breakpoint where the left rail appears,
+ * `app-nav.tsx`): `flex-row-reverse` puts Pick, not Reject, on the row's
+ * right edge. DOM order is unchanged, so tab order still reaches Pick first.
+ * Staggering this past the rail's own breakpoint matters because the rail's
+ * ~200px eats into the column at the same 720px point the column's max-width
+ * grows (`--column-max` desktop step, `globals.css`) — right after 720px the
+ * column is briefly *narrower* than its mobile cap before the viewport is
+ * wide enough to outrun the rail. Making Pick/Reject go horizontal there too
+ * would demand more row width exactly when the row has the least of it; 900px
+ * gives the column enough breathing room first.
  */
 export function TonightRowItem({
   row,
@@ -134,10 +155,10 @@ export function TonightRowItem({
 
   return (
     <li
-      className={`border-b border-line py-[10px]
-        ${kindBarClass(option.kind)}`}
+      className={`border-b border-divider py-[10px]
+        ${kindBarClass(option.kind)} ${kindTintClass(option.kind)}`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 desktop:items-center">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <span className="w-6 shrink-0 text-right font-mono text-meta tabular-nums text-muted">
@@ -164,12 +185,14 @@ export function TonightRowItem({
             </p>
           )}
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
+        <div
+          className="flex shrink-0 flex-col items-end gap-1
+            min-[900px]:flex-row-reverse min-[900px]:items-center min-[900px]:gap-2"
+        >
           <button
             type="button"
             onClick={pick}
             disabled={pending}
-            aria-live="polite"
             className={`min-h-11 rounded-control px-4 text-body font-emphasis
               transition-colors duration-short disabled:opacity-60
               ${focusRing} ${
@@ -180,6 +203,11 @@ export function TonightRowItem({
           >
             {justLogged ? "Logged ✓" : "Pick"}
           </button>
+          {/* A sibling live region, not `aria-live` on the button itself —
+              see PickButton's identical note. */}
+          <p className="sr-only" role="status" aria-live="polite">
+            {justLogged ? "Logged" : ""}
+          </p>
           <button
             type="button"
             onClick={() => setRejecting((open) => !open)}
@@ -371,7 +399,7 @@ function recencyLabel(days: number): string {
  * The Recency chip — the Option's per-Option recency: days since it was last
  * eaten (`18d`, or `60d+` at the cap), or `new` when it has never been eaten.
  * A never-eaten Option sits at the `CAP`-day overdue end of the heatmap, so
- * the `new` chip is tinted green like a long-overdue one. The stronger fill
+ * the `new` chip is tinted red like a long-overdue one. The stronger fill
  * (`recencyChipBgStrong`) sets it apart from the fainter Tag chips.
  */
 function RecencyChip({

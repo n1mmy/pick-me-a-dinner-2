@@ -144,7 +144,7 @@ function ArchivedDisclosure({ archived }: { archived: ArchivedOption[] }) {
       {open && (
         <ul className="flex flex-col">
           {archived.map((option) => (
-            <li key={option.id} className="flex border-b border-line py-3">
+            <li key={option.id} className="flex border-b border-divider py-3">
               <Link
                 href={`/catalog/${option.id}`}
                 className={`font-display text-name font-name text-ink

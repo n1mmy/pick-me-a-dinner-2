@@ -95,7 +95,7 @@ export function PlacesSearchBox({
       {state.status === "results" && state.results.length > 0 && (
         <ul className="flex flex-col">
           {state.results.map((result) => (
-            <li key={result.placeId} className="border-b border-line last:border-b-0">
+            <li key={result.placeId} className="border-b border-divider last:border-b-0">
               <button
                 type="button"
                 onClick={() => selectPlace(result.placeId)}

@@ -4,7 +4,10 @@ The canonical visual system. Code, components, and review must follow this
 file. The typography, spacing, layout, and motion sections were implemented
 in code on 2026-05-16; the Color section was revised on 2026-05-17 via
 `/design-shotgun` and implemented in code the same day (see "Implementation
-note" below). The code now matches this file.
+note" below). Audited against the code again on 2026-09-21
+(`docs/design-review-2026-09-21.md`) and corrected where this file had
+drifted; the Layout section's desktop Tonight-row treatment (the audit's one
+open gap) was subsequently built and this file updated to match.
 
 ## Product Context
 
@@ -53,9 +56,10 @@ no CDN, no layout shift).
   grotesque engineered for product UI; ships with Next.js, so it is maximally
   proven for this stack.
 - **Data — Geist Mono**, with `font-variant-numeric: tabular-nums`. Rank
-  numbers, dates, and every numeral in an Explanation chip ("18" in "No fish in
-  18 days"). The mono is the instrument readout — it makes numbers align to the
-  pixel down a column. Use it for numerals and dates only, not whole sentences.
+  numbers, dates, and every numeral in a Tonight row's Affinity, Recency, and
+  Tag chips ("18" in the Recency chip's "18d"). The mono is the instrument
+  readout — it makes numbers align to the pixel down a column. Use it for
+  numerals and dates only, not whole sentences.
 - **Scale** (px):
   - `h1` screen title — Fraunces, weight 600; **22px on phones, 28px from the
     720px breakpoint up**. The Tonight header sets the floor: its H1 shares a
@@ -67,8 +71,13 @@ no CDN, no layout shift).
     breakpoint, alongside the column width.
   - `name` Option name — Fraunces, 18px / weight 500
   - `body` — Geist, 15px / weight 400 / line-height 1.5
-  - `chip` Explanation chip text — Geist 13px (numerals in Geist Mono 13px)
-  - `meta` tags, rank, dates, secondary labels — Geist / Geist Mono 12px
+  - `chip` secondary UI text at chip scale — Geist 13px (numerals in Geist
+    Mono 13px). This is the AI search rationale line's size, plus other
+    small-but-not-smallest copy (inline errors, "Reject" reason text). It is
+    **not** the size of the Affinity/Recency/Tag chip badges on a Tonight
+    row — those render one step down, at `meta`.
+  - `meta` tags, rank, dates, secondary labels, and the Affinity/Recency/Tag
+    chip badges — Geist / Geist Mono 12px
   - emphasis weight — 600
 
 ## Color
@@ -89,7 +98,9 @@ halves of the Score. (Through 2026-06-16 this was "exactly two channels", kind +
 recency; the Affinity chip was added 2026-06-17 alongside the affinity-ranking
 work — see the Decisions Log.)
 
-1. **Meal kind** — a 3px solid vertical bar on the row's left edge. Teal
+1. **Meal kind** — a 3px solid vertical bar on the row's left edge, over a
+   tint of the same hue as the row's background (faint `kind-*-tint` on
+   picker rows, the stronger `kind-*-wash` on decided rows). Teal
    `kind-home` for home-cooked Options, plum `kind-restaurant` for
    restaurants. One calm decision per row: home vs out, before reading a word.
 2. **The green→red heatmap** — a continuous scale where green is "good" and red
@@ -115,12 +126,15 @@ work — see the Decisions Log.)
 | `surface` | `#ffffff` | Card-less content surface, modals, inputs base |
 | `raised` | `#e8eaed` | Input fill, neutral (non-recency) chip background |
 | `ink` | `#25282d` | Primary text |
-| `muted` | `#767a82` | Tags baseline, dates, secondary text, rank numbers |
-| `line` | `#d8dade` | Hairline rules and borders |
+| `muted` | `#656970` | Tags baseline, dates, secondary text, rank numbers |
+| `line` | `#8a8c8e` | A control or box's own border — input, button, popup |
+| `divider` | `#b1b3b6` | Row and section dividers — lighter than `line`, a decorative rule rather than a UI component boundary |
 | `kind-home` | `#2c6e6e` | Meal-kind left bar — home-cooked (teal) |
 | `kind-restaurant` | `#7a4f6b` | Meal-kind left bar — restaurant (plum) |
 | `kind-home-wash` | `#dde8e8` | Decided-row background — much-lighter home wash |
 | `kind-restaurant-wash` | `#e7e0e6` | Decided-row background — much-lighter restaurant wash |
+| `kind-home-tint` | `#e8eeef` | Picker-row background — the home wash halved toward `bg` |
+| `kind-restaurant-tint` | `#edeaee` | Picker-row background — the restaurant wash halved toward `bg` |
 | `recency-overdue` | `#c4453a` | Recency heatmap — red end, long overdue |
 | `recency-mid` | `#c8b78f` | Recency heatmap — muted tan midpoint |
 | `recency-recent` | `#3f8a4a` | Recency heatmap — green end, eaten recently |
@@ -130,11 +144,11 @@ work — see the Decisions Log.)
 | `accent` | `#6d4ed6` | AI search button fill — vivid violet, set apart from `action` |
 | `accent-hover` | `#5c3ec4` | AI search button hover / pressed |
 | `accent-ink` | `#ffffff` | Text/label on the `accent` fill |
-| `success` | `#3f8a4a` | Confirmation, success feedback (shares the green) |
-| `success-wash` | `#dee9db` | Logged-dinner-row background — much-lighter success wash |
-| `danger` | `#c4453a` | Destructive actions, errors (shares the red) |
+| `success` | `#367740` | Confirmation, success feedback |
+| `success-wash` | `#dee9db` | Reserved — no screen currently renders it; the Log's logged-dinner rows use `kind-home-wash` / `kind-restaurant-wash` instead |
+| `danger` | `#b84137` | Destructive actions, errors |
 | `danger-wash` | `#f3ddda` | Rejected-row background — much-lighter danger wash |
-| `planned` | `#b9822b` | Amber — the Upcoming planned-dinner section |
+| `planned` | `#b9822b` | Reserved — no screen currently renders it; the Log's Upcoming section uses `muted` like every other section label |
 
 `recency-overdue` / `recency-mid` / `recency-recent` are the three anchor
 stops of a continuous green→red scale that saturates at 30 days; the
@@ -142,11 +156,34 @@ implementation interpolates between them, applying the result at low opacity
 for Recency chip backgrounds and at higher strength for Tag text. The PICK
 button is a neutral charcoal so it never collides with the heatmap.
 
+`muted`, `success`, and `danger` were retuned 2026-09-21 for AA text contrast
+(4.5:1 against every surface they render text on) — see the Decisions Log.
+`line` was darkened 2026-09-22 from a 1.27:1 hairline (functionally invisible
+on a bright kitchen screen) to 3:1 against `bg` — see the Decisions Log. That
+same day, `line` was split into `line` (a control's own border) and the
+lighter `divider` (row/section rules): 3:1 read as too heavy once it was the
+color behind every list divider in the app, not only the one hairline rule
+idea #2 measured.
+
+`success` and `danger` no longer share an exact hex with `recency-recent` /
+`recency-overdue`: the recency anchors are tuned only for the low-opacity
+`color-mix()` chip backgrounds in `lib/recency-color.ts`, which is a different
+contrast problem (translucent fill vs. `text-ink`, not solid text vs.
+surface), and don't have to move in lockstep with the solid-text tokens.
+
 `accent` is the one deliberate exception to the neutral-everything-else rule:
 the Tonight AI-search button is a vivid violet so the smart-search affordance
 is unmistakably its own thing, not a second PICK. It is a UI-action accent,
 not a third data channel — it never appears on a dinner row, so it does not
 compete with the meal-kind or recency signals.
+
+The Catalog's two add buttons ("Add a meal" / "Add a restaurant") are filled
+with `kind-home` / `kind-restaurant` respectively — a second sanctioned
+extension of the kind hues past the row's left bar, alongside the app icon
+below. Unlike `accent` this *is* the kind-coding rule reapplied, not a new
+channel: the button announces which kind it adds, the same fact the bar
+announces on a row. It never collides with the heatmap because it never
+carries a recency value.
 
 The earlier excluded-tag-filter chip token (`exclude`) is carried over from
 the prior warm system and should be re-tuned against this cool base when the
@@ -162,10 +199,11 @@ deep teal `kind-home` (`#2c6e6e`) meeting muted plum `kind-restaurant`
 hues** beyond their meal-kind row role into brand identity: the split nods to
 the app's home-cooked-vs-restaurant duality, and the cutlery reads as
 "dinner" at a glance. It does not break the rule above — the kind hues still
-carry no data on any screen; the icon is chrome, seen only on the OS home
-screen. The seam is offset so it clears every corner (enters the top edge,
-exits the bottom), leaving each corner in one colour. Do not "correct" it
-back to a neutral lettermark.
+carry no *recency* data outside a dinner row (the Catalog add buttons above
+reapply the kind-coding itself, not a new signal); the icon is chrome, seen
+only on the OS home screen. The seam is offset so it clears every corner
+(enters the top edge, exits the bottom), leaving each corner in one colour.
+Do not "correct" it back to a neutral lettermark.
 
 The *installed app's* system chrome deliberately does **not** follow the icon:
 the manifest `theme_color` / `background_color` and the `theme-color` meta
@@ -192,28 +230,50 @@ check before relying on it.
 | `ink` | `#e6e7ea` |
 | `muted` | `#8b8f98` |
 | `line` | `#383b40` |
+| `divider` | `#383b40` — not yet split from `line`; see the "not yet visually verified" note above |
 | `kind-home` | `#4a9a9a` |
 | `kind-restaurant` | `#a87d99` |
 | `kind-home-wash` | `#212e30` |
 | `kind-restaurant-wash` | `#2e2a30` |
+| `kind-home-tint` | `#1e2528` |
+| `kind-restaurant-tint` | `#242328` |
 | `recency-overdue` | `#d65a4f` |
 | `recency-mid` | `#bdae89` |
 | `recency-recent` | `#5aa863` |
+| `success` | `#5aa863` |
 | `success-wash` | `#26312a` |
+| `danger` | `#de7970` |
 | `danger-wash` | `#33272a` |
 | `action` | `#e6e7ea` |
 | `action-ink` | `#1a1c1f` |
-| `accent` | `#8b73ee` |
+| `accent` | `#7a65d1` |
 | `accent-hover` | `#7a60e3` |
 | `accent-ink` | `#ffffff` |
 | `planned` | `#cf9a45` |
+
+`action-hover` is derived (absent from this table; `#d0d2d6` in code). `danger`
+and `accent` were retuned 2026-09-21, same as the light theme above: dark
+`danger` (`#d65a4f`, `recency-overdue`'s exact hex) failed 4.5:1 as text on
+`surface` at 3.94:1, and dark `accent` failed 4.5:1 under its own white
+`accent-ink` label at 3.63:1. `success` is unchanged from `recency-recent` and
+passes as both text and (paired with `action-ink`, not `accent-ink`) a filled
+button label — see the AI search "done" badge note in
+`docs/design-review-2026-09-21.md`.
 
 ## Spacing
 
 - **Base unit:** 4px.
 - **Density:** Compact. Tonight rows use ~10–12px vertical padding so more
   Options are visible per screen without scrolling.
-- **Scale:** 2xs(2) xs(4) sm(8) md(12) lg(16) xl(24) 2xl(32) 3xl(48).
+- **Scale:** 4 / 6 / 8 / 12 / 16 / 22px (`--space-1` through `--space-5_5` in
+  `app/globals.css`), plus the two control-height stops 36 / 44px
+  (`--space-9` / `--space-11`, see "Control height" below). These are the only
+  steps on the scale — a class using an off-scale spacing key (e.g. `gap-6`,
+  `w-8`, `min-h-14`) falls through to Tailwind's rem-based default, which
+  silently resolves against this project's 15px root rather than the usual
+  16px (see "Control height" below for the same footgun on control-height
+  utilities). Reach for the nearest on-scale step, or add a new px-declared
+  token, rather than an arbitrary Tailwind default.
 
 ## Layout
 
@@ -221,22 +281,36 @@ check before relying on it.
   *structural* shift between mobile and desktop (not just a wider column).
 - **Mobile (< 720px):** Single centered column, max-width 560px. Bottom tab
   bar: Tonight / Log / Catalog. Tonight rows are two-line — rank + Option name +
-  tags on the first line group, Explanation chip + PICK on the row.
+  chip row on the first line group, Pick + Reject on the row.
 - **Desktop (≥ 720px):** Bottom tab bar is replaced by a persistent left rail
-  (~200px) holding the same nav. Content column to its right, max-width 700px.
-  Tonight rows collapse to a single dense line: rank + name + tags on the left,
-  Explanation chip center, PICK on the right edge. Keyboard-navigable.
+  (~200px) holding the same nav. Content column to its right, max-width 900px.
+  Tonight rows keep the same rank + name + chip-row layout as mobile: the chip
+  row (Affinity, Recency, then one chip per Tag) always sits on its own line
+  below the name, never merged onto one line, so chip order and position
+  never move between widths. PICK and Reject swap places once the viewport
+  clears 900px — deliberately past the rail's own 720px breakpoint, not at
+  it, because the rail's ~200px and the column's wider max-width land at the
+  same 720px step; right after that step the column is briefly narrower than
+  its mobile cap, and a row that went denser at that exact point would be
+  squeezed twice at once. Past 900px PICK moves to the row's right edge,
+  Reject to its left.
 - **Tonight row anatomy:** A flat, uniform ledger — every row the same height,
-  separated by a 1px `line` rule, no cards, no shadows, no row given a
-  different background. A 3px vertical meal-kind bar (`kind-home` /
-  `kind-restaurant`) sits flush on the row's left edge. Rank number in Geist
-  Mono `muted`. Option name in Fraunces, uncolored. Tags as plain lowercase
-  Geist text directly under the name, each tinted on the recency heatmap by
-  that tag's own recency (overdue greener, recent redder). Explanation chip
-  background carries the recency-heatmap color for the Option, its numerals in
-  Geist Mono. PICK as a filled `action` (charcoal-ink) button with
-  `action-ink` label. The uniform flat list is intentional and locked — no
-  lead-item prominence, no collapsed long tail, no per-row background tint.
+  separated by a 1px `divider` rule, no cards, no shadows. A 3px vertical
+  meal-kind bar (`kind-home` / `kind-restaurant`) sits flush on the row's left
+  edge, over a faint tint of the same hue (`kind-home-tint` /
+  `kind-restaurant-tint`) as the row's background — deliberately a step below
+  the decided block's wash. Rank number in Geist
+  Mono `muted`. Option name in Fraunces, uncolored. Directly under the name
+  sits the chip row — Affinity, Recency, then one chip per Tag, each a small
+  `rounded-badge` pill tinted on the shared green→red heatmap (green = good:
+  recent, or frequent for Affinity; red = not now: overdue, or rare for
+  Affinity — see "Color channels" above, which is this section's source of
+  truth for the chip system). PICK as a filled `action` (charcoal-ink) button
+  with `action-ink` label. The uniform flat list remains intentional and
+  locked — no lead-item prominence, no collapsed long tail. (2026-09-22: a
+  faint per-row kind tint replaced the earlier "no per-row background tint"
+  rule — paler than the decided block's wash, so the block still reads as
+  the settled panel.)
 - **Last note line (2026-09-10 amendment to row anatomy):** a picker row whose
   Option has a **Last note** carries one extra muted line under the chip row —
   the note's age then the note text (`18d · got the katsu curry`), held to a
@@ -283,11 +357,11 @@ check before relying on it.
   of text costs nothing and a second tap collapses it. Paying 44px per noted row
   would spend exactly the height the single line was protecting. This exception
   is for *this* control only — it is not licence to shrink row actions.
-- **Decided block ("Tonight's dinner"):** unlike the picker ledger above, each
-  decided row carries a much-lighter wash of its meal-kind hue
-  (`kind-home-wash` / `kind-restaurant-wash`) as its background, so the
-  decided area reads as a distinct, settled panel above the picker. The
-  "no per-row background tint" rule applies to the *ranked picker*, not here.
+- **Decided block ("Tonight's dinner"):** each decided row carries a
+  much-lighter wash of its meal-kind hue (`kind-home-wash` /
+  `kind-restaurant-wash`) as its background — a step stronger than the picker
+  rows' `kind-*-tint`, so the decided area still reads as a distinct, settled
+  panel above the ledger. (The picker was tint-free until 2026-09-22.)
   A decided row shows its Option's **Last note** in **full** — no truncation, no
   tap target — on its own line between the chip row and the row's editable note,
   labelled inline (`Last time (18d): got the katsu curry`). The label is what
@@ -395,7 +469,7 @@ interpolation is `lib/recency-color.ts` (a `color-mix()` over the
 `--color-recency-*` variables). The Tonight row's kind bar and per-tag/chip
 tint are in `app/tonight-row.tsx` (and the decided block in
 `app/tonights-dinner-block.tsx`); the per-Option recency that drives the
-Explanation chip is the `recencyDays` field on `TonightRow`. The dark theme is
+Recency chip is the `recencyDays` field on `TonightRow`. The dark theme is
 derived and was sanity-checked, not exhaustively verified. The tag-filter
 chips kept the carried-over `exclude` token and await their own visual pass.
 
@@ -415,3 +489,7 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-06-17 | Added an Affinity chip (first in the chip row) on the same heatmap, tinted by frequency (green = frequent) | Surfaces the preference half of the Score beside the recency half, so the row shows *both* factors behind the order. Reuses the heatmap with an inverted mapping so "good" stays green on both chips. Relaxes the prior "exactly two color channels" rule. **Trialling** — the numeral label and whether it earns a permanent slot are still being eyeballed against real data. |
 | 2026-09-19 | Closed disclosure at the foot of Tonight, below Rejected; rows are full picker rows with an empty rank gutter | **Closed days** (ADR-0010) drop a shut Restaurant out of the ranked list, but hiding it outright would remove the Household's ability to overrule wrong data. Full controls keep the row first-class; alphabetical order with no numeral stops a non-ranking from looking like one; the empty `w-6` gutter keeps names on the picker's vertical. |
 | 2026-09-19 | Closed-day toggles are seven sub-44px chips in one row | Seven 44px targets plus gaps overrun a 375px viewport, and wrapping or stacking them destroys the week-shape the control is read by. Joins the Tonight header's documented exceptions to the control-height floor: the toggle is visible, instantly reversible, and writes nothing until save. |
+| 2026-09-21 | `muted`, `danger`, `success` (light) and `danger`, `accent` (dark) retuned for AA text/label contrast; `DESIGN.md` corrected against the code it had drifted from | A design-intelligence audit (`docs/design-review-2026-09-21.md`) found the Layout section still describing the pre-Affinity-chip "Explanation chip" and plain-text tags (both superseded 2026-06-17 in the Color section only), the documented spacing scale not matching `globals.css`/`tailwind.config.ts`, `planned`/`success-wash` documented as consumed when no screen renders them, and five color tokens failing 4.5:1 in the role they actually render (secondary text, inline errors, a button label). Fixed the drifted doc sections in place rather than re-deriving them from scratch, and retuned only the failing tokens — the recency heatmap anchors (`recency-*`) are untouched, since their contrast problem (a translucent chip fill under `text-ink`) is different from a token used as solid text or a button label. |
+| 2026-09-21 | Desktop Tonight row: dropped the single-dense-line / centered Explanation chip; widened the desktop column to 900px; PICK/Reject swap gated behind 900px, not the 720px rail breakpoint | A literal single dense line never fit rows with an Affinity chip, tags, a Last note, or an AI reason, and an earlier attempt to merge the name+chip lines only fit sometimes — depending on name/tag length — so chips inconsistently rode the name's line. Chips now stack under the name at every width, same order and position always. Separately: the rail's ~200px and the column's desktop max-width land at the same 720px step, so right after it the column is briefly narrower than its own mobile cap; letting PICK/Reject go horizontal at that same step squeezed the row twice at once, so that swap was moved to a later 900px breakpoint. |
+| 2026-09-22 | `line` (light) darkened `#d8dade` → `#8a8c8e` | `docs/design-review-2026-09-21.md` UX idea #2: the hairline ledger rule measured 1.27:1 against `bg`, near-invisible on a bright kitchen screen. `#8a8c8e` clears 3:1. Dark theme's `line` was left as-is — it wasn't part of the measured finding and dark is separately flagged as not yet visually verified. |
+| 2026-09-22 | Split `line` into `line` (light) and a new, lighter `divider` (light) — `#b1b3b6`, ~1.91:1 against `bg` | Direct user report, in light theme: `line`'s 3:1 (above) reads too dark once it is reused for every row/section divider in the app, not only the one hairline rule idea #2 measured. `line` now renders only a control/box's own border (input, button, popup), where the 3:1 UI-component-boundary reasoning still applies; `divider` covers row and section rules, which are decorative structure rather than a UI component boundary, so a lower contrast is appropriate. `divider`'s hex is the exact per-channel RGB midpoint of `line` (#8a8c8e) and the original near-invisible `#d8dade` (1.27:1), per a follow-up user request to land it halfway between the two rather than the initially-picked `#b3b5b8`. Dark theme's `divider` was left equal to `line` (`#383b40`) — dark hasn't been looked at live yet, so there is no finding to split it against. |

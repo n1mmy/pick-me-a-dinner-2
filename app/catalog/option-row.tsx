@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { OptionWithTags } from "../../db/queries";
 import { PickButton } from "../pick-button";
+import { ConfirmPair } from "../confirm-pair";
 import { archiveOption, deleteOption } from "./actions";
 import { OptionForm } from "./option-form";
 
@@ -14,7 +15,9 @@ const actionButton =
 /**
  * One Catalog row. Shows the Option name with Edit / Archive / Delete actions;
  * Edit expands the row in place into the form, and the destructive actions use
- * the §17 inline-confirm pattern ("Archive · Cancel" / "Delete · Cancel").
+ * the §17 inline-confirm pattern — the armed `ConfirmPair` ("Cancel · Archive"
+ * / "Cancel · Delete"). `PickButton` pins to the row's right edge either way,
+ * so the pair's last child lands where rest-state Delete already was.
  */
 export function OptionRow({
   option,
@@ -48,7 +51,7 @@ export function OptionRow({
 
   if (editing) {
     return (
-      <li className="border-b border-line py-3">
+      <li className="border-b border-divider py-3">
         <OptionForm
           kind={option.kind}
           initial={option}
@@ -62,7 +65,7 @@ export function OptionRow({
   }
 
   return (
-    <li className="flex flex-col gap-1 border-b border-line py-3">
+    <li className="flex flex-col gap-1 border-b border-divider py-3">
       <div className="flex items-center justify-between gap-3">
         <Link
           href={`/catalog/${option.id}`}
@@ -107,34 +110,23 @@ export function OptionRow({
               </button>
             </>
           ) : (
-            <>
-              <button
-                type="button"
-                disabled={pending}
-                className={`${actionButton} font-emphasis ${
-                  confirm === "delete" ? "text-danger" : "text-action"
-                }`}
-                onClick={confirm === "delete" ? runDelete : runArchive}
-              >
-                {confirm === "delete" ? "Delete" : "Archive"}
-              </button>
-              <span aria-hidden="true" className="text-chip text-muted">
-                ·
-              </span>
-              <button
-                type="button"
-                disabled={pending}
-                className={`${actionButton} text-muted`}
-                onClick={() => setConfirm(null)}
-              >
-                Cancel
-              </button>
-            </>
+            <ConfirmPair
+              buttonClass={actionButton}
+              label={confirm === "delete" ? "Delete" : "Archive"}
+              tone={confirm === "delete" ? "danger" : "action"}
+              pending={pending}
+              onConfirm={confirm === "delete" ? runDelete : runArchive}
+              onCancel={() => setConfirm(null)}
+            />
           )}
           <PickButton optionId={option.id} />
         </div>
       </div>
-      {error && <p className="text-chip text-danger">{error}</p>}
+      {error && (
+        <p className="text-chip text-danger" role="alert">
+          {error}
+        </p>
+      )}
     </li>
   );
 }
