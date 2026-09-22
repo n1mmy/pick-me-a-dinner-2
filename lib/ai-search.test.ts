@@ -331,6 +331,42 @@ describe("buildSnapshot — Closed days", () => {
   });
 });
 
+describe("buildSnapshot — Picked on the anchor day", () => {
+  const options = [
+    option("a1", "Apple Crumble"),
+    option("b1", "Banana Bread"),
+    option("c1", "Carrot Cake"),
+  ];
+
+  it("drops Options logged on asOf from the candidates but keeps their Log rows", () => {
+    const { snapshot, idByIndex } = buildSnapshot({
+      options,
+      logEntries: [
+        { optionId: "b1", eatenOn: TODAY, note: null },
+        { optionId: "c1", eatenOn: "2026-05-19", note: null },
+      ],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    // b1 (2) is tonight's Pick; c1 (3), eaten yesterday, stays a candidate.
+    expect(snapshot.options.map((o) => o.id)).toEqual([1, 3]);
+    expect([...idByIndex.keys()]).toEqual([1, 3]);
+    expect(snapshot.log.map((e) => e.optionId)).toContain(2);
+  });
+
+  it("keeps an Option Planned for a later day as a candidate", () => {
+    const { snapshot } = buildSnapshot({
+      options,
+      logEntries: [{ optionId: "b1", eatenOn: "2026-05-21", note: null }],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    expect(snapshot.options.map((o) => o.id)).toEqual([1, 2, 3]);
+  });
+});
+
 describe("buildSnapshot — Rejections", () => {
   const options = [
     option("a1", "Apple Crumble"),
@@ -672,6 +708,18 @@ describe("buildSystemPrompt", () => {
     expect(prompt.toLowerCase()).not.toMatch(/never recommend/);
   });
 
+  it("tells the whole-Catalog modes to rank every candidate, history or not", () => {
+    expect(buildSystemPrompt("pithy")).toContain("Every candidate must appear exactly once");
+    expect(buildSystemPrompt("full")).toContain("Every candidate must appear exactly once");
+    expect(buildSystemPrompt("drop")).not.toContain("Every candidate must appear");
+  });
+
+  it("tells the model today's Log rows are tonight's chosen dinner, not candidates", () => {
+    const prompt = buildSystemPrompt("pithy");
+    expect(prompt).toContain("Log rows dated today");
+    expect(prompt).toContain("never return them");
+  });
+
   it("no longer uses the stale 'closed on Sundays' Rejection example", () => {
     // A closure that repeats weekly is now a Closed day, not a standing
     // Rejection — ADR-0010. The Rejections paragraph's standing-dislike
@@ -988,5 +1036,87 @@ describe("createAiSearchClient — failure model and fallback", () => {
     expect(params.model).toBe(resolveModel());
     expect(params.thinking).toEqual({ type: "adaptive" });
     expect(params.output_config).toEqual({ effort: "low" });
+  });
+});
+
+describe("createAiSearchClient — backfilling omitted candidates", () => {
+  const options = [
+    option("a1", "Apple Crumble"),
+    option("b1", "Banana Bread"),
+    option("c1", "Carrot Cake"),
+  ];
+
+  /** Search with a response that ranks only Carrot Cake (3), then Apple (1). */
+  async function searchWith(query: string) {
+    const { snapshot, idByIndex } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [],
+      asOf: TODAY,
+      query,
+    });
+    messagesCreate.mockResolvedValueOnce({
+      content: [{ type: "text", text: "3|due\n1|fine" }],
+      usage: { input_tokens: 100, output_tokens: 10 },
+    });
+    return createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(
+      snapshot,
+      idByIndex,
+    );
+  }
+
+  beforeEach(() => {
+    messagesCreate.mockReset();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.AI_TAIL_MODE;
+  });
+
+  it("appends an omitted candidate with an empty reason on an empty query", async () => {
+    const result = await searchWith("");
+    expect(result).toEqual({
+      ok: true,
+      results: [
+        { id: "c1", reason: "due" },
+        { id: "a1", reason: "fine" },
+        { id: "b1", reason: "" },
+      ],
+    });
+    const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
+    expect(line).toMatchObject({ resultCount: 3, backfilledCount: 1 });
+  });
+
+  it("leaves a non-empty query's shortlist alone — it may have narrowed", async () => {
+    const result = await searchWith("something sweet");
+    expect(result.ok && result.results.map((r) => r.id)).toEqual(["c1", "a1"]);
+  });
+
+  it("leaves drop mode's shortlist alone — it omits weak picks on purpose", async () => {
+    process.env.AI_TAIL_MODE = "drop";
+    const result = await searchWith("");
+    expect(result.ok && result.results.map((r) => r.id)).toEqual(["c1", "a1"]);
+  });
+
+  it("hands the raw ranking text to onResponseText", async () => {
+    const { snapshot, idByIndex } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    messagesCreate.mockResolvedValueOnce({
+      content: [{ type: "text", text: "3|due" }],
+      usage: { input_tokens: 100, output_tokens: 10 },
+    });
+    const onResponseText = vi.fn();
+    await createAiSearchClient("k", {
+      model: "claude-sonnet-4-6",
+      onResponseText,
+    }).search(snapshot, idByIndex);
+    expect(onResponseText).toHaveBeenCalledWith("3|due");
   });
 });

@@ -262,6 +262,11 @@ export type BuiltSnapshot = {
  *   could double-remove or crash. Its number, Log rows, and Rejection rows are
  *   unaffected — the numbering covers the whole Catalog either way (PRD:
  *   Closed days, ADR-0010).
+ * - Options already **in the Log on the anchor day** (Picked for it) are
+ *   dropped from the candidate `options` the same way. The Tonight screen
+ *   removes a Picked Option from the ranked list, so any row the model wrote
+ *   for it would never be shown; its Log row stays, so the model still reads
+ *   what tonight's dinner already covers.
  * - Every **remaining candidate**'s Closed days ride along on
  *   `SnapshotModelOption.closedDays`, as weekday names, so the model can
  *   explain a thinner Log with the trading week instead of misreading it as
@@ -311,16 +316,22 @@ export function buildSnapshot(input: {
     indexByOptionId,
   );
 
-  // Anchor-day-rejected and anchor-day-closed Options both leave the
-  // candidate set — two independent set-membership checks, so an Option that
-  // is both is simply dropped once, not double-removed. The Log below is
-  // still built from the *full* `options` input, so a dropped Option's eating
-  // history reads as history even though it is no longer a candidate.
+  // Anchor-day-rejected, anchor-day-closed, and anchor-day-Picked Options all
+  // leave the candidate set — independent set-membership checks, so an Option
+  // that is several is simply dropped once, not double-removed. The Log below
+  // is still built from the *full* `options` input, so a dropped Option's
+  // eating history reads as history even though it is no longer a candidate.
   const closedForAsOf = new Set(
     byName.filter((o) => isClosedOn(o.closedDays, asOf)).map((o) => o.id),
   );
+  const pickedForAsOf = new Set(
+    logEntries.filter((e) => e.eatenOn === asOf).map((e) => e.optionId),
+  );
   const candidates = byName.filter(
-    (o) => !suppressedForAsOf.has(o.id) && !closedForAsOf.has(o.id),
+    (o) =>
+      !suppressedForAsOf.has(o.id) &&
+      !closedForAsOf.has(o.id) &&
+      !pickedForAsOf.has(o.id),
   );
   const modelOptions = candidates.map(
     (option): SnapshotModelOption => ({
@@ -483,8 +494,25 @@ export function parseRankingText(
   return rows;
 }
 
+/**
+ * Append, with an empty reason, every candidate the model left out of an
+ * open-query ranking. The screen shows only returned rows in AI view, so an
+ * omitted Option would otherwise vanish. Appended in `idByIndex` order
+ * (alphabetical by name).
+ */
+export function backfillOmittedCandidates(
+  rows: AiRankingRow[],
+  idByIndex: ReadonlyMap<number, string>,
+): AiRankingRow[] {
+  const returned = new Set(rows.map((row) => row.id));
+  const omitted = [...idByIndex.values()]
+    .filter((id) => !returned.has(id))
+    .map((id) => ({ id, reason: "" }));
+  return [...rows, ...omitted];
+}
+
 /** The default model when `AI_MODEL` is unset — a current Claude Opus. */
-const MODEL_DEFAULT = "claude-opus-5";
+const MODEL_DEFAULT = "claude-opus-5-5";
 
 /** Resolve the model id from `AI_MODEL`, falling back to `MODEL_DEFAULT`. */
 export function resolveModel(): string {
@@ -713,6 +741,16 @@ export function resolveTailMode(): TailMode {
   return value === "full" || value === "drop" ? value : "pithy";
 }
 
+/**
+ * Shared by the whole-Catalog tail modes. Opus 5.5 reliably left out the one
+ * candidate with no Log history, notes, or Rejections — nothing to say about it
+ * read as nothing to rank.
+ */
+const EVERY_CANDIDATE_INSTRUCTION =
+  " Every candidate must appear exactly once, including an Option with no " +
+  "Log history at all. Judge it on its merits like any other: never having " +
+  "tried it can itself be a reason to rank it higher, for the novelty.";
+
 /** The empty/open-query result instruction, per tail mode (see `resolveTailMode`). */
 const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
   full:
@@ -720,7 +758,8 @@ const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
     "candidate Option from the snapshot, ranked best first. For an Option " +
     "high in the ranking the rationale says why it is a strong pick tonight; " +
     "for an Option low in the ranking it says why it is a weaker pick. Every " +
-    "rationale is one short line, roughly 140 characters at most.",
+    "rationale is one short line, roughly 140 characters at most." +
+    EVERY_CANDIDATE_INSTRUCTION,
   pithy:
     "- If the query is empty or does not narrow the Catalog, return every " +
     "candidate Option from the snapshot, ranked best first, varying how " +
@@ -735,7 +774,8 @@ const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
     "obviously bad pick tonight (just eaten, plainly not a fit, a standing " +
     "reason against it), give an empty string as the reason — no text at " +
     "all. You decide which tier each Option falls in; the weaker the " +
-    "pick, the less needs to be said.",
+    "pick, the less needs to be said." +
+    EVERY_CANDIDATE_INSTRUCTION,
   drop:
     "- If the query is empty or does not narrow the Catalog, return only the " +
     "Options genuinely worth considering for tonight, ranked best first, and " +
@@ -795,6 +835,11 @@ export function buildSystemPrompt(mode: TailMode): string {
       "ahead. Compare each row's date against today's date to tell a past " +
       "event from an upcoming plan. After the snapshot, the household's " +
       "free-text query is given on its own line; it may be empty.",
+    "",
+    "Log rows dated today are dinners the household has already chosen for " +
+      "tonight. Those Options have been left out of the Catalog and are not " +
+      "candidates — never return them. Read those rows as what tonight " +
+      "already covers when you rank the Options that remain.",
     "",
     "Your job is NOT to re-sort the Catalog by how long ago each Option was " +
       "eaten. A separate deterministic ranking already does plain recency, and " +
@@ -975,6 +1020,8 @@ function logModelCall(fields: {
   outcome: string;
   /** Options returned — `0` on the fallback path. */
   resultCount: number;
+  /** Of `resultCount`, candidates the model omitted and `search` appended. */
+  backfilledCount: number;
   /** The response's token usage, absent when the call threw before a response. */
   usage?: Anthropic.Usage;
 }): void {
@@ -1017,7 +1064,12 @@ function logModelCall(fields: {
  */
 export function createAiSearchClient(
   apiKey: string,
-  overrides?: { model?: string; thinking?: ThinkingChoice },
+  overrides?: {
+    model?: string;
+    thinking?: ThinkingChoice;
+    /** Receives the model's raw ranking text — for the eval harness to record. */
+    onResponseText?: (text: string) => void;
+  },
 ): AiSearchClient {
   const anthropic = new Anthropic({ apiKey });
   const model = overrides?.model || resolveModel();
@@ -1039,6 +1091,14 @@ export function createAiSearchClient(
       // is the one part that varies per search, so it trails the block
       // uncached.
       const { snapshotBody, queryBlock } = splitUserTurn(snapshot);
+      const queryText = snapshot.query.slice(
+        HOUSEHOLD_TEXT_OPEN.length,
+        snapshot.query.length - HOUSEHOLD_TEXT_CLOSE.length,
+      );
+      // Only an empty query is known to be open: a non-empty one may narrow
+      // the Catalog, and `drop` mode omits weak picks on purpose.
+      const backfill = queryText.trim() === "" && tailMode !== "drop";
+      let backfilledCount = 0;
 
       // One model call, no retry. A timeout has already spent the full
       // budget, and a transient HTTP or network error was already retried
@@ -1090,14 +1150,21 @@ export function createAiSearchClient(
         // than one. `null` back is unparseable output — collapse to the
         // fallback (PRD §5: unparseable output is a Failure), never show it as
         // a valid empty result. A genuinely empty ranking stays `ok: true`.
-        const rows = parseRankingText(
-          response.content
-            .filter((block) => block.type === "text")
-            .map((block) => (block.type === "text" ? block.text : ""))
-            .join("\n"),
-          idByIndex,
-        );
-        if (rows !== null) result = { ok: true, results: rows };
+        const text = response.content
+          .filter((block) => block.type === "text")
+          .map((block) => (block.type === "text" ? block.text : ""))
+          .join("\n");
+        overrides?.onResponseText?.(text);
+        const rows = parseRankingText(text, idByIndex);
+        if (rows !== null) {
+          // A `NONE` answer stays the genuinely empty result (PRD §8).
+          const results =
+            backfill && rows.length > 0
+              ? backfillOmittedCandidates(rows, idByIndex)
+              : rows;
+          backfilledCount = results.length - rows.length;
+          result = { ok: true, results };
+        }
       } catch {
         // A thrown error — a timeout/abort, an HTTP error, a network failure
         // — leaves `result` at the fallback set above.
@@ -1110,16 +1177,14 @@ export function createAiSearchClient(
       // household length is the field length minus the two delimiters; a
       // fallback whose latency is near the timeout was a timed-out call.
       logModelCall({
-        queryLength:
-          snapshot.query.length -
-          HOUSEHOLD_TEXT_OPEN.length -
-          HOUSEHOLD_TEXT_CLOSE.length,
+        queryLength: queryText.length,
         model,
         tailMode,
         thinking: describeThinking(choice),
         latencyMs: Date.now() - startedAt,
         outcome: result.ok ? "ok" : "fallback",
         resultCount: result.ok ? result.results.length : 0,
+        backfilledCount,
         usage,
       });
 

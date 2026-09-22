@@ -10,18 +10,26 @@ adherence counts only — ranking quality is a human read (see `README.md`).
 | `scripts/model-comparison/2026-09-17-open.json` | _(empty)_ | 23 | 2026-09-17 (Thursday) · 35 options · 175 log | serial |
 | `scripts/model-comparison/2026-09-17-something-light.json` | "something light" | 6 | 2026-09-17 (Thursday) · 35 options · 175 log | serial |
 | `scripts/model-comparison/2026-09-18-open.json` | _(empty)_ | 3 | 2026-09-18 (Friday) · 34 options · 176 log | serial |
+| `scripts/model-comparison/2026-09-22-open.json` | _(empty)_ | 9 | 2026-09-22 (Tuesday) · 35 options · 185 log | serial |
+| `scripts/model-comparison/gpt-oss-120b-test.json` | _(empty)_ | 1 | 2026-09-22 (Tuesday) · 35 options · 185 log | parallel |
+| `scripts/model-comparison/kimi-k2p6-test.json` | _(empty)_ | 1 | 2026-09-22 (Tuesday) · 35 options · 185 log | parallel |
+| `scripts/model-comparison/kimi-test.json` | _(empty)_ | 1 | 2026-09-22 (Tuesday) · 35 options · 185 log | parallel |
 
-⚠️ **2 distinct snapshots** in this set. Pooled measures
+⚠️ **3 distinct snapshots** in this set. Pooled measures
 use the largest single-snapshot group per cell and report what they
 excluded; nothing is averaged across snapshots.
 
 - 2026-09-17 (Thursday) · 35 options · 175 log
 - 2026-09-18 (Friday) · 34 options · 176 log
+- 2026-09-22 (Tuesday) · 35 options · 185 log
 
 ## Query: _(empty — open query)_
 
 | cell | source | rep | ok | latency | out tok | rows | empty reasons | date refs | name opens | mean chars | ends with `.` |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| fireworks-gpt-oss-120b · thinking off | `scripts/model-comparison/gpt-oss-120b-test.json` | 1 | yes | 44.9s | — | 35 | 0 | 6 | 34 | 79 | 35 |
+| kimi-k2p6 · thinking off | `scripts/model-comparison/kimi-k2p6-test.json` | 1 | **NO** | 90.0s | — | 0 | 0 | 0 | 0 | 0 | 0 |
+| kimi-k3 · thinking off | `scripts/model-comparison/kimi-test.json` | 1 | **NO** | 90.0s | — | 0 | 0 | 0 | 0 | 0 | 0 |
 | opus-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 1 | yes | 77.9s | 6393 | 35 | 6 | 0 | 0 | 34 | 9 |
 | opus-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 2 | yes | 83.8s | 6605 | 35 | 3 | 8 | 0 | 33 | 4 |
 | opus-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 69.6s | 6060 | 35 | 8 | 7 | 0 | 34 | 3 |
@@ -39,6 +47,15 @@ excluded; nothing is averaged across snapshots.
 | opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 45.9s | 3670 | 35 | 7 | 8 | 0 | 37 | 8 |
 | opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 4 | yes | 41.3s | 3116 | 34 | 12 | 5 | 0 | 44 | 0 |
 | opus-5 · effort medium | `scripts/model-comparison/2026-09-17-open.json` | 5 | yes | 42.1s | 3402 | 35 | 10 | 7 | 0 | 51 | 25 |
+| opus-5-5 · effort low | `scripts/model-comparison/2026-09-22-open.json` | 1 | yes | 14.5s | 1308 | 34 | 12 | 2 | 0 | 41 | 0 |
+| opus-5-5 · effort low | `scripts/model-comparison/2026-09-22-open.json` | 2 | yes | 12.9s | 1303 | 34 | 20 | 0 | 0 | 50 | 0 |
+| opus-5-5 · effort low | `scripts/model-comparison/2026-09-22-open.json` | 3 | yes | 14.3s | 1165 | 34 | 17 | 0 | 0 | 45 | 0 |
+| opus-5-5 · effort low | `scripts/model-comparison/2026-09-22-open.json` | 4 | yes | 9.7s | 854 | 34 | 24 | 1 | 0 | 59 | 0 |
+| opus-5-5 · effort low | `scripts/model-comparison/2026-09-22-open.json` | 5 | yes | 17.4s | 1405 | 33 | 16 | 1 | 0 | 56 | 10 |
+| opus-5-5 · effort medium | `scripts/model-comparison/2026-09-22-open.json` | 1 | yes | 21.0s | 2139 | 33 | 15 | 0 | 0 | 51 | 0 |
+| opus-5-5 · effort medium | `scripts/model-comparison/2026-09-22-open.json` | 2 | yes | 19.7s | 2061 | 34 | 19 | 0 | 0 | 59 | 0 |
+| opus-5-5 · effort medium | `scripts/model-comparison/2026-09-22-open.json` | 3 | yes | 18.5s | 1856 | 34 | 17 | 0 | 0 | 46 | 0 |
+| opus-5-5 · effort medium | `scripts/model-comparison/2026-09-22-open.json` | 4 | yes | 18.4s | 1592 | 34 | 10 | 0 | 0 | 45 | 8 |
 | sonnet-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 1 | **NO** | 90.0s | — | 0 | 0 | 0 | 0 | 0 | 0 |
 | sonnet-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 2 | **NO** | 90.0s | — | 0 | 0 | 0 | 0 | 0 | 0 |
 | sonnet-5 · effort high | `scripts/model-comparison/2026-09-17-open.json` | 3 | yes | 217.3s | 25297 | 35 | 5 | 8 | 0 | 38 | 0 |
@@ -51,6 +68,9 @@ excluded; nothing is averaged across snapshots.
 
 ### Top 5
 
+- **fireworks-gpt-oss-120b · thinking off** (scripts/model-comparison/gpt-oss-120b-test.json, rep 1) — Societea Tea House & Eatery · K-Grill & Tofu House · Mollie Stone's · Limon · Boiling Beijing
+- **kimi-k2p6 · thinking off** (scripts/model-comparison/kimi-k2p6-test.json, rep 1) — no result
+- **kimi-k3 · thinking off** (scripts/model-comparison/kimi-test.json, rep 1) — no result
 - **opus-5 · effort high** (scripts/model-comparison/2026-09-17-open.json, rep 1) — Taqueria Durango · Atlas Pizza and Indian · Mollie Stone's · Minari Korean · West Coast Cafe
 - **opus-5 · effort high** (scripts/model-comparison/2026-09-17-open.json, rep 2) — Taqueria Durango · Minari Korean · West Coast Cafe · Atlas Pizza and Indian · Mollie Stone's
 - **opus-5 · effort high** (scripts/model-comparison/2026-09-17-open.json, rep 3) — Taqueria Durango · West Coast Cafe · Minari Korean · bb.q Chicken San Bruno · Atlas Pizza and Indian
@@ -68,6 +88,15 @@ excluded; nothing is averaged across snapshots.
 - **opus-5 · effort medium** (scripts/model-comparison/2026-09-17-open.json, rep 3) — Taqueria Durango · Minari Korean · Little Vietnamese Bistro · West Coast Cafe · K-Grill & Tofu House
 - **opus-5 · effort medium** (scripts/model-comparison/2026-09-17-open.json, rep 4) — Minari Korean · Limon · Jack's · West Coast Cafe · bb.q Chicken San Bruno
 - **opus-5 · effort medium** (scripts/model-comparison/2026-09-17-open.json, rep 5) — Taqueria Durango · Mollie Stone's · Minari Korean · Chicken and Rice · Roma Deli
+- **opus-5-5 · effort low** (scripts/model-comparison/2026-09-22-open.json, rep 1) — Minari Korean · Societea Tea House & Eatery · Mazra · Big Mouth Burgers · Leftovers
+- **opus-5-5 · effort low** (scripts/model-comparison/2026-09-22-open.json, rep 2) — Societea Tea House & Eatery · Minari Korean · Roma Deli · Mazra · Big Mouth Burgers
+- **opus-5-5 · effort low** (scripts/model-comparison/2026-09-22-open.json, rep 3) — Minari Korean · Mazra · Societea Tea House & Eatery · Roma Deli · Big Mouth Burgers
+- **opus-5-5 · effort low** (scripts/model-comparison/2026-09-22-open.json, rep 4) — Societea Tea House & Eatery · Minari Korean · Mazra · Big Mouth Burgers · Local Kitchens
+- **opus-5-5 · effort low** (scripts/model-comparison/2026-09-22-open.json, rep 5) — Societea Tea House & Eatery · Minari Korean · Roma Deli · Big Mouth Burgers · Quiche
+- **opus-5-5 · effort medium** (scripts/model-comparison/2026-09-22-open.json, rep 1) — Taqueria Durango · Thai Nakorn · Little Vietnamese Bistro · Societea Tea House & Eatery · Minari Korean
+- **opus-5-5 · effort medium** (scripts/model-comparison/2026-09-22-open.json, rep 2) — Societea Tea House & Eatery · Minari Korean · Roma Deli · Mazra · Local Kitchens
+- **opus-5-5 · effort medium** (scripts/model-comparison/2026-09-22-open.json, rep 3) — Societea Tea House & Eatery · Minari Korean · Mazra · Roma Deli · Big Mouth Burgers
+- **opus-5-5 · effort medium** (scripts/model-comparison/2026-09-22-open.json, rep 4) — Taqueria Durango · Thai Nakorn · Little Vietnamese Bistro · Societea Tea House & Eatery · Mazra
 - **sonnet-5 · effort high** (scripts/model-comparison/2026-09-17-open.json, rep 1) — no result
 - **sonnet-5 · effort high** (scripts/model-comparison/2026-09-17-open.json, rep 2) — no result
 - **sonnet-5 · effort high** (scripts/model-comparison/2026-09-17-open.json, rep 3) — Minari Korean · Mollie Stone's · West Coast Cafe · Big Mouth Burgers · Roosters Peruvian
@@ -83,6 +112,9 @@ excluded; nothing is averaged across snapshots.
 Mean pairwise top-5 overlap over every rep of a cell that ranked the same
 snapshot. `n` is how many successful reps pooled.
 
+- **fireworks-gpt-oss-120b · thinking off** — not measurable (1 usable of 1 rep(s))
+- **kimi-k2p6 · thinking off** — not measurable (0 usable of 1 rep(s))
+- **kimi-k3 · thinking off** — not measurable (0 usable of 1 rep(s))
 - **opus-5 · effort high** — n=4, mean overlap **4.0/5**, #1 held 3/4 (Taqueria Durango)
   - snapshot: 2026-09-17 (Thursday) · 35 options · 175 log
   - sources: scripts/model-comparison/2026-09-17-open.json
@@ -92,6 +124,12 @@ snapshot. `n` is how many successful reps pooled.
 - **opus-5 · effort medium** — n=5, mean overlap **2.3/5**, #1 held 4/5 (Taqueria Durango)
   - snapshot: 2026-09-17 (Thursday) · 35 options · 175 log
   - sources: scripts/model-comparison/2026-09-17-open.json
+- **opus-5-5 · effort low** — n=5, mean overlap **3.9/5**, #1 held 3/5 (Societea Tea House & Eatery)
+  - snapshot: 2026-09-22 (Tuesday) · 35 options · 185 log
+  - sources: scripts/model-comparison/2026-09-22-open.json
+- **opus-5-5 · effort medium** — n=4, mean overlap **2.7/5**, #1 held 2/4 (Taqueria Durango)
+  - snapshot: 2026-09-22 (Tuesday) · 35 options · 185 log
+  - sources: scripts/model-comparison/2026-09-22-open.json
 - **sonnet-5 · effort high** — not measurable (1 usable of 3 rep(s))
 - **sonnet-5 · effort low** — n=6, mean overlap **2.3/5**, #1 held 3/6 (Aji Ichi Japanese Restaurant)
   - snapshot: 2026-09-17 (Thursday) · 35 options · 175 log
@@ -101,9 +139,14 @@ snapshot. `n` is how many successful reps pooled.
 
 | cell | n | shared | Spearman | mean move | overlap@5 | overlap@10 | overlap@20 |
 |---|---|---|---|---|---|---|---|
+| fireworks-gpt-oss-120b · thinking off | 1 | — | — | — | — | — | — |
+| kimi-k2p6 · thinking off | 0 | — | — | — | — | — | — |
+| kimi-k3 · thinking off | 0 | — | — | — | — | — | — |
 | opus-5 · effort high | 4 | 35 | 0.78 | 5.0 places | 0.80 | 0.57 | 0.82 |
 | opus-5 · effort low | 5 | 34 | 0.76 | 4.9 places | 0.58 | 0.64 | 0.88 |
 | opus-5 · effort medium | 5 | 34 | 0.70 | 5.4 places | 0.46 | 0.56 | 0.83 |
+| opus-5-5 · effort low | 5 | 34 | 0.84 | 3.6 places | 0.78 | 0.76 | 0.89 |
+| opus-5-5 · effort medium | 4 | 34 | 0.51 | 5.7 places | 0.53 | 0.63 | 0.79 |
 | sonnet-5 · effort high | 1 | — | — | — | — | — | — |
 | sonnet-5 · effort low | 6 | 34 | 0.42 | 7.6 places | 0.45 | 0.43 | 0.80 |
 
@@ -111,8 +154,8 @@ Spearman 1.00 = identical ordering, 0 = unrelated. `mean move` is how
 many places the average Option shifts between two runs of that cell,
 counted over the Options both runs returned (`shared`).
 
-Chance baseline: the list averages ~35 Options, so random
-orderings already score overlap@5 ≈ 0.14, overlap@10 ≈ 0.29, overlap@20 ≈ 0.57.
+Chance baseline: the list averages ~34 Options, so random
+orderings already score overlap@5 ≈ 0.15, overlap@10 ≈ 0.29, overlap@20 ≈ 0.59.
 Read the deep columns against that floor, not against 1.00 — Spearman
 and `mean move` are the honest whole-list measures.
 
@@ -125,11 +168,29 @@ and `mean move` are the honest whole-list measures.
 | opus-5 · effort high | sonnet-5 · effort high | 4 | 35 | 0.61 | 6.6 places | 0.55 | separated by 0.18 |
 | opus-5 · effort medium | sonnet-5 · effort high | 5 | 35 | 0.60 | 6.7 places | 0.36 | separated by 0.10 |
 | opus-5 · effort high | opus-5 · effort low | 20 | 34 | 0.58 | 6.6 places | 0.44 | separated by 0.17 |
+| opus-5-5 · effort low | opus-5-5 · effort medium | 20 | 34 | 0.57 | 5.6 places | 0.59 | **indistinguishable** (own noise 0.51) |
 | opus-5 · effort low | sonnet-5 · effort high | 5 | 34 | 0.57 | 6.9 places | 0.24 | separated by 0.19 |
 | sonnet-5 · effort high | sonnet-5 · effort low | 6 | 35 | 0.42 | 8.1 places | 0.27 | separated by 0.01 |
 | opus-5 · effort low | sonnet-5 · effort low | 30 | 34 | 0.41 | 7.6 places | 0.26 | separated by 0.02 |
 | opus-5 · effort medium | sonnet-5 · effort low | 30 | 34 | 0.36 | 8.3 places | 0.27 | separated by 0.06 |
 | opus-5 · effort high | sonnet-5 · effort low | 24 | 35 | 0.34 | 8.7 places | 0.16 | separated by 0.08 |
+| fireworks-gpt-oss-120b · thinking off | opus-5-5 · effort medium | 4 | 34 | 0.29 | 9.5 places | 0.20 | separated by 0.22 |
+| fireworks-gpt-oss-120b · thinking off | opus-5-5 · effort low | 5 | 34 | 0.18 | 10.4 places | 0.20 | separated by 0.66 |
+| fireworks-gpt-oss-120b · thinking off | opus-5 · effort high | — | — | — | — | — | different snapshots — not comparable |
+| fireworks-gpt-oss-120b · thinking off | opus-5 · effort low | — | — | — | — | — | different snapshots — not comparable |
+| fireworks-gpt-oss-120b · thinking off | opus-5 · effort medium | — | — | — | — | — | different snapshots — not comparable |
+| fireworks-gpt-oss-120b · thinking off | sonnet-5 · effort high | — | — | — | — | — | different snapshots — not comparable |
+| fireworks-gpt-oss-120b · thinking off | sonnet-5 · effort low | — | — | — | — | — | different snapshots — not comparable |
+| opus-5 · effort high | opus-5-5 · effort low | — | — | — | — | — | different snapshots — not comparable |
+| opus-5 · effort high | opus-5-5 · effort medium | — | — | — | — | — | different snapshots — not comparable |
+| opus-5 · effort low | opus-5-5 · effort low | — | — | — | — | — | different snapshots — not comparable |
+| opus-5 · effort low | opus-5-5 · effort medium | — | — | — | — | — | different snapshots — not comparable |
+| opus-5 · effort medium | opus-5-5 · effort low | — | — | — | — | — | different snapshots — not comparable |
+| opus-5 · effort medium | opus-5-5 · effort medium | — | — | — | — | — | different snapshots — not comparable |
+| opus-5-5 · effort low | sonnet-5 · effort high | — | — | — | — | — | different snapshots — not comparable |
+| opus-5-5 · effort low | sonnet-5 · effort low | — | — | — | — | — | different snapshots — not comparable |
+| opus-5-5 · effort medium | sonnet-5 · effort high | — | — | — | — | — | different snapshots — not comparable |
+| opus-5-5 · effort medium | sonnet-5 · effort low | — | — | — | — | — | different snapshots — not comparable |
 
 Every rep of A against every rep of B, on the snapshot both share.
 `shared` is the mean number of Options both lists returned — the set the
@@ -144,6 +205,7 @@ any ranking difference between them is not yet evidence of anything.
 
 | cell | snapshot | rep | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | cuisine conflicts |
 |---|---|---|---|---|---|---|---|---|---|---|
+| fireworks-gpt-oss-120b · thinking off | 2026-09-22 (Tuesday) · 35 options · 185 log | 1 | 17% | 2 | 100% | 77% | -0.60 | 0 | — | 0 |
 | opus-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 31% | 4 | 72% | 17% | -0.89 | 3 | 0.93 | 0 |
 | opus-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 2 | 16% | 4 | 72% | 9% | -0.80 | 2 | 0.97 | 0 |
 | opus-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 3 | 30% | 4 | 85% | 15% | -0.80 | 1 | 0.90 | 0 |
@@ -161,6 +223,15 @@ any ranking difference between them is not yet evidence of anything.
 | opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 3 | 18% | 5 | 86% | 29% | -0.78 | 2 | 0.91 | 0 |
 | opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 4 | 18% | 3 | 82% | 32% | -0.80 | 0 | 0.77 | 0 |
 | opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 5 | 12% | 3 | 88% | 52% | -0.88 | 1 | 0.87 | 0 |
+| opus-5-5 · effort low | 2026-09-22 (Tuesday) · 35 options · 185 log | 1 | 32% | 0 | 86% | 32% | -0.80 | 2 | 0.84 | 0 |
+| opus-5-5 · effort low | 2026-09-22 (Tuesday) · 35 options · 185 log | 2 | 36% | 0 | 86% | 57% | -0.81 | 1 | 0.72 | 0 |
+| opus-5-5 · effort low | 2026-09-22 (Tuesday) · 35 options · 185 log | 3 | 12% | 0 | 88% | 53% | -0.84 | 1 | 0.76 | 0 |
+| opus-5-5 · effort low | 2026-09-22 (Tuesday) · 35 options · 185 log | 4 | 50% | 0 | 100% | 60% | -0.77 | 0 | 0.66 | 0 |
+| opus-5-5 · effort low | 2026-09-22 (Tuesday) · 35 options · 185 log | 5 | 18% | 0 | 88% | 59% | -0.87 | 1 | 0.76 | 0 |
+| opus-5-5 · effort medium | 2026-09-22 (Tuesday) · 35 options · 185 log | 1 | 33% | 0 | 89% | 44% | -0.83 | 0 | 0.77 | 0 |
+| opus-5-5 · effort medium | 2026-09-22 (Tuesday) · 35 options · 185 log | 2 | 47% | 1 | 100% | 47% | -0.85 | 0 | 0.74 | 0 |
+| opus-5-5 · effort medium | 2026-09-22 (Tuesday) · 35 options · 185 log | 3 | 29% | 0 | 94% | 47% | -0.85 | 1 | 0.76 | 0 |
+| opus-5-5 · effort medium | 2026-09-22 (Tuesday) · 35 options · 185 log | 4 | 29% | 0 | 83% | 33% | -0.85 | 2 | 0.87 | 0 |
 | sonnet-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 3 | 30% | 2 | 70% | 13% | -0.83 | 3 | 0.94 | 0 |
 | sonnet-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 31% | 5 | 72% | 14% | -0.69 | 3 | 0.86 | 1 |
 | sonnet-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 2 | 24% | 5 | 72% | 8% | -0.47 | 3 | 0.71 | 0 |
@@ -173,10 +244,13 @@ any ranking difference between them is not yet evidence of anything.
 
 | cell | snapshot | reps | rhythm | vague tic | opens | compound | len gradient | repeated | empty at rank | conflicts |
 |---|---|---|---|---|---|---|---|---|---|---|
+| fireworks-gpt-oss-120b · thinking off | 2026-09-22 (Tuesday) · 35 options · 185 log | 1 | 17% | 2.0 | 100% | 77% | -0.60 | 0.0 | — | 0 |
 | opus-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 4 | 25% | 3.5 | 75% | 17% | -0.84 | 2.5 | 0.94 | 0 |
 | opus-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 5 | 13% | 3.4 | 78% | 27% | -0.88 | 3.8 | 0.89 | 0 |
 | opus-5 · effort low | 2026-09-18 (Friday) · 34 options · 176 log | 3 | 29% | 1.0 | 95% | 58% | -0.85 | 0.3 | 0.79 | 0 |
 | opus-5 · effort medium | 2026-09-17 (Thursday) · 35 options · 175 log | 5 | 19% | 4.2 | 85% | 36% | -0.82 | 1.0 | 0.88 | 0 |
+| opus-5-5 · effort low | 2026-09-22 (Tuesday) · 35 options · 185 log | 5 | 29% | 0.0 | 90% | 52% | -0.82 | 1.0 | 0.75 | 0 |
+| opus-5-5 · effort medium | 2026-09-22 (Tuesday) · 35 options · 185 log | 4 | 35% | 0.3 | 92% | 43% | -0.85 | 0.8 | 0.78 | 0 |
 | sonnet-5 · effort high | 2026-09-17 (Thursday) · 35 options · 175 log | 1 | 30% | 2.0 | 70% | 13% | -0.83 | 3.0 | 0.94 | 0 |
 | sonnet-5 · effort low | 2026-09-17 (Thursday) · 35 options · 175 log | 6 | 28% | 5.8 | 70% | 8% | -0.63 | 2.3 | 0.69 | 2 |
 
@@ -199,7 +273,7 @@ None of these carry a target. They are reported so a prompt change can be
 compared against the run before it; optimising them directly would buy
 thesaurus variety rather than better reasons.
 
-Cuisine check coverage: 42% of rows (266/628) have exactly one recognised cuisine in the Option name and could be checked at all. Extend `CUISINES` in `analyze.mjs` when the Catalog grows.
+Cuisine check coverage: 41% of rows (332/817) have exactly one recognised cuisine in the Option name and could be checked at all. Extend `CUISINES` in `analyze.mjs` when the Catalog grows.
 
 #### Cuisine conflicts (verify by hand — heuristic)
 
@@ -208,6 +282,10 @@ Cuisine check coverage: 42% of rows (266/628) have exactly one recognised cuisin
 
 ### Elapsed-time rule breaks (examples)
 
+- **fireworks-gpt-oss-120b · thinking off** (rep 1), 6 hits:
+  - K-Grill & Tofu House: "K‑Grill offers Korean fried‑rice style; last Korean meal was months ago, revives that cadence."
+  - Boiling Beijing: "Boiling Beijing adds Chinese flavor; hasn’t been eaten since June, interval now due."
+  - Minari Korean: "Minari Korean brings Korean spice; previous Korean dishes were over a week ago, timing fits."
 - **opus-5 · effort high** (rep 2), 8 hits:
   - Minari Korean: "Korean has quietly dropped out of the rotation since early summer."
   - West Coast Cafe: "Italian has gone missing for months, and Thursday was always its slot."
@@ -272,6 +350,13 @@ Cuisine check coverage: 42% of rows (266/628) have exactly one recognised cuisin
   - Taqueria Durango: "Comes around every couple of weeks and is now due; mexican hasn't come up since the last visit."
   - Minari Korean: "Korean has been absent from the rotation for months, and it avoids the fried rice Helen just had."
   - Chicken and Rice: "Sous-vide home night that hasn't come up in weeks, and no home cooking is blocked tonight."
+- **opus-5-5 · effort low** (rep 1), 2 hits:
+  - Leftovers: "Quiche leftovers from Thursday were plentiful and may still need eating"
+  - Quiche: "Second quiche is due before mid-October, not yet"
+- **opus-5-5 · effort low** (rep 4), 1 hits:
+  - Leftovers: "Quiche leftovers from Thursday may still need finishing"
+- **opus-5-5 · effort low** (rep 5), 1 hits:
+  - Mazra: "Usually lands every two to three weeks, and Sonia reliably eats the big rice."
 - **sonnet-5 · effort high** (rep 3), 8 hits:
   - Minari Korean: "Korean has quietly dropped out of rotation for months, making it clearly overdue"
   - West Coast Cafe: "Italian has drifted out of rotation for months, well past its usual pace"

@@ -92,6 +92,10 @@ type ComparisonRun = {
   rows: { id: string; reason: string }[];
   /** Output tokens the call generated — absent when the call left no response. */
   outputTokens?: number;
+  /** Candidates the model omitted that `search` appended (serial runs only). */
+  backfilledCount?: number;
+  /** The model's ranking text before parsing — absent when the call left none. */
+  rawText?: string;
 };
 
 /** Budget-API models (Sonnet, Haiku) swept over token-budget levels. */
@@ -118,6 +122,7 @@ const ADAPTIVE_EFFORTS: ("low" | "medium" | "high" | null)[] = [
 const ADAPTIVE_MODELS = [
   "claude-opus-4-8",
   "claude-opus-5",
+  "claude-opus-5-5",
   "claude-sonnet-5",
 ];
 
@@ -251,10 +256,14 @@ async function runComparison(
     rep: number,
   ): Promise<ComparisonRun> => {
     const startedAt = Date.now();
+    let rawText: string | undefined;
     const call = (): Promise<AiSearchResult> =>
       createAiSearchClient(apiKey, {
         model: cell.model,
         thinking: cell.thinking,
+        onResponseText: (text) => {
+          rawText = text;
+        },
       }).search(snapshot, idByIndex);
 
     // Token counts come from the structured log line, which can only be
@@ -274,6 +283,11 @@ async function runComparison(
         typeof modelCall?.outputTokens === "number"
           ? modelCall.outputTokens
           : undefined,
+      backfilledCount:
+        typeof modelCall?.backfilledCount === "number"
+          ? modelCall.backfilledCount
+          : undefined,
+      rawText,
     };
   };
 
@@ -307,12 +321,14 @@ async function runComparison(
             thinking: run.cell.thinking,
             latencyMs: run.latencyMs,
             outputTokens: run.outputTokens,
+            backfilledCount: run.backfilledCount,
             ok: run.ok,
             ranking: run.rows.map((row, index) => ({
               rank: index + 1,
               name: nameById.get(row.id) ?? row.id,
               reason: row.reason,
             })),
+            rawText: run.rawText,
           })),
         },
         null,
