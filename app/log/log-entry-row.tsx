@@ -27,6 +27,12 @@ const actionButton =
  * One Log entry row. Shows the Option name and note with Edit / Delete actions;
  * Edit expands the row in place into the form, Delete uses the §17
  * inline-confirm pattern. A saved edit collapses with a quiet "Saved".
+ *
+ * The armed pair renders Cancel then Delete — `PickButton` pins to the row's
+ * right edge either way, so Delete (last, immediately left of it) lands where
+ * rest-state Delete already was, letting a confirm be a double-tap in one
+ * spot; Cancel takes Edit's old slot instead, not under the finger by
+ * accident.
  */
 export function EntryRow({
   entry,
@@ -92,10 +98,10 @@ export function EntryRow({
               <button
                 type="button"
                 disabled={pending}
-                className={`${actionButton} font-emphasis text-danger`}
-                onClick={runDelete}
+                className={`${actionButton} text-muted`}
+                onClick={() => setConfirmDelete(false)}
               >
-                Delete
+                Cancel
               </button>
               <span aria-hidden="true" className="text-chip text-muted">
                 ·
@@ -103,10 +109,10 @@ export function EntryRow({
               <button
                 type="button"
                 disabled={pending}
-                className={`${actionButton} text-muted`}
-                onClick={() => setConfirmDelete(false)}
+                className={`${actionButton} font-emphasis text-danger`}
+                onClick={runDelete}
               >
-                Cancel
+                Delete
               </button>
             </>
           ) : (

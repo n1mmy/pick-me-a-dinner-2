@@ -31,9 +31,10 @@
    * boundary (WCAG 1.4.11 doesn't apply the way it does to `line`'s control
    * borders) — direct user feedback found `line`'s 3:1 too heavy once it was
    * actually reused for every list divider, not just the one rule idea #2
-   * measured. #b3b5b8 backs off to ~1.87:1 against `bg`, between that and
-   * the original near-invisible #d8dade (1.27:1). */
-  --color-divider: #b3b5b8;
+   * measured. #b1b3b6 is the exact RGB midpoint of `line` (#8a8c8e) and the
+   * original near-invisible #d8dade (1.27:1) — per-channel average, ~1.91:1
+   * against `bg`. */
+  --color-divider: #b1b3b6;
   /* Meal-kind left bar — teal for home-cooked, plum for restaurant. */
   --color-kind-home: #2c6e6e;
   --color-kind-restaurant: #7a4f6b;

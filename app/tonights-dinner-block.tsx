@@ -364,6 +364,11 @@ const removeButton =
  * then deletes today's Log entry for the Option via the existing
  * `deleteLogEntry` server action, and "Cancel" disarms it.
  *
+ * The armed group renders Cancel first, Remove last — the row is
+ * `justify-between`, so the *last* child lands at the same right edge the
+ * single rest-state "Remove" occupied. Confirming is then a double-tap in
+ * one spot; Cancel sits further away, not under the finger by accident.
+ *
  * `deleteLogEntry` revalidates Tonight, so on a successful delete the server
  * drops this row from the block (and, if it was the last one, returns the
  * whole screen to picker mode) — the control needs no post-delete cleanup of
@@ -407,10 +412,10 @@ function RemoveControl({
       <button
         type="button"
         disabled={pending}
-        onClick={runRemove}
-        className={`${removeButton} font-emphasis text-danger disabled:opacity-60`}
+        onClick={() => setConfirming(false)}
+        className={`${removeButton} text-muted disabled:opacity-60`}
       >
-        Remove
+        Cancel
       </button>
       <span aria-hidden="true" className="text-chip text-muted">
         ·
@@ -418,10 +423,10 @@ function RemoveControl({
       <button
         type="button"
         disabled={pending}
-        onClick={() => setConfirming(false)}
-        className={`${removeButton} text-muted disabled:opacity-60`}
+        onClick={runRemove}
+        className={`${removeButton} font-emphasis text-danger disabled:opacity-60`}
       >
-        Cancel
+        Remove
       </button>
     </div>
   );

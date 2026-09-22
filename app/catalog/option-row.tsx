@@ -14,7 +14,13 @@ const actionButton =
 /**
  * One Catalog row. Shows the Option name with Edit / Archive / Delete actions;
  * Edit expands the row in place into the form, and the destructive actions use
- * the §17 inline-confirm pattern ("Archive · Cancel" / "Delete · Cancel").
+ * the §17 inline-confirm pattern ("Cancel · Archive" / "Cancel · Delete").
+ *
+ * The armed pair renders Cancel first — `PickButton` pins to the row's right
+ * edge either way, so the confirm action (last, immediately left of it) lands
+ * where rest-state Delete already was, letting a Delete confirm be a
+ * double-tap in one spot; Cancel takes Edit's old slot instead, not under the
+ * finger by accident.
  */
 export function OptionRow({
   option,
@@ -111,12 +117,10 @@ export function OptionRow({
               <button
                 type="button"
                 disabled={pending}
-                className={`${actionButton} font-emphasis ${
-                  confirm === "delete" ? "text-danger" : "text-action"
-                }`}
-                onClick={confirm === "delete" ? runDelete : runArchive}
+                className={`${actionButton} text-muted`}
+                onClick={() => setConfirm(null)}
               >
-                {confirm === "delete" ? "Delete" : "Archive"}
+                Cancel
               </button>
               <span aria-hidden="true" className="text-chip text-muted">
                 ·
@@ -124,10 +128,12 @@ export function OptionRow({
               <button
                 type="button"
                 disabled={pending}
-                className={`${actionButton} text-muted`}
-                onClick={() => setConfirm(null)}
+                className={`${actionButton} font-emphasis ${
+                  confirm === "delete" ? "text-danger" : "text-action"
+                }`}
+                onClick={confirm === "delete" ? runDelete : runArchive}
               >
-                Cancel
+                {confirm === "delete" ? "Delete" : "Archive"}
               </button>
             </>
           )}

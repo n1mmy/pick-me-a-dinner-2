@@ -231,6 +231,12 @@ export function AddRejectionForm({
  *
  * Both screens that render it — the Log screen and the Option detail page —
  * group Rejections under a date header, so the row itself carries no date.
+ *
+ * The armed pair renders Cancel then Delete, not Delete then Cancel: this
+ * group is the row's own right edge (`justify-between`, nothing after it),
+ * so the *last* child lands where rest-state Delete already was — confirming
+ * is then a double-tap in one spot, and Cancel isn't under the finger by
+ * accident.
  */
 export function RejectionRow({
   rejection,
@@ -309,10 +315,10 @@ export function RejectionRow({
               <button
                 type="button"
                 disabled={pending}
-                className={`${actionButton} font-emphasis text-danger`}
-                onClick={runDelete}
+                className={`${actionButton} text-muted`}
+                onClick={() => setConfirmDelete(false)}
               >
-                Delete
+                Cancel
               </button>
               <span aria-hidden="true" className="text-chip text-muted">
                 ·
@@ -320,10 +326,10 @@ export function RejectionRow({
               <button
                 type="button"
                 disabled={pending}
-                className={`${actionButton} text-muted`}
-                onClick={() => setConfirmDelete(false)}
+                className={`${actionButton} font-emphasis text-danger`}
+                onClick={runDelete}
               >
-                Cancel
+                Delete
               </button>
             </>
           ) : (
