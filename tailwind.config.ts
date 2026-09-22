@@ -22,6 +22,8 @@ const config: Config = {
         "kind-restaurant": "var(--color-kind-restaurant)",
         "kind-home-wash": "var(--color-kind-home-wash)",
         "kind-restaurant-wash": "var(--color-kind-restaurant-wash)",
+        "kind-home-tint": "var(--color-kind-home-tint)",
+        "kind-restaurant-tint": "var(--color-kind-restaurant-tint)",
         "recency-overdue": "var(--color-recency-overdue)",
         "recency-mid": "var(--color-recency-mid)",
         "recency-recent": "var(--color-recency-recent)",

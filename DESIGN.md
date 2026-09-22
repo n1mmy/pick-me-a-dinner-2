@@ -98,7 +98,9 @@ halves of the Score. (Through 2026-06-16 this was "exactly two channels", kind +
 recency; the Affinity chip was added 2026-06-17 alongside the affinity-ranking
 work — see the Decisions Log.)
 
-1. **Meal kind** — a 3px solid vertical bar on the row's left edge. Teal
+1. **Meal kind** — a 3px solid vertical bar on the row's left edge, over a
+   tint of the same hue as the row's background (faint `kind-*-tint` on
+   picker rows, the stronger `kind-*-wash` on decided rows). Teal
    `kind-home` for home-cooked Options, plum `kind-restaurant` for
    restaurants. One calm decision per row: home vs out, before reading a word.
 2. **The green→red heatmap** — a continuous scale where green is "good" and red
@@ -131,6 +133,8 @@ work — see the Decisions Log.)
 | `kind-restaurant` | `#7a4f6b` | Meal-kind left bar — restaurant (plum) |
 | `kind-home-wash` | `#dde8e8` | Decided-row background — much-lighter home wash |
 | `kind-restaurant-wash` | `#e7e0e6` | Decided-row background — much-lighter restaurant wash |
+| `kind-home-tint` | `#e8eeef` | Picker-row background — the home wash halved toward `bg` |
+| `kind-restaurant-tint` | `#edeaee` | Picker-row background — the restaurant wash halved toward `bg` |
 | `recency-overdue` | `#c4453a` | Recency heatmap — red end, long overdue |
 | `recency-mid` | `#c8b78f` | Recency heatmap — muted tan midpoint |
 | `recency-recent` | `#3f8a4a` | Recency heatmap — green end, eaten recently |
@@ -231,6 +235,8 @@ check before relying on it.
 | `kind-restaurant` | `#a87d99` |
 | `kind-home-wash` | `#212e30` |
 | `kind-restaurant-wash` | `#2e2a30` |
+| `kind-home-tint` | `#1e2528` |
+| `kind-restaurant-tint` | `#242328` |
 | `recency-overdue` | `#d65a4f` |
 | `recency-mid` | `#bdae89` |
 | `recency-recent` | `#5aa863` |
@@ -289,17 +295,22 @@ button label — see the AI search "done" badge note in
   squeezed twice at once. Past 900px PICK moves to the row's right edge,
   Reject to its left.
 - **Tonight row anatomy:** A flat, uniform ledger — every row the same height,
-  separated by a 1px `divider` rule, no cards, no shadows, no row given a
-  different background. A 3px vertical meal-kind bar (`kind-home` /
-  `kind-restaurant`) sits flush on the row's left edge. Rank number in Geist
+  separated by a 1px `divider` rule, no cards, no shadows. A 3px vertical
+  meal-kind bar (`kind-home` / `kind-restaurant`) sits flush on the row's left
+  edge, over a faint tint of the same hue (`kind-home-tint` /
+  `kind-restaurant-tint`) as the row's background — deliberately a step below
+  the decided block's wash. Rank number in Geist
   Mono `muted`. Option name in Fraunces, uncolored. Directly under the name
   sits the chip row — Affinity, Recency, then one chip per Tag, each a small
   `rounded-badge` pill tinted on the shared green→red heatmap (green = good:
   recent, or frequent for Affinity; red = not now: overdue, or rare for
   Affinity — see "Color channels" above, which is this section's source of
   truth for the chip system). PICK as a filled `action` (charcoal-ink) button
-  with `action-ink` label. The uniform flat list is intentional and locked —
-  no lead-item prominence, no collapsed long tail, no per-row background tint.
+  with `action-ink` label. The uniform flat list remains intentional and
+  locked — no lead-item prominence, no collapsed long tail. (2026-09-22: a
+  faint per-row kind tint replaced the earlier "no per-row background tint"
+  rule — paler than the decided block's wash, so the block still reads as
+  the settled panel.)
 - **Last note line (2026-09-10 amendment to row anatomy):** a picker row whose
   Option has a **Last note** carries one extra muted line under the chip row —
   the note's age then the note text (`18d · got the katsu curry`), held to a
@@ -346,11 +357,11 @@ button label — see the AI search "done" badge note in
   of text costs nothing and a second tap collapses it. Paying 44px per noted row
   would spend exactly the height the single line was protecting. This exception
   is for *this* control only — it is not licence to shrink row actions.
-- **Decided block ("Tonight's dinner"):** unlike the picker ledger above, each
-  decided row carries a much-lighter wash of its meal-kind hue
-  (`kind-home-wash` / `kind-restaurant-wash`) as its background, so the
-  decided area reads as a distinct, settled panel above the picker. The
-  "no per-row background tint" rule applies to the *ranked picker*, not here.
+- **Decided block ("Tonight's dinner"):** each decided row carries a
+  much-lighter wash of its meal-kind hue (`kind-home-wash` /
+  `kind-restaurant-wash`) as its background — a step stronger than the picker
+  rows' `kind-*-tint`, so the decided area still reads as a distinct, settled
+  panel above the ledger. (The picker was tint-free until 2026-09-22.)
   A decided row shows its Option's **Last note** in **full** — no truncation, no
   tap target — on its own line between the chip row and the row's editable note,
   labelled inline (`Last time (18d): got the katsu curry`). The label is what

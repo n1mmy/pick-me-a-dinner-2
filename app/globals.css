@@ -39,10 +39,16 @@
   --color-kind-home: #2c6e6e;
   --color-kind-restaurant: #7a4f6b;
   /* Much-lighter washes of the two kind hues — the tinted background of each
-   * row in the decided "Tonight's dinner" block, so the decided area reads as
-   * distinct from the picker below it. */
+   * row in the decided "Tonight's dinner" block, a step stronger than the
+   * picker rows' tints below. */
   --color-kind-home-wash: #dde8e8;
   --color-kind-restaurant-wash: #e7e0e6;
+  /* Fainter still — the picker row's background tint: the per-channel RGB
+   * midpoint of the wash and `bg` (the same midpoint rule `--color-divider`
+   * used), so the ledger carries the kind-coding without the tint competing
+   * with the chips' heatmap fills. */
+  --color-kind-home-tint: #e8eeef;
+  --color-kind-restaurant-tint: #edeaee;
   /* Recency heatmap — three anchor stops of a continuous green->red scale:
    * recently eaten reads green, long overdue reads red, fading through a tan
    * midpoint. lib/recency-color.ts interpolates between them and saturates the
@@ -166,6 +172,9 @@
     --color-kind-restaurant: #a87d99;
     --color-kind-home-wash: #212e30;
     --color-kind-restaurant-wash: #2e2a30;
+    /* Picker-row tints — the wash halved toward `bg`, as in light theme. */
+    --color-kind-home-tint: #1e2528;
+    --color-kind-restaurant-tint: #242328;
     --color-recency-overdue: #d65a4f;
     --color-recency-mid: #bdae89;
     --color-recency-recent: #5aa863;

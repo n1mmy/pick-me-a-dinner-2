@@ -10,7 +10,7 @@ import {
   recencyChipBg,
   recencyChipBgStrong,
 } from "../lib/recency-color";
-import { kindBarClass } from "./kind-bar";
+import { kindBarClass, kindTintClass } from "./kind-bar";
 import { pickTonight } from "./log/actions";
 import { rejectOption } from "./rejection-actions";
 
@@ -19,9 +19,12 @@ const focusRing =
   "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
- * One Tonight row of the flat ledger (DESIGN.md "Tonight row anatomy"). The
- * name sits above a chip row — the Recency chip then the Tag chips — with the
- * "Pick" action pinned to the row's right edge on every width. "Pick" is the
+ * One Tonight row of the flat ledger (DESIGN.md "Tonight row anatomy") — a
+ * faint tint of the Option's kind hue (a step below the decided rows' wash)
+ * under the 3px kind bar on its left edge. The name sits above a chip row —
+ * the Recency chip then the Tag
+ * chips — with the "Pick" action pinned to the row's right edge on every
+ * width. "Pick" is the
  * one-tap `pick = log` path; the picked button briefly marks "Logged ✓". To
  * log a dinner for any other date, use the Log screen.
  *
@@ -153,7 +156,7 @@ export function TonightRowItem({
   return (
     <li
       className={`border-b border-divider py-[10px]
-        ${kindBarClass(option.kind)}`}
+        ${kindBarClass(option.kind)} ${kindTintClass(option.kind)}`}
     >
       <div className="flex items-start gap-3 desktop:items-center">
         <div className="min-w-0 flex-1">

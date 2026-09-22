@@ -8,7 +8,7 @@ import {
   type DecidedAction,
   type TonightsDinnerEntry,
 } from "../lib/tonights-dinner";
-import { kindBarClass } from "./kind-bar";
+import { kindBarClass, kindWashClass } from "./kind-bar";
 import { ConfirmPair } from "./confirm-pair";
 import { deleteLogEntry, updateLogEntry } from "./log/actions";
 import { inputClass, labelClass } from "./log/log-entry-row";
@@ -130,16 +130,10 @@ function DecidedRow({
   const actions = decidedActions(row.option);
   const [editing, setEditing] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
-  // A light wash of the Option's kind hue tints each decided row, so the
-  // "Tonight's dinner" block reads as a distinct shaded area above the picker.
-  const washClass =
-    row.option.kind === "home"
-      ? "bg-kind-home-wash"
-      : "bg-kind-restaurant-wash";
   return (
     <li
-      className={`border-b border-divider py-[10px] last:border-b-0 ${washClass}
-        ${kindBarClass(row.option.kind)}`}
+      className={`border-b border-divider py-[10px] last:border-b-0
+        ${kindWashClass(row.option.kind)} ${kindBarClass(row.option.kind)}`}
     >
       <div className="flex items-center justify-between gap-2">
         <Link
