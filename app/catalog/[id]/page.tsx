@@ -20,6 +20,7 @@ import { EntryRow } from "../../log/log-entry-row";
 import { RejectionRow } from "../../log/rejection-row";
 import { kindBarClass } from "../../kind-bar";
 import { RowChips } from "../../tonight-row";
+import { EditPanel } from "./edit-panel";
 import { OptionControls } from "./option-controls";
 
 /**
@@ -48,13 +49,24 @@ const sectionHeading =
  * The recency is computed by `rankOption` over the same inputs the Tonight
  * page assembles, so the two screens never disagree. An id matching no Option
  * — a stale link, a Deleted Option, or junk — renders Next's `notFound()`.
+ *
+ * `?edit=1` swaps the Recency/Actions/Details block for `EditPanel` (the
+ * reused `OptionForm`) and hides History below it too — it's read-only
+ * reference material, unrelated to the fields being edited, and would just
+ * add scroll length under the form and its fixed Save/Cancel bar. Edit is a
+ * real URL state, not a client toggle, so it's back-button-able and nothing
+ * is ever rendered stale under an open form.
  */
 export default async function OptionDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ edit?: string | string[] }>;
 }) {
   const { id } = await params;
+  const { edit: rawEdit } = await searchParams;
+  const editing = rawEdit === "1";
   const option = await getOptionById(id);
   if (!option) notFound();
 
@@ -139,115 +151,131 @@ export default async function OptionDetailPage({
         </h1>
       </header>
 
-      <section className="flex flex-col gap-2">
-        <h2 className={sectionHeading}>Recency</h2>
-        <RowChips
-          recencyDays={ranking.recencyDays}
-          neverEaten={ranking.neverEaten}
-          tags={ranking.tags}
-        />
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className={sectionHeading}>Actions</h2>
-        <OptionControls
-          option={option}
-          allTags={allTags}
-          placesEnabled={placesEnabled()}
-          canDelete={optionLog.length === 0}
-        />
-      </section>
-
-      {hasDetails && (
+      {editing ? (
         <section className="flex flex-col gap-2">
-          <dl className="flex flex-col">
-            {option.notes && <Field label="Notes">{option.notes}</Field>}
-            {option.url && (
-              <Field label="Link">
-                {linkHref ? (
-                  <a
-                    href={linkHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={linkClass}
-                  >
-                    {option.url}
-                  </a>
-                ) : (
-                  option.url
-                )}
-              </Field>
-            )}
-            {isRestaurant && option.address && (
-              <Field label="Address">{option.address}</Field>
-            )}
-            {isRestaurant && option.phone && (
-              <Field label="Phone">
-                <a href={`tel:${option.phone}`} className={linkClass}>
-                  {option.phone}
-                </a>
-              </Field>
-            )}
-            {isRestaurant && option.mapsUrl && (
-              <Field label="Map">
-                {mapsHref ? (
-                  <a
-                    href={mapsHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={linkClass}
-                  >
-                    Google Maps
-                  </a>
-                ) : (
-                  option.mapsUrl
-                )}
-              </Field>
-            )}
-            {isRestaurant && closedDays && (
-              <Field label="Closed days">{closedDays}</Field>
-            )}
-          </dl>
+          <h2 className={sectionHeading}>Edit</h2>
+          <EditPanel
+            option={option}
+            allTags={allTags}
+            placesEnabled={placesEnabled()}
+          />
         </section>
+      ) : (
+        <>
+          <section className="flex flex-col gap-2">
+            <h2 className={sectionHeading}>Recency</h2>
+            <RowChips
+              recencyDays={ranking.recencyDays}
+              neverEaten={ranking.neverEaten}
+              tags={ranking.tags}
+            />
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <h2 className={sectionHeading}>Actions</h2>
+            <OptionControls
+              option={option}
+              canDelete={optionLog.length === 0}
+            />
+          </section>
+
+          {hasDetails && (
+            <section className="flex flex-col gap-2">
+              <dl className="flex flex-col">
+                {option.notes && <Field label="Notes">{option.notes}</Field>}
+                {option.url && (
+                  <Field label="Link">
+                    {linkHref ? (
+                      <a
+                        href={linkHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={linkClass}
+                      >
+                        {option.url}
+                      </a>
+                    ) : (
+                      option.url
+                    )}
+                  </Field>
+                )}
+                {isRestaurant && option.address && (
+                  <Field label="Address">{option.address}</Field>
+                )}
+                {isRestaurant && option.phone && (
+                  <Field label="Phone">
+                    <a href={`tel:${option.phone}`} className={linkClass}>
+                      {option.phone}
+                    </a>
+                  </Field>
+                )}
+                {isRestaurant && option.mapsUrl && (
+                  <Field label="Map">
+                    {mapsHref ? (
+                      <a
+                        href={mapsHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={linkClass}
+                      >
+                        Google Maps
+                      </a>
+                    ) : (
+                      option.mapsUrl
+                    )}
+                  </Field>
+                )}
+                {isRestaurant && closedDays && (
+                  <Field label="Closed days">{closedDays}</Field>
+                )}
+              </dl>
+            </section>
+          )}
+        </>
       )}
 
-      <section className="flex flex-col gap-2">
-        <h2 className={sectionHeading}>History</h2>
-        {activity.length === 0 ? (
-          <p className="text-body text-muted">
-            Nothing logged or rejected yet for this Option.
-          </p>
-        ) : (
-          // Each date-group interleaves that day's logged dinners and
-          // Rejections, reusing the Log screen's `EntryRow` / `RejectionRow`
-          // so the two screens manage a Dinner and a Rejection identically
-          // (PRD: Option detail page parity). Their actions revalidate
-          // `/catalog/[id]`, so an edit or delete refreshes this page in place.
-          activity.map((record) => (
-            <div key={record.date} className="flex flex-col gap-1">
-              <h3 className="text-chip font-emphasis text-muted">
-                {formatDinnerDate(record.date, todaySql)}
-              </h3>
-              <ul className="flex flex-col">
-                {record.entries.map((entry) => (
-                  <EntryRow
-                    key={entry.id}
-                    entry={entry}
-                    optionChoices={optionChoices}
-                  />
-                ))}
-                {record.rejections.map((rejection) => (
-                  <RejectionRow
-                    key={rejection.id}
-                    rejection={rejection}
-                    optionChoices={optionChoices}
-                  />
-                ))}
-              </ul>
-            </div>
-          ))
-        )}
-      </section>
+      {/* History is hidden while editing: it's read-only reference material
+          unrelated to the fields being changed, and would just add scroll
+          length below the form and its fixed Save/Cancel bar. */}
+      {!editing && (
+        <section className="flex flex-col gap-2">
+          <h2 className={sectionHeading}>History</h2>
+          {activity.length === 0 ? (
+            <p className="text-body text-muted">
+              Nothing logged or rejected yet for this Option.
+            </p>
+          ) : (
+            // Each date-group interleaves that day's logged dinners and
+            // Rejections, reusing the Log screen's `EntryRow` / `RejectionRow`
+            // so the two screens manage a Dinner and a Rejection identically
+            // (PRD: Option detail page parity). Their actions revalidate
+            // `/catalog/[id]`, so an edit or delete refreshes this page in place.
+            activity.map((record) => (
+              <div key={record.date} className="flex flex-col gap-1">
+                <h3 className="text-chip font-emphasis text-muted">
+                  {formatDinnerDate(record.date, todaySql)}
+                </h3>
+                <ul className="flex flex-col">
+                  {record.entries.map((entry) => (
+                    <EntryRow
+                      key={entry.id}
+                      entry={entry}
+                      optionChoices={optionChoices}
+                    />
+                  ))}
+                  {record.rejections.map((rejection) => (
+                    <RejectionRow
+                      key={rejection.id}
+                      rejection={rejection}
+                      optionChoices={optionChoices}
+                    />
+                  ))}
+                </ul>
+              </div>
+            ))
+          )}
+        </section>
+      )}
     </main>
   );
 }

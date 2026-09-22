@@ -22,10 +22,18 @@ const inputClass =
  * picking a hit, calls a Places server action; selecting a result autofills
  * the parent form via `onAutofill`. Any Places failure swaps the box for an
  * inline notice — the manual fields stay editable, so a save still works.
+ *
+ * Sits above the Name field in `OptionForm` — a Places pick overwrites Name,
+ * so it reads as the form's starting point rather than a correction after
+ * the fact. `label` lets the caller distinguish add ("Start from Google")
+ * from edit ("Re-sync from Google"), since a search here on an existing
+ * Restaurant is a refresh, not a first entry.
  */
 export function PlacesSearchBox({
+  label = "Search Google",
   onAutofill,
 }: {
+  label?: string;
   onAutofill: (autofill: PlaceAutofill) => void;
 }) {
   const fieldId = useId();
@@ -54,7 +62,7 @@ export function PlacesSearchBox({
   return (
     <div className="flex flex-col gap-2 rounded-input border border-line p-3">
       <label htmlFor={`${fieldId}-query`} className={labelClass}>
-        Search Google
+        {label}
       </label>
       <div className="flex items-center gap-2">
         <input

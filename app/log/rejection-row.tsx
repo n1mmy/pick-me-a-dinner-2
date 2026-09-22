@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogRejectionRow, OptionChoice } from "../../db/queries";
+import { escapeToCancel } from "../escape-to-cancel";
 import { OptionCombobox } from "../option-combobox";
 import { ConfirmPair } from "../confirm-pair";
 import { inputClass, labelClass } from "./log-entry-row";
@@ -79,7 +80,11 @@ function RejectionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={escapeToCancel(onCancel, pending)}
+      className="flex flex-col gap-3"
+    >
       <div className="flex flex-col gap-1">
         <label htmlFor={`${fieldId}-option`} className={labelClass}>
           Option

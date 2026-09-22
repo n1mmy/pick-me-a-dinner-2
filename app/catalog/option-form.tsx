@@ -2,6 +2,8 @@
 
 import {
   type FormEvent,
+  type HTMLInputTypeAttribute,
+  type InputHTMLAttributes,
   type ReactNode,
   useId,
   useState,
@@ -9,6 +11,7 @@ import {
 } from "react";
 import type { OptionWithTags } from "../../db/queries";
 import { WEEKDAY_NAMES } from "../../lib/local-day";
+import { escapeToCancel } from "../escape-to-cancel";
 import {
   createOption,
   updateOption,
@@ -37,6 +40,14 @@ const SHORT_WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
  * — a "Search Google" box whose selection autofills those fields (every one
  * stays editable afterward). `allTags` is the Tag vocabulary the token input
  * suggests from.
+ *
+ * The visible list is short and flat by design: Name, the website/menu link
+ * (the field worth a glance most often), Closed days (a live ranking rule,
+ * not trivia), Notes, and Tags. Address / Phone / Maps link / Latitude /
+ * Longitude / Google place ID — facts the Household already knows or that
+ * only a Places match writes — collapse into a single "Location" disclosure
+ * instead of padding out the main list. Save holds "Saved ✓" briefly
+ * (mirroring `PickButton`) before `onSaved` fires, so a save is never silent.
  */
 export function OptionForm({
   kind,
@@ -73,6 +84,10 @@ export function OptionForm({
     initial?.closedDays ?? [],
   );
   const [error, setError] = useState<string | null>(null);
+  // Holds "Saved ✓" on the submit button for a beat before `onSaved` fires —
+  // otherwise a save that collapses or navigates the form away is completely
+  // silent (no toast, nothing to see happen).
+  const [justSaved, setJustSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const isRestaurant = kind === "restaurant";
@@ -82,6 +97,19 @@ export function OptionForm({
   // must not mark the Name field invalid.
   const nameError = error === "Enter a name" ? error : null;
   const formError = error && !nameError ? error : null;
+  // The Location disclosure opens by default only when there is already
+  // something in it to see (an existing Restaurant with any of these
+  // fields on file); a fresh add starts collapsed since it's empty until a
+  // Places search — or hand entry — fills it.
+  const [hasLocationData] = useState(
+    () =>
+      isRestaurant &&
+      (Boolean(initial?.address) ||
+        Boolean(initial?.phone) ||
+        Boolean(initial?.mapsUrl) ||
+        initial?.lat != null ||
+        Boolean(initial?.googlePlaceId)),
+  );
 
   /**
    * Apply a Google place's detail to the fields — all stay editable after. An
@@ -126,7 +154,11 @@ export function OptionForm({
         ? await updateOption(initial.id, kind, values)
         : await createOption(kind, values);
       if (result.ok) {
-        onSaved();
+        // Hold "Saved ✓" briefly before handing off — the same beat
+        // `PickButton` gives "Logged ✓" — so the save is visible even though
+        // `onSaved` immediately collapses or navigates away from this form.
+        setJustSaved(true);
+        window.setTimeout(onSaved, 700);
       } else {
         setError(result.error);
       }
@@ -134,7 +166,24 @@ export function OptionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+    // `pb-[80px]` (not an on-scale step — an explicit px value, per
+    // DESIGN.md's spacing-scale note on why arbitrary Tailwind defaults are
+    // unsafe here) reserves the space the `fixed` Save/Cancel bar no longer
+    // holds in flow (~69px: the 44px buttons, its own 24px vertical padding,
+    // its 1px top border) — otherwise the bar would overlap the form's own
+    // last field once it's out of flow.
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={escapeToCancel(onCancel, pending || justSaved)}
+      className="flex flex-col gap-3 pb-[80px]"
+    >
+      {isRestaurant && placesEnabled && (
+        <PlacesSearchBox
+          onAutofill={applyAutofill}
+          label={initial ? "Re-sync from Google" : "Start from Google"}
+        />
+      )}
+
       <div className="flex flex-col gap-1">
         <label htmlFor={`${fieldId}-name`} className={labelClass}>
           {isRestaurant ? "Restaurant name" : "Meal name"}
@@ -158,27 +207,6 @@ export function OptionForm({
         )}
       </div>
 
-      {isRestaurant && placesEnabled && (
-        <PlacesSearchBox onAutofill={applyAutofill} />
-      )}
-
-      {isRestaurant && (
-        <>
-          <TextField
-            id={`${fieldId}-address`}
-            label="Address"
-            value={address}
-            onChange={setAddress}
-          />
-          <TextField
-            id={`${fieldId}-phone`}
-            label="Phone"
-            value={phone}
-            onChange={setPhone}
-          />
-        </>
-      )}
-
       <TextField
         id={`${fieldId}-url`}
         label={isRestaurant ? "Website or menu link" : "Recipe link"}
@@ -187,6 +215,8 @@ export function OptionForm({
           setUrl(value);
           setUrlKept(false);
         }}
+        type="url"
+        inputMode="url"
         note={
           urlKept
             ? "Kept your existing link — not updated from the Google match."
@@ -195,33 +225,7 @@ export function OptionForm({
       />
 
       {isRestaurant && (
-        <>
-          <TextField
-            id={`${fieldId}-maps`}
-            label="Maps link"
-            value={mapsUrl}
-            onChange={setMapsUrl}
-          />
-          <TextField
-            id={`${fieldId}-lat`}
-            label="Latitude"
-            value={lat}
-            onChange={setLat}
-          />
-          <TextField
-            id={`${fieldId}-lng`}
-            label="Longitude"
-            value={lng}
-            onChange={setLng}
-          />
-          <TextField
-            id={`${fieldId}-place-id`}
-            label="Google place ID"
-            value={googlePlaceId}
-            onChange={setGooglePlaceId}
-          />
-          <ClosedDayToggles value={closedDays} onChange={setClosedDays} />
-        </>
+        <ClosedDayToggles value={closedDays} onChange={setClosedDays} />
       )}
 
       <div className="flex flex-col gap-1">
@@ -246,34 +250,118 @@ export function OptionForm({
 
       <TagInput value={tags} onChange={setTags} suggestions={allTags} />
 
+      {isRestaurant && (
+        <details
+          className="flex flex-col gap-3 rounded-input border border-line p-3"
+          {...(hasLocationData ? { open: true } : {})}
+        >
+          <summary
+            className={`${labelClass} cursor-pointer select-none ${focusRing}`}
+          >
+            Location
+          </summary>
+          <TextField
+            id={`${fieldId}-address`}
+            label="Address"
+            value={address}
+            onChange={setAddress}
+            autoComplete="street-address"
+          />
+          <TextField
+            id={`${fieldId}-phone`}
+            label="Phone"
+            value={phone}
+            onChange={setPhone}
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+          />
+          <TextField
+            id={`${fieldId}-maps`}
+            label="Maps link"
+            value={mapsUrl}
+            onChange={setMapsUrl}
+            type="url"
+            inputMode="url"
+          />
+          <TextField
+            id={`${fieldId}-lat`}
+            label="Latitude"
+            value={lat}
+            onChange={setLat}
+            inputMode="decimal"
+          />
+          <TextField
+            id={`${fieldId}-lng`}
+            label="Longitude"
+            value={lng}
+            onChange={setLng}
+            inputMode="decimal"
+          />
+          <TextField
+            id={`${fieldId}-place-id`}
+            label="Google place ID"
+            value={googlePlaceId}
+            onChange={setGooglePlaceId}
+          />
+        </details>
+      )}
+
       {formError && (
         <p className="text-chip text-danger" role="alert">
           {formError}
         </p>
       )}
 
-      <div className="flex items-center gap-2">
-        <button
-          type="submit"
-          disabled={pending}
-          className="min-h-11 rounded-control bg-action px-4 text-body font-emphasis
-            text-action-ink transition-colors duration-micro hover:bg-action-hover
-            focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action
-            disabled:opacity-60"
-        >
-          {initial ? "Save" : "Add"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="min-h-11 rounded-control px-3 text-body text-muted
-            focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action"
-        >
-          Cancel
-        </button>
+      {/* A fixed footer bar, not a `sticky` one — `sticky` only ever bleeds
+          to the edges of `.column`'s own padding, and on desktop `.column`
+          is a 900px box centered with leftover margin on either side (see
+          `.column` in globals.css), so the bar read as inset rather than
+          full-width. `fixed` escapes that entirely: `inset-x-0` on mobile,
+          `desktop:left-[var(--rail-width)]` (matching `AppNav`'s own left
+          rail) with `right: 0` carried over from `inset-x-0` on desktop —
+          truly edge-to-edge either way. The bottom offset clears the mobile
+          tab bar (its own height plus the safe-area inset); desktop has no
+          bottom bar, so it sits flush with the viewport edge. Taking the bar
+          out of flow means the form needs its own trailing clearance so the
+          fixed bar never covers the last field — see the `pb-[80px]` on
+          `<form>`. The inner `.column` re-applies the page's own centering
+          and padding so Save/Cancel land under the same fields above them,
+          instead of hugging the far-left edge of the now much wider bar. */}
+      <div
+        className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))]
+          z-10 border-t border-divider bg-surface desktop:bottom-0
+          desktop:left-[var(--rail-width)]"
+      >
+        <div className="column flex items-center gap-2 py-3">
+          <button
+            type="submit"
+            disabled={pending || justSaved}
+            className={`min-h-11 rounded-control px-4 text-body font-emphasis
+              transition-colors duration-micro disabled:opacity-60 ${focusRing} ${
+                justSaved
+                  ? "bg-raised text-success"
+                  : "bg-action text-action-ink hover:bg-action-hover"
+              }`}
+          >
+            {justSaved ? "Saved ✓" : initial ? "Save" : "Add"}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={pending || justSaved}
+            className={`min-h-11 rounded-control px-3 text-body text-muted
+              disabled:opacity-60 ${focusRing}`}
+          >
+            Cancel
+          </button>
+          {/* A sibling live region, not `aria-live` on the button itself —
+              the button is usually still focused when its label flips
+              (PickButton's same reasoning). */}
+          <p className="sr-only" role="status" aria-live="polite">
+            {justSaved ? "Saved" : ""}
+          </p>
+        </div>
       </div>
     </form>
   );
@@ -286,12 +374,18 @@ function TextField({
   value,
   onChange,
   note,
+  type = "text",
+  inputMode,
+  autoComplete,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
   note?: ReactNode;
+  type?: HTMLInputTypeAttribute;
+  inputMode?: InputHTMLAttributes<HTMLInputElement>["inputMode"];
+  autoComplete?: string;
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -300,6 +394,9 @@ function TextField({
       </label>
       <input
         id={id}
+        type={type}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
         className={inputClass}
         value={value}
         onChange={(event) => onChange(event.target.value)}

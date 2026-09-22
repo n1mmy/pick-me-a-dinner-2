@@ -1,13 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { OptionWithTags } from "../../../db/queries";
+import { escapeToCancel } from "../../escape-to-cancel";
 import { PickButton } from "../../pick-button";
 import { ConfirmPair } from "../../confirm-pair";
 import { rejectOption } from "../../rejection-actions";
 import { archiveOption, deleteOption, unarchiveOption } from "../actions";
-import { OptionForm } from "../option-form";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 " +
@@ -16,10 +17,14 @@ const focusRing =
 const actionButton = `min-h-11 rounded-control px-3 text-body ${focusRing}`;
 
 // Edit reads as a real button — bordered, neutral-filled — matching the Log
-// screen's "Add a dinner" control.
+// screen's "Add a dinner" control. It's a `Link`, not a `button`, so the
+// `inline-flex items-center justify-center` isn't decorative: an anchor is
+// `display: inline` by default, `min-h-11` has no effect on it, and without
+// the flex centering its label sits at the box's top rather than centered.
 const editButton =
-  "min-h-11 rounded-control border border-line bg-raised px-3 text-body " +
-  `font-emphasis text-ink transition-colors duration-micro hover:bg-line ${focusRing}`;
+  "inline-flex min-h-11 items-center justify-center rounded-control " +
+  "border border-line bg-raised px-3 text-body font-emphasis text-ink " +
+  `transition-colors duration-micro hover:bg-line ${focusRing}`;
 
 /**
  * The Option-level controls on the Option detail page (PRD: Option detail
@@ -27,15 +32,17 @@ const editButton =
  * its full view, not only from the screen that happens to carry each control.
  *
  * Every control reuses the existing server action: `pickTonight` (via the
- * shared `PickButton`), `rejectOption`, `updateOption` (via the reused
- * `OptionForm`), `archiveOption` / `unarchiveOption`, and `deleteOption`.
- * Pick, Reject, and Edit update the page in place — the reused actions
- * revalidate `/catalog/[id]`. Delete is offered only when the Option has no
- * Log entries (`canDelete`): the Hard-delete rule (ADR-0001) would otherwise
- * block it, so the control is hidden rather than shown to fail. A successful
- * Delete navigates back to the Catalog, since the Option no longer exists;
- * `runDelete` still keeps its inline-error path as a guard against a Log
- * entry being added between page load and the click.
+ * shared `PickButton`), `rejectOption`, `archiveOption` / `unarchiveOption`,
+ * and `deleteOption`. Edit is a link to `?edit=1`, where `EditPanel` renders
+ * the reused `OptionForm` in place of this whole section (see `page.tsx`) —
+ * a real URL state rather than a client toggle, so Back cancels it and nothing
+ * stale is left showing underneath. Pick and Reject update the page in
+ * place — the reused actions revalidate `/catalog/[id]`. Delete is offered
+ * only when the Option has no Log entries (`canDelete`): the Hard-delete rule
+ * (ADR-0001) would otherwise block it, so the control is hidden rather than
+ * shown to fail. A successful Delete navigates back to the Catalog, since
+ * the Option no longer exists; `runDelete` still keeps its inline-error path
+ * as a guard against a Log entry being added between page load and the click.
  *
  * The Archive control is a toggle: an active Option offers Archive, an Archived
  * one Un-archive — keeping the member on the page and turning it back into a
@@ -45,17 +52,12 @@ const editButton =
  */
 export function OptionControls({
   option,
-  allTags,
-  placesEnabled,
   canDelete,
 }: {
   option: OptionWithTags;
-  allTags: string[];
-  placesEnabled: boolean;
   canDelete: boolean;
 }) {
   const router = useRouter();
-  const [editing, setEditing] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [confirm, setConfirm] = useState<"archive" | "delete" | null>(null);
@@ -63,6 +65,11 @@ export function OptionControls({
   const [pending, startTransition] = useTransition();
 
   const boxId = `reject-box-${option.id}`;
+
+  function cancelReject() {
+    setRejecting(false);
+    setReason("");
+  }
 
   function submitReject() {
     setError(null);
@@ -114,36 +121,17 @@ export function OptionControls({
     });
   }
 
-  // Edit reuses the Option form inline; a save revalidates `/catalog/[id]`,
-  // so the page's fields and ranking refresh in place under the collapsed form.
-  if (editing) {
-    return (
-      <OptionForm
-        kind={option.kind}
-        initial={option}
-        allTags={allTags}
-        placesEnabled={placesEnabled}
-        onCancel={() => setEditing(false)}
-        onSaved={() => setEditing(false)}
-      />
-    );
-  }
-
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-1">
         {confirm === null ? (
           <>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setEditing(true);
-              }}
+            <Link
+              href={`/catalog/${option.id}?edit=1`}
               className={editButton}
             >
               Edit
-            </button>
+            </Link>
             {option.active ? (
               <button
                 type="button"
@@ -221,6 +209,7 @@ export function OptionControls({
             event.preventDefault();
             submitReject();
           }}
+          onKeyDown={escapeToCancel(cancelReject, pending)}
           className="flex items-center gap-2"
         >
           <input
@@ -253,10 +242,7 @@ export function OptionControls({
           </button>
           <button
             type="button"
-            onClick={() => {
-              setRejecting(false);
-              setReason("");
-            }}
+            onClick={cancelReject}
             disabled={pending}
             className={`min-h-11 shrink-0 rounded-control px-3 text-body
               text-muted transition-colors duration-short disabled:opacity-60

@@ -10,6 +10,7 @@ import {
   recencyChipBg,
   recencyChipBgStrong,
 } from "../lib/recency-color";
+import { escapeToCancel } from "./escape-to-cancel";
 import { kindBarClass, kindTintClass } from "./kind-bar";
 import { pickTonight } from "./log/actions";
 import { rejectOption } from "./rejection-actions";
@@ -229,6 +230,7 @@ export function TonightRowItem({
             event.preventDefault();
             submitReject();
           }}
+          onKeyDown={escapeToCancel(cancelReject, pending)}
           className="mt-2 flex items-center gap-2"
         >
           <input

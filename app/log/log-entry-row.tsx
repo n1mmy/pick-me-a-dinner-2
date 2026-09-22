@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogEntryRow, OptionChoice } from "../../db/queries";
+import { escapeToCancel } from "../escape-to-cancel";
 import { OptionCombobox } from "../option-combobox";
 import { PickButton } from "../pick-button";
 import { ConfirmPair } from "../confirm-pair";
@@ -182,7 +183,11 @@ function EntryEditForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={escapeToCancel(onCancel, pending)}
+      className="flex flex-col gap-3"
+    >
       <div className="flex flex-col gap-1">
         <label htmlFor={`${fieldId}-option`} className={labelClass}>
           Option
