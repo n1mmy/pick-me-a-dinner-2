@@ -11,6 +11,7 @@ import {
 } from "react";
 import type { OptionWithTags } from "../../db/queries";
 import { WEEKDAY_NAMES } from "../../lib/local-day";
+import { escapeToCancel } from "../escape-to-cancel";
 import {
   createOption,
   updateOption,
@@ -171,7 +172,11 @@ export function OptionForm({
     // holds in flow (~69px: the 44px buttons, its own 24px vertical padding,
     // its 1px top border) — otherwise the bar would overlap the form's own
     // last field once it's out of flow.
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3 pb-[80px]">
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={escapeToCancel(onCancel, pending || justSaved)}
+      className="flex flex-col gap-3 pb-[80px]"
+    >
       {isRestaurant && placesEnabled && (
         <PlacesSearchBox
           onAutofill={applyAutofill}

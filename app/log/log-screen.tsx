@@ -12,6 +12,7 @@ import {
   formatDinnerDate,
   groupByDay,
 } from "../../lib/dinner-grouping";
+import { escapeToCancel } from "../escape-to-cancel";
 import { OptionCombobox } from "../option-combobox";
 import { logForDate } from "./actions";
 import { EntryRow, inputClass, labelClass } from "./log-entry-row";
@@ -321,7 +322,11 @@ function AddEntryForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={escapeToCancel(onCancel, pending)}
+      className="flex flex-col gap-3"
+    >
       <div className="flex flex-col gap-1">
         <label htmlFor={`${fieldId}-option`} className={labelClass}>
           Option

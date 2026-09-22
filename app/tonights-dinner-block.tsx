@@ -10,6 +10,7 @@ import {
 } from "../lib/tonights-dinner";
 import { kindBarClass, kindWashClass } from "./kind-bar";
 import { ConfirmPair } from "./confirm-pair";
+import { escapeToCancel } from "./escape-to-cancel";
 import { deleteLogEntry, updateLogEntry } from "./log/actions";
 import { inputClass, labelClass } from "./log/log-entry-row";
 import { RowChips } from "./tonight-row";
@@ -293,7 +294,11 @@ function NoteForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-2 flex flex-col gap-1">
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={escapeToCancel(onClose, pending)}
+      className="mt-2 flex flex-col gap-1"
+    >
       <label htmlFor={`${fieldId}-note`} className={labelClass}>
         Note
       </label>
