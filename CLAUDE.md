@@ -69,7 +69,8 @@ Workflow skills (installed globally from `~/.agents/skills/`):
 
 `/ship` and `/land-and-deploy` are user-triggered and billed; only invoke
 them when explicitly asked. Other skills may be proactively suggested when
-the work matches.
+the work matches. If the user types `/<name>` you don't recognize, ask which
+skill they mean — don't guess.
 
 The billed-call rule extends past skills: anything that spends money against
 an external service is user-triggered too. The standing example is
@@ -77,8 +78,7 @@ an external service is user-triggered too. The standing example is
 metered model API and can burn the whole 90s timeout. State the cost shape
 (one call vs a sweep, rough size) and wait for approval before running. A
 tiny placeholder-body probe (a 64-token curl that never touches the real
-snapshot) is fine without asking; a full run is not. If the user types `/<name>` you don't recognize, ask which
-skill they mean — don't guess.
+snapshot) is fine without asking; a full run is not.
 
 ## Browser tooling
 
