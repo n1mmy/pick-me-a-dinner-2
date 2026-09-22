@@ -23,8 +23,17 @@
   --color-muted: #656970;
   /* #8a8c8e, not the DESIGN.md-listed #d8dade: darkened from 1.27:1 against
    * `bg` to 3:1 — the hairline rule was near-invisible on a bright kitchen
-   * screen. See docs/design-review-2026-09-21.md, UX idea #2. */
+   * screen. See docs/design-review-2026-09-21.md, UX idea #2. `line` now
+   * renders only a control/box's own border (input, button, popup) — see
+   * `--color-divider` below for the lighter row/section rule. */
   --color-line: #8a8c8e;
+  /* A row/section divider is decorative structure, not a UI component
+   * boundary (WCAG 1.4.11 doesn't apply the way it does to `line`'s control
+   * borders) — direct user feedback found `line`'s 3:1 too heavy once it was
+   * actually reused for every list divider, not just the one rule idea #2
+   * measured. #b3b5b8 backs off to ~1.87:1 against `bg`, between that and
+   * the original near-invisible #d8dade (1.27:1). */
+  --color-divider: #b3b5b8;
   /* Meal-kind left bar — teal for home-cooked, plum for restaurant. */
   --color-kind-home: #2c6e6e;
   --color-kind-restaurant: #7a4f6b;
@@ -147,7 +156,11 @@
     --color-raised: #2c2f33;
     --color-ink: #e6e7ea;
     --color-muted: #8b8f98;
-    --color-line: #40434a;
+    --color-line: #383b40;
+    /* Not yet split from `line` the way light theme's divider now is —
+     * dark theme hasn't been looked at live yet (still "not yet visually
+     * verified" below), so this stays equal to `line` until it has. */
+    --color-divider: #383b40;
     --color-kind-home: #4a9a9a;
     --color-kind-restaurant: #a87d99;
     --color-kind-home-wash: #212e30;

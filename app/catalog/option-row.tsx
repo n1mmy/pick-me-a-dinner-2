@@ -48,7 +48,7 @@ export function OptionRow({
 
   if (editing) {
     return (
-      <li className="border-b border-line py-3">
+      <li className="border-b border-divider py-3">
         <OptionForm
           kind={option.kind}
           initial={option}
@@ -62,7 +62,7 @@ export function OptionRow({
   }
 
   return (
-    <li className="flex flex-col gap-1 border-b border-line py-3">
+    <li className="flex flex-col gap-1 border-b border-divider py-3">
       <div className="flex items-center justify-between gap-3">
         <Link
           href={`/catalog/${option.id}`}

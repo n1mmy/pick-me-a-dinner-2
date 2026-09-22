@@ -152,7 +152,7 @@ export function TonightRowItem({
 
   return (
     <li
-      className={`border-b border-line py-[10px]
+      className={`border-b border-divider py-[10px]
         ${kindBarClass(option.kind)}`}
     >
       <div className="flex items-start gap-3 desktop:items-center">

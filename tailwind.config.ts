@@ -17,6 +17,7 @@ const config: Config = {
         ink: "var(--color-ink)",
         muted: "var(--color-muted)",
         line: "var(--color-line)",
+        divider: "var(--color-divider)",
         "kind-home": "var(--color-kind-home)",
         "kind-restaurant": "var(--color-kind-restaurant)",
         "kind-home-wash": "var(--color-kind-home-wash)",

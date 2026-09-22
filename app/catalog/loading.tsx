@@ -7,7 +7,7 @@ export default function CatalogLoading() {
         <div key={section} className="flex flex-col gap-2">
           <div className="h-3 w-28 rounded-badge bg-raised" />
           {[0, 1, 2].map((row) => (
-            <div key={row} className="h-11 border-b border-line" />
+            <div key={row} className="h-11 border-b border-divider" />
           ))}
         </div>
       ))}

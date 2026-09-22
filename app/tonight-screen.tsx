@@ -318,7 +318,7 @@ export function TonightScreen({
             eatenOn={selectedDay}
           />
           {pickerRows.length === 0 ? (
-            <p className="border-t border-line pt-5.5 text-body text-muted">
+            <p className="border-t border-divider pt-5.5 text-body text-muted">
               {allFiltered
                 ? `Every remaining Option is unavailable for ${dayLabel}.`
                 : `Every Option is already on ${dayLabel}’s dinner.`}
@@ -330,7 +330,7 @@ export function TonightScreen({
             // hint say so.
             <section
               aria-label="Add another option"
-              className="flex flex-col gap-2 border-t border-line pt-5.5"
+              className="flex flex-col gap-2 border-t border-divider pt-5.5"
             >
               <h2 className="text-meta uppercase tracking-wide text-muted">
                 Add another option
@@ -504,7 +504,7 @@ function RejectedTonightDisclosure({
           {rejections.map((rejection) => (
             <li
               key={rejection.id}
-              className="flex items-start gap-3 border-b border-line py-3"
+              className="flex items-start gap-3 border-b border-divider py-3"
             >
               <div className="min-w-0 flex-1">
                 <span className="font-display text-name font-name text-ink">

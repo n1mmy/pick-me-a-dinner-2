@@ -137,7 +137,7 @@ function DecidedRow({
       : "bg-kind-restaurant-wash";
   return (
     <li
-      className={`border-b border-line py-[10px] last:border-b-0 ${washClass}
+      className={`border-b border-divider py-[10px] last:border-b-0 ${washClass}
         ${kindBarClass(row.option.kind)}`}
     >
       <div className="flex items-center justify-between gap-2">
