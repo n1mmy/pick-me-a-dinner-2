@@ -35,7 +35,11 @@ export function OptionRow({
 
   function runArchive() {
     startTransition(async () => {
-      await archiveOption(option.id);
+      const result = await archiveOption(option.id);
+      if (!result.ok) {
+        setError(result.error);
+        setConfirm(null);
+      }
     });
   }
 
