@@ -391,6 +391,53 @@ describe("TonightScreen — AI search", () => {
     });
   });
 
+  it("reflects a Pick's revalidated props while an AI search is still pending", async () => {
+    // A row-level Pick's `pickTonight` Server Action revalidates Tonight
+    // server-side; Next's router then re-renders this tree with fresh
+    // `tonightsDinner`/`pickerRows` props — simulated here with `rerender`,
+    // the same way "drops back to picker mode..." below does. The AI search
+    // never resolves in this test, so if a pending search suppressed that
+    // prop update from landing, this test would catch it.
+    // jsdom implements neither `scrollTo` nor `matchMedia` — the scroll-to-top
+    // effect that fires when `tonightsDinner` grows reaches for both.
+    vi.stubGlobal("scrollTo", vi.fn());
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    mockedAiSearch.mockReturnValue(new Promise<AiSearchResult>(() => {}));
+    mockedPick.mockResolvedValue({ ok: true });
+
+    const { rerender } = render(
+      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByRole("button", { name: /^Cancel search/ });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Pick" })[0]);
+    await waitFor(() => {
+      expect(mockedPick).toHaveBeenCalledWith("o1", undefined);
+    });
+
+    // The revalidated props Next's router would hand back: o1 moved into
+    // `tonightsDinner`, dropped out of `pickerRows`.
+    rerender(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[{ entryId: "e1", row: row("o1", "Apple Crumble"), note: null }]}
+        pickerRows={[row("o2", "Banana Bread")]}
+        searchEnabled
+      />,
+    );
+
+    // The Household sees the Pick land — Tonight's dinner block shows it and
+    // the ranked list below no longer offers it — even though the search is
+    // still (per this test's never-resolving mock) mid-flight.
+    expect(
+      screen.getByRole("region", { name: "Tonight's dinner" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Cancel search/ })).toBeTruthy();
+  });
+
   it("Cancel returns control immediately and drops a late-arriving result", async () => {
     let resolveSearch: (result: AiSearchResult) => void = () => {};
     mockedAiSearch.mockReturnValue(
