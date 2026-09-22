@@ -172,12 +172,18 @@ export function TonightScreen({
   // revalidated props (which Next's router applies in a transition) would be
   // held off-screen for the whole 50–90s search.
   const [, startSearchTransition] = useTransition();
-  // Bumped on every new search and on Cancel/Clear/day-change, so a search
-  // response that lands after the Household has moved on — cancelled,
-  // superseded by a newer query, or the day changed under it — is silently
-  // dropped instead of overwriting state nobody is waiting on anymore. The
-  // in-flight request itself still runs to completion server-side; only the
-  // client stops waiting on it.
+  // Bumped on every new search and on Cancel/Clear, so a search response that
+  // lands after the Household has moved on — cancelled or superseded by a
+  // newer query — is silently dropped instead of overwriting state nobody is
+  // waiting on anymore. The in-flight request itself still runs to completion
+  // server-side; only the client stops waiting on it.
+  //
+  // A Selected-day change deliberately does *not* bump it or clear anything
+  // (ADR-0009, amendment 2026-09-22): a search in flight or already on screen
+  // persists across the day change, so the Household can step between days
+  // without paying for the 50–90s search again. The result is resolved against
+  // the new day's rows, so an Option rejected, closed, or Picked on that day
+  // simply drops out of it.
   const searchGenerationRef = useRef(0);
   const aiActive = aiResults !== null;
 
@@ -223,22 +229,6 @@ export function TonightScreen({
     setAiError(false);
     setQuery("");
   }
-
-  // An AI result answers "what should we eat on D" for one specific Selected
-  // day — its ranking and its per-row rationales are both day-shaped — so
-  // carrying it across a day change would leave Friday's reasoning sitting
-  // under today's heading. Any open search is dropped whenever the day changes,
-  // the H1 reset included (ADR-0009, amendment 2026-09-08); the deterministic
-  // list underneath is already correct for each day on its own. The Tag and
-  // kind filters deliberately survive — "show me pasta" means the same thing on
-  // any day. On mount every setter is a no-op, the state being empty already.
-  useEffect(() => {
-    searchGenerationRef.current++;
-    setSearchPending(false);
-    setAiResults(null);
-    setAiError(false);
-    setQuery("");
-  }, [selectedDay]);
 
   // A Pick grows `tonightsDinner`; when it does, animate the page up to the
   // "Tonight's dinner" block so the Household sees the Option land there. The
@@ -515,9 +505,13 @@ function RejectedTonightDisclosure({
               className="flex items-start gap-3 border-b border-divider py-3"
             >
               <div className="min-w-0 flex-1">
-                <span className="font-display text-name font-name text-ink">
+                <Link
+                  href={`/catalog/${rejection.optionId}`}
+                  className={`font-display text-name font-name text-ink
+                    underline-offset-2 hover:underline ${focusRing}`}
+                >
                   {rejection.optionName}
-                </span>
+                </Link>
                 {rejection.reason && (
                   <p className="mt-0.5 text-meta text-muted">
                     {rejection.reason}

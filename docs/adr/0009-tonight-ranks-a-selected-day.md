@@ -188,3 +188,22 @@ Accepted limitation: a tab left on today and returned to the next day still
 shows the stale day, with the H1 reading "Tonight" when it is no longer tonight.
 A reload fixes it. Detecting the rollover client-side is deliberately not
 attempted — the whole page's data is stale in that case, not just the date.
+
+## Amendment (2026-09-22): an AI search survives a Selected-day change
+
+This reverses the 2026-09-08 rule that a day change clears any open AI search.
+In practice the re-run cost grated, as that amendment predicted: stepping to
+another day threw away a 50–90s search. That included one still in flight,
+which meant waiting for the whole search again.
+
+A Selected-day change now leaves the AI search alone: the query, the result, the
+search error, and any search still in flight all carry over. A search that lands
+after the day changed is shown, not dropped. Only Cancel, Clear, or a newer
+search stops a search from landing.
+
+The result is resolved against the new day's picker rows, so an Option that is
+Picked, rejected, or closed on that day drops out of it, just as it does after a
+Pick. The accepted cost is the one the earlier amendment named: the rationales
+were written for the day the search ran, so they can mention that day under a
+different heading. The Household can clear the search and run it again when that
+matters.
