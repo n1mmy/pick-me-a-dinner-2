@@ -406,6 +406,12 @@ describe("TonightScreen — AI search", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Cancel search/ }));
     expect(screen.getByRole("button", { name: "Search" })).toBeTruthy();
     expect(screen.getByText("Apple Crumble")).toBeTruthy();
+    // The Cancel button flips back to a `type="submit"` Search button the
+    // instant this same click sets `pending` false — without an explicit
+    // `preventDefault`, that flip lets the click's own default action
+    // re-submit the form it just un-typed itself into, restarting the
+    // search it was meant to cancel.
+    expect(mockedAiSearch).toHaveBeenCalledTimes(1);
 
     // The model call that was already dispatched still finishes server-side;
     // its result must not resurrect after the Household has moved on.

@@ -1007,6 +1007,12 @@ function SearchBox({
     <form
       onSubmit={(event) => {
         event.preventDefault();
+        // Guards the same race the Cancel button's own `preventDefault`
+        // closes below: an Enter keypress reaches the form directly (no
+        // click, no button involved), so if it lands in the instant the
+        // button's type is flipping from "button" back to "submit" it can
+        // still fire a submit here even though the Household meant Cancel.
+        if (pending) return;
         // Submitting is the AI search path; close any open dropdown first.
         setOpen(false);
         resetActiveIndex();
@@ -1093,7 +1099,22 @@ function SearchBox({
             waiting on the 50–90s call (UX idea #3). */}
         <button
           type={pending ? "button" : "submit"}
-          onClick={pending ? onCancel : undefined}
+          onClick={
+            pending
+              ? (event) => {
+                  // `type="button"` alone isn't enough: this same click's
+                  // `onCancel` flips `pending` to false, and React commits
+                  // that re-render — swapping this button's own `type` to
+                  // "submit" — before the browser finishes deciding this
+                  // click's default action, so the click can still submit
+                  // the form it just un-typed itself into. Explicitly
+                  // cancelling the click's default action closes that race
+                  // regardless of what `type` ends up as.
+                  event.preventDefault();
+                  onCancel();
+                }
+              : undefined
+          }
           aria-label={
             pending
               ? `Cancel search — ${elapsed} seconds elapsed`
