@@ -6,8 +6,8 @@ in code on 2026-05-16; the Color section was revised on 2026-05-17 via
 `/design-shotgun` and implemented in code the same day (see "Implementation
 note" below). Audited against the code again on 2026-09-21
 (`docs/design-review-2026-09-21.md`) and corrected where this file had
-drifted; the one open gap from that audit is the Layout section's desktop row
-collapse, flagged inline below as not yet built.
+drifted; the Layout section's desktop Tonight-row treatment (the audit's one
+open gap) was subsequently built and this file updated to match.
 
 ## Product Context
 
@@ -268,11 +268,17 @@ button label — see the AI search "done" badge note in
   bar: Tonight / Log / Catalog. Tonight rows are two-line — rank + Option name +
   chip row on the first line group, Pick + Reject on the row.
 - **Desktop (≥ 720px):** Bottom tab bar is replaced by a persistent left rail
-  (~200px) holding the same nav. Content column to its right, max-width 700px.
-  Tonight rows collapse to a single dense line: rank + name + chip row on the
-  left, PICK on the right edge. Keyboard-navigable. **Not yet built** — the row
-  carries no `desktop:` styling today, so it renders identically at every
-  width; see the Decisions Log.
+  (~200px) holding the same nav. Content column to its right, max-width 900px.
+  Tonight rows keep the same rank + name + chip-row layout as mobile: the chip
+  row (Affinity, Recency, then one chip per Tag) always sits on its own line
+  below the name, never merged onto one line, so chip order and position
+  never move between widths. PICK and Reject swap places once the viewport
+  clears 900px — deliberately past the rail's own 720px breakpoint, not at
+  it, because the rail's ~200px and the column's wider max-width land at the
+  same 720px step; right after that step the column is briefly narrower than
+  its mobile cap, and a row that went denser at that exact point would be
+  squeezed twice at once. Past 900px PICK moves to the row's right edge,
+  Reject to its left.
 - **Tonight row anatomy:** A flat, uniform ledger — every row the same height,
   separated by a 1px `line` rule, no cards, no shadows, no row given a
   different background. A 3px vertical meal-kind bar (`kind-home` /
@@ -464,3 +470,4 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-09-19 | Closed disclosure at the foot of Tonight, below Rejected; rows are full picker rows with an empty rank gutter | **Closed days** (ADR-0010) drop a shut Restaurant out of the ranked list, but hiding it outright would remove the Household's ability to overrule wrong data. Full controls keep the row first-class; alphabetical order with no numeral stops a non-ranking from looking like one; the empty `w-6` gutter keeps names on the picker's vertical. |
 | 2026-09-19 | Closed-day toggles are seven sub-44px chips in one row | Seven 44px targets plus gaps overrun a 375px viewport, and wrapping or stacking them destroys the week-shape the control is read by. Joins the Tonight header's documented exceptions to the control-height floor: the toggle is visible, instantly reversible, and writes nothing until save. |
 | 2026-09-21 | `muted`, `danger`, `success` (light) and `danger`, `accent` (dark) retuned for AA text/label contrast; `DESIGN.md` corrected against the code it had drifted from | A design-intelligence audit (`docs/design-review-2026-09-21.md`) found the Layout section still describing the pre-Affinity-chip "Explanation chip" and plain-text tags (both superseded 2026-06-17 in the Color section only), the documented spacing scale not matching `globals.css`/`tailwind.config.ts`, `planned`/`success-wash` documented as consumed when no screen renders them, and five color tokens failing 4.5:1 in the role they actually render (secondary text, inline errors, a button label). Fixed the drifted doc sections in place rather than re-deriving them from scratch, and retuned only the failing tokens — the recency heatmap anchors (`recency-*`) are untouched, since their contrast problem (a translucent chip fill under `text-ink`) is different from a token used as solid text or a button label. |
+| 2026-09-21 | Desktop Tonight row: dropped the single-dense-line / centered Explanation chip; widened the desktop column to 900px; PICK/Reject swap gated behind 900px, not the 720px rail breakpoint | A literal single dense line never fit rows with an Affinity chip, tags, a Last note, or an AI reason, and an earlier attempt to merge the name+chip lines only fit sometimes — depending on name/tag length — so chips inconsistently rode the name's line. Chips now stack under the name at every width, same order and position always. Separately: the rail's ~200px and the column's desktop max-width land at the same 720px step, so right after it the column is briefly narrower than its own mobile cap; letting PICK/Reject go horizontal at that same step squeezed the row twice at once, so that swap was moved to a later 900px breakpoint. |

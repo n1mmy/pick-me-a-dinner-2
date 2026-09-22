@@ -7,7 +7,9 @@ Findings are grouped into three passes:
 
 - **(a)** token-contrast fixes + `scroll-padding` — small, mechanical, done first ✅ 2026-09-21
 - **(b)** `DESIGN.md` corrections — doc-only, the code is right in every case but D4 ✅ 2026-09-21
-- **(c)** the desktop row collapse (D3) — its own piece of work, not done here
+- **(c)** the desktop row collapse (D3) — its own piece of work ✅ 2026-09-21 (cherry-picked
+  from a parallel session's `7d6a4f7`, reviewed against this doc's D3, resolved
+  onto pass (b)'s state)
 
 This file is the working record; strike through or annotate items as they're
 resolved rather than deleting them, so the history of what was found and why
@@ -35,17 +37,30 @@ The code renders `RowChips` = **Affinity chip + Recency chip + Tag chips**
 (`app/tonight-row.tsx:320`). Again the Color section documents this correctly
 and Layout doesn't.
 
-### D3 — The desktop row collapse was never built *(largest gap — deferred to pass c)*
-`DESIGN.md:226-228`: *"Desktop (≥ 720px): … Tonight rows collapse to a single
-dense line: rank + name + tags on the left, Explanation chip center, PICK on
-the right edge."*
+### D3 — The desktop row collapse was never built ✅ fixed (pass c)
+`DESIGN.md:226-228` used to read: *"Desktop (≥ 720px): … Tonight rows
+collapse to a single dense line: rank + name + tags on the left, Explanation
+chip center, PICK on the right edge."*
 
-`app/tonight-row.tsx` contains **no `desktop:` class at all**. The row is
+`app/tonight-row.tsx` contained **no `desktop:` class at all**. The row was
 byte-identical at 375px and 1440px. Outside `app-nav.tsx`, the only responsive
-rules in the entire app are `desktop:pb-12` on the four `<main>`s and the
-Tonight header's reflow. So desktop is a 700px-wide phone — which is precisely
+rules in the entire app were `desktop:pb-12` on the four `<main>`s and the
+Tonight header's reflow. So desktop rendered as a 700px-wide phone — precisely
 the outcome the 2026-05-16 decision *"Desktop = persistent left rail, not a
 wider column"* was chosen to avoid.
+
+**Resolved differently than the literal doc spec, not just built as
+written.** The original "single dense line, chip centered" shape never fit
+rows carrying an Affinity chip, Tags, a Last note, or an AI reason line. The
+fix instead keeps the mobile rank+name+chip-row stack at every width (order
+and position never move), and only swaps PICK/Reject from stacked to
+`flex-row-reverse` past a 900px breakpoint — deliberately later than the
+rail's own 720px, because the rail's ~200px and the column's desktop
+max-width both land at 720px, briefly leaving the column narrower than its
+own mobile cap right after that step. The desktop column also widened
+700px → 900px to give the row room. `DESIGN.md`'s Layout section and
+Decisions Log were updated to describe this actual shape instead of the
+original spec.
 
 ### D4 — Two tokens are specified but dead ✅ fixed (doc corrected, tokens left unwired)
 - `planned` (`DESIGN.md:137`, "Amber — the Upcoming planned-dinner section") —

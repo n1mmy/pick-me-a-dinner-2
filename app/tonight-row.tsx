@@ -49,6 +49,24 @@ const focusRing =
  * deterministic rows. `lastNote` is never passed on an AI row — the caller
  * omits it (DESIGN.md, "Last note line") — because the AI rationale already
  * carries a prose line and stacking a second one reads as too busy.
+ *
+ * The rank+name line and `RowChips` below it stay stacked at every width —
+ * unlike an earlier draft, they never merge onto one flex line, because
+ * whether that merge fit on one line depended on name/tag length, so chips
+ * sometimes rode the name's line and sometimes didn't. Stacking unconditionally
+ * keeps chip order and position identical at every width instead.
+ *
+ * Pick and Reject swap places once the viewport clears 900px (deliberately
+ * past DESIGN.md's 720px desktop breakpoint where the left rail appears,
+ * `app-nav.tsx`): `flex-row-reverse` puts Pick, not Reject, on the row's
+ * right edge. DOM order is unchanged, so tab order still reaches Pick first.
+ * Staggering this past the rail's own breakpoint matters because the rail's
+ * ~200px eats into the column at the same 720px point the column's max-width
+ * grows (`--column-max` desktop step, `globals.css`) — right after 720px the
+ * column is briefly *narrower* than its mobile cap before the viewport is
+ * wide enough to outrun the rail. Making Pick/Reject go horizontal there too
+ * would demand more row width exactly when the row has the least of it; 900px
+ * gives the column enough breathing room first.
  */
 export function TonightRowItem({
   row,
@@ -137,7 +155,7 @@ export function TonightRowItem({
       className={`border-b border-line py-[10px]
         ${kindBarClass(option.kind)}`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 desktop:items-center">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <span className="w-6 shrink-0 text-right font-mono text-meta tabular-nums text-muted">
@@ -164,7 +182,10 @@ export function TonightRowItem({
             </p>
           )}
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
+        <div
+          className="flex shrink-0 flex-col items-end gap-1
+            min-[900px]:flex-row-reverse min-[900px]:items-center min-[900px]:gap-2"
+        >
           <button
             type="button"
             onClick={pick}

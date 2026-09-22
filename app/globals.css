@@ -107,7 +107,7 @@
   --motion-short: 140ms;
   --motion-medium: 220ms;
 
-  /* Layout — centered column 560px phone / 700px desktop; ~200px desktop rail. */
+  /* Layout — centered column 560px phone / 900px desktop; ~200px desktop rail. */
   --column-max: 560px;
   --rail-width: 200px;
 
@@ -177,7 +177,7 @@
  * desktop left rail (see app/app-nav.tsx). */
 @media (min-width: 720px) {
   :root {
-    --column-max: 700px;
+    --column-max: 900px;
     --text-h1: 28px;
     /* The nav is a left rail here, not a bottom bar — nothing at the bottom
      * of the viewport to reserve scroll space against. */
