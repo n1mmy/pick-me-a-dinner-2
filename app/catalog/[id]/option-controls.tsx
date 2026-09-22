@@ -16,10 +16,14 @@ const focusRing =
 const actionButton = `min-h-11 rounded-control px-3 text-body ${focusRing}`;
 
 // Edit reads as a real button — bordered, neutral-filled — matching the Log
-// screen's "Add a dinner" control.
+// screen's "Add a dinner" control. It's a `Link`, not a `button`, so the
+// `inline-flex items-center justify-center` isn't decorative: an anchor is
+// `display: inline` by default, `min-h-11` has no effect on it, and without
+// the flex centering its label sits at the box's top rather than centered.
 const editButton =
-  "min-h-11 rounded-control border border-line bg-raised px-3 text-body " +
-  `font-emphasis text-ink transition-colors duration-micro hover:bg-line ${focusRing}`;
+  "inline-flex min-h-11 items-center justify-center rounded-control " +
+  "border border-line bg-raised px-3 text-body font-emphasis text-ink " +
+  `transition-colors duration-micro hover:bg-line ${focusRing}`;
 
 /**
  * The Option-level controls on the Option detail page (PRD: Option detail

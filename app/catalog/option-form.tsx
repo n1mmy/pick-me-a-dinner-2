@@ -29,16 +29,6 @@ const inputClass =
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
   "focus-visible:outline-action";
-/**
- * A form-internal group heading — one step stronger than a field's own
- * `labelClass` (text-ink, not text-muted) so "Where" / "Details" read as
- * structure above a run of fields, not as one more field label. The hairline
- * above each group (skipped on the first) turns the long flat form into a
- * scannable sequence, the same ledger-divider idiom the rest of the app uses.
- */
-const groupHeading =
-  "text-chip font-emphasis uppercase tracking-wide text-ink border-t " +
-  "border-divider pt-3 first:border-t-0 first:pt-0";
 /** `S M T W T F S`, Sunday first — matching the `0` = Sunday convention. */
 const SHORT_WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
@@ -50,9 +40,12 @@ const SHORT_WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
  * stays editable afterward). `allTags` is the Tag vocabulary the token input
  * suggests from.
  *
- * Fields are grouped (Where / Details) with a Google-written "Google data"
- * disclosure for the rarely-touched lat/lng/place-ID trio, rather than one
- * flat run of 13 equal-weight controls. Save holds "Saved ✓" briefly
+ * The visible list is short and flat by design: Name, the website/menu link
+ * (the field worth a glance most often), Closed days (a live ranking rule,
+ * not trivia), Notes, and Tags. Address / Phone / Maps link / Latitude /
+ * Longitude / Google place ID — facts the Household already knows or that
+ * only a Places match writes — collapse into a single "Location" disclosure
+ * instead of padding out the main list. Save holds "Saved ✓" briefly
  * (mirroring `PickButton`) before `onSaved` fires, so a save is never silent.
  */
 export function OptionForm({
@@ -103,11 +96,18 @@ export function OptionForm({
   // must not mark the Name field invalid.
   const nameError = error === "Enter a name" ? error : null;
   const formError = error && !nameError ? error : null;
-  // The Google data disclosure opens by default only when there is already
-  // something in it to see (an existing Places-sourced Restaurant); a fresh
-  // add starts collapsed since it's empty until a Places search fills it.
-  const [hasGoogleData] = useState(
-    () => isRestaurant && (initial?.lat != null || Boolean(initial?.googlePlaceId)),
+  // The Location disclosure opens by default only when there is already
+  // something in it to see (an existing Restaurant with any of these
+  // fields on file); a fresh add starts collapsed since it's empty until a
+  // Places search — or hand entry — fills it.
+  const [hasLocationData] = useState(
+    () =>
+      isRestaurant &&
+      (Boolean(initial?.address) ||
+        Boolean(initial?.phone) ||
+        Boolean(initial?.mapsUrl) ||
+        initial?.lat != null ||
+        Boolean(initial?.googlePlaceId)),
   );
 
   /**
@@ -196,9 +196,59 @@ export function OptionForm({
         )}
       </div>
 
+      <TextField
+        id={`${fieldId}-url`}
+        label={isRestaurant ? "Website or menu link" : "Recipe link"}
+        value={url}
+        onChange={(value) => {
+          setUrl(value);
+          setUrlKept(false);
+        }}
+        type="url"
+        inputMode="url"
+        note={
+          urlKept
+            ? "Kept your existing link — not updated from the Google match."
+            : undefined
+        }
+      />
+
       {isRestaurant && (
-        <div className="flex flex-col gap-3">
-          <h3 className={groupHeading}>Where</h3>
+        <ClosedDayToggles value={closedDays} onChange={setClosedDays} />
+      )}
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${fieldId}-notes`} className={labelClass}>
+          Notes
+        </label>
+        <textarea
+          id={`${fieldId}-notes`}
+          className={`${inputClass} py-2`}
+          rows={2}
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+          onKeyDown={(event) => {
+            if (pending) return;
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
+        />
+      </div>
+
+      <TagInput value={tags} onChange={setTags} suggestions={allTags} />
+
+      {isRestaurant && (
+        <details
+          className="flex flex-col gap-3 rounded-input border border-line p-3"
+          {...(hasLocationData ? { open: true } : {})}
+        >
+          <summary
+            className={`${labelClass} cursor-pointer select-none ${focusRing}`}
+          >
+            Location
+          </summary>
           <TextField
             id={`${fieldId}-address`}
             label="Address"
@@ -223,64 +273,6 @@ export function OptionForm({
             type="url"
             inputMode="url"
           />
-          <ClosedDayToggles value={closedDays} onChange={setClosedDays} />
-        </div>
-      )}
-
-      <div className="flex flex-col gap-3">
-        <h3 className={groupHeading}>Details</h3>
-        <TextField
-          id={`${fieldId}-url`}
-          label={isRestaurant ? "Website or menu link" : "Recipe link"}
-          value={url}
-          onChange={(value) => {
-            setUrl(value);
-            setUrlKept(false);
-          }}
-          type="url"
-          inputMode="url"
-          note={
-            urlKept
-              ? "Kept your existing link — not updated from the Google match."
-              : undefined
-          }
-        />
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${fieldId}-notes`} className={labelClass}>
-            Notes
-          </label>
-          <textarea
-            id={`${fieldId}-notes`}
-            className={`${inputClass} py-2`}
-            rows={2}
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            onKeyDown={(event) => {
-              if (pending) return;
-              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }
-            }}
-          />
-        </div>
-        <TagInput value={tags} onChange={setTags} suggestions={allTags} />
-      </div>
-
-      {isRestaurant && (
-        <details
-          className="flex flex-col gap-3 rounded-input border border-line p-3"
-          {...(hasGoogleData ? { open: true } : {})}
-        >
-          <summary
-            className={`${labelClass} cursor-pointer select-none ${focusRing}`}
-          >
-            Google data
-          </summary>
-          <p className="-mt-1 text-chip text-muted">
-            Written by a Google Places match; only worth touching by hand if
-            it&rsquo;s wrong.
-          </p>
           <TextField
             id={`${fieldId}-lat`}
             label="Latitude"
@@ -311,16 +303,16 @@ export function OptionForm({
       )}
 
       {/* Bleeds full-width out of the form's own column padding so it reads
-          as a footer bar, not one more gapped row; sticks above the mobile
-          tab bar (its own height + the safe-area inset) so Save/Cancel never
-          sit a scroll away on a long Restaurant form. Desktop's taller
-          viewport and side rail don't need the sticking — it goes static
-          there. */}
+          as a footer bar, not one more gapped row. Sticks on both
+          breakpoints so Save/Cancel are never a scroll away on a long
+          Restaurant form: on mobile it clears the tab bar (its own height
+          plus the safe-area inset); on desktop there's no bottom bar in the
+          way (the nav is a left rail), so it just sticks to the viewport
+          edge. */}
       <div
-        className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-10
-          -mx-4 flex items-center gap-2 border-t border-divider bg-surface
-          px-4 py-3 desktop:static desktop:mx-0 desktop:border-t-0
-          desktop:bg-transparent desktop:px-0 desktop:py-0"
+        className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))]
+          desktop:bottom-0 z-10 -mx-4 flex items-center gap-2 border-t
+          border-divider bg-surface px-4 py-3"
       >
         <button
           type="submit"
