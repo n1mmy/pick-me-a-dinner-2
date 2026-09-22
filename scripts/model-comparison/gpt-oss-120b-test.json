@@ -1,0 +1,198 @@
+{
+  "today": "2026-09-22 (Tuesday)",
+  "query": "(empty)",
+  "mode": "parallel",
+  "reps": 1,
+  "catalog": 35,
+  "logEntries": 185,
+  "inProgress": false,
+  "runs": [
+    {
+      "rep": 1,
+      "label": "fireworks-gpt-oss-120b · thinking off",
+      "model": "accounts/fireworks/models/gpt-oss-120b",
+      "thinking": {
+        "type": "off"
+      },
+      "latencyMs": 44947,
+      "ok": true,
+      "ranking": [
+        {
+          "rank": 1,
+          "name": "Societea Tea House & Eatery",
+          "reason": "saved for Tuesday swim day, burger‑fries combo not had recently, fits family’s swim‑tag routine."
+        },
+        {
+          "rank": 2,
+          "name": "K-Grill & Tofu House",
+          "reason": "K‑Grill offers Korean fried‑rice style; last Korean meal was months ago, revives that cadence."
+        },
+        {
+          "rank": 3,
+          "name": "Mollie Stone's",
+          "reason": "Mollie Stone’s provides a change of cuisine, hasn’t appeared in weeks, good weekday variety."
+        },
+        {
+          "rank": 4,
+          "name": "Limon",
+          "reason": "Limon gives a peruvian flare; distance okay and it breaks the recent Mediterranean streak."
+        },
+        {
+          "rank": 5,
+          "name": "Boiling Beijing",
+          "reason": "Boiling Beijing adds Chinese flavor; hasn’t been eaten since June, interval now due."
+        },
+        {
+          "rank": 6,
+          "name": "bb.q Chicken San Bruno",
+          "reason": "bb.q Chicken supplies classic fried chicken; new to rotation, matches Helen’s chicken preference."
+        },
+        {
+          "rank": 7,
+          "name": "Minari Korean",
+          "reason": "Minari Korean brings Korean spice; previous Korean dishes were over a week ago, timing fits."
+        },
+        {
+          "rank": 8,
+          "name": "Atlas Pizza and Indian",
+          "reason": "Atlas Pizza delivers Indian and pizza; recent pizza was heavy, a lighter combo could work."
+        },
+        {
+          "rank": 9,
+          "name": "BJ's",
+          "reason": "BJ’s offers American comfort; after several burger nights, a different chain adds variety."
+        },
+        {
+          "rank": 10,
+          "name": "Chili's",
+          "reason": "Chili’s provides familiar American fare; last visited July, a safe fallback."
+        },
+        {
+          "rank": 11,
+          "name": "Jack's",
+          "reason": "Jack’s serves classic American; not on the recent list, easy quick option."
+        },
+        {
+          "rank": 12,
+          "name": "Roma Deli",
+          "reason": "Roma Deli’s sandwiches break the current pattern; haven’t been chosen since March."
+        },
+        {
+          "rank": 13,
+          "name": "West Coast Cafe",
+          "reason": "West Coast Café’s Italian dishes spice things up; enough time passed since the last pasta night."
+        },
+        {
+          "rank": 14,
+          "name": "Tadu Ethiopian",
+          "reason": "Tadu Ethiopian adds ethnic diversity; last Ethiopian meal was Monday, ready for another."
+        },
+        {
+          "rank": 15,
+          "name": "Big Mouth Burgers",
+          "reason": "Big Mouth Burgers repeats a favorite American burger; still a solid go‑to."
+        },
+        {
+          "rank": 16,
+          "name": "Cocina Milonga",
+          "reason": "Cocina Milonga offers empanadas for a quick bite; Jen’s occasional stop makes it viable."
+        },
+        {
+          "rank": 17,
+          "name": "Quesadilla",
+          "reason": "Quesadilla could work if ingredients ready; currently lacking supplies limits it."
+        },
+        {
+          "rank": 18,
+          "name": "Roosters Peruvian",
+          "reason": "Roosters Peruvian brings new flavors but distance makes it less convenient tonight."
+        },
+        {
+          "rank": 19,
+          "name": "Spiral Japanese",
+          "reason": "Spiral Japanese sushi repeats today’s sushi run; better to avoid another sushi bite."
+        },
+        {
+          "rank": 20,
+          "name": "Aji Ichi Japanese Restaurant",
+          "reason": "Aji Ichi sushi also repeats today and exceeds sushi frequency limits."
+        },
+        {
+          "rank": 21,
+          "name": "Ninja Sushi",
+          "reason": "Ninja Sushi same sushi overload today; best to pause sushi tonight."
+        },
+        {
+          "rank": 22,
+          "name": "Thai Nakorn",
+          "reason": "Thai Nakorn already on today’s menu, repeating it would be redundant."
+        },
+        {
+          "rank": 23,
+          "name": "Little Vietnamese Bistro",
+          "reason": "Little Vietnamese Bistro was just consumed today; repeat not needed."
+        },
+        {
+          "rank": 24,
+          "name": "Taqueria Durango",
+          "reason": "Taqueria Durango already featured today’s lunch, so skip for dinner."
+        },
+        {
+          "rank": 25,
+          "name": "Local Kitchens",
+          "reason": "Local Kitchens was just eaten Monday, still fresh but already in recent rotation."
+        },
+        {
+          "rank": 26,
+          "name": "Mazra",
+          "reason": "Mazra Mediterranean served last week; spacing suggests a break."
+        },
+        {
+          "rank": 27,
+          "name": "Pasta",
+          "reason": "Pasta home‑cooked last Saturday, could be repeated but leftovers are scarce."
+        },
+        {
+          "rank": 28,
+          "name": "Tomato Salad",
+          "reason": "Tomato Salad simple fresh side, but no leftovers or need for a salad tonight."
+        },
+        {
+          "rank": 29,
+          "name": "Frozen food",
+          "reason": "Frozen food requires stocked items which are currently unavailable."
+        },
+        {
+          "rank": 30,
+          "name": "Hungryroot",
+          "reason": "Hungryroot missing this week per pantry note, so not feasible."
+        },
+        {
+          "rank": 31,
+          "name": "Leftovers",
+          "reason": "Leftovers none left, making it impossible tonight."
+        },
+        {
+          "rank": 32,
+          "name": "Lotus Falafel",
+          "reason": "Lotus Falafel Mediterranean just after Mazra; family prefers more spacing between similar cuisines."
+        },
+        {
+          "rank": 33,
+          "name": "Quiche",
+          "reason": "Quiche recently bought and partly used, still pending but not urgent tonight."
+        },
+        {
+          "rank": 34,
+          "name": "Sofra Grill",
+          "reason": "Sofra Grill Mediterranean could fill the gap, yet recent Mediterranean meals suggest a pause."
+        },
+        {
+          "rank": 35,
+          "name": "Chicken and Rice",
+          "reason": "Chicken and Rice plain, low excitement."
+        }
+      ]
+    }
+  ]
+}

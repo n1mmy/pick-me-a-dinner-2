@@ -122,6 +122,19 @@ const ADAPTIVE_MODELS = [
 ];
 
 /**
+ * gpt-oss-120b, served through Fireworks's Anthropic-compatible endpoint
+ * rather than Anthropic's own API — see `.env.k8s.kimi` (repurposed for any
+ * Fireworks model under test, not just Kimi), which points
+ * `ANTHROPIC_BASE_URL` / `ANTHROPIC_API_KEY` at Fireworks. It is a single
+ * fixed cell, not a member of `ADAPTIVE_MODELS`, because Fireworks does not
+ * serve Anthropic's adaptive-thinking API — only `thinking: off` is valid.
+ * Comparing it against the Anthropic cells in the same `--compare` invocation
+ * would send every cell's call to whichever base URL is in `.env`, so filter
+ * to just this cell (`--cells="fireworks"`) when `.env` points at Fireworks.
+ */
+const FIREWORKS_MODEL = "accounts/fireworks/models/gpt-oss-120b";
+
+/**
  * The matrix `--compare` runs — every model family on one shared snapshot.
  * For a latency measurement, narrow this to one model with repeated cells and
  * run with `--serial` (interleave reps so API-load drift is spread evenly).
@@ -150,6 +163,7 @@ const COMPARE_CELLS: ComparisonCell[] = [
       }),
     ),
   ),
+  { label: "fireworks-gpt-oss-120b · thinking off", model: FIREWORKS_MODEL, thinking: { type: "off" } },
 ];
 
 /**

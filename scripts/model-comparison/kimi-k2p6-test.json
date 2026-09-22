@@ -1,0 +1,22 @@
+{
+  "today": "2026-09-22 (Tuesday)",
+  "query": "(empty)",
+  "mode": "parallel",
+  "reps": 1,
+  "catalog": 35,
+  "logEntries": 185,
+  "inProgress": false,
+  "runs": [
+    {
+      "rep": 1,
+      "label": "kimi-k2p6 · thinking off",
+      "model": "accounts/fireworks/models/kimi-k2p6",
+      "thinking": {
+        "type": "off"
+      },
+      "latencyMs": 90008,
+      "ok": false,
+      "ranking": []
+    }
+  ]
+}
