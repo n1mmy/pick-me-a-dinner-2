@@ -5,8 +5,14 @@
 1. Copy `.env.k8s` from the main checkout into this worktree as `.env.local`
    (Next.js loads `.env.local` automatically, ahead of `.env`).
 2. `corepack pnpm install --frozen-lockfile` if `node_modules` is missing.
-3. `corepack pnpm exec next dev -H 0.0.0.0` — bound to `0.0.0.0`, not the
-   default `localhost`, so it's reachable from outside the container.
+3. `env -u ANTHROPIC_API_KEY -u ANTHROPIC_BASE_URL -u ANTHROPIC_CUSTOM_HEADERS corepack pnpm exec next dev -H 0.0.0.0` — bound to `0.0.0.0`, not the
+   default `localhost`, so it's reachable from outside the container. The
+   `env -u` strip matters when the server is launched from a Claude Code
+   session routed through a model gateway: the session's shell carries
+   `ANTHROPIC_BASE_URL`/`ANTHROPIC_API_KEY` for the gateway, the Anthropic SDK
+   reads both from the environment, and a shell-set key shadows `.env.local` —
+   so AI search silently fails (the swallowed error surfaces only as
+   `outcome:"fallback"` in the log) until they're unset.
 
 Run it in the background and check the log for `✓ Ready` (and an HTTP
 request actually returning a response) before reporting it started — a

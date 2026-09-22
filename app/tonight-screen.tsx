@@ -163,9 +163,14 @@ export function TonightScreen({
   // `searchPending` is our own flag, not `useTransition`'s — Cancel needs to
   // drop the Household back into control the instant they ask, and React
   // gives no way to make a transition's `isPending` go false before its
-  // callback actually returns. `startSearchTransition` still wraps the call so
-  // the eventual `setAiResults`/`setAiError` land as a low-priority update.
+  // callback actually returns.
   const [searchPending, setSearchPending] = useState(false);
+  // `startSearchTransition` wraps only the *post-fetch* state updates so they
+  // land as a low-priority update. It must not wrap the `await` itself: an
+  // async transition stays pending until its callback returns, and React
+  // entangles any transition scheduled meanwhile with it — so a Pick's
+  // revalidated props (which Next's router applies in a transition) would be
+  // held off-screen for the whole 50–90s search.
   const [, startSearchTransition] = useTransition();
   // Bumped on every new search and on Cancel/Clear/day-change, so a search
   // response that lands after the Household has moved on — cancelled,
@@ -176,15 +181,18 @@ export function TonightScreen({
   const searchGenerationRef = useRef(0);
   const aiActive = aiResults !== null;
 
-  function runSearch() {
+  // An ordinary async function, deliberately not an async transition — see the
+  // `startSearchTransition` comment above. The fetch itself is not a state
+  // update, so nothing here needs transition semantics until the result lands.
+  async function runSearch() {
     const generation = ++searchGenerationRef.current;
     setSearchPending(true);
-    startSearchTransition(async () => {
-      const result = await aiSearchAction(
-        query,
-        isToday ? undefined : selectedDay,
-      );
-      if (searchGenerationRef.current !== generation) return;
+    const result = await aiSearchAction(
+      query,
+      isToday ? undefined : selectedDay,
+    );
+    if (searchGenerationRef.current !== generation) return;
+    startSearchTransition(() => {
       setSearchPending(false);
       if (!result.ok) {
         // A failed search leaves the deterministic list exactly as it was. The

@@ -9,6 +9,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { startTransition } from "react";
 import type { TonightRow } from "../lib/ranking";
 import type { LastNote } from "../lib/last-note";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
@@ -394,10 +395,20 @@ describe("TonightScreen — AI search", () => {
   it("reflects a Pick's revalidated props while an AI search is still pending", async () => {
     // A row-level Pick's `pickTonight` Server Action revalidates Tonight
     // server-side; Next's router then re-renders this tree with fresh
-    // `tonightsDinner`/`pickerRows` props — simulated here with `rerender`,
-    // the same way "drops back to picker mode..." below does. The AI search
-    // never resolves in this test, so if a pending search suppressed that
-    // prop update from landing, this test would catch it.
+    // `tonightsDinner`/`pickerRows` props. The AI search never resolves in
+    // this test, so if a pending search suppressed that prop update from
+    // landing, this test would catch it.
+    //
+    // The props are applied inside `startTransition` — not a bare `rerender`
+    // — because that is what Next's router actually does with the RSC
+    // payload, and the seam matters: a sync update always renders, but a
+    // *transition* scheduled while an async transition (the search's `await`)
+    // is pending gets entangled with it and cannot commit until the search
+    // resolves. That was the live bug behind this test: `runSearch` used to
+    // wrap the whole `await aiSearchAction(...)` in `startSearchTransition`,
+    // holding an async transition open for the full 50–90s and pinning every
+    // Pick's revalidated props off-screen behind it. A bare `rerender` here
+    // passes either way and cannot catch a regression.
     // jsdom implements neither `scrollTo` nor `matchMedia` — the scroll-to-top
     // effect that fires when `tonightsDinner` grows reaches for both.
     vi.stubGlobal("scrollTo", vi.fn());
@@ -418,16 +429,23 @@ describe("TonightScreen — AI search", () => {
     });
 
     // The revalidated props Next's router would hand back: o1 moved into
-    // `tonightsDinner`, dropped out of `pickerRows`.
-    rerender(
-      <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[{ entryId: "e1", row: row("o1", "Apple Crumble"), note: null }]}
-        pickerRows={[row("o2", "Banana Bread")]}
-        searchEnabled
-      />,
-    );
+    // `tonightsDinner`, dropped out of `pickerRows` — applied in a transition,
+    // as the router applies them.
+    startTransition(() => {
+      rerender(
+        <TonightScreen
+          selectedDay="2026-05-20"
+          todaySql="2026-05-20"
+          tonightsDinner={[{ entryId: "e1", row: row("o1", "Apple Crumble"), note: null }]}
+          pickerRows={[row("o2", "Banana Bread")]}
+          searchEnabled
+        />,
+      );
+    });
+    // Flush the scheduler so the transition has every chance to commit.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
 
     // The Household sees the Pick land — Tonight's dinner block shows it and
     // the ranked list below no longer offers it — even though the search is
