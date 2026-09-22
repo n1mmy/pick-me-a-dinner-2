@@ -190,7 +190,6 @@ export function TonightRowItem({
             type="button"
             onClick={pick}
             disabled={pending}
-            aria-live="polite"
             className={`min-h-11 rounded-control px-4 text-body font-emphasis
               transition-colors duration-short disabled:opacity-60
               ${focusRing} ${
@@ -201,6 +200,11 @@ export function TonightRowItem({
           >
             {justLogged ? "Logged ✓" : "Pick"}
           </button>
+          {/* A sibling live region, not `aria-live` on the button itself —
+              see PickButton's identical note. */}
+          <p className="sr-only" role="status" aria-live="polite">
+            {justLogged ? "Logged" : ""}
+          </p>
           <button
             type="button"
             onClick={() => setRejecting((open) => !open)}

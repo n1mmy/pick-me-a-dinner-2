@@ -76,6 +76,12 @@ export function OptionForm({
   const [pending, startTransition] = useTransition();
 
   const isRestaurant = kind === "restaurant";
+  // The only validation error that is actually about the Name field; every
+  // other server error (e.g. "That option is no longer available" — the
+  // Option was deleted out from under an in-progress edit) is form-level and
+  // must not mark the Name field invalid.
+  const nameError = error === "Enter a name" ? error : null;
+  const formError = error && !nameError ? error : null;
 
   /**
    * Apply a Google place's detail to the fields — all stay editable after. An
@@ -138,12 +144,16 @@ export function OptionForm({
           className={inputClass}
           value={name}
           onChange={(event) => setName(event.target.value)}
-          aria-invalid={error !== null}
-          aria-describedby={error ? `${fieldId}-error` : undefined}
+          aria-invalid={nameError !== null}
+          aria-describedby={nameError ? `${fieldId}-error` : undefined}
         />
-        {error && (
-          <p id={`${fieldId}-error`} className="text-chip text-danger">
-            {error}
+        {nameError && (
+          <p
+            id={`${fieldId}-error`}
+            className="text-chip text-danger"
+            role="alert"
+          >
+            {nameError}
           </p>
         )}
       </div>
@@ -235,6 +245,12 @@ export function OptionForm({
       </div>
 
       <TagInput value={tags} onChange={setTags} suggestions={allTags} />
+
+      {formError && (
+        <p className="text-chip text-danger" role="alert">
+          {formError}
+        </p>
+      )}
 
       <div className="flex items-center gap-2">
         <button

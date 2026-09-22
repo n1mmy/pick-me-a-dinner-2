@@ -134,7 +134,11 @@ export function OptionRow({
           <PickButton optionId={option.id} />
         </div>
       </div>
-      {error && <p className="text-chip text-danger">{error}</p>}
+      {error && (
+        <p className="text-chip text-danger" role="alert">
+          {error}
+        </p>
+      )}
     </li>
   );
 }

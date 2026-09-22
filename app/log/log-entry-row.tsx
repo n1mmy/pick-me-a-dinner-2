@@ -238,7 +238,11 @@ function EntryEditForm({
           }
         />
         {error && error !== "Pick an Option" && (
-          <p id={`${fieldId}-error`} className="text-chip text-danger">
+          <p
+            id={`${fieldId}-error`}
+            className="text-chip text-danger"
+            role="alert"
+          >
             {error}
           </p>
         )}

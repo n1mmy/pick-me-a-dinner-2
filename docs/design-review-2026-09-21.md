@@ -10,6 +10,8 @@ Findings are grouped into three passes:
 - **(c)** the desktop row collapse (D3) — its own piece of work ✅ 2026-09-21 (cherry-picked
   from a parallel session's `7d6a4f7`, reviewed against this doc's D3, resolved
   onto pass (b)'s state)
+- **A4–A7** — the deferred accessibility items (listbox ownership contract,
+  error announcement, live-region placement, control-size consistency) ✅ 2026-09-22
 
 This file is the working record; strike through or annotate items as they're
 resolved rather than deleting them, so the history of what was found and why
@@ -153,46 +155,57 @@ mid-list focus.
 One-line fix in `globals.css`'s `html` block: `scroll-padding-top` for the
 sticky zone, `scroll-padding-bottom` for the nav.
 
-### A4 — The hand-rolled comboboxes break the listbox ownership contract *(not in pass a/b — needs its own review)*
+### A4 — The hand-rolled comboboxes break the listbox ownership contract ✅ fixed
 `OptionListbox` (`option-combobox.tsx:156-186`) and `TagInput`
-(`tag-input.tsx:114-154`) both nest `<li>` between `role="listbox"` and
-`role="option"`, and make each option a focusable `<button>` while driving
+(`tag-input.tsx:114-154`) both nested `<li>` between `role="listbox"` and
+`role="option"`, and made each option a focusable `<button>` while driving
 selection with `aria-activedescendant`. A listbox may only own
 `option`/`group`, and a focusable child plus activedescendant gives AT two
-competing focus models. Fix is small: `role="presentation"` on the `<li>`, and
-`<div role="option" tabindex="-1">` instead of `<button>`.
+competing focus models. Fixed in both: `role="presentation"` on the `<li>`,
+and `<div role="option" tabIndex={-1}>` instead of `<button>` (a
+`cursor-pointer` class replaces the affordance a real button gave for free).
 
-**Separately, `TagInput` has no keyboard path into its menu at all.**
-`tag-input.tsx:40-51` handles only Enter / comma / Backspace — no ↑/↓, no
-`aria-activedescendant`, `aria-selected` hardcoded `"false"` (`:124`, `:141`).
-Its sibling widget has the full contract. A keyboard user can't select a
-suggestion; they can only retype it in full.
+**Separately, `TagInput` had no keyboard path into its menu at all.**
+`tag-input.tsx` used to handle only Enter / comma / Backspace — no ↑/↓, no
+`aria-activedescendant`, `aria-selected` hardcoded `"false"`. Rebuilt on the
+same contract `OptionCombobox`'s dropdown uses: matches and the "create" row
+are now one indexable `menuItems` list, ↑/↓ move a highlight through it,
+Enter commits the highlighted item (or the typed draft when nothing is
+highlighted, preserving the old plain-Enter behavior), and Escape dismisses
+the menu without blurring the field.
 
-### A5 — Error announcement is inconsistent *(not in pass a/b)*
-`rejection-row.tsx:100,128` and `tonights-dinner-block.tsx:154,323` do it right
-(`role="alert"`). These don't announce at all: `option-form.tsx:145`,
-`option-row.tsx:137`, `log-entry-row.tsx:241`.
+### A5 — Error announcement is inconsistent ✅ fixed
+`rejection-row.tsx:100,128` and `tonights-dinner-block.tsx:154,323` already
+did it right (`role="alert"`). Added `role="alert"` to the three that
+didn't announce at all: `option-form.tsx` (Name-field error), `option-row.tsx`
+(delete error), `log-entry-row.tsx` (date-field error).
 
-Worse, `option-form.tsx` funnels **every** error — name, Places, server — into
-one `<p>` under the Name field, wired to the name input via
-`aria-describedby` (`:142`). A save collision or a Places failure is announced
-as if the Name field were invalid. On a form with up to 10 fields that's the
-case the skill's `error-summary` / `error-placement` rules exist for.
+`option-form.tsx` also funneled **every** error into the Name field's
+`aria-describedby`, including `updateOption`'s "That option is no longer
+available" (the Option was deleted out from under an in-progress edit) —
+not a Name problem. Split `error` into `nameError` (only the literal "Enter a
+name" validation message, still wired to the Name input's
+`aria-invalid`/`aria-describedby`) and `formError` (everything else, rendered
+as its own `role="alert"` paragraph above the Save/Cancel row, not tied to
+any field). Places failures were already handled locally inside
+`PlacesSearchBox` and never touched this `error` state — that part of the
+original finding didn't hold up on closer reading.
 
-### A6 — `aria-live="polite"` on the button element itself *(not in pass a/b)*
-`pick-button.tsx:45` and `tonight-row.tsx:172` make the control its own live
+### A6 — `aria-live="polite"` on the button element itself ✅ fixed
+`pick-button.tsx:45` and `tonight-row.tsx:193` made the control its own live
 region. The button is usually focused when its label flips to `"Logged ✓"`, so
 AT may double-announce, and some screen readers skip live regions on
-interactive elements. A sibling `sr-only` `role="status"` is the conventional
-shape — and the screen already uses that pattern well elsewhere
-(`tonight-screen.tsx:257`, `:741`).
+interactive elements. Both now use a sibling `sr-only` `role="status"`
+paragraph instead — the pattern the screen already uses elsewhere
+(`tonight-screen.tsx:257`, `:741`) — that announces "Logged" only while
+`justLogged` is true.
 
-### A7 — One control is 30px where its twin is 44px *(covered incidentally by D6/pass b note, worth re-checking after)*
-The Log/detail combobox clear is `h-9 w-8` → **36 × 30px**
-(`option-combobox.tsx:347`). The Tonight search box's identical clear is
-`w-11` → 44px (`tonight-screen.tsx:1009`). Same control, two sizes, and the
-smaller one is the rem-default accident from D6. It clears WCAG 2.2's 24×24
-floor, so this is consistency rather than compliance.
+### A7 — One control is 30px where its twin is 44px ✅ fixed
+The Log/detail combobox clear was `h-9 w-8` → **36 × 30px**
+(`option-combobox.tsx:347`), the rem-default accident from D6. Resized to
+match the Tonight search box's identical clear (`absolute inset-y-0 right-0
+w-11`, 44×44px) and widened the input's `pr-9` to `pr-11` to keep query text
+clear of the wider button.
 
 ### Stale code comments (fix opportunistically, not urgent)
 - `tonight-row.tsx:373` says the never-eaten `new` chip is "tinted green like
