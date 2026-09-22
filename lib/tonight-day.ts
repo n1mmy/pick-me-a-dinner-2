@@ -12,11 +12,12 @@
  *     input precondition, not a rule it re-checks.
  *   - Already **Picked** for the day,
  *   - **Rejected** for the Selected day, or
- *   - **Closed** on the Selected day (`isClosedOn`, `./closed-days`) —
+ *   - **Closed** on the Selected day —
  *
- * all three decided by `suppressionsOn`, the one statement of the per-day
- * rules. AI search (`lib/ai-search.ts`) calls it too, so the AI candidate set
- * and the picker can never disagree about which Options are off for the day.
+ * all three decided by `suppressionsOn` (`./day-suppressions`), the one
+ * statement of the per-day rules. AI search (`lib/ai-search.ts`) calls it too,
+ * so the AI candidate set and the picker can never disagree about which
+ * Options are off for the day.
  *
  * The precedence is load-bearing and lives in `suppressionsOn` alone: Picked,
  * then Rejected, then Closed, each Option carrying only its first. So an
@@ -40,7 +41,7 @@
  * This is a presentation composition only: it runs after `rankTonight`, so
  * the Score and the ranking stay untouched (ADR-0003, ADR-0006, ADR-0010).
  */
-import { isClosedOn } from "./closed-days";
+import { suppressionsOn } from "./day-suppressions";
 import {
   lastNotesByOption,
   type LastNote,
@@ -118,45 +119,6 @@ export type TonightForDay = {
   allFiltered: boolean;
 };
 
-/** Why an Option is off the picker for a day — see `suppressionsOn`. */
-export type Suppression = "picked" | "rejected" | "closed";
-
-/**
- * Every Option suppressed on `day`, keyed by id, with the reason. The rules
- * are checked in precedence order — Picked, then Rejected, then Closed — and
- * an Option carries only the first that applies. An Option absent from the
- * map is choosable on `day`.
- *
- * `tonightForDay` renders each reason differently (the decided block, the
- * Rejected disclosure, the Closed disclosure); AI search drops every
- * suppressed Option from its candidates alike. A new per-day rule added here
- * reaches both.
- */
-export function suppressionsOn({
-  options,
-  pickedOptionIds,
-  rejectedOptionIds,
-  day,
-}: {
-  options: { id: string; closedDays: number[] }[];
-  /** Option ids with a Log entry dated `day`. */
-  pickedOptionIds: Iterable<string>;
-  /** Option ids carrying a Rejection dated `day`. */
-  rejectedOptionIds: Iterable<string>;
-  /** The day, as a SQL `date` string. */
-  day: string;
-}): Map<string, Suppression> {
-  const picked = new Set(pickedOptionIds);
-  const rejected = new Set(rejectedOptionIds);
-  const suppressions = new Map<string, Suppression>();
-  for (const { id, closedDays } of options) {
-    if (picked.has(id)) suppressions.set(id, "picked");
-    else if (rejected.has(id)) suppressions.set(id, "rejected");
-    else if (isClosedOn(closedDays, day)) suppressions.set(id, "closed");
-  }
-  return suppressions;
-}
-
 /**
  * Compose Tonight's full Selected-day suppression: rank, split into decided
  * vs. picker, drop every `suppressionsOn` row, and reduce the Log to Last
@@ -195,8 +157,10 @@ export function tonightForDay({
   );
 
   // 5. drop every suppressed row. `splitTonight` already took the Picked ones
-  // out; the Closed ones go to the Closed disclosure, which is alphabetical,
-  // not ranked (DESIGN.md "Closed disclosure"). The picker keeps rank order.
+  // out, so passing them here changes nothing on Tonight — it keeps the call
+  // the same full rule set AI search applies. The Closed ones go to the
+  // Closed disclosure, which is alphabetical, not ranked (DESIGN.md "Closed
+  // disclosure"). The picker keeps rank order.
   const suppressions = suppressionsOn({
     options,
     pickedOptionIds: dayEntries.map((entry) => entry.optionId),

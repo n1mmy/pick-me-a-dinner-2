@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CAP } from "./ranking.config";
 import {
-  suppressionsOn,
   tonightForDay,
   type TonightDayLogEntry,
   type TonightDayOption,
@@ -47,37 +46,6 @@ function dayEntry(
 
 // 2026-05-17 is a Sunday.
 const SUNDAY = "2026-05-17";
-
-describe("suppressionsOn", () => {
-  it("leaves a choosable Option out of the map", () => {
-    const suppressions = suppressionsOn({
-      options: [option("a", "Alpha", { closedDays: [1] })], // closed Mondays
-      pickedOptionIds: [],
-      rejectedOptionIds: [],
-      day: SUNDAY,
-    });
-    expect(suppressions.size).toBe(0);
-  });
-
-  it("gives each Option only its first reason: Picked, then Rejected, then Closed", () => {
-    const closedSundays = { closedDays: [0] };
-    const suppressions = suppressionsOn({
-      options: [
-        option("p", "Picked and all else", closedSundays),
-        option("r", "Rejected and closed", closedSundays),
-        option("c", "Closed only", closedSundays),
-      ],
-      pickedOptionIds: ["p"],
-      rejectedOptionIds: ["p", "r"],
-      day: SUNDAY,
-    });
-    expect(Object.fromEntries(suppressions)).toEqual({
-      p: "picked",
-      r: "rejected",
-      c: "closed",
-    });
-  });
-});
 
 describe("tonightForDay", () => {
   it("lists closed rows alphabetically, not in rank order", () => {
