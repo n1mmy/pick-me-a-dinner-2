@@ -33,6 +33,11 @@ const focusRing =
 /** `S M T W T F S`, Sunday first — matching the `0` = Sunday convention. */
 const SHORT_WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
+/** Whether two Closed-day sets hold the same weekdays, order aside. */
+function sameDays(a: number[], b: number[]): boolean {
+  return a.length === b.length && a.every((day) => b.includes(day));
+}
+
 /**
  * The inline add/edit form for one Option — identical on phone and desktop. An
  * `initial` Option means edit; its absence means add. The Restaurant form
@@ -87,6 +92,10 @@ export function OptionForm({
   // Google's hours, not hand entry; a manual toggle afterward clears it, the
   // same shape as `urlKept` guarding the URL field's note.
   const [closedDaysSynced, setClosedDaysSynced] = useState(false);
+  // Whether the sync above actually changed the toggles (vs. Google agreeing
+  // with what was already there) — the note wording differs because a
+  // replace can silently undo a hand correction, which is worth calling out.
+  const [closedDaysReplaced, setClosedDaysReplaced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Holds "Saved ✓" on the submit button for a beat before `onSaved` fires —
   // otherwise a save that collapses or navigates the form away is completely
@@ -120,7 +129,11 @@ export function OptionForm({
    * already-filled URL is kept, not overwritten: a hand-picked menu link is
    * usually better than the Place's generic website, so a match flags
    * `urlKept` instead of clobbering it. Closed days follow Google's regular
-   * hours when it has any; with none on file the toggles are left as they are.
+   * hours when it has any, *replacing* whatever the toggles held — including
+   * a prior hand correction — since a re-sync is a deliberate "trust Google
+   * again" action; with no hours on file the toggles are left as they are.
+   * `closedDaysReplaced` records whether that overwrite actually changed
+   * anything, so the disclosure note can say so.
    */
   function applyAutofill(autofill: PlaceAutofill) {
     setName(autofill.name);
@@ -137,8 +150,14 @@ export function OptionForm({
     setMapsUrl(autofill.mapsUrl);
     setGooglePlaceId(autofill.googlePlaceId);
     if (autofill.closedDays !== null) {
+      setClosedDaysReplaced(!sameDays(closedDays, autofill.closedDays));
       setClosedDays(autofill.closedDays);
       setClosedDaysSynced(true);
+    } else {
+      // Google has no hours for *this* match — the toggles keep whatever
+      // they held, but that's no longer something Google just told us, so
+      // the "Set from Google's hours" note must not keep claiming it is.
+      setClosedDaysSynced(false);
     }
   }
 
@@ -147,6 +166,7 @@ export function OptionForm({
   function handleClosedDaysChange(next: number[]) {
     setClosedDays(next);
     setClosedDaysSynced(false);
+    setClosedDaysReplaced(false);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -243,11 +263,14 @@ export function OptionForm({
 
       {isRestaurant && (
         <ClosedDayToggles
+          id={`${fieldId}-closed-days`}
           value={closedDays}
           onChange={handleClosedDaysChange}
           note={
             closedDaysSynced
-              ? "Set from Google's hours — edit if it's wrong."
+              ? closedDaysReplaced
+                ? "Replaced with Google's hours — edit if it's wrong."
+                : "Set from Google's hours — edit if it's wrong."
               : undefined
           }
         />
@@ -412,6 +435,7 @@ function TextField({
   inputMode?: InputHTMLAttributes<HTMLInputElement>["inputMode"];
   autoComplete?: string;
 }) {
+  const noteId = `${id}-note`;
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={id} className={labelClass}>
@@ -425,8 +449,13 @@ function TextField({
         className={inputClass}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        aria-describedby={note ? noteId : undefined}
       />
-      {note && <p className="text-chip text-muted">{note}</p>}
+      {note && (
+        <p id={noteId} className="text-chip text-muted">
+          {note}
+        </p>
+      )}
     </div>
   );
 }
@@ -444,10 +473,12 @@ function TextField({
  * `TextField`'s own optional note.
  */
 function ClosedDayToggles({
+  id,
   value,
   onChange,
   note,
 }: {
+  id: string;
   value: number[];
   onChange: (value: number[]) => void;
   note?: ReactNode;
@@ -460,10 +491,16 @@ function ClosedDayToggles({
     );
   }
 
+  const noteId = `${id}-note`;
   return (
     <div className="flex flex-col gap-1">
       <span className={labelClass}>Closed days</span>
-      <div role="group" aria-label="Closed days" className="flex gap-1">
+      <div
+        role="group"
+        aria-label="Closed days"
+        aria-describedby={note ? noteId : undefined}
+        className="flex gap-1"
+      >
         {SHORT_WEEKDAYS.map((short, day) => {
           const closed = value.includes(day);
           return (
@@ -485,7 +522,11 @@ function ClosedDayToggles({
           );
         })}
       </div>
-      {note && <p className="text-chip text-muted">{note}</p>}
+      {note && (
+        <p id={noteId} className="text-chip text-muted">
+          {note}
+        </p>
+      )}
     </div>
   );
 }
