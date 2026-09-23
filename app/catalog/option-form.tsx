@@ -83,6 +83,10 @@ export function OptionForm({
   const [closedDays, setClosedDays] = useState<number[]>(
     initial?.closedDays ?? [],
   );
+  // A Places autofill sets this so the toggles can disclose they came from
+  // Google's hours, not hand entry; a manual toggle afterward clears it, the
+  // same shape as `urlKept` guarding the URL field's note.
+  const [closedDaysSynced, setClosedDaysSynced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Holds "Saved ✓" on the submit button for a beat before `onSaved` fires —
   // otherwise a save that collapses or navigates the form away is completely
@@ -132,7 +136,17 @@ export function OptionForm({
     }
     setMapsUrl(autofill.mapsUrl);
     setGooglePlaceId(autofill.googlePlaceId);
-    if (autofill.closedDays !== null) setClosedDays(autofill.closedDays);
+    if (autofill.closedDays !== null) {
+      setClosedDays(autofill.closedDays);
+      setClosedDaysSynced(true);
+    }
+  }
+
+  /** A manual toggle always wins over — and clears the disclosure for — a
+   *  prior Google sync, the same reasoning as the URL field's `urlKept`. */
+  function handleClosedDaysChange(next: number[]) {
+    setClosedDays(next);
+    setClosedDaysSynced(false);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -228,7 +242,15 @@ export function OptionForm({
       />
 
       {isRestaurant && (
-        <ClosedDayToggles value={closedDays} onChange={setClosedDays} />
+        <ClosedDayToggles
+          value={closedDays}
+          onChange={handleClosedDaysChange}
+          note={
+            closedDaysSynced
+              ? "Set from Google's hours — edit if it's wrong."
+              : undefined
+          }
+        />
       )}
 
       <div className="flex flex-col gap-1">
@@ -417,14 +439,18 @@ function TextField({
  * week-shape the control is read by, so the chips sit at 36px (`h-9`) and
  * fill the row's width evenly instead. Each chip carries `aria-pressed` and
  * an accessible name naming the full day and its state — a bare "S" is
- * ambiguous between Saturday and Sunday even visually.
+ * ambiguous between Saturday and Sunday even visually. `note` — the
+ * post-Google-match disclosure — renders below the row exactly like
+ * `TextField`'s own optional note.
  */
 function ClosedDayToggles({
   value,
   onChange,
+  note,
 }: {
   value: number[];
   onChange: (value: number[]) => void;
+  note?: ReactNode;
 }) {
   function toggle(day: number) {
     onChange(
@@ -459,6 +485,7 @@ function ClosedDayToggles({
           );
         })}
       </div>
+      {note && <p className="text-chip text-muted">{note}</p>}
     </div>
   );
 }
