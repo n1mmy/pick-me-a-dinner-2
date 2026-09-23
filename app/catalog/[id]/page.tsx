@@ -286,35 +286,56 @@ const SHORT_WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
 /**
  * Closed days on the Option detail page (PRD: Closed days), as the same
- * seven-chip week row the Restaurant form's Closed-day toggles use — a
+ * seven-letter week shape the Restaurant form's Closed-day toggles use — a
  * read-only echo of that control rather than a summary sentence, so the
- * shape of the week reads the same in both places. Not interactive: plain
- * `span`s, no hover or focus ring. Each chip still carries an accessible
- * name naming the full day and its state, matching the toggle's own
- * reasoning that a bare "S" is ambiguous even visually.
+ * shape of the week reads the same in both places. Deliberately styled
+ * lighter than the form's toggles (badge radius, no fixed height, a muted
+ * fill) rather than copied exactly: this row isn't a control, and matching
+ * a tappable-looking 36px chip row on a page that also has real buttons
+ * invites a tap that does nothing.
+ *
+ * `aria-label` on a bare `<span>` isn't reliably announced (ARIA doesn't
+ * license naming the generic role, and several screen readers skip it), so
+ * the per-day state a sighted reader gets from the row goes to an `sr-only`
+ * sentence instead, and the visual row is hidden from assistive tech
+ * entirely rather than read as a bare, meaningless "S M T W T F S".
  */
 function ClosedDayChips({ closedDays }: { closedDays: number[] }) {
   return (
-    <div role="group" aria-label="Closed days" className="flex gap-1">
-      {SHORT_WEEKDAYS.map((short, day) => {
-        const closed = closedDays.includes(day);
-        return (
-          <span
-            key={day}
-            aria-label={`${WEEKDAY_NAMES[day]}: ${closed ? "closed" : "open"}`}
-            className={`flex h-9 flex-1 items-center justify-center
-              rounded-control border text-body font-emphasis ${
-              closed
-                ? "border-action bg-action text-action-ink"
-                : "border-line bg-surface text-ink"
-            }`}
-          >
-            {short}
-          </span>
-        );
-      })}
-    </div>
+    <>
+      <p className="sr-only">{closedDaysSummary(closedDays)}</p>
+      <div aria-hidden="true" className="flex gap-1">
+        {SHORT_WEEKDAYS.map((short, day) => {
+          const closed = closedDays.includes(day);
+          return (
+            <span
+              key={day}
+              className={`flex flex-1 items-center justify-center
+                rounded-badge border py-1 text-meta font-emphasis ${
+                closed
+                  ? "border-action bg-raised text-ink"
+                  : "border-line bg-surface text-muted"
+              }`}
+            >
+              {short}
+            </span>
+          );
+        })}
+      </div>
+    </>
   );
+}
+
+/** `"Closed Sundays and Mondays"` — the `sr-only` companion to the week-chip
+ *  row above, since the row's own per-day state is hidden from assistive
+ *  tech. `closedDays` is never empty here (the caller only renders this for
+ *  `hasClosedDays`). */
+function closedDaysSummary(closedDays: number[]): string {
+  const names = [...closedDays]
+    .sort((a, b) => a - b)
+    .map((day) => `${WEEKDAY_NAMES[day]}s`);
+  if (names.length === 1) return `Closed ${names[0]}`;
+  return `Closed ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /**
