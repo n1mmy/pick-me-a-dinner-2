@@ -114,27 +114,47 @@ function toSummary(raw: unknown): PlaceSummary {
   };
 }
 
+/** One raw `regularOpeningHours.periods[]` entry, loosely typed. */
+type RawPeriod = {
+  open?: { day?: unknown };
+  close?: { day?: unknown };
+} | null;
+
 /**
  * Derive Closed days from a raw `regularOpeningHours`. Google's `periods` omit
  * the days a place is shut, so a weekday is closed when no period *opens* on
  * it (`day` is `0` = Sunday, the app's own convention). A period that opens
- * late one day and closes after midnight counts only for the day it opens —
- * the right reading for dinner. An always-open place is a single period with
- * no `close`, i.e. open every day. Missing or empty hours mean Google does
- * not know, which is `null`, not "closed all week".
+ * late one day and closes after midnight the next counts only for the day it
+ * opens — the right reading for dinner — but a period spanning further than
+ * one night (e.g. a 24-hour diner's single Monday-to-Wednesday period) also
+ * marks the day(s) strictly in between as open, since the place is plainly
+ * open on them too. An always-open place is exactly one period with no
+ * `close`, i.e. open every day; any *other* period missing a `close` is
+ * malformed rather than a signal, so it's skipped instead of being read as
+ * "open all week". Missing or empty hours mean Google does not know, which is
+ * `null`, not "closed all week".
  */
 function closedDaysFromHours(raw: unknown): number[] | null {
   const periods = (raw as { periods?: unknown } | undefined)?.periods;
   if (!Array.isArray(periods) || periods.length === 0) return null;
+  const typed = periods as RawPeriod[];
+
+  if (typed.length === 1 && typed[0]?.close === undefined) {
+    return typeof typed[0]?.open?.day === "number" ? [] : null;
+  }
+
   const openDays = new Set<number>();
-  for (const period of periods as ({
-    open?: { day?: unknown };
-    close?: unknown;
-  } | null)[]) {
+  for (const period of typed) {
     const day = period?.open?.day;
     if (typeof day !== "number") continue;
-    if (period?.close === undefined) return [];
+    if (period?.close === undefined) continue; // malformed; not a signal
     openDays.add(day);
+    const closeDay = period?.close?.day;
+    if (typeof closeDay === "number" && closeDay !== day) {
+      for (let d = (day + 1) % 7; d !== closeDay; d = (d + 1) % 7) {
+        openDays.add(d);
+      }
+    }
   }
   if (openDays.size === 0) return null;
   return [0, 1, 2, 3, 4, 5, 6].filter((day) => !openDays.has(day));

@@ -211,6 +211,52 @@ describe("getPlaceDetails", () => {
     ).toEqual([]);
   });
 
+  it("marks the day(s) strictly between open and close as open too", async () => {
+    // A 24-hour diner: one period from Monday 00:00 to Thursday 00:00, shut
+    // the rest of the week. Monday opens the period itself; Tuesday and
+    // Wednesday have no period of their own and are only open via the span.
+    expect(
+      await closedDaysFor({
+        periods: [
+          { open: { day: 1, hour: 0, minute: 0 }, close: { day: 4, hour: 0, minute: 0 } },
+        ],
+      }),
+    ).toEqual([0, 4, 5, 6]);
+  });
+
+  it("dedupes a split shift on the same day into one open day", async () => {
+    expect(
+      await closedDaysFor({
+        periods: [
+          { open: { day: 2, hour: 11, minute: 30 }, close: { day: 2, hour: 14, minute: 0 } },
+          { open: { day: 2, hour: 17, minute: 0 }, close: { day: 2, hour: 22, minute: 0 } },
+        ],
+      }),
+    ).toEqual([0, 1, 3, 4, 5, 6]);
+  });
+
+  it("skips a malformed period instead of reading it as always-open", async () => {
+    // A real Tue–Sat schedule, plus one bad entry with an open day but no
+    // close — that entry alone must not clear the whole week.
+    expect(
+      await closedDaysFor({
+        periods: [
+          ...[2, 3, 4, 5, 6].map((day) => ({
+            open: { day, hour: 17, minute: 0 },
+            close: { day, hour: 22, minute: 0 },
+          })),
+          { open: { day: 1 } },
+        ],
+      }),
+    ).toEqual([0, 1]);
+  });
+
+  it("returns null when every period is malformed", async () => {
+    expect(
+      await closedDaysFor({ periods: [{}, { open: {} }] }),
+    ).toBeNull();
+  });
+
   it("returns null closed days when Google has no hours on file", async () => {
     expect(await closedDaysFor(undefined)).toBeNull();
     expect(await closedDaysFor({ periods: [] })).toBeNull();
