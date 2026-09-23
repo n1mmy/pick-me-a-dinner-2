@@ -2,8 +2,12 @@
 
 "Start the dev server" (no further qualifiers) means, specifically:
 
-1. Copy `.env.k8s` from the main checkout into this worktree as `.env.local`
-   (Next.js loads `.env.local` automatically, ahead of `.env`).
+1. Copy `.env.k8s` into this worktree as `.env.local` (Next.js loads
+   `.env.local` automatically, ahead of `.env`). Where `.env.k8s` lives
+   depends on the machine: on some it is at
+   `~/sync/Sync/pick-me-a-dinner-2/.env.k8s`, on others at the root of the
+   main checkout. Check both; if it is in neither, ask the user rather than
+   hunting through other env files.
 2. `corepack pnpm install --frozen-lockfile` if `node_modules` is missing.
 3. `env -u ANTHROPIC_API_KEY -u ANTHROPIC_BASE_URL -u ANTHROPIC_CUSTOM_HEADERS corepack pnpm exec next dev -H 0.0.0.0` — bound to `0.0.0.0`, not the
    default `localhost`, so it's reachable from outside the container. The
