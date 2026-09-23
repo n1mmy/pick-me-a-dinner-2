@@ -35,9 +35,10 @@ export function boxStateFromSearch(
 }
 
 /**
- * The eight Restaurant fields a selected Google place autofills, each as the
- * string the form's inputs hold. `lat`/`lng` render as their decimal text and
- * stay editable; a missing coordinate becomes an empty field.
+ * The nine Restaurant fields a selected Google place autofills, each in the
+ * shape the form's inputs hold. `lat`/`lng` render as their decimal text and
+ * stay editable; a missing coordinate becomes an empty field. `closedDays` is
+ * `null` when Google has no hours on file — the form then keeps its toggles.
  */
 export type PlaceAutofill = {
   name: string;
@@ -48,9 +49,10 @@ export type PlaceAutofill = {
   url: string;
   mapsUrl: string;
   googlePlaceId: string;
+  closedDays: number[] | null;
 };
 
-/** Map a fetched `PlaceDetails` to the eight editable form-field strings. */
+/** Map a fetched `PlaceDetails` to the nine editable form-field values. */
 export function autofillFromPlace(details: PlaceDetails): PlaceAutofill {
   return {
     name: details.name,
@@ -61,5 +63,6 @@ export function autofillFromPlace(details: PlaceDetails): PlaceAutofill {
     url: details.url,
     mapsUrl: details.mapsUrl,
     googlePlaceId: details.googlePlaceId,
+    closedDays: details.closedDays,
   };
 }

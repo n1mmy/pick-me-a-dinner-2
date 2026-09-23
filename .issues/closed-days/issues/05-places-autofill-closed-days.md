@@ -1,6 +1,6 @@
 # 05 — Autofill Closed days from Google Places
 
-Status: needs-triage
+Status: done
 Type: AFK
 
 ## Parent
@@ -51,3 +51,10 @@ of the match, and the Household owns the value from then on.
 ## Blocked by
 
 - Issue 02 (there must be a Closed-days control to prefill)
+
+## Comments
+
+- 2026-09-23: Picked up by user request. A weekday is closed when no
+  `regularOpeningHours` period opens on it; a period with no `close` (always
+  open) means none closed; missing/empty hours leave the toggles untouched.
+  Shape checked against Google's published reference, not a live call.

@@ -115,7 +115,8 @@ export function OptionForm({
    * Apply a Google place's detail to the fields — all stay editable after. An
    * already-filled URL is kept, not overwritten: a hand-picked menu link is
    * usually better than the Place's generic website, so a match flags
-   * `urlKept` instead of clobbering it.
+   * `urlKept` instead of clobbering it. Closed days follow Google's regular
+   * hours when it has any; with none on file the toggles are left as they are.
    */
   function applyAutofill(autofill: PlaceAutofill) {
     setName(autofill.name);
@@ -131,6 +132,7 @@ export function OptionForm({
     }
     setMapsUrl(autofill.mapsUrl);
     setGooglePlaceId(autofill.googlePlaceId);
+    if (autofill.closedDays !== null) setClosedDays(autofill.closedDays);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

@@ -28,7 +28,7 @@ export type PlaceSummary = {
   address: string;
 };
 
-/** Full detail for a selected place — the eight Restaurant autofill fields. */
+/** Full detail for a selected place — the nine Restaurant autofill fields. */
 export type PlaceDetails = {
   name: string;
   address: string;
@@ -38,6 +38,12 @@ export type PlaceDetails = {
   url: string;
   mapsUrl: string;
   googlePlaceId: string;
+  /**
+   * Weekdays the place is shut (`0` = Sunday, ascending), derived from its
+   * regular opening hours — or `null` when Google has no hours on file, so
+   * the caller can leave the Household's own Closed days untouched.
+   */
+  closedDays: number[] | null;
 };
 
 /** The small interface the Restaurant form depends on. */
@@ -108,7 +114,33 @@ function toSummary(raw: unknown): PlaceSummary {
   };
 }
 
-/** Map a raw place-details body to the eight autofill fields. */
+/**
+ * Derive Closed days from a raw `regularOpeningHours`. Google's `periods` omit
+ * the days a place is shut, so a weekday is closed when no period *opens* on
+ * it (`day` is `0` = Sunday, the app's own convention). A period that opens
+ * late one day and closes after midnight counts only for the day it opens —
+ * the right reading for dinner. An always-open place is a single period with
+ * no `close`, i.e. open every day. Missing or empty hours mean Google does
+ * not know, which is `null`, not "closed all week".
+ */
+function closedDaysFromHours(raw: unknown): number[] | null {
+  const periods = (raw as { periods?: unknown } | undefined)?.periods;
+  if (!Array.isArray(periods) || periods.length === 0) return null;
+  const openDays = new Set<number>();
+  for (const period of periods as ({
+    open?: { day?: unknown };
+    close?: unknown;
+  } | null)[]) {
+    const day = period?.open?.day;
+    if (typeof day !== "number") continue;
+    if (period?.close === undefined) return [];
+    openDays.add(day);
+  }
+  if (openDays.size === 0) return null;
+  return [0, 1, 2, 3, 4, 5, 6].filter((day) => !openDays.has(day));
+}
+
+/** Map a raw place-details body to the nine autofill fields. */
 function toDetails(raw: unknown): PlaceDetails {
   const place = raw as {
     id?: unknown;
@@ -118,6 +150,7 @@ function toDetails(raw: unknown): PlaceDetails {
     location?: { latitude?: unknown; longitude?: unknown };
     websiteUri?: unknown;
     googleMapsUri?: unknown;
+    regularOpeningHours?: unknown;
   };
   return {
     name: asString(place.displayName?.text),
@@ -128,6 +161,7 @@ function toDetails(raw: unknown): PlaceDetails {
     url: asString(place.websiteUri),
     mapsUrl: asString(place.googleMapsUri),
     googlePlaceId: asString(place.id),
+    closedDays: closedDaysFromHours(place.regularOpeningHours),
   };
 }
 
@@ -166,7 +200,7 @@ export function createPlacesClient(apiKey: string): PlacesClient {
           headers: {
             "X-Goog-FieldMask":
               "id,displayName,formattedAddress,internationalPhoneNumber," +
-              "location,websiteUri,googleMapsUri",
+              "location,websiteUri,googleMapsUri,regularOpeningHours",
           },
         },
       );
