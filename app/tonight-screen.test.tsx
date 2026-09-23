@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 import {
   act,
   cleanup,
@@ -601,6 +608,121 @@ describe("TonightScreen — AI search", () => {
     // AI list because it left `pickerRows`.
     expect(screen.queryByText("Sweet and quick")).toBeNull();
   });
+
+  it("keeps an AI result on screen across a Selected-day change", async () => {
+    // ADR-0009, amendment 2026-09-22: stepping the day keeps the query and the
+    // result, resolved against the new day's rows.
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [
+        { id: "o1", reason: "Sweet and quick" },
+        { id: "o2", reason: "Light and quick" },
+      ],
+    });
+
+    const { rerender } = render(
+      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "something light" } });
+    await submitSearchAndSettle();
+    await screen.findByText("Light and quick");
+
+    // Step to Friday, where o1 is rejected or closed and so not in the rows.
+    rerender(
+      <TonightScreen selectedDay="2026-05-22" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={[ROWS[1]]} searchEnabled />,
+    );
+
+    expect(screen.getByText("Light and quick")).toBeTruthy();
+    expect(screen.queryByText("Sweet and quick")).toBeNull();
+    expect(searchInput().value).toBe("something light");
+    expect(
+      screen.getByRole("button", { name: /^Search complete/ }),
+    ).toBeTruthy();
+  });
+
+  it("lands an in-flight AI search that was started before a Selected-day change", async () => {
+    let resolveSearch: (result: AiSearchResult) => void = () => {};
+    mockedAiSearch.mockReturnValue(
+      new Promise<AiSearchResult>((resolve) => {
+        resolveSearch = resolve;
+      }),
+    );
+
+    const { rerender } = render(
+      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByRole("button", { name: /^Cancel search/ });
+
+    rerender(
+      <TonightScreen selectedDay="2026-05-22" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+    );
+    // Still in flight — the day change did not cancel it.
+    expect(screen.getByRole("button", { name: /^Cancel search/ })).toBeTruthy();
+
+    await act(async () => {
+      resolveSearch({
+        ok: true,
+        results: [{ id: "o2", reason: "Light and quick" }],
+      });
+    });
+    expect(await screen.findByText("Light and quick")).toBeTruthy();
+  });
+
+  it("keeps the result and done badge when a day change flips picker → decided mode", async () => {
+    // The new day already has a Pick, so the Picker (and its search box)
+    // remounts inside the "Add another option" section.
+    vi.stubGlobal("scrollTo", vi.fn());
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o2", reason: "Light and quick" }],
+    });
+
+    const { rerender } = render(
+      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+    );
+    await submitSearchAndSettle();
+    await screen.findByRole("button", { name: /^Search complete/ });
+
+    rerender(
+      <TonightScreen selectedDay="2026-05-22" todaySql="2026-05-20" tonightsDinner={[DINNER[0]]} pickerRows={[ROWS[1]]} searchEnabled />,
+    );
+
+    expect(
+      screen.getByRole("region", { name: "Add another option" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Light and quick")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /^Search complete/ }),
+    ).toBeTruthy();
+  });
+
+  it("keeps counting an in-flight search's time when a day change remounts the search box", () => {
+    vi.stubGlobal("scrollTo", vi.fn());
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    mockedAiSearch.mockReturnValue(new Promise<AiSearchResult>(() => {}));
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    onTestFinished(() => now.mockRestore());
+
+    const { rerender } = render(
+      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(
+      screen.getByRole("button", { name: "Cancel search — 0 seconds elapsed" }),
+    ).toBeTruthy();
+
+    // Seven seconds in, step to a day that already has a Pick.
+    now.mockReturnValue(1_007_000);
+    rerender(
+      <TonightScreen selectedDay="2026-05-22" todaySql="2026-05-20" tonightsDinner={[DINNER[0]]} pickerRows={[ROWS[1]]} searchEnabled />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Cancel search — 7 seconds elapsed" }),
+    ).toBeTruthy();
+  });
 });
 
 describe("TonightScreen — search typeahead", () => {
@@ -1076,6 +1198,31 @@ describe("TonightScreen — Closed disclosure", () => {
     // Collapsed by default — no closed-row names on screen yet.
     expect(screen.queryByText("Zed Diner")).toBeNull();
     expect(closedButton.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("links each Rejected and Closed Option name to its detail page", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+        rejectedTonight={[
+          { id: "r1", optionId: "o3", optionName: "Curry House", reason: null },
+        ]}
+        closedTonight={[row("o4", "Zed Diner")]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Rejected tonight/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Closed tonight/ }));
+
+    expect(
+      screen.getByRole("link", { name: "Curry House" }).getAttribute("href"),
+    ).toBe("/catalog/o3");
+    expect(
+      screen.getByRole("link", { name: "Zed Diner" }).getAttribute("href"),
+    ).toBe("/catalog/o4");
   });
 
   it("expands to show alphabetically-ordered rows with full Pick/Reject controls and an empty rank gutter", () => {
