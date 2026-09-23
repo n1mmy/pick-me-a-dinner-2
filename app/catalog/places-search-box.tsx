@@ -27,17 +27,21 @@ const inputClass =
  * so it reads as the form's starting point rather than a correction after
  * the fact. `label` lets the caller distinguish add ("Start from Google")
  * from edit ("Re-sync from Google"), since a search here on an existing
- * Restaurant is a refresh, not a first entry.
+ * Restaurant is a refresh, not a first entry. `initialQuery` prefills the
+ * query field on that same edit case — the existing name, so re-syncing is
+ * "hit Search" rather than retyping a name the Household already gave it.
  */
 export function PlacesSearchBox({
   label = "Search Google",
+  initialQuery = "",
   onAutofill,
 }: {
   label?: string;
+  initialQuery?: string;
   onAutofill: (autofill: PlaceAutofill) => void;
 }) {
   const fieldId = useId();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [state, setState] = useState<PlacesBoxState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
 

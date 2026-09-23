@@ -183,6 +183,7 @@ export function OptionForm({
         <PlacesSearchBox
           onAutofill={applyAutofill}
           label={initial ? "Re-sync from Google" : "Start from Google"}
+          initialQuery={initial?.name ?? ""}
         />
       )}
 
