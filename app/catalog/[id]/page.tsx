@@ -123,9 +123,7 @@ export default async function OptionDetailPage({
   const activity = [...upcoming].reverse().concat(history);
 
   const isRestaurant = option.kind === "restaurant";
-  const closedDays = isRestaurant
-    ? closedDaysSummary(option.closedDays)
-    : null;
+  const hasClosedDays = isRestaurant && option.closedDays.length > 0;
   // A Catalog `url` / `mapsUrl` is free text, never scheme-checked on save —
   // only an http(s) value may render as a live link; anything else stays
   // visible as plain text (see `safeHttpUrl`).
@@ -138,7 +136,7 @@ export default async function OptionDetailPage({
       (Boolean(option.address) ||
         Boolean(option.phone) ||
         Boolean(option.mapsUrl) ||
-        closedDays !== null));
+        hasClosedDays));
 
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
@@ -225,8 +223,10 @@ export default async function OptionDetailPage({
                     )}
                   </Field>
                 )}
-                {isRestaurant && closedDays && (
-                  <Field label="Closed days">{closedDays}</Field>
+                {isRestaurant && hasClosedDays && (
+                  <Field label="Closed days">
+                    <ClosedDayChips closedDays={option.closedDays} />
+                  </Field>
                 )}
               </dl>
             </section>
@@ -280,17 +280,41 @@ export default async function OptionDetailPage({
   );
 }
 
+/** `S M T W T F S`, Sunday first — the same letters as the Restaurant form's
+ *  Closed-day toggles (`ClosedDayToggles` in `option-form.tsx`). */
+const SHORT_WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
+
 /**
- * "Closed Sundays and Mondays" — the Closed days line on the Option detail
- * page (PRD: Closed days). `null` for an empty set, so the caller omits the
- * `Field` exactly like every other blank Restaurant field.
+ * Closed days on the Option detail page (PRD: Closed days), as the same
+ * seven-chip week row the Restaurant form's Closed-day toggles use — a
+ * read-only echo of that control rather than a summary sentence, so the
+ * shape of the week reads the same in both places. Not interactive: plain
+ * `span`s, no hover or focus ring. Each chip still carries an accessible
+ * name naming the full day and its state, matching the toggle's own
+ * reasoning that a bare "S" is ambiguous even visually.
  */
-function closedDaysSummary(closedDays: number[]): string | null {
-  if (closedDays.length === 0) return null;
-  const names = closedDays.map((day) => `${WEEKDAY_NAMES[day]}s`);
-  if (names.length === 1) return `Closed ${names[0]}`;
-  const last = names[names.length - 1];
-  return `Closed ${names.slice(0, -1).join(", ")} and ${last}`;
+function ClosedDayChips({ closedDays }: { closedDays: number[] }) {
+  return (
+    <div role="group" aria-label="Closed days" className="flex gap-1">
+      {SHORT_WEEKDAYS.map((short, day) => {
+        const closed = closedDays.includes(day);
+        return (
+          <span
+            key={day}
+            aria-label={`${WEEKDAY_NAMES[day]}: ${closed ? "closed" : "open"}`}
+            className={`flex h-9 flex-1 items-center justify-center
+              rounded-control border text-body font-emphasis ${
+              closed
+                ? "border-action bg-action text-action-ink"
+                : "border-line bg-surface text-ink"
+            }`}
+          >
+            {short}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 /**
