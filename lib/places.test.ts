@@ -128,7 +128,7 @@ describe("searchGoogle", () => {
 });
 
 describe("getPlaceDetails", () => {
-  it("maps a place body to the eight autofill fields", async () => {
+  it("maps a place body to the nine autofill fields", async () => {
     stubFetch(
       vi.fn(async () =>
         jsonResponse({
@@ -139,6 +139,13 @@ describe("getPlaceDetails", () => {
           location: { latitude: 37.7749, longitude: -122.4194 },
           websiteUri: "https://elcomal.example",
           googleMapsUri: "https://maps.google.com/?cid=1",
+          regularOpeningHours: {
+            // Tue–Sat dinner service; shut Sunday and Monday.
+            periods: [2, 3, 4, 5, 6].map((day) => ({
+              open: { day, hour: 17, minute: 0 },
+              close: { day, hour: 22, minute: 0 },
+            })),
+          },
         }),
       ) as unknown as typeof fetch,
     );
@@ -156,8 +163,103 @@ describe("getPlaceDetails", () => {
         url: "https://elcomal.example",
         mapsUrl: "https://maps.google.com/?cid=1",
         googlePlaceId: "place-1",
+        closedDays: [0, 1],
       },
     });
+  });
+
+  it("requests regularOpeningHours in the details field mask", async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse({ id: "place-1" }));
+    stubFetch(fetchSpy as unknown as typeof fetch);
+
+    await createPlacesClient("key").getPlaceDetails("place-1");
+
+    const init = (fetchSpy.mock.calls[0] as unknown[])[1] as RequestInit;
+    expect(
+      (init.headers as Record<string, string>)["X-Goog-FieldMask"],
+    ).toContain("regularOpeningHours");
+  });
+
+  /** Fetch details for a body carrying only the given `regularOpeningHours`. */
+  async function closedDaysFor(regularOpeningHours: unknown) {
+    stubFetch(
+      vi.fn(async () =>
+        jsonResponse({ id: "place-1", regularOpeningHours }),
+      ) as unknown as typeof fetch,
+    );
+    const result = await createPlacesClient("key").getPlaceDetails("place-1");
+    if (!result.ok) throw new Error("expected details");
+    return result.value.closedDays;
+  }
+
+  it("counts an after-midnight close only for the day the period opens", async () => {
+    // Opens Fri and Sat evenings, each closing early the next morning — so
+    // Saturday and Sunday mornings are not "open days" in their own right.
+    expect(
+      await closedDaysFor({
+        periods: [
+          { open: { day: 5, hour: 18, minute: 0 }, close: { day: 6, hour: 2, minute: 0 } },
+          { open: { day: 6, hour: 18, minute: 0 }, close: { day: 0, hour: 2, minute: 0 } },
+        ],
+      }),
+    ).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("reads an always-open place (a period with no close) as never closed", async () => {
+    expect(
+      await closedDaysFor({ periods: [{ open: { day: 0, hour: 0, minute: 0 } }] }),
+    ).toEqual([]);
+  });
+
+  it("marks the day(s) strictly between open and close as open too", async () => {
+    // A 24-hour diner: one period from Monday 00:00 to Thursday 00:00, shut
+    // the rest of the week. Monday opens the period itself; Tuesday and
+    // Wednesday have no period of their own and are only open via the span.
+    expect(
+      await closedDaysFor({
+        periods: [
+          { open: { day: 1, hour: 0, minute: 0 }, close: { day: 4, hour: 0, minute: 0 } },
+        ],
+      }),
+    ).toEqual([0, 4, 5, 6]);
+  });
+
+  it("dedupes a split shift on the same day into one open day", async () => {
+    expect(
+      await closedDaysFor({
+        periods: [
+          { open: { day: 2, hour: 11, minute: 30 }, close: { day: 2, hour: 14, minute: 0 } },
+          { open: { day: 2, hour: 17, minute: 0 }, close: { day: 2, hour: 22, minute: 0 } },
+        ],
+      }),
+    ).toEqual([0, 1, 3, 4, 5, 6]);
+  });
+
+  it("skips a malformed period instead of reading it as always-open", async () => {
+    // A real Tue–Sat schedule, plus one bad entry with an open day but no
+    // close — that entry alone must not clear the whole week.
+    expect(
+      await closedDaysFor({
+        periods: [
+          ...[2, 3, 4, 5, 6].map((day) => ({
+            open: { day, hour: 17, minute: 0 },
+            close: { day, hour: 22, minute: 0 },
+          })),
+          { open: { day: 1 } },
+        ],
+      }),
+    ).toEqual([0, 1]);
+  });
+
+  it("returns null when every period is malformed", async () => {
+    expect(
+      await closedDaysFor({ periods: [{}, { open: {} }] }),
+    ).toBeNull();
+  });
+
+  it("returns null closed days when Google has no hours on file", async () => {
+    expect(await closedDaysFor(undefined)).toBeNull();
+    expect(await closedDaysFor({ periods: [] })).toBeNull();
   });
 
   it("leaves a missing field empty rather than failing", async () => {
@@ -180,6 +282,7 @@ describe("getPlaceDetails", () => {
         url: "",
         mapsUrl: "",
         googlePlaceId: "place-1",
+        closedDays: null,
       },
     });
   });

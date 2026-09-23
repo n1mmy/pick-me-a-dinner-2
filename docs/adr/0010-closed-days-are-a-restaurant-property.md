@@ -78,3 +78,6 @@ series, and no end condition to edit.
   deliberately deferred: the Catalog that hurts today is already saved, so every
   one of those Restaurants needs hand entry regardless, and Google's hours are
   wrong often enough that the field must stay editable in any case.
+  *Amended 2026-09-23:* autofill has since landed (closed-days issue 05) — a
+  Places match now requests `regularOpeningHours` and prefills the toggles,
+  still editable, and still written once at the match rather than kept synced.

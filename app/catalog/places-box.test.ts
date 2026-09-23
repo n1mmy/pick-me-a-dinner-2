@@ -15,10 +15,11 @@ const fullDetails: PlaceDetails = {
   url: "https://elcomal.example",
   mapsUrl: "https://maps.google.com/?cid=1",
   googlePlaceId: "place-1",
+  closedDays: [1],
 };
 
 describe("autofillFromPlace", () => {
-  it("maps every one of the eight fields a selected place fills in", () => {
+  it("maps every one of the nine fields a selected place fills in", () => {
     expect(autofillFromPlace(fullDetails)).toEqual({
       name: "El Comal",
       address: "123 Main St",
@@ -28,7 +29,14 @@ describe("autofillFromPlace", () => {
       url: "https://elcomal.example",
       mapsUrl: "https://maps.google.com/?cid=1",
       googlePlaceId: "place-1",
+      closedDays: [1],
     });
+  });
+
+  it("passes through null closed days so the form keeps its toggles", () => {
+    expect(
+      autofillFromPlace({ ...fullDetails, closedDays: null }).closedDays,
+    ).toBeNull();
   });
 
   it("renders a missing coordinate as an empty, still-editable field", () => {

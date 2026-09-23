@@ -123,9 +123,7 @@ export default async function OptionDetailPage({
   const activity = [...upcoming].reverse().concat(history);
 
   const isRestaurant = option.kind === "restaurant";
-  const closedDays = isRestaurant
-    ? closedDaysSummary(option.closedDays)
-    : null;
+  const hasClosedDays = isRestaurant && option.closedDays.length > 0;
   // A Catalog `url` / `mapsUrl` is free text, never scheme-checked on save —
   // only an http(s) value may render as a live link; anything else stays
   // visible as plain text (see `safeHttpUrl`).
@@ -138,7 +136,7 @@ export default async function OptionDetailPage({
       (Boolean(option.address) ||
         Boolean(option.phone) ||
         Boolean(option.mapsUrl) ||
-        closedDays !== null));
+        hasClosedDays));
 
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
@@ -225,8 +223,10 @@ export default async function OptionDetailPage({
                     )}
                   </Field>
                 )}
-                {isRestaurant && closedDays && (
-                  <Field label="Closed days">{closedDays}</Field>
+                {isRestaurant && hasClosedDays && (
+                  <Field label="Closed days">
+                    <ClosedDayChips closedDays={option.closedDays} />
+                  </Field>
                 )}
               </dl>
             </section>
@@ -280,17 +280,62 @@ export default async function OptionDetailPage({
   );
 }
 
+/** `S M T W T F S`, Sunday first — the same letters as the Restaurant form's
+ *  Closed-day toggles (`ClosedDayToggles` in `option-form.tsx`). */
+const SHORT_WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
+
 /**
- * "Closed Sundays and Mondays" — the Closed days line on the Option detail
- * page (PRD: Closed days). `null` for an empty set, so the caller omits the
- * `Field` exactly like every other blank Restaurant field.
+ * Closed days on the Option detail page (PRD: Closed days), as the same
+ * seven-letter week shape the Restaurant form's Closed-day toggles use — a
+ * read-only echo of that control rather than a summary sentence, so the
+ * shape of the week reads the same in both places. Deliberately styled
+ * lighter than the form's toggles (badge radius, no fixed height, a muted
+ * fill) rather than copied exactly: this row isn't a control, and matching
+ * a tappable-looking 36px chip row on a page that also has real buttons
+ * invites a tap that does nothing.
+ *
+ * `aria-label` on a bare `<span>` isn't reliably announced (ARIA doesn't
+ * license naming the generic role, and several screen readers skip it), so
+ * the per-day state a sighted reader gets from the row goes to an `sr-only`
+ * sentence instead, and the visual row is hidden from assistive tech
+ * entirely rather than read as a bare, meaningless "S M T W T F S".
  */
-function closedDaysSummary(closedDays: number[]): string | null {
-  if (closedDays.length === 0) return null;
-  const names = closedDays.map((day) => `${WEEKDAY_NAMES[day]}s`);
+function ClosedDayChips({ closedDays }: { closedDays: number[] }) {
+  return (
+    <>
+      <p className="sr-only">{closedDaysSummary(closedDays)}</p>
+      <div aria-hidden="true" className="flex gap-1">
+        {SHORT_WEEKDAYS.map((short, day) => {
+          const closed = closedDays.includes(day);
+          return (
+            <span
+              key={day}
+              className={`flex flex-1 items-center justify-center
+                rounded-badge border py-1 text-meta font-emphasis ${
+                closed
+                  ? "border-action bg-raised text-ink"
+                  : "border-line bg-surface text-muted"
+              }`}
+            >
+              {short}
+            </span>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+/** `"Closed Sundays and Mondays"` — the `sr-only` companion to the week-chip
+ *  row above, since the row's own per-day state is hidden from assistive
+ *  tech. `closedDays` is never empty here (the caller only renders this for
+ *  `hasClosedDays`). */
+function closedDaysSummary(closedDays: number[]): string {
+  const names = [...closedDays]
+    .sort((a, b) => a - b)
+    .map((day) => `${WEEKDAY_NAMES[day]}s`);
   if (names.length === 1) return `Closed ${names[0]}`;
-  const last = names[names.length - 1];
-  return `Closed ${names.slice(0, -1).join(", ")} and ${last}`;
+  return `Closed ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /**
