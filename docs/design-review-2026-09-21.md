@@ -229,9 +229,11 @@ Ranked by value, kept inside the "sharp instrument" brief. #1-3 are done;
    rest; the Search button becomes a Cancel affordance while pending (still
    showing the live elapsed-second count) that returns the Household to
    "Search" immediately, without waiting on the model call already dispatched
-   server-side. A `searchGenerationRef` bump on Cancel/Clear/day-change guards
-   a since-abandoned response from landing late and overwriting state nobody
-   is waiting on. Covered by three `tonight-screen.test.tsx` cases: the box
+   server-side. A `searchGenerationRef` bump on Cancel/Clear guards a
+   since-abandoned response from landing late and overwriting state nobody is
+   waiting on. (A day change used to bump it too; since ADR-0009's 2026-09-22
+   amendment a search in flight survives the day change and still lands.)
+   Covered by three `tonight-screen.test.tsx` cases: the box
    staying enabled in flight, a typeahead Pick succeeding while a search never
    resolves, and Cancel dropping a late-arriving result.
 4. **Auto-expand the disclosures when the picker is empty.** In the

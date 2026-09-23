@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 import {
   act,
   cleanup,
@@ -660,6 +667,61 @@ describe("TonightScreen — AI search", () => {
       });
     });
     expect(await screen.findByText("Light and quick")).toBeTruthy();
+  });
+
+  it("keeps the result and done badge when a day change flips picker → decided mode", async () => {
+    // The new day already has a Pick, so the Picker (and its search box)
+    // remounts inside the "Add another option" section.
+    vi.stubGlobal("scrollTo", vi.fn());
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o2", reason: "Light and quick" }],
+    });
+
+    const { rerender } = render(
+      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+    );
+    await submitSearchAndSettle();
+    await screen.findByRole("button", { name: /^Search complete/ });
+
+    rerender(
+      <TonightScreen selectedDay="2026-05-22" todaySql="2026-05-20" tonightsDinner={[DINNER[0]]} pickerRows={[ROWS[1]]} searchEnabled />,
+    );
+
+    expect(
+      screen.getByRole("region", { name: "Add another option" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Light and quick")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /^Search complete/ }),
+    ).toBeTruthy();
+  });
+
+  it("keeps counting an in-flight search's time when a day change remounts the search box", () => {
+    vi.stubGlobal("scrollTo", vi.fn());
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    mockedAiSearch.mockReturnValue(new Promise<AiSearchResult>(() => {}));
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    onTestFinished(() => now.mockRestore());
+
+    const { rerender } = render(
+      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(
+      screen.getByRole("button", { name: "Cancel search — 0 seconds elapsed" }),
+    ).toBeTruthy();
+
+    // Seven seconds in, step to a day that already has a Pick.
+    now.mockReturnValue(1_007_000);
+    rerender(
+      <TonightScreen selectedDay="2026-05-22" todaySql="2026-05-20" tonightsDinner={[DINNER[0]]} pickerRows={[ROWS[1]]} searchEnabled />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Cancel search — 7 seconds elapsed" }),
+    ).toBeTruthy();
   });
 });
 

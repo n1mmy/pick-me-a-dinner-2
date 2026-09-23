@@ -160,11 +160,19 @@ export function TonightScreen({
   const [query, setQuery] = useState("");
   const [aiResults, setAiResults] = useState<AiRankingRow[] | null>(null);
   const [aiError, setAiError] = useState(false);
-  // `searchPending` is our own flag, not `useTransition`'s — Cancel needs to
-  // drop the Household back into control the instant they ask, and React
-  // gives no way to make a transition's `isPending` go false before its
-  // callback actually returns.
-  const [searchPending, setSearchPending] = useState(false);
+  // When the in-flight search started (`Date.now()`), or null when none is in
+  // flight. It doubles as the pending flag — our own, not `useTransition`'s:
+  // Cancel needs to drop the Household back into control the instant they
+  // ask, and React gives no way to make a transition's `isPending` go false
+  // before its callback actually returns. `searchDoneSeconds` is how long the last
+  // successful search took, for the Search button's done badge. Both live here
+  // rather than in `SearchBox` because a day change that flips picker ↔ decided
+  // mode remounts the Picker, which would restart the elapsed timer at 0s and
+  // drop the badge.
+  const [searchStartedAt, setSearchStartedAt] = useState<number | null>(null);
+  const [searchDoneSeconds, setSearchDoneSeconds] = useState<number | null>(
+    null,
+  );
   // `startSearchTransition` wraps only the *post-fetch* state updates so they
   // land as a low-priority update. It must not wrap the `await` itself: an
   // async transition stays pending until its callback returns, and React
@@ -180,10 +188,13 @@ export function TonightScreen({
   //
   // A Selected-day change deliberately does *not* bump it or clear anything
   // (ADR-0009, amendment 2026-09-22): a search in flight or already on screen
-  // persists across the day change, so the Household can step between days
-  // without paying for the 50–90s search again. The result is resolved against
-  // the new day's rows, so an Option rejected, closed, or Picked on that day
-  // simply drops out of it.
+  // persists across the day change, so the Household can step between days —
+  // or Pick — while the 50–90s search comes back, without paying for it again.
+  // The result is resolved against the new day's rows, so an Option rejected,
+  // closed, or Picked on that day simply drops out of it. The reverse is an
+  // accepted gap: an Option available on the new day but not on the searched
+  // day was never a candidate, so it is missing from the result until the
+  // search is cleared.
   const searchGenerationRef = useRef(0);
   const aiActive = aiResults !== null;
 
@@ -192,14 +203,15 @@ export function TonightScreen({
   // update, so nothing here needs transition semantics until the result lands.
   async function runSearch() {
     const generation = ++searchGenerationRef.current;
-    setSearchPending(true);
+    const startedAt = Date.now();
+    setSearchStartedAt(startedAt);
     const result = await aiSearchAction(
       query,
       isToday ? undefined : selectedDay,
     );
     if (searchGenerationRef.current !== generation) return;
     startSearchTransition(() => {
-      setSearchPending(false);
+      setSearchStartedAt(null);
       if (!result.ok) {
         // A failed search leaves the deterministic list exactly as it was. The
         // inline error is persistent — it is not cleared on submit, only when a
@@ -209,6 +221,7 @@ export function TonightScreen({
       }
       setAiError(false);
       setAiResults(result.results);
+      setSearchDoneSeconds(Math.floor((Date.now() - startedAt) / 1000));
     });
   }
 
@@ -219,12 +232,13 @@ export function TonightScreen({
   // generation check in `runSearch`.
   function cancelSearch() {
     searchGenerationRef.current++;
-    setSearchPending(false);
+    setSearchStartedAt(null);
   }
 
   function clearSearch() {
     searchGenerationRef.current++;
-    setSearchPending(false);
+    setSearchStartedAt(null);
+    setSearchDoneSeconds(null);
     setAiResults(null);
     setAiError(false);
     setQuery("");
@@ -346,7 +360,8 @@ export function TonightScreen({
                 onQueryChange={setQuery}
                 aiResults={aiResults}
                 aiError={aiError}
-                searchPending={searchPending}
+                searchStartedAt={searchStartedAt}
+                searchDoneSeconds={searchDoneSeconds}
                 onSubmitSearch={runSearch}
                 onCancelSearch={cancelSearch}
                 onClearSearch={clearSearch}
@@ -366,7 +381,8 @@ export function TonightScreen({
           onQueryChange={setQuery}
           aiResults={aiResults}
           aiError={aiError}
-          searchPending={searchPending}
+          searchStartedAt={searchStartedAt}
+          searchDoneSeconds={searchDoneSeconds}
           onSubmitSearch={runSearch}
           onCancelSearch={cancelSearch}
           onClearSearch={clearSearch}
@@ -627,10 +643,11 @@ function ClosedDisclosure({
  * page header (`TonightScreen`) and scrolls away with it; the picker only reads
  * the resulting `kind`.
  *
- * AI search state — `query`, `aiResults`, `aiError`, the in-flight `pending`
- * flag — is owned by `TonightScreen` and threaded in as props, so a Pick that
- * flips picker → decided (which remounts this component inside a new
- * `<section>` wrapper) does not wipe the result. The search box appears only
+ * AI search state — `query`, `aiResults`, `aiError`, the in-flight search's
+ * start time, the last search's duration — is owned by `TonightScreen` and
+ * threaded in as props, so a Pick or a day change that flips picker ↔ decided
+ * (which remounts this component inside or outside the `<section>` wrapper)
+ * does not wipe the result or restart the timer. The search box appears only
  * when AI search is configured (`searchEnabled`). Submitting it runs an **AI
  * search** (PRD: AI search) — the deterministic list swaps in place for an
  * AI-ranked result, each row carrying an AI rationale. While an AI result is
@@ -648,7 +665,8 @@ function Picker({
   onQueryChange,
   aiResults,
   aiError,
-  searchPending,
+  searchStartedAt,
+  searchDoneSeconds,
   onSubmitSearch,
   onCancelSearch,
   onClearSearch,
@@ -664,7 +682,10 @@ function Picker({
   onQueryChange: (next: string) => void;
   aiResults: AiRankingRow[] | null;
   aiError: boolean;
-  searchPending: boolean;
+  /** When the in-flight AI search started (`Date.now()`); null when none is. */
+  searchStartedAt: number | null;
+  /** How long the last successful AI search took, in whole seconds. */
+  searchDoneSeconds: number | null;
   onSubmitSearch: () => void;
   onCancelSearch: () => void;
   onClearSearch: () => void;
@@ -695,6 +716,7 @@ function Picker({
   // AI result. The initial string is not announced — a live region only voices
   // changes — so a fresh load stays silent. A failed search is announced
   // separately by the inline error on the search box.
+  const searchPending = searchStartedAt !== null;
   const searchStatus = searchPending
     ? "Searching for dinner…"
     : aiResults === null
@@ -737,7 +759,8 @@ function Picker({
               onSubmit={onSubmitSearch}
               onCancel={onCancelSearch}
               onClear={onClearSearch}
-              pending={searchPending}
+              startedAt={searchStartedAt}
+              doneSeconds={searchDoneSeconds}
               error={aiError}
               showClear={aiResults !== null || aiError}
               choices={choices}
@@ -884,7 +907,8 @@ function SearchBox({
   onSubmit,
   onCancel,
   onClear,
-  pending,
+  startedAt,
+  doneSeconds,
   error,
   showClear,
   choices,
@@ -896,7 +920,13 @@ function SearchBox({
   onSubmit: () => void;
   onCancel: () => void;
   onClear: () => void;
-  pending: boolean;
+  /** When the in-flight AI search started (`Date.now()`); null when none is. */
+  startedAt: number | null;
+  /**
+   * How long the last successful AI search took, in whole seconds — the
+   * "done" badge's time. Null until a search succeeds.
+   */
+  doneSeconds: number | null;
   error: boolean;
   showClear: boolean;
   /** The picker's Options, by name — the typeahead's pick candidates. */
@@ -907,39 +937,21 @@ function SearchBox({
   isToday: boolean;
 }) {
   const listId = useId();
+  const pending = startedAt !== null;
   // Elapsed whole seconds of the in-flight search. An AI search runs ~50–90s,
   // so a live counter reassures the Household the request is still working.
-  // It is wall-clock based (not a tick count) so it stays accurate if a timer
-  // fires late.
+  // It is wall-clock based — measured from `startedAt`, which the parent holds
+  // — so it stays accurate if a timer fires late, and picks up where it was
+  // if this box remounts mid-search.
   const [elapsed, setElapsed] = useState(0);
-  // The frozen duration of the last *successful* search — drives the "done"
-  // badge (a check + the time) the button shows once a result lands. Null
-  // until a search completes successfully.
-  const [doneElapsed, setDoneElapsed] = useState<number | null>(null);
-  const searchStartRef = useRef(0);
-  const wasPendingRef = useRef(false);
   useEffect(() => {
-    if (pending) {
-      wasPendingRef.current = true;
-      searchStartRef.current = Date.now();
-      setElapsed(0);
-      const id = setInterval(() => {
-        setElapsed(Math.floor((Date.now() - searchStartRef.current) / 1000));
-      }, 1000);
-      return () => clearInterval(id);
-    }
-    // `pending` just went false. If a search was in flight, freeze its
-    // duration — a successful search shows it as the done badge; a failed one
-    // is dropped (the inline error speaks for it instead).
-    if (wasPendingRef.current) {
-      wasPendingRef.current = false;
-      if (!error) {
-        setDoneElapsed(
-          Math.floor((Date.now() - searchStartRef.current) / 1000),
-        );
-      }
-    }
-  }, [pending, error]);
+    if (startedAt === null) return;
+    const tick = () =>
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
 
   // Typeahead state: `open` gates the dropdown. A pick logs through its own
   // transition; a failure shows inline below the box.
@@ -998,7 +1010,7 @@ function SearchBox({
   // The done badge shows only while a successful AI result is on screen —
   // `showClear && !error`, no search in flight. Clearing the search drops
   // `showClear`, so the badge falls back to the plain "Search".
-  const completed = !pending && !error && showClear && doneElapsed !== null;
+  const completed = !pending && !error && showClear && doneSeconds !== null;
 
   // The in-field ✕ shows whenever there is something to clear — typed query
   // text, or an AI result/error already on screen — not only after a search
@@ -1121,7 +1133,7 @@ function SearchBox({
             pending
               ? `Cancel search — ${elapsed} seconds elapsed`
               : completed
-                ? `Search complete in ${doneElapsed} seconds`
+                ? `Search complete in ${doneSeconds} seconds`
                 : undefined
           }
           className={`flex min-h-11 w-[7rem] min-w-[7rem] shrink-0
@@ -1148,7 +1160,7 @@ function SearchBox({
             <>
               <CheckIcon />
               <span className="w-10 text-center font-mono tabular-nums">
-                {doneElapsed}s
+                {doneSeconds}s
               </span>
             </>
           ) : (
