@@ -57,6 +57,9 @@ export function PlacesSearchBox({
       const result = await fetchPlaceDetails(placeId);
       if (result.ok) {
         onAutofill(autofillFromPlace(result.value));
+        // Close the results list — the picked fields land above this box, and
+        // a long list of other hits just pushes them further down the page.
+        setState({ status: "idle" });
       } else {
         setState({ status: "unavailable" });
       }
