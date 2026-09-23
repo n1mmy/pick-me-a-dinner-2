@@ -247,8 +247,10 @@ drawn (it is rare, and both disclosures are visible directly below).
   for a Home meal.
 - Because `app/catalog/[id]/option-controls.tsx` reuses `OptionForm` inline,
   editing works on the Option detail page with no extra work (ADR-0007).
-- The Option detail page displays the Closed days as a line in the Option's
-  fields. Catalog list rows do **not** show them.
+- The Option detail page displays the Closed days as a read-only week-chip
+  row in the Option's fields (issue 05 restyled this from a summary sentence
+  to the same seven-chip shape the form's toggles use, muted so it doesn't
+  read as tappable). Catalog list rows do **not** show them.
 
 ## Testing Decisions
 
@@ -292,9 +294,10 @@ search result.
 - **Specific closed dates** — holidays, a private function, the August
   shutdown. A **Planned rejection** already owns the one-off known date; giving
   the same fact two homes would be worse than either.
-- **Google Places autofill of Closed days.** Deliberately deferred — issue 05,
-  `needs-triage`. The Catalog that hurts today is already saved, so those rows
-  need hand entry regardless.
+- **Google Places autofill of Closed days.** Deliberately deferred at first —
+  issue 05, `done` as of 2026-09-23. The Catalog that hurts today is already
+  saved, so those rows still needed hand entry regardless; autofill is a
+  convenience layer over that entry, not a replacement for it.
 - **Any change to `lib/ranking.ts`, the Score, or recency.** ADR-0003 and
   ADR-0010 hold: suppression is a presentation filter.
 - **A per-night "open today actually" override.** That is precisely the
