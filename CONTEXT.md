@@ -102,7 +102,10 @@ To choose the dinner for the **Selected day**. Picking creates a Log entry
 dated the Selected day — "pick = log". When the Selected day is today the
 entry is **Tonight's dinner**; when it is a future date the entry is a
 **Planned dinner**. A Pick *is* a Log entry; there is no separate "pick"
-entity.
+entity. Picking an Option on a date it carries a **Rejection** removes that
+Rejection — the Household changed its mind, and a reason for passing the
+Option over no longer describes a night it was eaten. This holds wherever the
+Pick is made (Tonight, the Log, the Option detail page), and for any date.
 
 **Planned dinner**:
 A Log entry dated after today. Excluded from the ranking until its date
@@ -123,7 +126,9 @@ the model judges from the reason which Rejections are a standing dislike and
 which were one-off. A Rejection can be edited or deleted at any time from the
 Log screen or the Option detail page. **Bring back** is the narrower
 Selected-day quick-undo on Tonight's "Rejected" disclosure (labelled
-"Rejected tonight" when the Selected day is today). A Rejection is not a Log
+"Rejected tonight" when the Selected day is today). A **Pick** of the Option
+on the Rejection's date removes the Rejection — changing one's mind and eating
+it after all supersedes having passed it over. A Rejection is not a Log
 entry and does not affect any Score. A Restaurant's recurring closure is no
 longer expressed this way — that is a **Closed day** on the Restaurant itself
 (ADR-0010) — though a Rejection remains the way to record what was learned on
@@ -317,6 +322,8 @@ single-household — no user accounts, no per-person identity.
 - A **Dinner** is one or more **Log entries** sharing the same date.
 - The **Log** is the set of all **Log entries**.
 - **Picking** creates a **Log entry** dated the **Selected day**.
+- **Picking** an Option removes any **Rejection** of that Option on the same
+  date.
 - A **Planned dinner** is a **Log entry** dated after today.
 - **Tonight** ranks active **Options** by **Score** for the **Selected day**.
 - **Tonight** surfaces **Tonight's dinner** once a **Pick** is made.
