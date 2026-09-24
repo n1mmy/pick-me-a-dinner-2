@@ -1156,6 +1156,42 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
     expect(mockedPick).not.toHaveBeenCalled();
   });
 
+  it("retrying Add & Pick after a failed Pick does not create a duplicate Option", async () => {
+    mockedPick.mockResolvedValueOnce({ ok: false, error: "Pick failed" });
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Pizza Place" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add & Pick for tonight" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Pick failed")).toBeTruthy();
+    });
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(mockedPick).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add & Pick for tonight" }),
+    );
+
+    await waitFor(() => {
+      expect(mockedPick).toHaveBeenCalledTimes(2);
+    });
+    // The retry re-tries only the Pick — the Option created on the first
+    // submit is reused, not recreated.
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(mockedPick).toHaveBeenNthCalledWith(2, "new-id", undefined);
+  });
+
   it("shows a warning linking to the detail page when the name matches an Archived Option", () => {
     render(
       <TonightScreen

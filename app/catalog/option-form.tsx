@@ -109,6 +109,11 @@ export function OptionForm({
   // state update here could still be showing the previous render's value by
   // the time the submit handler runs.
   const submitIntentRef = useRef<"primary" | "secondary">("primary");
+  // Set once `createOption` succeeds, so a retry after a failed `onCreated`
+  // Pick (Tonight's "Add & Pick") re-tries only the Pick — calling
+  // `createOption` again would create a duplicate Option, since the first one
+  // already exists.
+  const createdIdRef = useRef<string | null>(null);
   const [name, setName] = useState(initial?.name ?? defaultName ?? "");
   const [url, setUrl] = useState(initial?.url ?? "");
   // A Places autofill leaves an already-filled URL untouched; this flags that
@@ -250,17 +255,25 @@ export function OptionForm({
         }
         return;
       }
-      const result = await createOption(formKind, values);
-      if (!result.ok) {
-        setError(result.error);
-        return;
+      // A retry after a failed Pick (below) lands here with the Option
+      // already created — skip straight to the Pick instead of creating a
+      // second Option for the same submit.
+      let id = createdIdRef.current;
+      if (id === null) {
+        const result = await createOption(formKind, values);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        id = result.id;
+        createdIdRef.current = id;
       }
       // The secondary button ("Add") never Picks; the primary one does when
       // `onCreated` is wired (Tonight's "Add & Pick"). A Pick failure leaves
       // the form open with the error shown inline — the Option is already
-      // created, so retrying here would create a duplicate rather than help.
+      // created, so a retry (via `createdIdRef`) re-tries only the Pick.
       if (intent === "primary" && onCreated) {
-        const pickResult = await onCreated(result.id);
+        const pickResult = await onCreated(id);
         if (!pickResult.ok) {
           setError(pickResult.error);
           return;
