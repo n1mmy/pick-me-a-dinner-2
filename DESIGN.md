@@ -471,11 +471,54 @@ button label — see the AI search "done" badge note in
 ## Motion
 
 - **Approach:** Minimal-functional — only transitions that aid comprehension.
-  No bounce, no scroll choreography. A sharp instrument does not animate for
-  personality.
-- **Easing:** enter `ease-out`, exit `ease-in`, move `ease-in-out`.
+  No bounce, no scroll choreography, no elastic. A sharp instrument does not
+  animate for personality.
+- **Easing (2026-09-24):** enter `--ease-enter` (`cubic-bezier(0.25, 1, 0.5,
+  1)`, ease-out-quart — decelerates into place), exit `--ease-exit`
+  (`cubic-bezier(0.5, 0, 0.75, 0)`, ease-in — accelerates away, reserved for a
+  future exit treatment; nothing animates an exit yet, see "Inline expand"
+  below), move `--ease-move` (`cubic-bezier(0.65, 0, 0.35, 1)` — reserved for
+  a future cross-position move, see "Picked/Rejected row move" below).
+  Exposed as Tailwind's `ease-enter` / `ease-exit` / `ease-move`.
 - **Duration:** micro 80ms (hover/press), short 140ms (state change), medium
   220ms (inline expand, e.g. Catalog edit).
+- **Inline expand (P6, 2026-09-24):** a freshly-mounted conditional block —
+  the Reject reason box, a Rejected/Closed disclosure body, the Catalog/Log
+  inline edit form, the decided row's note editor, an armed confirm pair —
+  fades and slides up 4px into place over `--motion-medium` with
+  `--ease-enter`, plus a `height: 0 → auto` grow on Chromium (`.expand-in` in
+  `app/globals.css`, via CSS `@starting-style` — no JS timing of its own).
+  **Exits snap** — no delayed-unmount exit animation; that is machinery this
+  app doesn't carry. The technique only ever applies to an element that is
+  genuinely new in the DOM (conditional rendering, not a prop/text change on
+  an element already on screen).
+- **Press feedback (P8, 2026-09-24):** every *filled* button (Tonight Pick,
+  the AI Search button, the Catalog add buttons, form submits) scales to 0.98
+  on `:active`, alongside its existing hover color shade, over `--motion-micro`
+  with `--ease-enter` (`app/press-feedback.ts`). Outlined and text buttons keep
+  the color change only — no scale. Nothing that moves layout is scaled.
+- **Picked/Rejected row move (P7, 2026-09-24 — spike, fallback taken):** a
+  Pick still moves a row from the picker into "Tonight's dinner" in one frame,
+  and a Reject still removes a row in one frame — list reordering snaps. A
+  `document.startViewTransition` spike to cross-fade/morph the row between its
+  picker and decided positions was time-boxed and dropped: the row's list
+  membership is server-driven (`revalidatePath` inside the `pickTonight` /
+  `rejectOption` actions, resolved through Next's router refresh), and there
+  is no public hook for "the refreshed RSC tree has committed" to resolve the
+  transition's callback against — closing that gap needs a cross-component
+  promise/ref coordinating the triggering row with the parent's prop change,
+  which is exactly the "more than a small hook" the plan's fallback
+  anticipated. Shipped instead: the newly-mounted decided row and the
+  Pick button's "Logged ✓" label both use the `.expand-in` treatment above, so
+  the row's *arrival* still reads as a soft entrance even though its *move*
+  doesn't. Revisit if React's `<ViewTransition>` (currently canary-only)
+  reaches stable, or if Tonight's row membership ever moves to client state.
+- **Reduced motion:** `.expand-in` drops to an opacity-only fade (its
+  transform/height are simply never interpolated, since
+  `@media (prefers-reduced-motion: reduce)` narrows its `transition-property`
+  to `opacity`); press feedback's scale is cancelled per button via
+  `motion-reduce:` utilities, leaving the color change only. Applies globally,
+  `app/globals.css`.
 - **Destructive actions** use inline-confirm (the row reveals a confirm/cancel
   in place) rather than a modal — consistent with the plan's §17.
 
@@ -526,3 +569,6 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-09-24 | Tinted/washed rows (Tonight picker, Closed disclosure, decided block, Log entry/rejection rows) drop their per-row `divider` rule in favor of a `gap-[2px]` sliver of `bg` between rows; untinted rows keep the rule | Same `/impeccable` review: a tinted row already carries a background + a 3px kind bar, so the divider on top read as a third, redundant edge — "rows edged three times" in the diagnosis. The Log's day separator was also thinned from `border-t-2` to `border-t` (still `divider`) so it reads as a section rule, not another row-weight seam. |
 | 2026-09-24 | Tonight header's day stepper (‹, date, ›) and kind segment (All/Home/Restaurant) become one joined control each, instead of three separately-boxed elements | Same `/impeccable` review: "header controls drawn as separate boxes" in the diagnosis. The day stepper now shares one outer `line` border with inner 1px separators; the kind segment is one `raised` track with an `action`-filled thumb sliding under the selected label. Both keep their exact 36px header-row height and the header's existing 44px-floor exception (ADR-0009); joining them freed width the day name (measured at 375px) needed. |
 | 2026-09-24 | Text-entry fields (inputs, textareas, the combobox, the date input) use `focus-visible:outline-offset-[-1px]`; buttons keep `outline-offset-2` | Same `/impeccable` review: the default offset-2 ring drew a second box 2px outside a field's own border, and — unlike a button — a field matches `:focus-visible` on ordinary mouse/tap focus too, so everyone saw the double box (visible in the Reject reason input at 375px). The ring stays 2px `action` either way; this only moves it onto the field's border. `app/focus-ring.ts` now holds both shared constants (`focusRing`, `fieldFocusRing`), replacing ~15 duplicated local copies. |
+| 2026-09-24 | Named `--ease-enter`/`--ease-exit`/`--ease-move` easings added; a freshly-mounted conditional block (Reject box, disclosure body, inline edit form, armed confirm pair) fades + slides up 4px + grows height over `--motion-medium`/`ease-enter` via a shared `.expand-in` CSS class, using `@starting-style` instead of a JS-timed animation | Part of the UI smoothness polish plan (P6, "inline expands open instead of popping" — conditional rendering elsewhere in the app previously popped in with no transition at all). `@starting-style` only fires on an element's first style resolution, so it needs no JS and can't fire on an element already on screen. Exits deliberately still snap — a delayed-unmount exit animation is machinery the plan ruled out. Height grow is Chromium-only progressive enhancement (`interpolate-size: allow-keywords`); other browsers still fade/slide and simply snap the height. |
+| 2026-09-24 | Filled buttons (Tonight Pick, AI Search, Catalog add buttons, form submits) get `active:scale-[0.98]` press feedback at `--motion-micro`/`ease-enter`, alongside their existing hover color shade; outlined/text buttons keep the color change only | Plan P8. A tap on a filled button previously gave only a color shade with no tactile confirmation. Shared as `app/press-feedback.ts` rather than duplicated per file, mirroring the `focus-ring.ts` precedent. Reduced motion cancels the scale via `motion-reduce:` utilities per button, leaving color only. |
+| 2026-09-24 | P7 (rows move instead of teleporting after Pick/Reject) spike dropped; fallback shipped instead — the picked/rejected row move still snaps, but the newly-mounted decided row and the Pick button's "Logged ✓" label use `.expand-in` | Time-boxed per the plan. A `document.startViewTransition` around the row's cross-list move needs to resolve its callback once the *server-revalidated* RSC tree has actually committed — Next exposes no hook for that moment, so closing the gap would need a promise/ref shared between the triggering row and the parent's prop change: exactly the "more than a small hook" the plan named as the fallback trigger. React's `<ViewTransition>` (canary-only) would solve this properly; revisit if it reaches stable, or if Tonight's row membership ever becomes client state instead of server-derived. |
