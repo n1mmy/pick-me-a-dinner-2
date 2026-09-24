@@ -31,6 +31,7 @@ import {
 } from "./option-combobox";
 import { fieldFocusRing, focusRing } from "./focus-ring";
 import { pickTonight } from "./log/actions";
+import { pressFeedback } from "./press-feedback";
 import { deleteRejection } from "./rejection-actions";
 import { aiSearchAction } from "./tonight-search-client";
 import { TonightRowItem } from "./tonight-row";
@@ -511,7 +512,7 @@ function RejectedTonightDisclosure({
         }
       />
       {open && (
-        <ul className="flex flex-col">
+        <ul className="expand-in flex flex-col">
           {rejections.map((rejection) => (
             <li
               key={rejection.id}
@@ -615,7 +616,7 @@ function ClosedDisclosure({
       </p>
       {open && (
         // See the picker list above for why `gap-[2px]` replaces a divider here.
-        <ul className="flex flex-col gap-[2px]">
+        <ul className="expand-in flex flex-col gap-[2px]">
           {rows.map((row) => (
             <TonightRowItem
               key={row.option.id}
@@ -1141,7 +1142,7 @@ function SearchBox({
           }
           className={`flex min-h-11 w-[7rem] min-w-[7rem] shrink-0
             items-center justify-center gap-1.5 rounded-control px-4 text-body
-            font-emphasis transition-colors duration-short
+            font-emphasis ${pressFeedback}
             ${
               completed
                 ? "bg-success text-action-ink"

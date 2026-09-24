@@ -13,7 +13,9 @@ import {
   groupByDay,
 } from "../../lib/dinner-grouping";
 import { escapeToCancel } from "../escape-to-cancel";
+import { focusRing } from "../focus-ring";
 import { OptionCombobox } from "../option-combobox";
+import { pressFeedback } from "../press-feedback";
 import { logForDate } from "./actions";
 import { EntryRow, inputClass, labelClass } from "./log-entry-row";
 import { AddRejectionForm, RejectionRow } from "./rejection-row";
@@ -413,11 +415,9 @@ function AddEntryForm({
         <button
           type="submit"
           disabled={pending}
-          className="min-h-11 rounded-control bg-action px-4 text-body
-            font-emphasis text-action-ink transition-colors duration-micro
-            hover:bg-action-hover focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action
-            disabled:opacity-60"
+          className={`min-h-11 rounded-control bg-action px-4 text-body
+            font-emphasis text-action-ink hover:bg-action-hover
+            disabled:opacity-60 ${pressFeedback} ${focusRing}`}
         >
           Add
         </button>

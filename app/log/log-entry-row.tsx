@@ -7,6 +7,7 @@ import { escapeToCancel } from "../escape-to-cancel";
 import { fieldFocusRing, focusRing } from "../focus-ring";
 import { OptionCombobox } from "../option-combobox";
 import { PickButton } from "../pick-button";
+import { pressFeedback } from "../press-feedback";
 import { ConfirmPair } from "../confirm-pair";
 import { deleteLogEntry, updateLogEntry } from "./actions";
 
@@ -90,13 +91,15 @@ export function EntryRow({
             </span>
           )}
           {confirmDelete ? (
-            <ConfirmPair
-              buttonClass={actionButton}
-              label="Delete"
-              pending={pending}
-              onConfirm={runDelete}
-              onCancel={() => setConfirmDelete(false)}
-            />
+            <div className="expand-in flex items-center gap-1">
+              <ConfirmPair
+                buttonClass={actionButton}
+                label="Delete"
+                pending={pending}
+                onConfirm={runDelete}
+                onCancel={() => setConfirmDelete(false)}
+              />
+            </div>
           ) : (
             <>
               <button
@@ -184,7 +187,7 @@ function EntryEditForm({
     <form
       onSubmit={handleSubmit}
       onKeyDown={escapeToCancel(onCancel, pending)}
-      className="flex flex-col gap-3"
+      className="expand-in flex flex-col gap-3"
     >
       <div className="flex flex-col gap-1">
         <label htmlFor={`${fieldId}-option`} className={labelClass}>
@@ -264,11 +267,9 @@ function EntryEditForm({
         <button
           type="submit"
           disabled={pending}
-          className="min-h-11 rounded-control bg-action px-4 text-body
-            font-emphasis text-action-ink transition-colors duration-micro
-            hover:bg-action-hover focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action
-            disabled:opacity-60"
+          className={`min-h-11 rounded-control bg-action px-4 text-body
+            font-emphasis text-action-ink hover:bg-action-hover
+            disabled:opacity-60 ${pressFeedback} ${focusRing}`}
         >
           Save
         </button>

@@ -2,6 +2,7 @@
 
 import { useActionState, useId } from "react";
 import { fieldFocusRing, focusRing } from "../focus-ring";
+import { pressFeedback } from "../press-feedback";
 import { login, type LoginState } from "./actions";
 
 const INITIAL: LoginState = {};
@@ -44,8 +45,8 @@ export function LoginForm() {
         type="submit"
         disabled={pending}
         className={`min-h-11 rounded-control bg-action px-4 text-body
-          font-emphasis text-action-ink transition-colors duration-micro
-          hover:bg-action-hover disabled:opacity-60 ${focusRing}`}
+          font-emphasis text-action-ink hover:bg-action-hover
+          disabled:opacity-60 ${pressFeedback} ${focusRing}`}
       >
         Enter
       </button>

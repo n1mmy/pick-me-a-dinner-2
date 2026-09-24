@@ -13,6 +13,7 @@ import type { OptionWithTags } from "../../db/queries";
 import { WEEKDAY_NAMES } from "../../lib/local-day";
 import { escapeToCancel } from "../escape-to-cancel";
 import { fieldFocusRing, focusRing } from "../focus-ring";
+import { pressFeedback } from "../press-feedback";
 import {
   createOption,
   updateOption,
@@ -208,7 +209,7 @@ export function OptionForm({
     <form
       onSubmit={handleSubmit}
       onKeyDown={escapeToCancel(onCancel, pending || justSaved)}
-      className="flex flex-col gap-3 pb-[80px]"
+      className="expand-in flex flex-col gap-3 pb-[80px]"
     >
       {isRestaurant && placesEnabled && (
         <PlacesSearchBox
@@ -383,7 +384,7 @@ export function OptionForm({
             type="submit"
             disabled={pending || justSaved}
             className={`min-h-11 rounded-control px-4 text-body font-emphasis
-              transition-colors duration-micro disabled:opacity-60 ${focusRing} ${
+              disabled:opacity-60 ${pressFeedback} ${focusRing} ${
                 justSaved
                   ? "bg-raised text-success"
                   : "bg-action text-action-ink hover:bg-action-hover"

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { focusRing } from "./focus-ring";
 import { pickTonight } from "./log/actions";
+import { pressFeedback } from "./press-feedback";
 
 /**
  * The Pick button — logs the Option as tonight's dinner (`pick = log`, the
@@ -48,15 +49,26 @@ export function PickButton({
         onClick={pick}
         disabled={pending}
         className={`min-h-11 rounded-control px-4 text-body font-emphasis
-          transition-colors duration-short disabled:opacity-60 ${focusRing} ${
+          disabled:opacity-60 ${focusRing} ${
             justLogged
-              ? "bg-raised text-success"
+              ? "bg-raised text-success transition-colors duration-short"
               : variant === "primary"
-                ? "bg-action text-action-ink hover:bg-action-hover"
-                : "border border-line bg-surface text-ink hover:bg-raised"
+                ? // Filled — gets P8's press feedback (its own transition,
+                  // not `transition-colors`, so the two don't fight over
+                  // `transition-property`/`transition-duration`).
+                  `bg-action text-action-ink hover:bg-action-hover ${pressFeedback}`
+                : // Outlined — color change only, no press scale.
+                  "border border-line bg-surface text-ink hover:bg-raised transition-colors duration-short"
           }`}
       >
-        {justLogged ? "Logged ✓" : "Pick"}
+        {/* P7 fallback (DESIGN.md Motion) — a freshly-mounted `<span>`, not a
+            text-content swap in place, so `.expand-in`'s `@starting-style`
+            actually fires on it. */}
+        {justLogged ? (
+          <span className="expand-in inline-block">Logged ✓</span>
+        ) : (
+          "Pick"
+        )}
       </button>
       {/* A sibling live region, not `aria-live` on the button itself — the
           button is usually still focused when its label flips, and making an

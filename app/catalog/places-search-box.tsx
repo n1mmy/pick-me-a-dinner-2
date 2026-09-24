@@ -1,6 +1,8 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
+import { focusRing } from "../focus-ring";
+import { pressFeedback } from "../press-feedback";
 import { fetchPlaceDetails, searchGooglePlaces } from "./places-actions";
 import {
   PLACES_UNAVAILABLE_NOTICE,
@@ -91,11 +93,9 @@ export function PlacesSearchBox({
           type="button"
           onClick={runSearch}
           disabled={pending || query.trim().length === 0}
-          className="min-h-11 rounded-control bg-action px-3 text-body font-emphasis
-            text-action-ink transition-colors duration-micro hover:bg-action-hover
-            focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action
-            disabled:opacity-60"
+          className={`min-h-11 rounded-control bg-action px-3 text-body
+            font-emphasis text-action-ink hover:bg-action-hover
+            disabled:opacity-60 ${pressFeedback} ${focusRing}`}
         >
           Search
         </button>

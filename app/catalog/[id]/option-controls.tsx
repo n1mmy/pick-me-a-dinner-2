@@ -170,14 +170,16 @@ export function OptionControls({
             )}
           </>
         ) : (
-          <ConfirmPair
-            buttonClass={actionButton}
-            label={confirm === "delete" ? "Delete" : "Archive"}
-            tone={confirm === "delete" ? "danger" : "action"}
-            pending={pending}
-            onConfirm={confirm === "delete" ? runDelete : runArchive}
-            onCancel={() => setConfirm(null)}
-          />
+          <div className="expand-in flex items-center gap-1">
+            <ConfirmPair
+              buttonClass={actionButton}
+              label={confirm === "delete" ? "Delete" : "Archive"}
+              tone={confirm === "delete" ? "danger" : "action"}
+              pending={pending}
+              onConfirm={confirm === "delete" ? runDelete : runArchive}
+              onCancel={() => setConfirm(null)}
+            />
+          </div>
         )}
         <div className="ml-auto flex items-center gap-1">
           {confirm === null && (
@@ -207,7 +209,7 @@ export function OptionControls({
             submitReject();
           }}
           onKeyDown={escapeToCancel(cancelReject, pending)}
-          className="flex items-center gap-2"
+          className="expand-in flex items-center gap-2"
         >
           <input
             type="text"

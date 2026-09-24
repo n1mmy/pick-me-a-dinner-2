@@ -14,6 +14,7 @@ import { focusRing } from "./focus-ring";
 import { kindBarClass, kindWashClass } from "./kind-bar";
 import { deleteLogEntry, updateLogEntry } from "./log/actions";
 import { inputClass, labelClass } from "./log/log-entry-row";
+import { pressFeedback } from "./press-feedback";
 import { RowChips } from "./tonight-row";
 
 // The decided row's action style — the Menu / Call / Recipe links share this
@@ -136,7 +137,7 @@ function DecidedRow({
   const [removeError, setRemoveError] = useState<string | null>(null);
   return (
     <li
-      className={`py-[10px] ${kindWashClass(row.option.kind)} ${kindBarClass(row.option.kind)}`}
+      className={`expand-in py-[10px] ${kindWashClass(row.option.kind)} ${kindBarClass(row.option.kind)}`}
     >
       <div className="flex items-center justify-between gap-2">
         <Link
@@ -299,7 +300,7 @@ function NoteForm({
     <form
       onSubmit={handleSubmit}
       onKeyDown={escapeToCancel(onClose, pending)}
-      className="mt-2 flex flex-col gap-1"
+      className="expand-in mt-2 flex flex-col gap-1"
     >
       <label htmlFor={`${fieldId}-note`} className={labelClass}>
         Note
@@ -331,8 +332,8 @@ function NoteForm({
           type="submit"
           disabled={pending}
           className={`min-h-11 rounded-control bg-action px-4 text-body
-            font-emphasis text-action-ink transition-colors duration-micro
-            hover:bg-action-hover disabled:opacity-60 ${focusRing}`}
+            font-emphasis text-action-ink hover:bg-action-hover
+            disabled:opacity-60 ${pressFeedback} ${focusRing}`}
         >
           Save
         </button>
@@ -409,7 +410,7 @@ function RemoveControl({
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-1">
+    <div className="expand-in flex shrink-0 items-center gap-1">
       <ConfirmPair
         buttonClass={removeButton}
         label="Remove"

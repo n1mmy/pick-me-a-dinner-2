@@ -14,6 +14,7 @@ import { escapeToCancel } from "./escape-to-cancel";
 import { fieldFocusRing, focusRing } from "./focus-ring";
 import { kindBarClass, kindTintClass } from "./kind-bar";
 import { pickTonight } from "./log/actions";
+import { pressFeedback } from "./press-feedback";
 import { rejectOption } from "./rejection-actions";
 
 /**
@@ -191,14 +192,22 @@ export function TonightRowItem({
             onClick={pick}
             disabled={pending}
             className={`min-h-11 rounded-control px-4 text-body font-emphasis
-              transition-colors duration-short disabled:opacity-60
-              ${focusRing} ${
+              disabled:opacity-60 ${pressFeedback} ${focusRing} ${
                 justLogged
                   ? "bg-raised text-success"
                   : "bg-action text-action-ink hover:bg-action-hover"
               }`}
           >
-            {justLogged ? "Logged ✓" : "Pick"}
+            {/* P7 fallback (DESIGN.md Motion) — the picked-to-decided row
+                move itself still snaps (see the Decisions Log); this label
+                swap is a freshly-mounted `<span>`, not a text-content change
+                in place, so `.expand-in`'s `@starting-style` actually fires
+                on it. */}
+            {justLogged ? (
+              <span className="expand-in inline-block">Logged ✓</span>
+            ) : (
+              "Pick"
+            )}
           </button>
           {/* A sibling live region, not `aria-live` on the button itself —
               see PickButton's identical note. */}
@@ -227,7 +236,7 @@ export function TonightRowItem({
             submitReject();
           }}
           onKeyDown={escapeToCancel(cancelReject, pending)}
-          className="mt-2 flex items-center gap-2"
+          className="expand-in mt-2 flex items-center gap-2"
         >
           <input
             type="text"

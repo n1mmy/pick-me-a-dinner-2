@@ -107,7 +107,9 @@ function AddButton({
       type="button"
       onClick={onClick}
       className={`min-h-11 rounded-control px-4 text-body font-emphasis
-        text-action-ink transition-opacity duration-short hover:opacity-90
+        text-action-ink hover:opacity-90 transition-[opacity,transform]
+        duration-micro ease-enter active:scale-[0.98]
+        motion-reduce:transition-opacity motion-reduce:active:scale-100
         ${fill} ${focusRing}`}
     >
       {label}
