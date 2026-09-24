@@ -77,8 +77,15 @@ export function DayStepper({
   // (`rounded-l-input` / `rounded-r-input`) rather than the group clipping
   // via `overflow-hidden`, so a hover fill on ‹ or › still respects the
   // rounded corner instead of squaring it off.
+  //
+  // The group's `h-9` is border-box, so its content box is 2px shorter; the
+  // children take no height of their own and `self-stretch` to that content
+  // box instead (review fix, 2026-09-24 — a child `h-9` overflowed 1px past
+  // the content box top and bottom, so a hover fill or the input's
+  // background painted over the outer border). The 36px height lives on the
+  // group alone.
   const endButtonBase =
-    "inline-flex h-9 w-9 items-center justify-center text-ink " +
+    "inline-flex w-9 items-center justify-center self-stretch text-ink " +
     "transition-colors duration-short hover:bg-raised disabled:opacity-40 " +
     "disabled:hover:bg-surface " +
     focusRing;
@@ -102,7 +109,7 @@ export function DayStepper({
         value={selectedDay}
         onChange={onPickerChange}
         aria-label="Pick a date"
-        className={`h-9 border-r border-line bg-transparent px-2 text-meta text-ink ${fieldFocusRing}`}
+        className={`self-stretch border-r border-line bg-transparent px-2 text-meta text-ink ${fieldFocusRing}`}
       />
       <button
         type="button"
