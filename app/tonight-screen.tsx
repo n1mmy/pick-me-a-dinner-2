@@ -780,20 +780,17 @@ function Picker({
             the search restores it with the deterministic list. */}
         {aiRows === null && (
           <>
-            {/* One filter line: the kind segment leads, the Tag chips follow.
-                On a phone the chips drop to their own full-width line under
-                the segment (`basis-full`) rather than wrapping in the narrow
-                column beside it; from `desktop:` up they flow in the space to
-                its right. */}
+            {/* One filter line: the kind segment and every Tag chip are flat
+                siblings in a single flex-wrap row, so a wrapped second (or
+                third) line reclaims the segment's own width instead of
+                staying squeezed into a narrower column beside it — the Tag
+                group div carries the a11y grouping (`role="group"`) but
+                `contents` removes it from layout, so its chip children wrap
+                exactly as if they were direct children of the row. */}
             <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
               <KindSegment kind={kind} onChange={onKindChange} />
               {tags.length > 0 && (
-                <div
-                  role="group"
-                  aria-label="Filter by tag"
-                  className="flex min-w-0 basis-full flex-wrap gap-1
-                    desktop:flex-1 desktop:basis-0"
-                >
+                <div role="group" aria-label="Filter by tag" className="contents">
                   {tags.map((tag) => (
                     <TagFilterChip
                       key={tag}

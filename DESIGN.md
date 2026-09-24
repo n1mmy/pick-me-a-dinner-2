@@ -459,8 +459,11 @@ button label — see the AI search "done" badge note in
     ~21px tall, `rounded-badge`), below the 44px floor like the chips. The
     kind filter is rarely changed, so it does not earn header space or a
     control-sized footprint; a mis-tap only re-filters the list and the next
-    tap undoes it. On a phone the Tag chips wrap onto their own full-width
-    line under it; from `desktop:` up they flow to its right.
+    tap undoes it. It and every Tag chip are flat siblings in one
+    `flex-wrap` row (the Tag group's `role="group"` div is `display:
+    contents`, out of layout), so chips flow into the space beside the
+    segment and any wrapped line reclaims the full row width instead of
+    staying squeezed into a column that starts to its right.
   - **Closed-day toggles (2026-09-19 exception to control height):** the
     Restaurant form's **Closed days** control is seven toggle chips in one row
     — `S M T W T F S` — sized below the 44px floor, alongside the Tonight
@@ -582,3 +585,4 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-09-24 | Kind segment track is an equal-thirds grid (`grid-cols-3`), not a `flex-1` row | Post-implementation review of the P4 segment: inside an auto-width track, `flex-1` buttons took their own content widths ("All" narrow, "Restaurant" wide) while the sliding thumb was always a third of the track, so the thumb drifted across the labels — the selected label rendered white on the light track and an unselected label rendered grey on the charcoal thumb, in every state. An auto-width grid sizes every `1fr` column to the widest label, so the buttons are genuine thirds and the no-measurement `translateX(index * 100%)` thumb lands exactly under each. |
 | 2026-09-24 | `.expand-in` drops its `height: 0 → auto` grow and `overflow: clip`; fade + 4px slide only | Post-implementation review of P6: the clip needed to hide content during the height grow also cut off the 2px-offset focus ring of buttons inside the expanding block — an armed confirm's Cancel showed a sliver of ring, the Reject box's Submit lost its top and bottom edges. Visible focus is part of the AA bar (PRODUCT.md); the grow was Chromium-only progressive enhancement, so it was the part to give up. `interpolate-size: allow-keywords` went with it. |
 | 2026-09-24 | Kind segment moved from the Tonight header into the sticky filter zone, at Tag-chip scale; the filter hint line ("Showing all Options") is visible only while a Tag filter is on | Direct user feedback: the segment sat in the wrong place, away from the other filters, and is not commonly used. It now leads the Tag-chip line so every filter is in one neighborhood, sized like the chips (~21px) rather than the header's 36px. With the segment beside the chips, the hint only repeated what the segment already shows when no Tag is filtered, so it drops to `sr-only` there — still a live region, so a kind change is still announced — and shows once include/exclude chips need summarising. The Tonight header is now just the H1 and the day stepper. |
+| 2026-09-24 | Kind segment and Tag chips are flat siblings of one `flex-wrap` row; the Tag group's `role="group"` div is `display: contents` instead of its own `flex-1`/`basis-full` box | Direct user feedback, same day: boxing the Tag chips into their own flex item reserved that item's reduced width for *every* wrapped line, not just the line beside the segment, so chips wrapped earlier than the row had room for and left blank space under the segment. `display: contents` keeps the div's `role`/`aria-label` for assistive tech while dropping it from the box tree, so its chip children wrap as if they were direct children of the row — a wrapped line now reclaims the full row width. |
