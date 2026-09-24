@@ -3,13 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { ArchivedOption, OptionWithTags } from "../../db/queries";
+import { focusRing } from "../focus-ring";
 import type { OptionKind } from "./actions";
 import { OptionForm } from "./option-form";
 import { OptionRow } from "./option-row";
-
-const focusRing =
-  "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
  * The Catalog screen: Home meals and Restaurants in two sections, each row

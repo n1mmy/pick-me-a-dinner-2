@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogEntryRow, OptionChoice } from "../../db/queries";
 import { escapeToCancel } from "../escape-to-cancel";
+import { fieldFocusRing, focusRing } from "../focus-ring";
 import { OptionCombobox } from "../option-combobox";
 import { PickButton } from "../pick-button";
 import { ConfirmPair } from "../confirm-pair";
@@ -19,11 +20,8 @@ export const labelClass =
   "text-meta font-emphasis uppercase tracking-wide text-muted";
 export const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body text-ink " +
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
-  "focus-visible:outline-action";
-const actionButton =
-  "min-h-11 rounded-control px-2 text-chip focus-visible:outline " +
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
+  fieldFocusRing;
+const actionButton = `min-h-11 rounded-control px-2 text-chip ${focusRing}`;
 
 /**
  * One Log entry row. Shows the Option name and note with Edit / Delete actions;
@@ -63,7 +61,7 @@ export function EntryRow({
 
   if (editing) {
     return (
-      <li className={`border-b border-divider ${kindBg} px-3 py-3`}>
+      <li className={`${kindBg} px-3 py-3`}>
         <EntryEditForm
           entry={entry}
           optionChoices={optionChoices}
@@ -75,7 +73,7 @@ export function EntryRow({
   }
 
   return (
-    <li className={`flex flex-col gap-1 border-b border-divider ${kindBg} px-3 py-3`}>
+    <li className={`flex flex-col gap-1 ${kindBg} px-3 py-3`}>
       <div className="flex items-center justify-between gap-3">
         <Link
           href={`/catalog/${entry.optionId}`}

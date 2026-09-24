@@ -11,9 +11,11 @@ import {
 } from "./places-box";
 
 const labelClass = "text-meta font-emphasis uppercase tracking-wide text-muted";
+// outline-offset-[-1px] (2026-09-24): the ring sits on the field's own
+// border instead of drawing a second box outside it — see app/focus-ring.ts.
 const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body text-ink " +
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-1px] " +
   "focus-visible:outline-action";
 
 /**

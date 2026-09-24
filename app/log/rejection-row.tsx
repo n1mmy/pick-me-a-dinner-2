@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogRejectionRow, OptionChoice } from "../../db/queries";
 import { escapeToCancel } from "../escape-to-cancel";
+import { focusRing } from "../focus-ring";
 import { OptionCombobox } from "../option-combobox";
 import { ConfirmPair } from "../confirm-pair";
 import { inputClass, labelClass } from "./log-entry-row";
@@ -21,9 +22,7 @@ import {
  * Edit expands the row into a form, Delete uses the §17 inline-confirm.
  */
 
-const actionButton =
-  "min-h-11 rounded-control px-2 text-chip focus-visible:outline " +
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
+const actionButton = `min-h-11 rounded-control px-2 text-chip ${focusRing}`;
 
 /**
  * The form body shared by the add-rejection form and the inline edit form: an
@@ -274,7 +273,7 @@ export function RejectionRow({
 
   if (editing) {
     return (
-      <li className="border-b border-divider bg-danger-wash px-3 py-3">
+      <li className="bg-danger-wash px-3 py-3">
         <RejectionForm
           optionChoices={optionChoices}
           initialOptionId={rejection.optionId}
@@ -293,7 +292,7 @@ export function RejectionRow({
   }
 
   return (
-    <li className="flex flex-col gap-1 border-b border-divider bg-danger-wash px-3 py-3">
+    <li className="flex flex-col gap-1 bg-danger-wash px-3 py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-meta font-emphasis uppercase tracking-wide text-danger">

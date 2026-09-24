@@ -4,10 +4,12 @@ import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { OptionChoice } from "../db/queries";
 import { kindBarClass } from "./kind-bar";
 
+// outline-offset-[-1px] (2026-09-24): the ring sits on the field's own
+// border instead of drawing a second box outside it — see app/focus-ring.ts.
 const inputClass =
   "min-h-11 w-full rounded-input border border-line bg-surface px-3 pr-11 " +
   "text-body text-ink placeholder:text-muted focus-visible:outline " +
-  "focus-visible:outline-2 focus-visible:outline-offset-2 " +
+  "focus-visible:outline-2 focus-visible:outline-offset-[-1px] " +
   "focus-visible:outline-action";
 
 /** The per-kind label shown on each row, mirroring the domain's kind names. */

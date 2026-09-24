@@ -146,7 +146,7 @@ export function TagInput({
           id={`${fieldId}-tag`}
           className="min-h-11 w-full rounded-input border border-line bg-surface px-3
             text-body text-ink focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action"
+            focus-visible:outline-offset-[-1px] focus-visible:outline-action"
           value={draft}
           placeholder="Add a tag"
           autoComplete="off"

@@ -116,18 +116,22 @@ export function LogScreen({
   );
 }
 
-// Secondary button — bordered, neutral-filled. Reads as a button without the
-// weight of the filled `action` primary (Add / Pick).
+// Secondary button — the screen's primary entry point, so it keeps a border
+// (matching PickButton's secondary style) but no fill, reading as a button
+// without the weight of the filled `action` primary (Add / Pick).
 const addButtonClass =
-  "min-h-11 self-start rounded-control border border-line bg-raised px-3 " +
+  "min-h-11 self-start rounded-control border border-line bg-surface px-3 " +
   "text-body font-emphasis text-ink transition-colors duration-micro " +
-  "hover:bg-line focus-visible:outline focus-visible:outline-2 " +
+  "hover:bg-raised focus-visible:outline focus-visible:outline-2 " +
   "focus-visible:outline-offset-2 focus-visible:outline-action";
 
+// Per-day add controls — one pair repeats under every date group, so they
+// stay borderless and unfilled until hovered rather than adding another row
+// of boxes down the page.
 const groupButtonClass =
-  "min-h-11 self-start rounded-control border border-line bg-raised px-3 " +
-  "text-chip font-emphasis text-ink transition-colors duration-micro " +
-  "hover:bg-line focus-visible:outline focus-visible:outline-2 " +
+  "min-h-11 self-start rounded-control px-3 text-chip font-emphasis " +
+  "text-muted transition-colors duration-micro hover:bg-raised hover:text-ink " +
+  "focus-visible:outline focus-visible:outline-2 " +
   "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
@@ -213,13 +217,18 @@ function DayGroup({
       className={
         isFirst
           ? "flex flex-col gap-1"
-          : "flex flex-col gap-1 border-t-2 border-divider pt-5.5"
+          : "flex flex-col gap-1 border-t border-divider pt-5.5"
       }
     >
       <h3 className="text-chip font-emphasis text-muted">
         {formatDinnerDate(record.date, today)}
       </h3>
-      <ul className="flex flex-col">
+      {/* gap-[2px] (off-scale, like the 3px kind bar — a rule weight, not a
+          layout step) separates rows with a sliver of `bg` instead of a
+          divider: every entry/rejection row already carries a kind- or
+          danger-wash background, so a divider between two washed rows read
+          as a redundant, heavy seam. */}
+      <ul className="flex flex-col gap-[2px]">
         {record.entries.map((entry) => (
           <EntryRow key={entry.id} entry={entry} optionChoices={optionChoices} />
         ))}

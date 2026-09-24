@@ -12,6 +12,7 @@ import {
 import type { OptionWithTags } from "../../db/queries";
 import { WEEKDAY_NAMES } from "../../lib/local-day";
 import { escapeToCancel } from "../escape-to-cancel";
+import { fieldFocusRing, focusRing } from "../focus-ring";
 import {
   createOption,
   updateOption,
@@ -25,11 +26,7 @@ import { TagInput } from "./tag-input";
 const labelClass = "text-meta font-emphasis uppercase tracking-wide text-muted";
 const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body text-ink " +
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
-  "focus-visible:outline-action";
-const focusRing =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
-  "focus-visible:outline-action";
+  `${fieldFocusRing}`;
 /** `S M T W T F S`, Sunday first — matching the `0` = Sunday convention. */
 const SHORT_WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 

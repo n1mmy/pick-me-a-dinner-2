@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { focusRing } from "./focus-ring";
 import { logout } from "./login/actions";
 
 /** The three authenticated destinations, in nav order (plan §9). */
@@ -10,10 +11,6 @@ const DESTINATIONS = [
   { href: "/log", label: "Log" },
   { href: "/catalog", label: "Catalog" },
 ] as const;
-
-const focusRing =
-  "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
  * Primary navigation — three destinations: Tonight, Log, Catalog. It performs

@@ -29,15 +29,12 @@ import {
   filterOptionChoices,
   useComboboxKeyboard,
 } from "./option-combobox";
+import { fieldFocusRing, focusRing } from "./focus-ring";
 import { pickTonight } from "./log/actions";
 import { deleteRejection } from "./rejection-actions";
 import { aiSearchAction } from "./tonight-search-client";
 import { TonightRowItem } from "./tonight-row";
 import { TonightsDinnerBlock } from "./tonights-dinner-block";
-
-const focusRing =
-  "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /** The no-Last-notes default — module-level so its identity stays stable. */
 const NO_LAST_NOTES: Map<string, LastNote> = new Map();
@@ -617,7 +614,8 @@ function ClosedDisclosure({
         {rejectNotice}
       </p>
       {open && (
-        <ul className="flex flex-col">
+        // See the picker list above for why `gap-[2px]` replaces a divider here.
+        <ul className="flex flex-col gap-[2px]">
           {rows.map((row) => (
             <TonightRowItem
               key={row.option.id}
@@ -821,7 +819,11 @@ function Picker({
             </button>
           </div>
         ) : (
-          <ol className="flex flex-col">
+          // gap-[2px] (off-scale, like the 3px kind bar — a rule weight, not
+          // a layout step) separates rows with a sliver of `bg` instead of a
+          // divider: every row already carries a kind-tinted background, so a
+          // divider between two tinted rows read as a redundant, heavy seam.
+          <ol className="flex flex-col gap-[2px]">
             {aiRows.map(({ row, reason }, index) => (
               <TonightRowItem
                 key={row.option.id}
@@ -841,7 +843,8 @@ function Picker({
           No Options match the current filter.
         </p>
       ) : (
-        <ol className="flex flex-col">
+        // See the AI-rows list above for why `gap-[2px]` replaces a divider here.
+        <ol className="flex flex-col gap-[2px]">
           {visible.map((row) => (
             <TonightRowItem
               key={row.option.id}
@@ -862,7 +865,7 @@ function Picker({
 
 const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body " +
-  `text-ink placeholder:text-muted disabled:opacity-60 ${focusRing}`;
+  `text-ink placeholder:text-muted disabled:opacity-60 ${fieldFocusRing}`;
 
 /**
  * The Tonight search box — one input doing two jobs (treatment A). Typing
@@ -1223,7 +1226,19 @@ const KIND_SEGMENTS: { value: KindFilter; label: string }[] = [
   { value: "restaurant", label: "Restaurant" },
 ];
 
-/** The All/Home/Restaurant segment that narrows the list by Option kind. */
+/**
+ * The All/Home/Restaurant segment that narrows the list by Option kind. A
+ * single `raised` track (2026-09-24) replaces the earlier three separately-
+ * filled pills: one `action`-filled thumb slides under the selected label
+ * instead of each option drawing its own box. The thumb is one absolutely-
+ * positioned `div` sized to an even third of the track and moved by
+ * `translateX(index * 100%)` — a fraction of its own width, so no size
+ * measurement is needed — behind the buttons, which go transparent and
+ * `flex-1` so their hit areas match the thumb's thirds exactly. `p-[2px]`
+ * is the track's inset padding (off-scale, like the 3px kind bar) so the
+ * thumb reads as inside the track rather than flush with its edge, while the
+ * track itself keeps the header's exact 36px height.
+ */
 function KindSegment({
   kind,
   onChange,
@@ -1231,8 +1246,23 @@ function KindSegment({
   kind: KindFilter;
   onChange: (next: KindFilter) => void;
 }) {
+  const selectedIndex = KIND_SEGMENTS.findIndex((s) => s.value === kind);
   return (
-    <div role="group" aria-label="Filter by kind" className="flex gap-1">
+    <div
+      role="group"
+      aria-label="Filter by kind"
+      className="relative flex h-9 rounded-control bg-raised p-[2px]"
+    >
+      <div
+        aria-hidden
+        className="absolute inset-y-[2px] left-[2px] rounded-control bg-action
+          transition-transform duration-short ease-in-out
+          motion-reduce:transition-none"
+        style={{
+          width: `calc((100% - 4px) / ${KIND_SEGMENTS.length})`,
+          transform: `translateX(${selectedIndex * 100}%)`,
+        }}
+      />
       {KIND_SEGMENTS.map((segment) => {
         const selected = kind === segment.value;
         return (
@@ -1241,11 +1271,9 @@ function KindSegment({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(segment.value)}
-            className={`min-h-9 rounded-control px-2.5 text-chip
+            className={`relative z-10 flex-1 rounded-control px-2.5 text-chip
               transition-colors duration-micro ${focusRing} ${
-                selected
-                  ? "bg-action font-emphasis text-action-ink"
-                  : "bg-raised text-muted"
+                selected ? "font-emphasis text-action-ink" : "text-muted"
               }`}
           >
             {segment.label}
@@ -1258,14 +1286,17 @@ function KindSegment({
 
 /**
  * One tri-state tag filter chip. It cycles off → include → exclude → off on
- * tap. Each state has its own fill — a neutral off chip, a filled action
- * include chip, a filled exclude chip — plus a text decoration
+ * tap. Each state has its own fill — a neutral `raised` off chip, a filled
+ * action include chip, a filled exclude chip — plus a text decoration
  * (underline / strikethrough) so state stays legible without relying on color
- * alone (§18). The border is present in every state so toggling never changes
- * the chip's width and the wrapped rows never reflow. The chip's accessible
- * name announces its state ("pasta, included") for assistive tech. The chips
- * are deliberately compact — the filter zone holds ~20 tags and density beats
- * a 44px tap target here.
+ * alone (§18). Every state keeps a `border` class (transparent off-state,
+ * same-hue-as-fill for include/exclude) so toggling never changes the chip's
+ * width and the wrapped rows never reflow — only the off state used to render
+ * a *visible* border; it is now borderless like the other two, so a row of
+ * chips reads as fills, not a grid of boxes. The chip's accessible name
+ * announces its state ("pasta, included") for assistive tech. The chips are
+ * deliberately compact — the filter zone holds ~20 tags and density beats a
+ * 44px tap target here.
  */
 function TagFilterChip({
   tag,
@@ -1282,13 +1313,13 @@ function TagFilterChip({
       onClick={onClick}
       aria-label={`${tag}, ${chipStateLabel(state)}`}
       className={`inline-flex items-center justify-center rounded-badge border
-        px-2 py-0.5 text-meta leading-tight underline-offset-2 transition-colors
-        duration-micro ${focusRing} ${
+        border-transparent px-2 py-0.5 text-meta leading-tight
+        underline-offset-2 transition-colors duration-micro ${focusRing} ${
           state === "include"
-            ? "border-action bg-action text-action-ink underline"
+            ? "bg-action text-action-ink underline"
             : state === "exclude"
-              ? "border-exclude bg-exclude text-action-ink line-through"
-              : "border-line bg-surface text-muted"
+              ? "bg-exclude text-action-ink line-through"
+              : "bg-raised text-ink"
         }`}
     >
       {tag}

@@ -11,13 +11,10 @@ import {
   recencyChipBgStrong,
 } from "../lib/recency-color";
 import { escapeToCancel } from "./escape-to-cancel";
+import { fieldFocusRing, focusRing } from "./focus-ring";
 import { kindBarClass, kindTintClass } from "./kind-bar";
 import { pickTonight } from "./log/actions";
 import { rejectOption } from "./rejection-actions";
-
-const focusRing =
-  "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
  * One Tonight row of the flat ledger (DESIGN.md "Tonight row anatomy") — a
@@ -156,8 +153,7 @@ export function TonightRowItem({
 
   return (
     <li
-      className={`border-b border-divider py-[10px]
-        ${kindBarClass(option.kind)} ${kindTintClass(option.kind)}`}
+      className={`py-[10px] ${kindBarClass(option.kind)} ${kindTintClass(option.kind)}`}
     >
       <div className="flex items-start gap-3 desktop:items-center">
         <div className="min-w-0 flex-1">
@@ -250,7 +246,7 @@ export function TonightRowItem({
             aria-label={`Reason for rejecting ${option.name} (optional)`}
             className={`min-h-11 min-w-0 flex-1 rounded-input border border-line
               bg-surface px-3 text-body text-ink placeholder:text-muted
-              disabled:opacity-60 ${focusRing}`}
+              disabled:opacity-60 ${fieldFocusRing}`}
           />
           <button
             type="submit"

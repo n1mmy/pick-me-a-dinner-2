@@ -16,6 +16,7 @@ import {
 import { placesEnabled } from "../../../lib/places";
 import { rankOption, type RankOption } from "../../../lib/ranking";
 import { safeHttpUrl } from "../../../lib/safe-http-url";
+import { focusRing } from "../../focus-ring";
 import { EntryRow } from "../../log/log-entry-row";
 import { RejectionRow } from "../../log/rejection-row";
 import { kindBarClass } from "../../kind-bar";
@@ -28,10 +29,6 @@ import { OptionControls } from "./option-controls";
  * on the Household's current calendar day — it must never be prerendered.
  */
 export const dynamic = "force-dynamic";
-
-const focusRing =
-  "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /** External / phone links — underlined so they read as links, with a focus ring. */
 const linkClass = `text-action underline underline-offset-2 ${focusRing}`;
@@ -255,7 +252,11 @@ export default async function OptionDetailPage({
                 <h3 className="text-chip font-emphasis text-muted">
                   {formatDinnerDate(record.date, todaySql)}
                 </h3>
-                <ul className="flex flex-col">
+                {/* gap-[2px] (off-scale, like the 3px kind bar — a rule
+                    weight, not a layout step): both row kinds carry a
+                    kind- or danger-wash background, so a divider between
+                    two washed rows read as a redundant, heavy seam. */}
+                <ul className="flex flex-col gap-[2px]">
                   {record.entries.map((entry) => (
                     <EntryRow
                       key={entry.id}

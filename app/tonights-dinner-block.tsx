@@ -8,22 +8,21 @@ import {
   type DecidedAction,
   type TonightsDinnerEntry,
 } from "../lib/tonights-dinner";
-import { kindBarClass, kindWashClass } from "./kind-bar";
 import { ConfirmPair } from "./confirm-pair";
 import { escapeToCancel } from "./escape-to-cancel";
+import { focusRing } from "./focus-ring";
+import { kindBarClass, kindWashClass } from "./kind-bar";
 import { deleteLogEntry, updateLogEntry } from "./log/actions";
 import { inputClass, labelClass } from "./log/log-entry-row";
 import { RowChips } from "./tonight-row";
 
-const focusRing =
-  "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
-
-// The decided row's filled action style — the charcoal `action` button the
-// Menu / Call / Recipe links share, so they read as one set.
+// The decided row's action style — the Menu / Call / Recipe links share this
+// secondary (outlined) look, same as PickButton's default off Tonight: the
+// decided block already carries its own kind-wash background, so a filled
+// charcoal button per link read as three more primary actions.
 const actionFill =
-  "inline-flex min-h-11 items-center rounded-control bg-action px-4 text-body " +
-  `font-emphasis text-action-ink transition-colors duration-short hover:bg-action-hover ${focusRing}`;
+  "inline-flex min-h-11 items-center rounded-control border border-line bg-surface px-4 text-body " +
+  `font-emphasis text-ink transition-colors duration-short hover:bg-raised ${focusRing}`;
 
 /**
  * Tonight's dinner — the decided block (PRD: Tonight — decided mode). Under a
@@ -96,7 +95,11 @@ export function TonightsDinnerBlock({
       <h2 className="text-meta uppercase tracking-wide text-muted">
         {headingLeft}&rsquo;s dinner
       </h2>
-      <ul className="flex flex-col">
+      {/* gap-[2px] (off-scale, like the 3px kind bar — a rule weight, not a
+          layout step) separates rows with a sliver of `bg` instead of a
+          divider: every row already carries a kind-wash background, so a
+          divider between two washed rows read as a redundant, heavy seam. */}
+      <ul className="flex flex-col gap-[2px]">
         {entries.map((entry) => (
           <DecidedRow
             key={entry.entryId}
@@ -133,8 +136,7 @@ function DecidedRow({
   const [removeError, setRemoveError] = useState<string | null>(null);
   return (
     <li
-      className={`border-b border-divider py-[10px] last:border-b-0
-        ${kindWashClass(row.option.kind)} ${kindBarClass(row.option.kind)}`}
+      className={`py-[10px] ${kindWashClass(row.option.kind)} ${kindBarClass(row.option.kind)}`}
     >
       <div className="flex items-center justify-between gap-2">
         <Link
