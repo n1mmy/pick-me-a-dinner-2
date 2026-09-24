@@ -209,6 +209,9 @@ Loop config and worker permissions. See `docs/agents/ralph.md`.
 Always read `DESIGN.md` before making any visual or UI decision. Font choices,
 colors, spacing, layout, radius, and motion are all defined there — do not
 deviate without explicit user approval. In QA or review, flag any code that
-does not match `DESIGN.md`. As of 2026-05-16 the live code (`app/globals.css`,
-`tailwind.config.ts`, fonts, the `app/app-nav.tsx` layout shell, and the
-screens) implements `DESIGN.md`.
+does not match `DESIGN.md`.
+
+When a design decision changes, update `DESIGN.md` in the same commit. Keep it
+a statement of the current system: rewrite the affected rule in place with its
+reason, and leave dates, superseded states, and change narrative to the commit
+message — git history is the decision log.
