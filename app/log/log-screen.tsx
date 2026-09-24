@@ -71,9 +71,7 @@ export function LogScreen({
           No dinners logged yet —{" "}
           <Link
             href="/"
-            className="font-emphasis text-action focus-visible:outline
-              focus-visible:outline-2 focus-visible:outline-offset-2
-              focus-visible:outline-action"
+            className={`font-emphasis text-action ${focusRing}`}
           >
             pick one on Tonight →
           </Link>
@@ -124,17 +122,14 @@ export function LogScreen({
 const addButtonClass =
   "min-h-11 self-start rounded-control border border-line bg-surface px-3 " +
   "text-body font-emphasis text-ink transition-colors duration-micro " +
-  "hover:bg-raised focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
+  `hover:bg-raised ${focusRing}`;
 
 // Per-day add controls — one pair repeats under every date group, so they
 // stay borderless and unfilled until hovered rather than adding another row
 // of boxes down the page.
 const groupButtonClass =
   "min-h-11 self-start rounded-control px-3 text-chip font-emphasis " +
-  "text-muted transition-colors duration-micro hover:bg-raised hover:text-ink " +
-  "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
+  `text-muted transition-colors duration-micro hover:bg-raised hover:text-ink ${focusRing}`;
 
 /**
  * The two top-of-Log add controls (PRD: Dated Dinners — two add controls):
@@ -425,9 +420,8 @@ function AddEntryForm({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="min-h-11 rounded-control px-3 text-body text-muted
-            focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action"
+          className={`min-h-11 rounded-control px-3 text-body text-muted
+            ${focusRing}`}
         >
           Cancel
         </button>

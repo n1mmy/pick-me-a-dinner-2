@@ -486,8 +486,10 @@ button label — see the AI search "done" badge note in
   the Reject reason box, a Rejected/Closed disclosure body, the Catalog/Log
   inline edit form, the decided row's note editor, an armed confirm pair —
   fades and slides up 4px into place over `--motion-medium` with
-  `--ease-enter`, plus a `height: 0 → auto` grow on Chromium (`.expand-in` in
-  `app/globals.css`, via CSS `@starting-style` — no JS timing of its own).
+  `--ease-enter` (`.expand-in` in `app/globals.css`, via CSS
+  `@starting-style` — no JS timing of its own). **No height grow:** it needs
+  `overflow: clip`, which cut off the focus ring of buttons inside the
+  expanding block (removed 2026-09-24, see the Decisions Log).
   **Exits snap** — no delayed-unmount exit animation; that is machinery this
   app doesn't carry. The technique only ever applies to an element that is
   genuinely new in the DOM (conditional rendering, not a prop/text change on
@@ -514,7 +516,7 @@ button label — see the AI search "done" badge note in
   doesn't. Revisit if React's `<ViewTransition>` (currently canary-only)
   reaches stable, or if Tonight's row membership ever moves to client state.
 - **Reduced motion:** `.expand-in` drops to an opacity-only fade (its
-  transform/height are simply never interpolated, since
+  transform is simply never interpolated, since
   `@media (prefers-reduced-motion: reduce)` narrows its `transition-property`
   to `opacity`); press feedback's scale is cancelled per button via
   `motion-reduce:` utilities, leaving the color change only. Applies globally,
@@ -572,3 +574,5 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-09-24 | Named `--ease-enter`/`--ease-exit`/`--ease-move` easings added; a freshly-mounted conditional block (Reject box, disclosure body, inline edit form, armed confirm pair) fades + slides up 4px + grows height over `--motion-medium`/`ease-enter` via a shared `.expand-in` CSS class, using `@starting-style` instead of a JS-timed animation | Part of the UI smoothness polish plan (P6, "inline expands open instead of popping" — conditional rendering elsewhere in the app previously popped in with no transition at all). `@starting-style` only fires on an element's first style resolution, so it needs no JS and can't fire on an element already on screen. Exits deliberately still snap — a delayed-unmount exit animation is machinery the plan ruled out. Height grow is Chromium-only progressive enhancement (`interpolate-size: allow-keywords`); other browsers still fade/slide and simply snap the height. |
 | 2026-09-24 | Filled buttons (Tonight Pick, AI Search, Catalog add buttons, form submits) get `active:scale-[0.98]` press feedback at `--motion-micro`/`ease-enter`, alongside their existing hover color shade; outlined/text buttons keep the color change only | Plan P8. A tap on a filled button previously gave only a color shade with no tactile confirmation. Shared as `app/press-feedback.ts` rather than duplicated per file, mirroring the `focus-ring.ts` precedent. Reduced motion cancels the scale via `motion-reduce:` utilities per button, leaving color only. |
 | 2026-09-24 | P7 (rows move instead of teleporting after Pick/Reject) spike dropped; fallback shipped instead — the picked/rejected row move still snaps, but the newly-mounted decided row and the Pick button's "Logged ✓" label use `.expand-in` | Time-boxed per the plan. A `document.startViewTransition` around the row's cross-list move needs to resolve its callback once the *server-revalidated* RSC tree has actually committed — Next exposes no hook for that moment, so closing the gap would need a promise/ref shared between the triggering row and the parent's prop change: exactly the "more than a small hook" the plan named as the fallback trigger. React's `<ViewTransition>` (canary-only) would solve this properly; revisit if it reaches stable, or if Tonight's row membership ever becomes client state instead of server-derived. |
+| 2026-09-24 | Kind segment track is an equal-thirds grid (`grid-cols-3`), not a `flex-1` row | Post-implementation review of the P4 segment: inside an auto-width track, `flex-1` buttons took their own content widths ("All" narrow, "Restaurant" wide) while the sliding thumb was always a third of the track, so the thumb drifted across the labels — the selected label rendered white on the light track and an unselected label rendered grey on the charcoal thumb, in every state. An auto-width grid sizes every `1fr` column to the widest label, so the buttons are genuine thirds and the no-measurement `translateX(index * 100%)` thumb lands exactly under each. |
+| 2026-09-24 | `.expand-in` drops its `height: 0 → auto` grow and `overflow: clip`; fade + 4px slide only | Post-implementation review of P6: the clip needed to hide content during the height grow also cut off the 2px-offset focus ring of buttons inside the expanding block — an armed confirm's Cancel showed a sliver of ring, the Reject box's Submit lost its top and bottom edges. Visible focus is part of the AA bar (PRODUCT.md); the grow was Chromium-only progressive enhancement, so it was the part to give up. `interpolate-size: allow-keywords` went with it. |

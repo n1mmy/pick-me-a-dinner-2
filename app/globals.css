@@ -238,10 +238,6 @@
      * nav becomes a left rail and no longer overlaps scrolled content. */
     scroll-padding-top: var(--scroll-reserve-top);
     scroll-padding-bottom: var(--scroll-reserve-bottom);
-    /* Lets `.expand-in` below transition `height` to/from the keyword `auto`
-     * instead of snapping — Chromium-only progressive enhancement; other
-     * browsers still animate opacity/transform and simply snap the height. */
-    interpolate-size: allow-keywords;
   }
 
   body {
@@ -270,31 +266,34 @@
    * rendering already produces, so this needs no JS of its own. Exits are
    * deliberately not animated here (delayed-unmount is machinery this app
    * doesn't carry) — they snap on unmount, same as before.
+   *
+   * No height grow: animating `height: 0 → auto` needs `overflow: clip` to
+   * hide the content while the box is short, and that clip also cut off the
+   * 2px-offset focus ring of any button inside (an armed confirm pair's
+   * buttons fill their wrapper edge to edge) — a visible-focus regression.
+   * The height grow was Chromium-only anyway, so fade + slide is the whole
+   * treatment in every browser.
    */
   .expand-in {
-    overflow: clip;
-    height: auto;
     opacity: 1;
     transform: none;
     transition:
       opacity var(--motion-medium) var(--ease-enter),
-      transform var(--motion-medium) var(--ease-enter),
-      height var(--motion-medium) var(--ease-enter);
+      transform var(--motion-medium) var(--ease-enter);
   }
 
   @starting-style {
     .expand-in {
       opacity: 0;
       transform: translateY(-4px);
-      height: 0;
     }
   }
 }
 
-/* Reduced motion (2026-09-24, DESIGN.md Motion) — zeroes the transform/height
- * halves of `.expand-in` so only its opacity fade remains (an instant
- * transform/height means `@starting-style`'s translateY/height values are
- * never actually interpolated, since they're not in `transition-property`);
+/* Reduced motion (2026-09-24, DESIGN.md Motion) — zeroes the transform half
+ * of `.expand-in` so only its opacity fade remains (an instant transform means
+ * `@starting-style`'s translateY is never actually interpolated, since it's
+ * not in `transition-property`);
  * P8's press-feedback scale is cancelled per button via `motion-reduce:`
  * utility classes at each call site instead, since Tailwind has no equivalent
  * to gate a plain CSS class's own media query from a utility. */

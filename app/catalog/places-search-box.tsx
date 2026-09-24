@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import { focusRing } from "../focus-ring";
+import { fieldFocusRing, focusRing } from "../focus-ring";
 import { pressFeedback } from "../press-feedback";
 import { fetchPlaceDetails, searchGooglePlaces } from "./places-actions";
 import {
@@ -13,12 +13,9 @@ import {
 } from "./places-box";
 
 const labelClass = "text-meta font-emphasis uppercase tracking-wide text-muted";
-// outline-offset-[-1px] (2026-09-24): the ring sits on the field's own
-// border instead of drawing a second box outside it — see app/focus-ring.ts.
 const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body text-ink " +
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-1px] " +
-  "focus-visible:outline-action";
+  fieldFocusRing;
 
 /**
  * The "Search Google" box on the Restaurant form. Rendered only when a Places
@@ -117,10 +114,8 @@ export function PlacesSearchBox({
                 type="button"
                 onClick={() => selectPlace(result.placeId)}
                 disabled={pending}
-                className="flex min-h-11 w-full flex-col items-start py-2 text-left
-                  focus-visible:outline focus-visible:outline-2
-                  focus-visible:outline-offset-2 focus-visible:outline-action
-                  disabled:opacity-60"
+                className={`flex min-h-11 w-full flex-col items-start py-2 text-left
+                  disabled:opacity-60 ${focusRing}`}
               >
                 <span className="font-display text-name font-name text-ink">
                   {result.name}

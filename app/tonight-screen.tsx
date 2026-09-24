@@ -1234,8 +1234,12 @@ const KIND_SEGMENTS: { value: KindFilter; label: string }[] = [
  * instead of each option drawing its own box. The thumb is one absolutely-
  * positioned `div` sized to an even third of the track and moved by
  * `translateX(index * 100%)` — a fraction of its own width, so no size
- * measurement is needed — behind the buttons, which go transparent and
- * `flex-1` so their hit areas match the thumb's thirds exactly. `p-[2px]`
+ * measurement is needed — behind the buttons, which go transparent. The track
+ * is a three-column grid rather than a `flex-1` row: an auto-width grid sizes
+ * every `1fr` column to the widest label ("Restaurant"), so the buttons really
+ * are even thirds and the thumb lands exactly under each one. (A `flex-1` row
+ * inside an auto-width track gave each button its own content width, and the
+ * one-third thumb drifted across the labels.) `p-[2px]`
  * is the track's inset padding (off-scale, like the 3px kind bar) so the
  * thumb reads as inside the track rather than flush with its edge, while the
  * track itself keeps the header's exact 36px height.
@@ -1252,7 +1256,7 @@ function KindSegment({
     <div
       role="group"
       aria-label="Filter by kind"
-      className="relative flex h-9 rounded-control bg-raised p-[2px]"
+      className="relative grid h-9 grid-cols-3 rounded-control bg-raised p-[2px]"
     >
       <div
         aria-hidden
@@ -1272,12 +1276,26 @@ function KindSegment({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(segment.value)}
-            className={`relative z-10 flex-1 rounded-control px-2.5 text-chip
+            className={`relative z-10 rounded-control px-2.5 text-chip
               transition-colors duration-micro ${focusRing} ${
                 selected ? "font-emphasis text-action-ink" : "text-muted"
               }`}
           >
-            {segment.label}
+            {/* The selected label goes bold, and bold "Restaurant" is wider —
+                which widened every equal column and grew the whole track on
+                each toggle. An invisible bold copy stacked in the same grid
+                cell reserves the bold width in every state, so the track
+                never changes size. `aria-hidden` keeps it out of the
+                button's accessible name. */}
+            <span className="grid">
+              <span
+                aria-hidden
+                className="invisible col-start-1 row-start-1 font-emphasis"
+              >
+                {segment.label}
+              </span>
+              <span className="col-start-1 row-start-1">{segment.label}</span>
+            </span>
           </button>
         );
       })}
