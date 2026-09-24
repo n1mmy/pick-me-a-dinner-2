@@ -186,9 +186,11 @@ announces on a row. It never collides with the heatmap because it never
 carries a recency value.
 
 The earlier excluded-tag-filter chip token (`exclude`) is carried over from
-the prior warm system and should be re-tuned against this cool base when the
-Tonight tag filters get their own visual pass — it was not part of this
-exploration.
+the prior warm system. The Tonight tag filters got their own visual pass
+2026-09-24 (see "Button hierarchy" and the Decisions Log): the chips lost
+their borders, but `exclude`'s hex was not part of that pass and was
+re-measured, not retuned — its `action-ink` label still clears 4.5:1 against
+it, so the carried-over warm brown stands as-is.
 
 ### App icon
 
@@ -294,8 +296,17 @@ button label — see the AI search "done" badge note in
   its mobile cap, and a row that went denser at that exact point would be
   squeezed twice at once. Past 900px PICK moves to the row's right edge,
   Reject to its left.
-- **Tonight row anatomy:** A flat, uniform ledger — every row the same height,
-  separated by a 1px `divider` rule, no cards, no shadows. A 3px vertical
+- **Tonight row anatomy:** A flat, uniform ledger — every row the same
+  height, no cards, no shadows. Rows are separated by a 2px sliver of `bg`
+  (`gap-[2px]` on the list, not a `divider` rule — 2026-09-24 amendment,
+  below) since every row already carries a kind tint or wash background; a
+  1px `divider` rule between two tinted rows read as a redundant, heavy
+  seam. This applies to every tinted row list in the app — Tonight's picker
+  and Closed-disclosure rows, the decided block, and the Log's entry/
+  rejection rows (Log screen and the Option detail page's History section)
+  — and *not* to untinted rows on plain `bg` (Catalog's active/archived
+  lists, the Rejected-tonight disclosure, the detail page's Field list),
+  which keep the 1px `divider` rule as their only separator. A 3px vertical
   meal-kind bar (`kind-home` / `kind-restaurant`) sits flush on the row's left
   edge, over a faint tint of the same hue (`kind-home-tint` /
   `kind-restaurant-tint`) as the row's background — deliberately a step below
@@ -306,7 +317,9 @@ button label — see the AI search "done" badge note in
   recent, or frequent for Affinity; red = not now: overdue, or rare for
   Affinity — see "Color channels" above, which is this section's source of
   truth for the chip system). PICK as a filled `action` (charcoal-ink) button
-  with `action-ink` label. The uniform flat list remains intentional and
+  with `action-ink` label — Tonight's ranked rows are the one place PICK is
+  filled; everywhere else it is the secondary outlined style (see "Button
+  hierarchy" below). The uniform flat list remains intentional and
   locked — no lead-item prominence, no collapsed long tail. (2026-09-22: a
   faint per-row kind tint replaced the earlier "no per-row background tint"
   rule — paler than the decided block's wash, so the block still reads as
@@ -406,6 +419,17 @@ button label — see the AI search "done" badge note in
     row-leaves-on-write feedback the picker already has.
   - A Restaurant **Picked** anyway is never marked in the decided block. The
     call has been made; restating the objection after the fact is nagging.
+- **Button hierarchy (2026-09-24):** PICK is a filled `action` button
+  (charcoal fill, `action-ink` label) on Tonight's ranked rows only —
+  including the Closed disclosure's rows, which reuse the same row
+  component. Everywhere else a repeated per-row PICK appears (Catalog, Log,
+  the Option detail page), and on the decided block's Menu / Call / Recipe
+  row actions, the button uses the secondary outlined style instead:
+  `surface` fill, `line` border, `ink` label, `raised` on hover. A form's own
+  Save/Add submit button and a toggle control's selected state (e.g. the
+  Closed-day chips) are not row actions and stay filled — this rule is about
+  a column of *repeated* identical buttons, not every filled button in the
+  app.
 - **Border radius:** badge/chip 3px, inputs 6px, buttons/controls 6px. Sharp
   crisp corners suit a sharp tool — no pill shapes except where a control is
   genuinely circular.
@@ -425,9 +449,13 @@ button label — see the AI search "done" badge note in
     this where the overlap falls on padding or non-interactive content. The **Tonight header** is the deliberate exception at 36px (`h-9`): its
   day stepper, date input, and kind segment share a phone-width row with the H1,
   and every pixel they give back is a pixel the day name keeps un-truncated.
-  Gaps between adjacent header controls are 4px rather than the usual 6px for
-  the same reason. Don't "restore" these to 44px without re-measuring the
-  header — see ADR-0009's 2026-09-08 amendment.
+  The gap between the day stepper and the kind segment is 4px rather than the
+  usual 6px for the same reason; within each of those two grouped controls the
+  ‹/date/›/segment elements sit flush against a shared 1px `line` border or a
+  `p-[2px]` track inset instead of a gap (2026-09-24 — see the Decisions Log —
+  joining them saved back more width than a 4px gap cost). Don't "restore"
+  these to 44px without re-measuring the header — see ADR-0009's 2026-09-08
+  amendment.
   - **Closed-day toggles (2026-09-19 exception to control height):** the
     Restaurant form's **Closed days** control is seven toggle chips in one row
     — `S M T W T F S` — sized below the 44px floor, alongside the Tonight
@@ -493,3 +521,8 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-09-21 | Desktop Tonight row: dropped the single-dense-line / centered Explanation chip; widened the desktop column to 900px; PICK/Reject swap gated behind 900px, not the 720px rail breakpoint | A literal single dense line never fit rows with an Affinity chip, tags, a Last note, or an AI reason, and an earlier attempt to merge the name+chip lines only fit sometimes — depending on name/tag length — so chips inconsistently rode the name's line. Chips now stack under the name at every width, same order and position always. Separately: the rail's ~200px and the column's desktop max-width land at the same 720px step, so right after it the column is briefly narrower than its own mobile cap; letting PICK/Reject go horizontal at that same step squeezed the row twice at once, so that swap was moved to a later 900px breakpoint. |
 | 2026-09-22 | `line` (light) darkened `#d8dade` → `#8a8c8e` | `docs/design-review-2026-09-21.md` UX idea #2: the hairline ledger rule measured 1.27:1 against `bg`, near-invisible on a bright kitchen screen. `#8a8c8e` clears 3:1. Dark theme's `line` was left as-is — it wasn't part of the measured finding and dark is separately flagged as not yet visually verified. |
 | 2026-09-22 | Split `line` into `line` (light) and a new, lighter `divider` (light) — `#b1b3b6`, ~1.91:1 against `bg` | Direct user report, in light theme: `line`'s 3:1 (above) reads too dark once it is reused for every row/section divider in the app, not only the one hairline rule idea #2 measured. `line` now renders only a control/box's own border (input, button, popup), where the 3:1 UI-component-boundary reasoning still applies; `divider` covers row and section rules, which are decorative structure rather than a UI component boundary, so a lower contrast is appropriate. `divider`'s hex is the exact per-channel RGB midpoint of `line` (#8a8c8e) and the original near-invisible `#d8dade` (1.27:1), per a follow-up user request to land it halfway between the two rather than the initially-picked `#b3b5b8`. Dark theme's `divider` was left equal to `line` (`#383b40`) — dark hasn't been looked at live yet, so there is no finding to split it against. |
+| 2026-09-24 | PICK demoted to the secondary outlined style everywhere except Tonight's ranked rows; decided-block Menu/Call/Recipe demoted the same way | `/impeccable` review of the live app: a column of ~20 identical filled charcoal PICK buttons on Catalog/Log, and Menu/Call/Recipe matching PICK's own fill, left the primary action nothing to stand out against. Tonight's ranked-row PICK (the screen's one true primary action) is unchanged; repeated row actions everywhere else read as `surface`/`line`/`ink` instead. Part of the UI smoothness polish plan (P1). |
+| 2026-09-24 | Tonight's tag filter chips and the Log's per-day add buttons lose their borders/fills; the top-of-Log add buttons switch to the P1 secondary style | Same `/impeccable` review: ~20 bordered tag chips read as a grid of boxes, and a `bg-raised` + `border-line` "+ Dinner / + Rejection" pair under every day repeated that weight down the page. Tag chips keep their non-color state cues (underline/strikethrough) and tap size; per-day add buttons go borderless/unfilled until hovered; the top-of-screen add pair — the screen's one primary entry point — keeps a border but drops its fill to match PICK's secondary style. |
+| 2026-09-24 | Tinted/washed rows (Tonight picker, Closed disclosure, decided block, Log entry/rejection rows) drop their per-row `divider` rule in favor of a `gap-[2px]` sliver of `bg` between rows; untinted rows keep the rule | Same `/impeccable` review: a tinted row already carries a background + a 3px kind bar, so the divider on top read as a third, redundant edge — "rows edged three times" in the diagnosis. The Log's day separator was also thinned from `border-t-2` to `border-t` (still `divider`) so it reads as a section rule, not another row-weight seam. |
+| 2026-09-24 | Tonight header's day stepper (‹, date, ›) and kind segment (All/Home/Restaurant) become one joined control each, instead of three separately-boxed elements | Same `/impeccable` review: "header controls drawn as separate boxes" in the diagnosis. The day stepper now shares one outer `line` border with inner 1px separators; the kind segment is one `raised` track with an `action`-filled thumb sliding under the selected label. Both keep their exact 36px header-row height and the header's existing 44px-floor exception (ADR-0009); joining them freed width the day name (measured at 375px) needed. |
+| 2026-09-24 | Text-entry fields (inputs, textareas, the combobox, the date input) use `focus-visible:outline-offset-[-1px]`; buttons keep `outline-offset-2` | Same `/impeccable` review: the default offset-2 ring drew a second box 2px outside a field's own border, and — unlike a button — a field matches `:focus-visible` on ordinary mouse/tap focus too, so everyone saw the double box (visible in the Reject reason input at 375px). The ring stays 2px `action` either way; this only moves it onto the field's border. `app/focus-ring.ts` now holds both shared constants (`focusRing`, `fieldFocusRing`), replacing ~15 duplicated local copies. |
