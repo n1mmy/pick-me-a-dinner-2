@@ -50,10 +50,10 @@ const NO_LAST_NOTES: Map<string, LastNote> = new Map();
  *
  * **Decided mode** — one or more Log entries dated today — surfaces a "Tonight's
  * dinner" block of what was Picked, then keeps the ranked picker open below it
- * under an "Add another option" divider. Picking from that picker appends the
- * Option to Tonight's dinner — a deliberate second dinner, not a replacement,
- * which the divider's heading and hint make explicit. The heading stays
- * "Tonight" in both modes; a visually-hidden live region announces the switch.
+ * under a plain divider (`aria-label="Add another option"`, unlabeled on
+ * screen). Picking from that picker appends the Option to Tonight's dinner —
+ * a deliberate second dinner, not a replacement. The heading stays "Tonight"
+ * in both modes; a visually-hidden live region announces the switch.
  *
  * The mode is not client state: it follows `tonightsDinner`, which the server
  * recomputes from today's Log on every Pick. A new calendar day empties
@@ -325,20 +325,14 @@ export function TonightScreen({
             </p>
           ) : (
             // The ranked picker stays open below the decided block, under a
-            // divider. Picking from it Picks a *second* dinner for the
-            // Selected day rather than replacing the first — the heading and
-            // hint say so.
+            // plain divider — no heading or explanatory copy, just the rule
+            // (2026-09-24, direct user feedback: "don't need it explained to
+            // me"). `aria-label` still names the region for assistive tech,
+            // which has no rule to read as a section break.
             <section
               aria-label="Add another option"
               className="flex flex-col gap-2 border-t border-divider pt-5.5"
             >
-              <h2 className="text-meta uppercase tracking-wide text-muted">
-                Add another option
-              </h2>
-              <p className="text-meta text-muted">
-                Picking one adds it to {dayLabel}&rsquo;s dinner — it
-                won&rsquo;t replace what&rsquo;s already chosen.
-              </p>
               <Picker
                 rows={pickerRows}
                 lastNotes={lastNotes}
