@@ -1,6 +1,6 @@
 # 02 — Tonight's typeahead lists every active Option
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
