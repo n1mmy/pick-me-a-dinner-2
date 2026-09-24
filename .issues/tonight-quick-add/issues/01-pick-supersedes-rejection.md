@@ -1,6 +1,6 @@
 # 01 — A Pick supersedes that date's Rejection
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
