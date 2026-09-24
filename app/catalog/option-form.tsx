@@ -501,10 +501,15 @@ export function OptionForm({
                 submitIntentRef.current = "secondary";
               }}
               disabled={pending || justSaved}
-              className={`min-h-11 rounded-control border border-line px-4
-                text-body font-emphasis text-action transition-colors
-                duration-short hover:bg-raised disabled:opacity-60
-                ${focusRing}`}
+              // The app's one secondary-outlined style (DESIGN.md "Button
+              // hierarchy"; see `PickButton` for the canonical
+              // implementation): `surface` fill, `line` border, `ink`
+              // label, `raised` on hover — not `text-action`, which reads
+              // as an accent-colored link rather than a plain button.
+              className={`min-h-11 rounded-control border border-line
+                bg-surface px-4 text-body font-emphasis text-ink
+                transition-colors duration-short hover:bg-raised
+                disabled:opacity-60 ${focusRing}`}
             >
               {secondaryLabel}
             </button>
