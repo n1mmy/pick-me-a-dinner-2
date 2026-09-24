@@ -235,7 +235,14 @@ export function OptionListbox<T extends OptionChoice>({
                 aria-selected={isSelected(option, index)}
                 aria-disabled={disabled || undefined}
                 className={`flex min-h-11 w-full flex-col justify-center
-                  text-left ${addRow ? "" : kindBarClass(option.kind)}
+                  text-left ${
+                    // A transparent 3px border, not `pl-2` alone — it has no
+                    // kind to color yet, but the invisible border keeps its
+                    // text at the exact same inset `kindBarClass` gives every
+                    // other row (border-width + padding), instead of sitting
+                    // 3px further left and reading as misaligned.
+                    addRow ? "border-l-[3px] border-l-transparent pl-2" : kindBarClass(option.kind)
+                  }
                   ${rowClassName} ${
                     disabled
                       ? "cursor-not-allowed opacity-60"
