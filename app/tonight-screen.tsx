@@ -145,16 +145,16 @@ export function TonightScreen({
   // copy).
   const catalogEmpty = !decided && pickerRows.length === 0 && !allFiltered;
 
-  // The All/Home/Restaurant kind filter lives here so its segment can sit in
-  // the page header beside "Tonight"; the Picker still owns the filtering.
+  // The All/Home/Restaurant kind filter lives here, not in the Picker: a Pick
+  // or day change that flips picker ↔ decided mode remounts the Picker, and
+  // the chosen kind should survive that. The segment itself renders in the
+  // Picker's filter zone, beside the Tag chips.
   const [kind, setKind] = useState<KindFilter>("all");
 
   // AI search state lifted out of the Picker — see the component comment for
   // why. `aiResults === null` is the default deterministic view; a non-null
   // value (including an empty array — a real "no fit" answer) swaps the list
-  // for the AI result. `aiActive` is derived directly so the kind segment can
-  // hide while the result is on screen, without the Picker → parent
-  // `useEffect` ping-pong this used to need.
+  // for the AI result.
   const [query, setQuery] = useState("");
   const [aiResults, setAiResults] = useState<AiRankingRow[] | null>(null);
   const [aiError, setAiError] = useState(false);
@@ -194,7 +194,6 @@ export function TonightScreen({
   // day was never a candidate, so it is missing from the result until the
   // search is cleared.
   const searchGenerationRef = useRef(0);
-  const aiActive = aiResults !== null;
 
   // An ordinary async function, deliberately not an async transition — see the
   // `startSearchTransition` comment above. The fetch itself is not a state
@@ -270,30 +269,21 @@ export function TonightScreen({
     ? `${capitalize(dayLabel)}'s dinner is decided.`
     : `Choosing ${dayLabel}'s dinner.`;
 
-  // The kind segment shows only when a Picker is actually on screen and not
-  // overridden by an AI result. The picker is on screen whenever there are rows
-  // to rank — in picker mode, and below the divider in decided mode.
-  const pickerRendered = pickerRows.length > 0;
-  const showKindSegment = pickerRendered && !aiActive;
-
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        {/* On a phone the H1 and the stepper take a full-width row with the
-            stepper pinned right, so it holds still as the day name changes
-            length instead of sliding with it — and a long name shortens the H1
-            rather than pushing the forward arrow off-screen. From `desktop:`
-            up there is room to sit them side by side, as before. */}
-        <div
-          className="flex w-full items-center justify-between gap-2
-            desktop:w-auto desktop:justify-start desktop:gap-3"
-        >
-          <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
-            <DayNameReset heading={heading} />
-          </h1>
-          <DayStepper selectedDay={selectedDay} todaySql={todaySql} />
-        </div>
-        {showKindSegment && <KindSegment kind={kind} onChange={setKind} />}
+      {/* On a phone the H1 and the stepper take a full-width row with the
+          stepper pinned right, so it holds still as the day name changes
+          length instead of sliding with it — and a long name shortens the H1
+          rather than pushing the forward arrow off-screen. From `desktop:` up
+          there is room to sit them side by side. */}
+      <div
+        className="flex w-full items-center justify-between gap-2
+          desktop:justify-start desktop:gap-3"
+      >
+        <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
+          <DayNameReset heading={heading} />
+        </h1>
+        <DayStepper selectedDay={selectedDay} todaySql={todaySql} />
       </div>
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}
@@ -354,6 +344,7 @@ export function TonightScreen({
                 lastNotes={lastNotes}
                 searchEnabled={searchEnabled}
                 kind={kind}
+                onKindChange={setKind}
                 query={query}
                 onQueryChange={setQuery}
                 aiResults={aiResults}
@@ -375,6 +366,7 @@ export function TonightScreen({
           lastNotes={lastNotes}
           searchEnabled={searchEnabled}
           kind={kind}
+          onKindChange={setKind}
           query={query}
           onQueryChange={setQuery}
           aiResults={aiResults}
@@ -638,9 +630,10 @@ function ClosedDisclosure({
  * The ranked picker: a sticky filter zone — optional AI search box, the
  * tri-state Tag filter chips — above the flat ranked `<ol>`. It is the whole
  * screen in picker mode and the collapsible body in decided mode; its behavior
- * is identical either way. The All/Home/Restaurant kind segment lives in the
- * page header (`TonightScreen`) and scrolls away with it; the picker only reads
- * the resulting `kind`.
+ * is identical either way. The All/Home/Restaurant kind segment sits in the
+ * sticky filter zone as the first control on the Tag-chip line, so every
+ * filter is in one place; its state is owned by `TonightScreen` (see the
+ * `kind` comment there) and threaded in as `kind` / `onKindChange`.
  *
  * AI search state — `query`, `aiResults`, `aiError`, the in-flight search's
  * start time, the last search's duration — is owned by `TonightScreen` and
@@ -660,6 +653,7 @@ function Picker({
   lastNotes,
   searchEnabled,
   kind,
+  onKindChange,
   query,
   onQueryChange,
   aiResults,
@@ -677,6 +671,7 @@ function Picker({
   lastNotes: Map<string, LastNote>;
   searchEnabled: boolean;
   kind: KindFilter;
+  onKindChange: (next: KindFilter) => void;
   query: string;
   onQueryChange: (next: string) => void;
   aiResults: AiRankingRow[] | null;
@@ -694,6 +689,15 @@ function Picker({
   isToday: boolean;
 }) {
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
+  // The hint line restates the filter in words. With only the kind segment in
+  // play it just repeats what the segment beside it already shows ("Showing
+  // all Options", "Showing Home meals"), so it is visible only once a Tag
+  // filter is on — where it earns its place summarising include/exclude
+  // chips scattered across a wrapped row. It stays in the DOM as a live
+  // region either way, so a kind change is still announced.
+  const tagFilterActive = Object.values(tagFilters).some(
+    (state) => state !== "off",
+  );
 
   // A submitted Rejection removes its row from the list on revalidation; this
   // live region — stable across that re-render, unlike the row itself —
@@ -776,23 +780,36 @@ function Picker({
             the search restores it with the deterministic list. */}
         {aiRows === null && (
           <>
-            {tags.length > 0 && (
-              <div
-                role="group"
-                aria-label="Filter by tag"
-                className="flex flex-wrap gap-1"
-              >
-                {tags.map((tag) => (
-                  <TagFilterChip
-                    key={tag}
-                    tag={tag}
-                    state={tagFilters[tag] ?? "off"}
-                    onClick={() => cycleTag(tag)}
-                  />
-                ))}
-              </div>
-            )}
-            <p role="status" aria-live="polite" className="text-meta text-muted">
+            {/* One filter line: the kind segment leads, the Tag chips follow.
+                On a phone the chips drop to their own full-width line under
+                the segment (`basis-full`) rather than wrapping in the narrow
+                column beside it; from `desktop:` up they flow in the space to
+                its right. */}
+            <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+              <KindSegment kind={kind} onChange={onKindChange} />
+              {tags.length > 0 && (
+                <div
+                  role="group"
+                  aria-label="Filter by tag"
+                  className="flex min-w-0 basis-full flex-wrap gap-1
+                    desktop:flex-1 desktop:basis-0"
+                >
+                  {tags.map((tag) => (
+                    <TagFilterChip
+                      key={tag}
+                      tag={tag}
+                      state={tagFilters[tag] ?? "off"}
+                      onClick={() => cycleTag(tag)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+            <p
+              role="status"
+              aria-live="polite"
+              className={tagFilterActive ? "text-meta text-muted" : "sr-only"}
+            >
               {hint}
             </p>
           </>
@@ -1239,10 +1256,17 @@ const KIND_SEGMENTS: { value: KindFilter; label: string }[] = [
  * every `1fr` column to the widest label ("Restaurant"), so the buttons really
  * are even thirds and the thumb lands exactly under each one. (A `flex-1` row
  * inside an auto-width track gave each button its own content width, and the
- * one-third thumb drifted across the labels.) `p-[2px]`
- * is the track's inset padding (off-scale, like the 3px kind bar) so the
- * thumb reads as inside the track rather than flush with its edge, while the
- * track itself keeps the header's exact 36px height.
+ * one-third thumb drifted across the labels.)
+ *
+ * It sits in the filter zone at Tag-chip scale (2026-09-24), not in the page
+ * header at the header's 36px: the kind filter is rarely changed, so it no
+ * longer earns header space, and sized like the chips beside it it reads as
+ * one of the filters rather than a louder control above them. Same `meta`
+ * type, `leading-tight`, `py-0.5` and `rounded-badge` as a `TagFilterChip`,
+ * and a `p-px` track inset (off-scale, like the 3px kind bar) so the whole
+ * segment lands on the chips' height. Like the chips it is below the 44px tap
+ * floor by design: a mis-tap only re-filters the list and is undone by the
+ * next tap.
  */
 function KindSegment({
   kind,
@@ -1256,15 +1280,15 @@ function KindSegment({
     <div
       role="group"
       aria-label="Filter by kind"
-      className="relative grid h-9 grid-cols-3 rounded-control bg-raised p-[2px]"
+      className="relative grid shrink-0 grid-cols-3 rounded-badge bg-raised p-px"
     >
       <div
         aria-hidden
-        className="absolute inset-y-[2px] left-[2px] rounded-control bg-action
+        className="absolute inset-y-px left-px rounded-badge bg-action
           transition-transform duration-short ease-in-out
           motion-reduce:transition-none"
         style={{
-          width: `calc((100% - 4px) / ${KIND_SEGMENTS.length})`,
+          width: `calc((100% - 2px) / ${KIND_SEGMENTS.length})`,
           transform: `translateX(${selectedIndex * 100}%)`,
         }}
       />
@@ -1276,8 +1300,8 @@ function KindSegment({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(segment.value)}
-            className={`relative z-10 rounded-control px-2.5 text-chip
-              transition-colors duration-micro ${focusRing} ${
+            className={`relative z-10 rounded-badge px-2 py-0.5 text-meta
+              leading-tight transition-colors duration-micro ${focusRing} ${
                 selected ? "font-emphasis text-action-ink" : "text-muted"
               }`}
           >

@@ -447,15 +447,20 @@ button label — see the AI search "done" badge note in
     give it a negative vertical margin so the hit area still measures 44px but
     overlaps the row's own padding instead of setting the line's height. Only do
     this where the overlap falls on padding or non-interactive content. The **Tonight header** is the deliberate exception at 36px (`h-9`): its
-  day stepper, date input, and kind segment share a phone-width row with the H1,
-  and every pixel they give back is a pixel the day name keeps un-truncated.
-  The gap between the day stepper and the kind segment is 4px rather than the
-  usual 6px for the same reason; within each of those two grouped controls the
-  ‹/date/›/segment elements sit flush against a shared 1px `line` border or a
-  `p-[2px]` track inset instead of a gap (2026-09-24 — see the Decisions Log —
-  joining them saved back more width than a 4px gap cost). Don't "restore"
-  these to 44px without re-measuring the header — see ADR-0009's 2026-09-08
+  day stepper and date input share a phone-width row with the H1, and every
+  pixel they give back is a pixel the day name keeps un-truncated. Within the
+  stepper the ‹/date/› elements sit flush against a shared 1px `line` border
+  instead of a gap (2026-09-24 — see the Decisions Log). Don't "restore" these
+  to 44px without re-measuring the header — see ADR-0009's 2026-09-08
   amendment.
+  - **Kind segment (2026-09-24 exception to control height):** the
+    All/Home/Restaurant segment is not in the header. It leads the Tag-chip
+    line in Tonight's sticky filter zone, at Tag-chip scale (`meta` type,
+    ~21px tall, `rounded-badge`), below the 44px floor like the chips. The
+    kind filter is rarely changed, so it does not earn header space or a
+    control-sized footprint; a mis-tap only re-filters the list and the next
+    tap undoes it. On a phone the Tag chips wrap onto their own full-width
+    line under it; from `desktop:` up they flow to its right.
   - **Closed-day toggles (2026-09-19 exception to control height):** the
     Restaurant form's **Closed days** control is seven toggle chips in one row
     — `S M T W T F S` — sized below the 44px floor, alongside the Tonight
@@ -576,3 +581,4 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-09-24 | P7 (rows move instead of teleporting after Pick/Reject) spike dropped; fallback shipped instead — the picked/rejected row move still snaps, but the newly-mounted decided row and the Pick button's "Logged ✓" label use `.expand-in` | Time-boxed per the plan. A `document.startViewTransition` around the row's cross-list move needs to resolve its callback once the *server-revalidated* RSC tree has actually committed — Next exposes no hook for that moment, so closing the gap would need a promise/ref shared between the triggering row and the parent's prop change: exactly the "more than a small hook" the plan named as the fallback trigger. React's `<ViewTransition>` (canary-only) would solve this properly; revisit if it reaches stable, or if Tonight's row membership ever becomes client state instead of server-derived. |
 | 2026-09-24 | Kind segment track is an equal-thirds grid (`grid-cols-3`), not a `flex-1` row | Post-implementation review of the P4 segment: inside an auto-width track, `flex-1` buttons took their own content widths ("All" narrow, "Restaurant" wide) while the sliding thumb was always a third of the track, so the thumb drifted across the labels — the selected label rendered white on the light track and an unselected label rendered grey on the charcoal thumb, in every state. An auto-width grid sizes every `1fr` column to the widest label, so the buttons are genuine thirds and the no-measurement `translateX(index * 100%)` thumb lands exactly under each. |
 | 2026-09-24 | `.expand-in` drops its `height: 0 → auto` grow and `overflow: clip`; fade + 4px slide only | Post-implementation review of P6: the clip needed to hide content during the height grow also cut off the 2px-offset focus ring of buttons inside the expanding block — an armed confirm's Cancel showed a sliver of ring, the Reject box's Submit lost its top and bottom edges. Visible focus is part of the AA bar (PRODUCT.md); the grow was Chromium-only progressive enhancement, so it was the part to give up. `interpolate-size: allow-keywords` went with it. |
+| 2026-09-24 | Kind segment moved from the Tonight header into the sticky filter zone, at Tag-chip scale; the filter hint line ("Showing all Options") is visible only while a Tag filter is on | Direct user feedback: the segment sat in the wrong place, away from the other filters, and is not commonly used. It now leads the Tag-chip line so every filter is in one neighborhood, sized like the chips (~21px) rather than the header's 36px. With the segment beside the chips, the hint only repeated what the segment already shows when no Tag is filtered, so it drops to `sr-only` there — still a live region, so a kind change is still announced — and shows once include/exclude chips need summarising. The Tonight header is now just the H1 and the day stepper. |
