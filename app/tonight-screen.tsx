@@ -45,8 +45,8 @@ const NO_LAST_NOTES: Map<string, LastNote> = new Map();
  * screen, with two modes decided server-side from the Household's Log.
  *
  * **Picker mode** — no Log entry dated today — is the ranked picker exactly as
- * v1: the All/Home/Restaurant kind segment, the tri-state Tag filters, and the
- * flat ranked list.
+ * v1: the Home/Restaurant kind chips, the tri-state Tag filters, and the flat
+ * ranked list.
  *
  * **Decided mode** — one or more Log entries dated today — surfaces a "Tonight's
  * dinner" block of what was Picked, then keeps the ranked picker open below it
@@ -145,9 +145,9 @@ export function TonightScreen({
   // copy).
   const catalogEmpty = !decided && pickerRows.length === 0 && !allFiltered;
 
-  // The All/Home/Restaurant kind filter lives here, not in the Picker: a Pick
-  // or day change that flips picker ↔ decided mode remounts the Picker, and
-  // the chosen kind should survive that. The segment itself renders in the
+  // The Home/Restaurant kind filter lives here, not in the Picker: a Pick or
+  // day change that flips picker ↔ decided mode remounts the Picker, and the
+  // chosen kind should survive that. The chips themselves render in the
   // Picker's filter zone, beside the Tag chips.
   const [kind, setKind] = useState<KindFilter>("all");
 
@@ -628,12 +628,12 @@ function ClosedDisclosure({
 
 /**
  * The ranked picker: a sticky filter zone — optional AI search box, the
- * tri-state Tag filter chips — above the flat ranked `<ol>`. It is the whole
- * screen in picker mode and the collapsible body in decided mode; its behavior
- * is identical either way. The All/Home/Restaurant kind segment sits in the
- * sticky filter zone as the first control on the Tag-chip line, so every
- * filter is in one place; its state is owned by `TonightScreen` (see the
- * `kind` comment there) and threaded in as `kind` / `onKindChange`.
+ * Home/Restaurant kind chips, the tri-state Tag filter chips — above the flat
+ * ranked `<ol>`. It is the whole screen in picker mode and the collapsible
+ * body in decided mode; its behavior is identical either way. The kind chips
+ * lead the Tag-chip line in the sticky filter zone, so every filter is in one
+ * place; their state is owned by `TonightScreen` (see the `kind` comment
+ * there) and threaded in as `kind` / `onKindChange`.
  *
  * AI search state — `query`, `aiResults`, `aiError`, the in-flight search's
  * start time, the last search's duration — is owned by `TonightScreen` and
@@ -643,7 +643,7 @@ function ClosedDisclosure({
  * when AI search is configured (`searchEnabled`). Submitting it runs an **AI
  * search** (PRD: AI search) — the deterministic list swaps in place for an
  * AI-ranked result, each row carrying an AI rationale. While an AI result is
- * shown the kind segment and Tag chips are hidden so the query is the single
+ * shown the kind chips and Tag chips are hidden so the query is the single
  * ranking authority; clearing the search restores both.
  *
  * Each row carries the `pick = log` write action (§6) in `tonight-row.tsx`.
@@ -689,12 +689,12 @@ function Picker({
   isToday: boolean;
 }) {
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
-  // The hint line restates the filter in words. With only the kind segment in
-  // play it just repeats what the segment beside it already shows ("Showing
-  // all Options", "Showing Home meals"), so it is visible only once a Tag
-  // filter is on — where it earns its place summarising include/exclude
-  // chips scattered across a wrapped row. It stays in the DOM as a live
-  // region either way, so a kind change is still announced.
+  // The hint line restates the filter in words. With only a kind chip in
+  // play it just repeats what the chip itself already shows ("Showing all
+  // Options", "Showing Home meals"), so it is visible only once a Tag filter
+  // is on — where it earns its place summarising include/exclude chips
+  // scattered across a wrapped row. It stays in the DOM as a live region
+  // either way, so a kind change is still announced.
   const tagFilterActive = Object.values(tagFilters).some(
     (state) => state !== "off",
   );
@@ -775,20 +775,20 @@ function Picker({
             </p>
           </>
         )}
-        {/* The filter zone — kind segment and Tag chips — is hidden while an
+        {/* The filter zone — kind chips and Tag chips — is hidden while an
             AI result is shown so the query alone ranks the list; clearing
             the search restores it with the deterministic list. */}
         {aiRows === null && (
           <>
-            {/* One filter line: the kind segment and every Tag chip are flat
+            {/* One filter line: the kind chips and every Tag chip are flat
                 siblings in a single flex-wrap row, so a wrapped second (or
-                third) line reclaims the segment's own width instead of
-                staying squeezed into a narrower column beside it — the Tag
-                group div carries the a11y grouping (`role="group"`) but
-                `contents` removes it from layout, so its chip children wrap
-                exactly as if they were direct children of the row. */}
+                third) line reclaims a chip's own width instead of staying
+                squeezed into a narrower column beside it — both group divs
+                carry the a11y grouping (`role="group"`) but `contents`
+                removes them from layout, so their chip children wrap exactly
+                as if they were direct children of the row. */}
             <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
-              <KindSegment kind={kind} onChange={onKindChange} />
+              <KindChips kind={kind} onChange={onKindChange} />
               {tags.length > 0 && (
                 <div role="group" aria-label="Filter by tag" className="contents">
                   {tags.map((tag) => (
@@ -1235,88 +1235,63 @@ function CheckIcon() {
   );
 }
 
-const KIND_SEGMENTS: { value: KindFilter; label: string }[] = [
-  { value: "all", label: "All" },
+const KIND_CHIPS: { value: "home" | "restaurant"; label: string }[] = [
   { value: "home", label: "Home" },
   { value: "restaurant", label: "Restaurant" },
 ];
 
 /**
- * The All/Home/Restaurant segment that narrows the list by Option kind. A
- * single `raised` track (2026-09-24) replaces the earlier three separately-
- * filled pills: one `action`-filled thumb slides under the selected label
- * instead of each option drawing its own box. The thumb is one absolutely-
- * positioned `div` sized to an even third of the track and moved by
- * `translateX(index * 100%)` — a fraction of its own width, so no size
- * measurement is needed — behind the buttons, which go transparent. The track
- * is a three-column grid rather than a `flex-1` row: an auto-width grid sizes
- * every `1fr` column to the widest label ("Restaurant"), so the buttons really
- * are even thirds and the thumb lands exactly under each one. (A `flex-1` row
- * inside an auto-width track gave each button its own content width, and the
- * one-third thumb drifted across the labels.)
+ * The Home/Restaurant kind filter (2026-09-24) — two ordinary toggle chips,
+ * not the earlier three-way All/Home/Restaurant segmented track. With only
+ * two kinds, "neither chip selected" already reads as "show everything", so
+ * a dedicated All button was a third state doing the same job as zero
+ * selected; dropping it also drops the track, the sliding thumb, and their
+ * width-stability machinery entirely. Each chip is exactly a
+ * `TagFilterChip`'s shape and sits flat in the filter row the same way (see
+ * the `contents` wrapper in `Picker`) — same `rounded-badge`, `meta` text,
+ * `py-0.5`, same `chipStateLabel` wording in its accessible name — but is a
+ * plain on/off toggle rather than the tri-state include/exclude cycle: a
+ * kind has no third value to exclude toward. Tapping the active chip clears
+ * back to "all"; tapping the other chip switches to it, so only one kind
+ * ever filters at a time, same as the old segment.
  *
- * It sits in the filter zone at Tag-chip scale (2026-09-24), not in the page
- * header at the header's 36px: the kind filter is rarely changed, so it no
- * longer earns header space, and sized like the chips beside it it reads as
- * one of the filters rather than a louder control above them. Same `meta`
- * type, `leading-tight`, `py-0.5` and `rounded-badge` as a `TagFilterChip`,
- * and a `p-px` track inset (off-scale, like the 3px kind bar) so the whole
- * segment lands on the chips' height. Like the chips it is below the 44px tap
- * floor by design: a mis-tap only re-filters the list and is undone by the
- * next tap.
+ * The selected fill is the Option's own kind color — teal `kind-home` /
+ * plum `kind-restaurant` (DESIGN.md "Two color channels") — instead of the
+ * Tag chips' generic `action` fill: this is the one filter where that color
+ * already means something elsewhere in the app (the row's own kind bar), so
+ * reusing it here says what the chip does at a glance instead of reading as
+ * an arbitrary "selected" gray. Both fills clear 4.5:1 against
+ * `text-action-ink` in both themes. Below the 44px tap floor by design, like
+ * the Tag chips: a mis-tap only re-filters the list and the next tap undoes
+ * it.
  */
-function KindSegment({
+function KindChips({
   kind,
   onChange,
 }: {
   kind: KindFilter;
   onChange: (next: KindFilter) => void;
 }) {
-  const selectedIndex = KIND_SEGMENTS.findIndex((s) => s.value === kind);
   return (
-    <div
-      role="group"
-      aria-label="Filter by kind"
-      className="relative grid shrink-0 grid-cols-3 rounded-badge bg-raised p-px"
-    >
-      <div
-        aria-hidden
-        className="absolute inset-y-px left-px rounded-badge bg-action
-          transition-transform duration-short ease-in-out
-          motion-reduce:transition-none"
-        style={{
-          width: `calc((100% - 2px) / ${KIND_SEGMENTS.length})`,
-          transform: `translateX(${selectedIndex * 100}%)`,
-        }}
-      />
-      {KIND_SEGMENTS.map((segment) => {
-        const selected = kind === segment.value;
+    <div role="group" aria-label="Filter by kind" className="contents">
+      {KIND_CHIPS.map((chip) => {
+        const selected = kind === chip.value;
         return (
           <button
-            key={segment.value}
+            key={chip.value}
             type="button"
-            aria-pressed={selected}
-            onClick={() => onChange(segment.value)}
-            className={`relative z-10 rounded-badge px-2 py-0.5 text-meta
-              leading-tight transition-colors duration-micro ${focusRing} ${
-                selected ? "font-emphasis text-action-ink" : "text-muted"
+            onClick={() => onChange(selected ? "all" : chip.value)}
+            aria-label={`${chip.label}, ${chipStateLabel(selected ? "include" : "off")}`}
+            className={`inline-flex items-center justify-center rounded-badge
+              border border-transparent px-2 py-0.5 text-meta leading-tight
+              underline-offset-2 transition-colors duration-micro
+              ${focusRing} ${
+                selected
+                  ? `${chip.value === "home" ? "bg-kind-home" : "bg-kind-restaurant"} text-action-ink underline`
+                  : "bg-raised text-ink"
               }`}
           >
-            {/* The selected label goes bold, and bold "Restaurant" is wider —
-                which widened every equal column and grew the whole track on
-                each toggle. An invisible bold copy stacked in the same grid
-                cell reserves the bold width in every state, so the track
-                never changes size. `aria-hidden` keeps it out of the
-                button's accessible name. */}
-            <span className="grid">
-              <span
-                aria-hidden
-                className="invisible col-start-1 row-start-1 font-emphasis"
-              >
-                {segment.label}
-              </span>
-              <span className="col-start-1 row-start-1">{segment.label}</span>
-            </span>
+            {chip.label}
           </button>
         );
       })}

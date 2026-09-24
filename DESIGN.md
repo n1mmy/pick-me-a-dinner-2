@@ -453,17 +453,18 @@ button label — see the AI search "done" badge note in
   instead of a gap (2026-09-24 — see the Decisions Log). Don't "restore" these
   to 44px without re-measuring the header — see ADR-0009's 2026-09-08
   amendment.
-  - **Kind segment (2026-09-24 exception to control height):** the
-    All/Home/Restaurant segment is not in the header. It leads the Tag-chip
-    line in Tonight's sticky filter zone, at Tag-chip scale (`meta` type,
-    ~21px tall, `rounded-badge`), below the 44px floor like the chips. The
-    kind filter is rarely changed, so it does not earn header space or a
+  - **Kind chips (2026-09-24 exception to control height):** Home and
+    Restaurant are not in the header, and there is no All button — the kind
+    filter is two ordinary toggle chips leading the Tag-chip line in
+    Tonight's sticky filter zone, at Tag-chip scale (`meta` type, ~21px
+    tall, `rounded-badge`), below the 44px floor like the chips. The kind
+    filter is rarely changed, so it does not earn header space or a
     control-sized footprint; a mis-tap only re-filters the list and the next
-    tap undoes it. It and every Tag chip are flat siblings in one
-    `flex-wrap` row (the Tag group's `role="group"` div is `display:
-    contents`, out of layout), so chips flow into the space beside the
-    segment and any wrapped line reclaims the full row width instead of
-    staying squeezed into a column that starts to its right.
+    tap undoes it. The kind chips and every Tag chip are flat siblings in
+    one `flex-wrap` row (both group divs' `role="group"` is `display:
+    contents`, out of layout), so chips flow into the space beside each
+    other and any wrapped line reclaims the full row width instead of
+    staying squeezed into a column that starts partway across the row.
   - **Closed-day toggles (2026-09-19 exception to control height):** the
     Restaurant form's **Closed days** control is seven toggle chips in one row
     — `S M T W T F S` — sized below the 44px floor, alongside the Tonight
@@ -586,3 +587,4 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-09-24 | `.expand-in` drops its `height: 0 → auto` grow and `overflow: clip`; fade + 4px slide only | Post-implementation review of P6: the clip needed to hide content during the height grow also cut off the 2px-offset focus ring of buttons inside the expanding block — an armed confirm's Cancel showed a sliver of ring, the Reject box's Submit lost its top and bottom edges. Visible focus is part of the AA bar (PRODUCT.md); the grow was Chromium-only progressive enhancement, so it was the part to give up. `interpolate-size: allow-keywords` went with it. |
 | 2026-09-24 | Kind segment moved from the Tonight header into the sticky filter zone, at Tag-chip scale; the filter hint line ("Showing all Options") is visible only while a Tag filter is on | Direct user feedback: the segment sat in the wrong place, away from the other filters, and is not commonly used. It now leads the Tag-chip line so every filter is in one neighborhood, sized like the chips (~21px) rather than the header's 36px. With the segment beside the chips, the hint only repeated what the segment already shows when no Tag is filtered, so it drops to `sr-only` there — still a live region, so a kind change is still announced — and shows once include/exclude chips need summarising. The Tonight header is now just the H1 and the day stepper. |
 | 2026-09-24 | Kind segment and Tag chips are flat siblings of one `flex-wrap` row; the Tag group's `role="group"` div is `display: contents` instead of its own `flex-1`/`basis-full` box | Direct user feedback, same day: boxing the Tag chips into their own flex item reserved that item's reduced width for *every* wrapped line, not just the line beside the segment, so chips wrapped earlier than the row had room for and left blank space under the segment. `display: contents` keeps the div's `role`/`aria-label` for assistive tech while dropping it from the box tree, so its chip children wrap as if they were direct children of the row — a wrapped line now reclaims the full row width. |
+| 2026-09-24 | The All/Home/Restaurant segmented track is replaced by two ordinary toggle chips (Home, Restaurant, no All); their selected fill is the Option's own `kind-home`/`kind-restaurant` color instead of the Tag chips' generic `action` fill | Direct user feedback, same day: "make Home and Restaurant act like the other filter chips" and "use their type colors instead of gray". With only two kinds, zero chips selected already reads as "show everything", so All was a redundant third state — dropping it also drops the track, the sliding thumb, and the invisible-bold-copy width-stability hack. Each chip is now a flat sibling in the filter row's `flex-wrap` (same `contents`-wrapped-group pattern as the Tag chips) and a plain on/off toggle — tapping the active one clears back to "all", tapping the other switches to it — rather than the Tag chips' tri-state include/exclude cycle, which has no analogous third state for a kind. The kind colors already mean "home"/"restaurant" on every Tonight row's kind bar, so reusing them on the selected chip (`text-action-ink` on `kind-home`/`kind-restaurant`, both ≥4.9:1 in both themes) says what the filter does at a glance instead of reading as an arbitrary "selected" gray. |
