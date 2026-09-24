@@ -1261,9 +1261,14 @@ const KIND_CHIPS: { value: "home" | "restaurant"; label: string }[] = [
  * already means something elsewhere in the app (the row's own kind bar), so
  * reusing it here says what the chip does at a glance instead of reading as
  * an arbitrary "selected" gray. Both fills clear 4.5:1 against
- * `text-action-ink` in both themes. Below the 44px tap floor by design, like
- * the Tag chips: a mis-tap only re-filters the list and the next tap undoes
- * it.
+ * `text-action-ink` in both themes. The *unselected* fill is the same hue's
+ * `-wash` token rather than the Tag chips' neutral `raised` — a faded tint
+ * instead of flat gray, so each chip reads as "this kind's control" even
+ * before it's tapped (2026-09-24, direct user feedback). `-wash`, not the
+ * even-fainter `-tint` the picker rows use, because `-tint` is tuned to sit
+ * *behind* other chips without competing and reads as barely-off-gray here.
+ * Below the 44px tap floor by design, like the Tag chips: a mis-tap only
+ * re-filters the list and the next tap undoes it.
  */
 function KindChips({
   kind,
@@ -1276,6 +1281,7 @@ function KindChips({
     <div role="group" aria-label="Filter by kind" className="contents">
       {KIND_CHIPS.map((chip) => {
         const selected = kind === chip.value;
+        const home = chip.value === "home";
         return (
           <button
             key={chip.value}
@@ -1287,8 +1293,8 @@ function KindChips({
               underline-offset-2 transition-colors duration-micro
               ${focusRing} ${
                 selected
-                  ? `${chip.value === "home" ? "bg-kind-home" : "bg-kind-restaurant"} text-action-ink underline`
-                  : "bg-raised text-ink"
+                  ? `${home ? "bg-kind-home" : "bg-kind-restaurant"} text-action-ink underline`
+                  : `${home ? "bg-kind-home-wash" : "bg-kind-restaurant-wash"} text-ink`
               }`}
           >
             {chip.label}
