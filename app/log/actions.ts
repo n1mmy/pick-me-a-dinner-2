@@ -1,8 +1,8 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../../db";
-import { dinnerLog } from "../../db/schema";
+import { dinnerLog, rejections } from "../../db/schema";
 import { authedAction } from "../../lib/authed-action";
 import { isValidSqlDate, parseSelectedDay, today } from "../../lib/local-day";
 import type { ActionResult } from "../../lib/action-result";
@@ -15,6 +15,14 @@ import { revalidateDinnerViews } from "../revalidate";
  * upserts on `(option_id, eaten_on)` via `onConflictDoNothing`, so an
  * accidental double-tap is a harmless no-op. Picking a *different* Option the
  * same evening is a separate row — a multi-Option Dinner.
+ *
+ * A Pick on a date that carries a Rejection of the same Option removes that
+ * Rejection — the Household changed its mind (`CONTEXT.md`: **Pick**). The
+ * insert and the Rejection delete run in one transaction, so a failure never
+ * leaves the Rejection gone without the Pick landing. `onConflictDoNothing`
+ * still means an already-logged Option re-Picked is a no-op insert, but the
+ * delete runs regardless — clearing a lingering same-date Rejection even then.
+ * `rejections_option_rejected_on_unique` means at most one row can match.
  *
  * `selectedDay` is the Tonight screen's **Selected day** (ADR-0009, amended),
  * defaulting to today on the standard render and any SQL date the Household
@@ -32,10 +40,20 @@ export const pickTonight = authedAction(
   async (optionId: string, selectedDay?: string): Promise<ActionResult> => {
     const eatenOn = parseSelectedDay(selectedDay, today());
     try {
-      await db
-        .insert(dinnerLog)
-        .values({ optionId, eatenOn })
-        .onConflictDoNothing();
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(dinnerLog)
+          .values({ optionId, eatenOn })
+          .onConflictDoNothing();
+        await tx
+          .delete(rejections)
+          .where(
+            and(
+              eq(rejections.optionId, optionId),
+              eq(rejections.rejectedOn, eatenOn),
+            ),
+          );
+      });
     } catch {
       return { ok: false, error: "Couldn't log that — try again" };
     }
@@ -51,6 +69,12 @@ export const pickTonight = authedAction(
  * date the Option is already logged for is a real mistake here — the user typed
  * it — so the `(option_id, eaten_on)` collision is reported inline rather than
  * silently swallowed.
+ *
+ * Same as `pickTonight`: a Pick on a date that carries a Rejection of the same
+ * Option removes that Rejection (`CONTEXT.md`: **Pick**), and the insert plus
+ * the delete run in one transaction. Here the insert can throw on a genuine
+ * duplicate — the transaction then rolls back before the delete runs, so a
+ * rejected duplicate leaves any Rejection untouched.
  */
 export const logForDate = authedAction(
   async (
@@ -62,9 +86,19 @@ export const logForDate = authedAction(
       return { ok: false, error: "Pick a valid date" };
     }
     try {
-      await db
-        .insert(dinnerLog)
-        .values({ optionId, eatenOn, note: trimToNull(note ?? "") });
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(dinnerLog)
+          .values({ optionId, eatenOn, note: trimToNull(note ?? "") });
+        await tx
+          .delete(rejections)
+          .where(
+            and(
+              eq(rejections.optionId, optionId),
+              eq(rejections.rejectedOn, eatenOn),
+            ),
+          );
+      });
     } catch (error) {
       return pgErrorMessage(error, {
         duplicate: "Already logged for that date",

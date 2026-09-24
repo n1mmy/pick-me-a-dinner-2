@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { dinnerLog, options } from "../../db/schema";
+import { dinnerLog, options, rejections } from "../../db/schema";
 import { getLog, getTonightData } from "../../db/queries";
 import { truncateAll } from "../../db/test-support";
 import { todaySqlDate } from "../../lib/local-day";
@@ -47,6 +47,15 @@ async function makeEntry(
     .insert(dinnerLog)
     .values({ optionId, eatenOn, note: note ?? null })
     .returning({ id: dinnerLog.id });
+  return row.id;
+}
+
+/** Insert a `rejections` row directly and return its id. */
+async function makeRejection(optionId: string, rejectedOn: string): Promise<string> {
+  const [row] = await db
+    .insert(rejections)
+    .values({ optionId, rejectedOn })
+    .returning({ id: rejections.id });
   return row.id;
 }
 
@@ -206,6 +215,126 @@ describe("logForDate", () => {
       error: "Pick a valid date",
     });
     expect(await db.select().from(dinnerLog)).toHaveLength(0);
+  });
+});
+
+describe("a Pick supersedes that date's Rejection", () => {
+  // CONTEXT.md, Pick: picking an Option on a date it carries a Rejection
+  // removes that Rejection.
+
+  it("pickTonight deletes a same-date Rejection of the same Option", async () => {
+    const pizza = await makeOption("Pizza");
+    await makeRejection(pizza, TODAY);
+
+    const result = await pickTonight(pizza);
+
+    expect(result.ok).toBe(true);
+    expect(await db.select().from(dinnerLog)).toHaveLength(1);
+    expect(await db.select().from(rejections)).toHaveLength(0);
+  });
+
+  it("pickTonight on an already-logged Option still clears a lingering same-date Rejection", async () => {
+    const pizza = await makeOption("Pizza");
+    await makeEntry(pizza, TODAY);
+    await makeRejection(pizza, TODAY);
+
+    const result = await pickTonight(pizza);
+
+    expect(result.ok).toBe(true);
+    expect(await db.select().from(dinnerLog)).toHaveLength(1);
+    expect(await db.select().from(rejections)).toHaveLength(0);
+  });
+
+  it("pickTonight leaves a Rejection of the same Option on a different date untouched", async () => {
+    const pizza = await makeOption("Pizza");
+    const otherDate = await makeRejection(pizza, "2025-01-01");
+
+    await pickTonight(pizza);
+
+    const rows = await db.select().from(rejections);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(otherDate);
+  });
+
+  it("pickTonight leaves a same-date Rejection of a different Option untouched", async () => {
+    const pizza = await makeOption("Pizza");
+    const tacos = await makeOption("Tacos", "restaurant");
+    const otherOption = await makeRejection(tacos, TODAY);
+
+    await pickTonight(pizza);
+
+    const rows = await db.select().from(rejections);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(otherOption);
+  });
+
+  it("logForDate on a past date deletes a same-date Rejection of the same Option", async () => {
+    const pizza = await makeOption("Pizza");
+    await makeRejection(pizza, "2026-01-10");
+
+    const result = await logForDate(pizza, "2026-01-10");
+
+    expect(result).toEqual({ ok: true });
+    expect(await db.select().from(rejections)).toHaveLength(0);
+  });
+
+  it("logForDate on today deletes a same-date Rejection of the same Option", async () => {
+    const pizza = await makeOption("Pizza");
+    await makeRejection(pizza, TODAY);
+
+    const result = await logForDate(pizza, TODAY);
+
+    expect(result).toEqual({ ok: true });
+    expect(await db.select().from(rejections)).toHaveLength(0);
+  });
+
+  it("logForDate on a future date deletes a same-date Planned rejection of the same Option", async () => {
+    const pizza = await makeOption("Pizza");
+    const future = futureSqlDate(7);
+    await makeRejection(pizza, future);
+
+    const result = await logForDate(pizza, future);
+
+    expect(result).toEqual({ ok: true });
+    expect(await db.select().from(rejections)).toHaveLength(0);
+  });
+
+  it("logForDate leaves a Rejection of the same Option on a different date untouched", async () => {
+    const pizza = await makeOption("Pizza");
+    const otherDate = await makeRejection(pizza, "2025-06-01");
+
+    await logForDate(pizza, "2026-01-10");
+
+    const rows = await db.select().from(rejections);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(otherDate);
+  });
+
+  it("logForDate leaves a same-date Rejection of a different Option untouched", async () => {
+    const pizza = await makeOption("Pizza");
+    const tacos = await makeOption("Tacos", "restaurant");
+    const otherOption = await makeRejection(tacos, "2026-01-10");
+
+    await logForDate(pizza, "2026-01-10");
+
+    const rows = await db.select().from(rejections);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(otherOption);
+  });
+
+  it("logForDate leaves the Rejection in place when the Log insert fails (transactional)", async () => {
+    const pizza = await makeOption("Pizza");
+    await makeEntry(pizza, "2026-01-10");
+    await makeRejection(pizza, "2026-01-10");
+
+    const result = await logForDate(pizza, "2026-01-10");
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Already logged for that date",
+    });
+    // The insert threw before the delete ran — the Rejection survives.
+    expect(await db.select().from(rejections)).toHaveLength(1);
   });
 });
 
