@@ -109,6 +109,13 @@ export type TonightForDay = {
   picker: TonightRow[];
   /** The rows closed on the Selected day, alphabetical by name. */
   closed: TonightRow[];
+  /**
+   * The rows rejected for the Selected day, alphabetical by name — the
+   * Rejected disclosure itself renders `TodayRejection` (with each
+   * Rejection's reason), but the typeahead's candidate set (issue 02) needs
+   * the full row for its kind bar and label, exactly as `closed` does.
+   */
+  rejected: TonightRow[];
   /** Each Option's Last note, keyed by Option id. */
   lastNotes: Map<string, LastNote>;
   /**
@@ -173,6 +180,9 @@ export function tonightForDay({
   const closed = picker
     .filter((row) => suppressions.get(row.option.id) === "closed")
     .sort((a, b) => a.option.name.localeCompare(b.option.name));
+  const rejected = picker
+    .filter((row) => suppressions.get(row.option.id) === "rejected")
+    .sort((a, b) => a.option.name.localeCompare(b.option.name));
 
   // 6. Last notes, for every row type — one Map serves picker, AI result,
   // and decided rows alike.
@@ -195,6 +205,7 @@ export function tonightForDay({
     tonightsDinner,
     picker: visiblePicker,
     closed,
+    rejected,
     lastNotes,
     allFiltered,
   };

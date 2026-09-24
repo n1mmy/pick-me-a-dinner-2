@@ -40,7 +40,7 @@ export default async function TonightPage({
   // Every Selected-day suppression rule — Picked, Rejected, Closed — and the
   // Last note reduction compose inside `tonightForDay` (issue 05); the page
   // only owns its queries and the props it hands to the screen.
-  const { tonightsDinner, picker, closed, lastNotes, allFiltered } =
+  const { tonightsDinner, picker, closed, rejected, lastNotes, allFiltered } =
     tonightForDay({
       options,
       logEntries,
@@ -58,6 +58,7 @@ export default async function TonightPage({
       lastNotes={lastNotes}
       rejectedTonight={anchorRejections}
       closedTonight={closed}
+      rejectedRows={rejected}
       allFiltered={allFiltered}
       searchEnabled={aiSearchEnabled()}
       selectedDay={selectedDay}

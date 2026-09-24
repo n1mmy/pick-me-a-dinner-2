@@ -20,6 +20,7 @@ import { startTransition } from "react";
 import type { TonightRow } from "../lib/ranking";
 import type { LastNote } from "../lib/last-note";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
+import { weekdayName } from "../lib/local-day";
 
 // `aiSearchAction` is the client-side fetch wrapper around AI search's Route
 // Handler (`app/api/ai-search/route.ts`); the screen test drives the
@@ -792,6 +793,184 @@ describe("TonightScreen — search typeahead", () => {
       expect(mockedPick).toHaveBeenCalledWith("o1", undefined);
     });
     expect(mockedAiSearch).not.toHaveBeenCalled();
+  });
+});
+
+describe("TonightScreen — search typeahead widens to every active Option (issue 02)", () => {
+  it("shows a Closed Option with a day-aware closed note", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        closedTonight={[row("o9", "Aji Ichi")]}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Aji" } });
+    expect(screen.getAllByRole("option")[0].textContent).toContain(
+      `closed ${weekdayName("2026-05-20")}`,
+    );
+  });
+
+  it("shows a Rejected Option with 'rejected tonight' when the Selected day is today", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        rejectedRows={[row("o9", "Curry House")]}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Curry" } });
+    expect(screen.getAllByRole("option")[0].textContent).toContain(
+      "rejected tonight",
+    );
+  });
+
+  it("shows a Rejected Option's weekday name when the Selected day is not today", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-22"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        rejectedRows={[row("o9", "Curry House")]}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Curry" } });
+    expect(screen.getAllByRole("option")[0].textContent).toContain(
+      `rejected ${weekdayName("2026-05-22")}`,
+    );
+  });
+
+  it("shows a Picked Option as a non-selectable 'already picked' row that ↑/↓ skip", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[
+          { entryId: "e9", row: row("o9", "Zed Diner"), note: null },
+        ]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Zed" } });
+    const optionRow = screen.getAllByRole("option")[0];
+    expect(optionRow.getAttribute("aria-disabled")).toBe("true");
+    expect(optionRow.textContent).toContain("already picked");
+
+    // ArrowDown must not land the highlight on the sole, disabled match.
+    fireEvent.keyDown(searchInput(), { key: "ArrowDown" });
+    expect(searchInput().getAttribute("aria-activedescendant")).toBeNull();
+  });
+
+  it("selecting a Closed row opens an inline confirm instead of Picking; Cancel leaves it unchanged", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        closedTonight={[row("o9", "Aji Ichi")]}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Aji" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(mockedPick).not.toHaveBeenCalled();
+    expect(screen.getByText(/is closed/)).toBeTruthy();
+    const link = screen.getByRole("link", { name: "Aji Ichi" });
+    expect(link.getAttribute("href")).toBe("/catalog/o9");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText(/is closed/)).toBeNull();
+    expect(mockedPick).not.toHaveBeenCalled();
+  });
+
+  it("Pick anyway on a Closed row's confirm Picks it", async () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        closedTonight={[row("o9", "Aji Ichi")]}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Aji" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Pick anyway" }));
+
+    await waitFor(() => {
+      expect(mockedPick).toHaveBeenCalledWith("o9", undefined);
+    });
+  });
+
+  it("selecting a Rejected row's confirm names the Rejection and links the Option", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        rejectedRows={[row("o9", "Curry House")]}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Curry" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+
+    expect(screen.getByText(/You rejected/)).toBeTruthy();
+    const link = screen.getByRole("link", { name: "Curry House" });
+    expect(link.getAttribute("href")).toBe("/catalog/o9");
+  });
+
+  it("Pick anyway on a Rejected row's confirm Picks it", async () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        rejectedRows={[row("o9", "Curry House")]}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Curry" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Pick anyway" }));
+
+    await waitFor(() => {
+      expect(mockedPick).toHaveBeenCalledWith("o9", undefined);
+    });
+  });
+
+  it("Picking an unsuppressed row from the widened candidates still Picks immediately", async () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Apple" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+
+    await waitFor(() => {
+      expect(mockedPick).toHaveBeenCalledWith("o1", undefined);
+    });
+    expect(screen.queryByText(/Pick anyway/)).toBeNull();
   });
 });
 

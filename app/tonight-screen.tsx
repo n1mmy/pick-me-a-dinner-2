@@ -9,7 +9,7 @@ import {
   useTransition,
 } from "react";
 import Link from "next/link";
-import type { OptionChoice, TodayRejection } from "../db/queries";
+import type { TodayRejection } from "../db/queries";
 import type { AiRankingRow } from "../lib/ai-search";
 import type { LastNote } from "../lib/last-note";
 import { weekdayName } from "../lib/local-day";
@@ -24,6 +24,8 @@ import {
 } from "../lib/picker-view";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 import { DayNameReset, DayStepper } from "./day-stepper";
+import type { TonightChoice } from "../lib/picker-view";
+import { ConfirmPair } from "./confirm-pair";
 import {
   OptionListbox,
   filterOptionChoices,
@@ -77,6 +79,7 @@ export function TonightScreen({
   allFiltered = false,
   rejectedTonight = [],
   closedTonight = [],
+  rejectedRows = [],
   selectedDay,
   todaySql,
 }: {
@@ -120,6 +123,13 @@ export function TonightScreen({
    * disclosure costs nothing until a Restaurant is shut for the day.
    */
   closedTonight?: TonightRow[];
+  /**
+   * The rows rejected for the Selected day, full `TonightRow`s (issue 02) —
+   * unlike `rejectedTonight` (which the Rejected disclosure renders with
+   * each Rejection's reason), the typeahead's candidate set needs the row's
+   * kind for its kind bar. Empty by default.
+   */
+  rejectedRows?: TonightRow[];
   /**
    * The Tonight screen's **Selected day** (ADR-0009). When equal to
    * `todaySql` the screen reads as today's Tonight; when not, the H1, copy,
@@ -335,6 +345,9 @@ export function TonightScreen({
             >
               <Picker
                 rows={pickerRows}
+                closedRows={closedTonight}
+                rejectedRows={rejectedRows}
+                pickedRows={tonightsDinner.map((entry) => entry.row)}
                 lastNotes={lastNotes}
                 searchEnabled={searchEnabled}
                 kind={kind}
@@ -357,6 +370,9 @@ export function TonightScreen({
       ) : (
         <Picker
           rows={pickerRows}
+          closedRows={closedTonight}
+          rejectedRows={rejectedRows}
+          pickedRows={tonightsDinner.map((entry) => entry.row)}
           lastNotes={lastNotes}
           searchEnabled={searchEnabled}
           kind={kind}
@@ -644,6 +660,9 @@ function ClosedDisclosure({
  */
 function Picker({
   rows,
+  closedRows,
+  rejectedRows,
+  pickedRows,
   lastNotes,
   searchEnabled,
   kind,
@@ -661,6 +680,10 @@ function Picker({
   isToday,
 }: {
   rows: TonightRow[];
+  /** The rows Closed, Rejected, and already Picked for the Selected day — widens the typeahead past `rows` (issue 02). */
+  closedRows: TonightRow[];
+  rejectedRows: TonightRow[];
+  pickedRows: TonightRow[];
   /** Each Option's Last note, keyed by Option id; absent means no note line. */
   lastNotes: Map<string, LastNote>;
   searchEnabled: boolean;
@@ -704,8 +727,13 @@ function Picker({
   // typeahead pick can never hit an already-Picked or Selected-day-rejected
   // Option), the chip row's Tags, and the hint line.
   const { visible, rankOf, choices, tags, hint } = useMemo(
-    () => pickerView(rows, kind, tagFilters),
-    [rows, kind, tagFilters],
+    () =>
+      pickerView(rows, kind, tagFilters, {
+        closed: closedRows,
+        rejected: rejectedRows,
+        picked: pickedRows,
+      }),
+    [rows, kind, tagFilters, closedRows, rejectedRows, pickedRows],
   );
 
   // The AI search mode restated for assistive tech: a polite announcement of
@@ -941,14 +969,20 @@ function SearchBox({
   doneSeconds: number | null;
   error: boolean;
   showClear: boolean;
-  /** The picker's Options, by name — the typeahead's pick candidates. */
-  choices: OptionChoice[];
+  /** Every active Option, by name, each carrying why it is off Tonight's ranked list, if at all (issue 02). */
+  choices: TonightChoice[];
   /** The Selected day a typeahead pick is logged to (ADR-0009). */
   selectedDay: string;
   /** True when the Selected day is today — then the pick omits the day. */
   isToday: boolean;
 }) {
   const listId = useId();
+  // The day-aware noun for a suppression note — "tonight" today, the weekday
+  // name otherwise — mirroring the screen's own `dayLabel`. `weekdayName` is
+  // used directly for a Closed note, which always names the weekday
+  // (DESIGN.md; issue 02's row-label spec) even when the Selected day is
+  // today, unlike the "tonight" a Rejected note gets.
+  const dayLabel = isToday ? "tonight" : weekdayName(selectedDay);
   const pending = startedAt !== null;
   // Elapsed whole seconds of the in-flight search. An AI search runs ~50–90s,
   // so a live counter reassures the Household the request is still working.
@@ -969,7 +1003,16 @@ function SearchBox({
   // transition; a failure shows inline below the box.
   const [open, setOpen] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
-  const [, startPick] = useTransition();
+  const [pickPending, startPick] = useTransition();
+  // A selected Closed or Rejected row (issue 02): the dropdown closes and
+  // this inline confirm takes over — "Pick anyway" runs the same write as an
+  // unsuppressed pick, "Cancel" clears it back to nothing. `null` means no
+  // confirm is showing.
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    id: string;
+    name: string;
+    suppression: "closed" | "rejected";
+  } | null>(null);
 
   // The same substring filter every Option typeahead uses (`option-combobox`).
   // An empty query matches nothing here (`"none"`), so a blank box stays a
@@ -982,11 +1025,11 @@ function SearchBox({
   // The dropdown shows only when there is something to pick.
   const showList = open && matches.length > 0;
 
-  function pick(option: OptionChoice) {
+  function pick(optionId: string) {
     setPickError(null);
     startPick(async () => {
       const result = await pickTonight(
-        option.id,
+        optionId,
         isToday ? undefined : selectedDay,
       );
       if (!result.ok) {
@@ -997,13 +1040,35 @@ function SearchBox({
       // page's scroll-to-top effect confirms the pick.
       onQueryChange("");
       setOpen(false);
+      setPendingConfirm(null);
+    });
+  }
+
+  /**
+   * Selecting a typeahead row (issue 02). Unsuppressed Picks immediately, as
+   * before. A Picked row is unreachable — `isDisabled` below blocks it. A
+   * Closed or Rejected row does not Pick: the dropdown closes and the inline
+   * confirm arms instead, so the Household sees why before overriding it.
+   */
+  function selectChoice(option: TonightChoice) {
+    if (option.suppression === "none") {
+      pick(option.id);
+      return;
+    }
+    if (option.suppression === "picked") return;
+    setOpen(false);
+    setPendingConfirm({
+      id: option.id,
+      name: option.name,
+      suppression: option.suppression,
     });
   }
 
   // The same ↑/↓/Enter/Escape contract every Option typeahead uses
   // (`option-combobox`), with `initialActiveIndex: -1` so Enter with nothing
   // highlighted falls through to the form's own submit — the AI search —
-  // rather than picking.
+  // rather than picking. `isDisabled` keeps an already-Picked row off the
+  // keyboard highlight entirely.
   const {
     activeIndex,
     setActiveIndex,
@@ -1015,9 +1080,20 @@ function SearchBox({
     setOpen,
     matches,
     initialActiveIndex: -1,
-    onSelect: pick,
+    onSelect: selectChoice,
     onEscape: () => setOpen(false),
+    isDisabled: (option) => option.suppression === "picked",
   });
+
+  /** The muted row suffix naming why a candidate is off the ranked list. */
+  function suppressionNote(option: TonightChoice): string | undefined {
+    if (option.suppression === "closed") {
+      return `closed ${weekdayName(selectedDay)}`;
+    }
+    if (option.suppression === "rejected") return `rejected ${dayLabel}`;
+    if (option.suppression === "picked") return "already picked";
+    return undefined;
+  }
 
   // The done badge shows only while a successful AI result is on screen —
   // `showClear && !error`, no search in flight. Clearing the search drops
@@ -1096,8 +1172,10 @@ function SearchBox({
               matches={matches}
               activeIndex={activeIndex}
               isSelected={(_option, index) => index === activeIndex}
-              onSelect={pick}
+              onSelect={selectChoice}
               onHover={setActiveIndex}
+              getNote={suppressionNote}
+              isDisabled={(option) => option.suppression === "picked"}
               className="absolute left-0 right-0 top-full z-20 mt-1 flex
                 max-h-64 flex-col overflow-y-auto rounded-input border
                 border-line bg-surface py-1 shadow-sm"
@@ -1180,6 +1258,46 @@ function SearchBox({
           )}
         </button>
       </div>
+      {pendingConfirm && (
+        // The inline confirm (issue 02) — a selected Closed or Rejected row
+        // parks here instead of Picking immediately. "Pick anyway" runs the
+        // ordinary Pick write; issue 01's transactional Pick-supersedes-
+        // Rejection clears a Rejected Option's Rejection server-side, so
+        // there is no client-side Bring back to do here.
+        <p className="expand-in flex flex-wrap items-center gap-2 text-body text-ink">
+          {pendingConfirm.suppression === "closed" ? (
+            <>
+              <Link
+                href={`/catalog/${pendingConfirm.id}`}
+                className={`font-emphasis text-action underline-offset-2 hover:underline ${focusRing}`}
+              >
+                {pendingConfirm.name}
+              </Link>
+              {` is closed ${weekdayName(selectedDay)}`}
+            </>
+          ) : (
+            <>
+              {"You rejected "}
+              <Link
+                href={`/catalog/${pendingConfirm.id}`}
+                className={`font-emphasis text-action underline-offset-2 hover:underline ${focusRing}`}
+              >
+                {pendingConfirm.name}
+              </Link>
+              {` ${dayLabel}`}
+            </>
+          )}
+          {" — "}
+          <ConfirmPair
+            label="Pick anyway"
+            tone="action"
+            pending={pickPending}
+            onConfirm={() => pick(pendingConfirm.id)}
+            onCancel={() => setPendingConfirm(null)}
+            buttonClass={`min-h-11 rounded-control px-2 text-body ${focusRing}`}
+          />
+        </p>
+      )}
       {error && (
         <p role="status" aria-live="polite" className="text-meta text-danger">
           Search unavailable — try again

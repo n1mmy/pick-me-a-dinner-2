@@ -142,18 +142,37 @@ describe("pickerView — rankOf", () => {
 });
 
 describe("pickerView — choices", () => {
-  it("mirrors every row in `rows`, name-sorted, regardless of the active filter", () => {
+  it("mirrors every row in `rows`, name-sorted, regardless of the active filter, each unsuppressed", () => {
     // Restaurant-only filter still yields typeahead choices for every Option
     // in `rows`, including the suppressed Home rows — so a typeahead pick can
     // never hit an already-Picked or Selected-day-rejected Option that the
     // filter (not the ranking) has hidden.
     const { choices } = pickerView(ROWS, "restaurant", {});
     expect(choices).toEqual([
-      { id: "fish-home", name: "fish-home", kind: "home" },
-      { id: "pasta-home", name: "pasta-home", kind: "home" },
-      { id: "pasta-rest", name: "pasta-rest", kind: "restaurant" },
-      { id: "plain-rest", name: "plain-rest", kind: "restaurant" },
+      { id: "fish-home", name: "fish-home", kind: "home", suppression: "none" },
+      { id: "pasta-home", name: "pasta-home", kind: "home", suppression: "none" },
+      { id: "pasta-rest", name: "pasta-rest", kind: "restaurant", suppression: "none" },
+      { id: "plain-rest", name: "plain-rest", kind: "restaurant", suppression: "none" },
     ]);
+  });
+
+  it("widens past `rows` to the Closed, Rejected, and Picked candidates, each carrying its suppression", () => {
+    const { choices } = pickerView([row("open-home", "home")], "all", {}, {
+      closed: [row("closed-rest", "restaurant")],
+      rejected: [row("rejected-home", "home")],
+      picked: [row("picked-rest", "restaurant")],
+    });
+    expect(choices).toEqual([
+      { id: "closed-rest", name: "closed-rest", kind: "restaurant", suppression: "closed" },
+      { id: "open-home", name: "open-home", kind: "home", suppression: "none" },
+      { id: "picked-rest", name: "picked-rest", kind: "restaurant", suppression: "picked" },
+      { id: "rejected-home", name: "rejected-home", kind: "home", suppression: "rejected" },
+    ]);
+  });
+
+  it("defaults to no suppressed candidates when the caller omits them", () => {
+    const { choices } = pickerView(ROWS, "all", {});
+    expect(choices.every((c) => c.suppression === "none")).toBe(true);
   });
 });
 
