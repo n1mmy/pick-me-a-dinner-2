@@ -125,6 +125,13 @@
   --motion-micro: 80ms;
   --motion-short: 140ms;
   --motion-medium: 220ms;
+  /* Enter/exit/move easings (2026-09-24) — an enter decelerates into place
+   * (ease-out-quart), an exit accelerates away (ease-in), a move (reserved for
+   * a future view-transition pass) eases both ends. No bounce or elastic —
+   * DESIGN.md Motion stays minimal-functional. */
+  --ease-enter: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-exit: cubic-bezier(0.5, 0, 0.75, 0);
+  --ease-move: cubic-bezier(0.65, 0, 0.35, 1);
 
   /* Layout — centered column 560px phone / 900px desktop; ~200px desktop rail. */
   --column-max: 560px;
@@ -247,5 +254,51 @@
     max-width: var(--column-max);
     margin-inline: auto;
     padding-inline: var(--space-4);
+  }
+
+  /* The P6 "inline expands open instead of popping" treatment (2026-09-24,
+   * DESIGN.md Motion) — put on an element that is *freshly mounted* by a
+   * conditional render (never on one that is already on screen and merely
+   * changes content): a Reject/Rejection reason box, a disclosure body, an
+   * inline edit form, an armed confirm pair. `@starting-style` only applies
+   * to an element's first style resolution — a genuinely new DOM node, or one
+   * newly shown from `display: none` — which is exactly what conditional
+   * rendering already produces, so this needs no JS of its own. Exits are
+   * deliberately not animated here (delayed-unmount is machinery this app
+   * doesn't carry) — they snap on unmount, same as before.
+   *
+   * No height grow: animating `height: 0 → auto` needs `overflow: clip` to
+   * hide the content while the box is short, and that clip also cut off the
+   * 2px-offset focus ring of any button inside (an armed confirm pair's
+   * buttons fill their wrapper edge to edge) — a visible-focus regression.
+   * The height grow was Chromium-only anyway, so fade + slide is the whole
+   * treatment in every browser.
+   */
+  .expand-in {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity var(--motion-medium) var(--ease-enter),
+      transform var(--motion-medium) var(--ease-enter);
+  }
+
+  @starting-style {
+    .expand-in {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+}
+
+/* Reduced motion (2026-09-24, DESIGN.md Motion) — zeroes the transform half
+ * of `.expand-in` so only its opacity fade remains (an instant transform means
+ * `@starting-style`'s translateY is never actually interpolated, since it's
+ * not in `transition-property`);
+ * P8's press-feedback scale is cancelled per button via `motion-reduce:`
+ * utility classes at each call site instead, since Tailwind has no equivalent
+ * to gate a plain CSS class's own media query from a utility. */
+@media (prefers-reduced-motion: reduce) {
+  .expand-in {
+    transition-property: opacity;
   }
 }

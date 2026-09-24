@@ -4,8 +4,10 @@ import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogEntryRow, OptionChoice } from "../../db/queries";
 import { escapeToCancel } from "../escape-to-cancel";
+import { fieldFocusRing, focusRing } from "../focus-ring";
 import { OptionCombobox } from "../option-combobox";
 import { PickButton } from "../pick-button";
+import { pressFeedback } from "../press-feedback";
 import { ConfirmPair } from "../confirm-pair";
 import { deleteLogEntry, updateLogEntry } from "./actions";
 
@@ -19,11 +21,8 @@ export const labelClass =
   "text-meta font-emphasis uppercase tracking-wide text-muted";
 export const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body text-ink " +
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
-  "focus-visible:outline-action";
-const actionButton =
-  "min-h-11 rounded-control px-2 text-chip focus-visible:outline " +
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
+  fieldFocusRing;
+const actionButton = `min-h-11 rounded-control px-2 text-chip ${focusRing}`;
 
 /**
  * One Log entry row. Shows the Option name and note with Edit / Delete actions;
@@ -63,7 +62,7 @@ export function EntryRow({
 
   if (editing) {
     return (
-      <li className={`border-b border-divider ${kindBg} px-3 py-3`}>
+      <li className={`${kindBg} px-3 py-3`}>
         <EntryEditForm
           entry={entry}
           optionChoices={optionChoices}
@@ -75,7 +74,7 @@ export function EntryRow({
   }
 
   return (
-    <li className={`flex flex-col gap-1 border-b border-divider ${kindBg} px-3 py-3`}>
+    <li className={`flex flex-col gap-1 ${kindBg} px-3 py-3`}>
       <div className="flex items-center justify-between gap-3">
         <Link
           href={`/catalog/${entry.optionId}`}
@@ -92,13 +91,15 @@ export function EntryRow({
             </span>
           )}
           {confirmDelete ? (
-            <ConfirmPair
-              buttonClass={actionButton}
-              label="Delete"
-              pending={pending}
-              onConfirm={runDelete}
-              onCancel={() => setConfirmDelete(false)}
-            />
+            <div className="expand-in flex items-center gap-1">
+              <ConfirmPair
+                buttonClass={actionButton}
+                label="Delete"
+                pending={pending}
+                onConfirm={runDelete}
+                onCancel={() => setConfirmDelete(false)}
+              />
+            </div>
           ) : (
             <>
               <button
@@ -186,7 +187,7 @@ function EntryEditForm({
     <form
       onSubmit={handleSubmit}
       onKeyDown={escapeToCancel(onCancel, pending)}
-      className="flex flex-col gap-3"
+      className="expand-in flex flex-col gap-3"
     >
       <div className="flex flex-col gap-1">
         <label htmlFor={`${fieldId}-option`} className={labelClass}>
@@ -266,11 +267,9 @@ function EntryEditForm({
         <button
           type="submit"
           disabled={pending}
-          className="min-h-11 rounded-control bg-action px-4 text-body
-            font-emphasis text-action-ink transition-colors duration-micro
-            hover:bg-action-hover focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action
-            disabled:opacity-60"
+          className={`min-h-11 rounded-control bg-action px-4 text-body
+            font-emphasis text-action-ink hover:bg-action-hover
+            disabled:opacity-60 ${pressFeedback} ${focusRing}`}
         >
           Save
         </button>

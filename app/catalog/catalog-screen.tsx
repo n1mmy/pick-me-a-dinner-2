@@ -3,13 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { ArchivedOption, OptionWithTags } from "../../db/queries";
+import { focusRing } from "../focus-ring";
 import type { OptionKind } from "./actions";
 import { OptionForm } from "./option-form";
 import { OptionRow } from "./option-row";
-
-const focusRing =
-  "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /**
  * The Catalog screen: Home meals and Restaurants in two sections, each row
@@ -110,7 +107,9 @@ function AddButton({
       type="button"
       onClick={onClick}
       className={`min-h-11 rounded-control px-4 text-body font-emphasis
-        text-action-ink transition-opacity duration-short hover:opacity-90
+        text-action-ink hover:opacity-90 transition-[opacity,transform]
+        duration-micro ease-enter active:scale-[0.98]
+        motion-reduce:transition-opacity motion-reduce:active:scale-100
         ${fill} ${focusRing}`}
     >
       {label}

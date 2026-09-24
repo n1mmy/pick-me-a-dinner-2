@@ -131,8 +131,8 @@ work — see the Decisions Log.)
 | `divider` | `#b1b3b6` | Row and section dividers — lighter than `line`, a decorative rule rather than a UI component boundary |
 | `kind-home` | `#2c6e6e` | Meal-kind left bar — home-cooked (teal) |
 | `kind-restaurant` | `#7a4f6b` | Meal-kind left bar — restaurant (plum) |
-| `kind-home-wash` | `#dde8e8` | Decided-row background — much-lighter home wash |
-| `kind-restaurant-wash` | `#e7e0e6` | Decided-row background — much-lighter restaurant wash |
+| `kind-home-wash` | `#dde8e8` | Decided-row background, and the Home filter chip's unselected fill — much-lighter home wash |
+| `kind-restaurant-wash` | `#e7e0e6` | Decided-row background, and the Restaurant filter chip's unselected fill — much-lighter restaurant wash |
 | `kind-home-tint` | `#e8eeef` | Picker-row background — the home wash halved toward `bg` |
 | `kind-restaurant-tint` | `#edeaee` | Picker-row background — the restaurant wash halved toward `bg` |
 | `recency-overdue` | `#c4453a` | Recency heatmap — red end, long overdue |
@@ -186,9 +186,11 @@ announces on a row. It never collides with the heatmap because it never
 carries a recency value.
 
 The earlier excluded-tag-filter chip token (`exclude`) is carried over from
-the prior warm system and should be re-tuned against this cool base when the
-Tonight tag filters get their own visual pass — it was not part of this
-exploration.
+the prior warm system. The Tonight tag filters got their own visual pass
+2026-09-24 (see "Button hierarchy" and the Decisions Log): the chips lost
+their borders, but `exclude`'s hex was not part of that pass and was
+re-measured, not retuned — its `action-ink` label still clears 4.5:1 against
+it, so the carried-over warm brown stands as-is.
 
 ### App icon
 
@@ -294,8 +296,17 @@ button label — see the AI search "done" badge note in
   its mobile cap, and a row that went denser at that exact point would be
   squeezed twice at once. Past 900px PICK moves to the row's right edge,
   Reject to its left.
-- **Tonight row anatomy:** A flat, uniform ledger — every row the same height,
-  separated by a 1px `divider` rule, no cards, no shadows. A 3px vertical
+- **Tonight row anatomy:** A flat, uniform ledger — every row the same
+  height, no cards, no shadows. Rows are separated by a 2px sliver of `bg`
+  (`gap-[2px]` on the list, not a `divider` rule — 2026-09-24 amendment,
+  below) since every row already carries a kind tint or wash background; a
+  1px `divider` rule between two tinted rows read as a redundant, heavy
+  seam. This applies to every tinted row list in the app — Tonight's picker
+  and Closed-disclosure rows, the decided block, and the Log's entry/
+  rejection rows (Log screen and the Option detail page's History section)
+  — and *not* to untinted rows on plain `bg` (Catalog's active/archived
+  lists, the Rejected-tonight disclosure, the detail page's Field list),
+  which keep the 1px `divider` rule as their only separator. A 3px vertical
   meal-kind bar (`kind-home` / `kind-restaurant`) sits flush on the row's left
   edge, over a faint tint of the same hue (`kind-home-tint` /
   `kind-restaurant-tint`) as the row's background — deliberately a step below
@@ -306,7 +317,9 @@ button label — see the AI search "done" badge note in
   recent, or frequent for Affinity; red = not now: overdue, or rare for
   Affinity — see "Color channels" above, which is this section's source of
   truth for the chip system). PICK as a filled `action` (charcoal-ink) button
-  with `action-ink` label. The uniform flat list remains intentional and
+  with `action-ink` label — Tonight's ranked rows are the one place PICK is
+  filled; everywhere else it is the secondary outlined style (see "Button
+  hierarchy" below). The uniform flat list remains intentional and
   locked — no lead-item prominence, no collapsed long tail. (2026-09-22: a
   faint per-row kind tint replaced the earlier "no per-row background tint"
   rule — paler than the decided block's wash, so the block still reads as
@@ -406,6 +419,17 @@ button label — see the AI search "done" badge note in
     row-leaves-on-write feedback the picker already has.
   - A Restaurant **Picked** anyway is never marked in the decided block. The
     call has been made; restating the objection after the fact is nagging.
+- **Button hierarchy (2026-09-24):** PICK is a filled `action` button
+  (charcoal fill, `action-ink` label) on Tonight's ranked rows only —
+  including the Closed disclosure's rows, which reuse the same row
+  component. Everywhere else a repeated per-row PICK appears (Catalog, Log,
+  the Option detail page), and on the decided block's Menu / Call / Recipe
+  row actions, the button uses the secondary outlined style instead:
+  `surface` fill, `line` border, `ink` label, `raised` on hover. A form's own
+  Save/Add submit button and a toggle control's selected state (e.g. the
+  Closed-day chips) are not row actions and stay filled — this rule is about
+  a column of *repeated* identical buttons, not every filled button in the
+  app.
 - **Border radius:** badge/chip 3px, inputs 6px, buttons/controls 6px. Sharp
   crisp corners suit a sharp tool — no pill shapes except where a control is
   genuinely circular.
@@ -423,11 +447,24 @@ button label — see the AI search "done" badge note in
     give it a negative vertical margin so the hit area still measures 44px but
     overlaps the row's own padding instead of setting the line's height. Only do
     this where the overlap falls on padding or non-interactive content. The **Tonight header** is the deliberate exception at 36px (`h-9`): its
-  day stepper, date input, and kind segment share a phone-width row with the H1,
-  and every pixel they give back is a pixel the day name keeps un-truncated.
-  Gaps between adjacent header controls are 4px rather than the usual 6px for
-  the same reason. Don't "restore" these to 44px without re-measuring the
-  header — see ADR-0009's 2026-09-08 amendment.
+  day stepper and date input share a phone-width row with the H1, and every
+  pixel they give back is a pixel the day name keeps un-truncated. Within the
+  stepper the ‹/date/› elements sit flush against a shared 1px `line` border
+  instead of a gap (2026-09-24 — see the Decisions Log). Don't "restore" these
+  to 44px without re-measuring the header — see ADR-0009's 2026-09-08
+  amendment.
+  - **Kind chips (2026-09-24 exception to control height):** Home and
+    Restaurant are not in the header, and there is no All button — the kind
+    filter is two ordinary toggle chips leading the Tag-chip line in
+    Tonight's sticky filter zone, at Tag-chip scale (`meta` type, ~21px
+    tall, `rounded-badge`), below the 44px floor like the chips. The kind
+    filter is rarely changed, so it does not earn header space or a
+    control-sized footprint; a mis-tap only re-filters the list and the next
+    tap undoes it. The kind chips and every Tag chip are flat siblings in
+    one `flex-wrap` row (both group divs' `role="group"` is `display:
+    contents`, out of layout), so chips flow into the space beside each
+    other and any wrapped line reclaims the full row width instead of
+    staying squeezed into a column that starts partway across the row.
   - **Closed-day toggles (2026-09-19 exception to control height):** the
     Restaurant form's **Closed days** control is seven toggle chips in one row
     — `S M T W T F S` — sized below the 44px floor, alongside the Tonight
@@ -443,11 +480,56 @@ button label — see the AI search "done" badge note in
 ## Motion
 
 - **Approach:** Minimal-functional — only transitions that aid comprehension.
-  No bounce, no scroll choreography. A sharp instrument does not animate for
-  personality.
-- **Easing:** enter `ease-out`, exit `ease-in`, move `ease-in-out`.
+  No bounce, no scroll choreography, no elastic. A sharp instrument does not
+  animate for personality.
+- **Easing (2026-09-24):** enter `--ease-enter` (`cubic-bezier(0.25, 1, 0.5,
+  1)`, ease-out-quart — decelerates into place), exit `--ease-exit`
+  (`cubic-bezier(0.5, 0, 0.75, 0)`, ease-in — accelerates away, reserved for a
+  future exit treatment; nothing animates an exit yet, see "Inline expand"
+  below), move `--ease-move` (`cubic-bezier(0.65, 0, 0.35, 1)` — reserved for
+  a future cross-position move, see "Picked/Rejected row move" below).
+  Exposed as Tailwind's `ease-enter` / `ease-exit` / `ease-move`.
 - **Duration:** micro 80ms (hover/press), short 140ms (state change), medium
   220ms (inline expand, e.g. Catalog edit).
+- **Inline expand (P6, 2026-09-24):** a freshly-mounted conditional block —
+  the Reject reason box, a Rejected/Closed disclosure body, the Catalog/Log
+  inline edit form, the decided row's note editor, an armed confirm pair —
+  fades and slides up 4px into place over `--motion-medium` with
+  `--ease-enter` (`.expand-in` in `app/globals.css`, via CSS
+  `@starting-style` — no JS timing of its own). **No height grow:** it needs
+  `overflow: clip`, which cut off the focus ring of buttons inside the
+  expanding block (removed 2026-09-24, see the Decisions Log).
+  **Exits snap** — no delayed-unmount exit animation; that is machinery this
+  app doesn't carry. The technique only ever applies to an element that is
+  genuinely new in the DOM (conditional rendering, not a prop/text change on
+  an element already on screen).
+- **Press feedback (P8, 2026-09-24):** every *filled* button (Tonight Pick,
+  the AI Search button, the Catalog add buttons, form submits) scales to 0.98
+  on `:active`, alongside its existing hover color shade, over `--motion-micro`
+  with `--ease-enter` (`app/press-feedback.ts`). Outlined and text buttons keep
+  the color change only — no scale. Nothing that moves layout is scaled.
+- **Picked/Rejected row move (P7, 2026-09-24 — spike, fallback taken):** a
+  Pick still moves a row from the picker into "Tonight's dinner" in one frame,
+  and a Reject still removes a row in one frame — list reordering snaps. A
+  `document.startViewTransition` spike to cross-fade/morph the row between its
+  picker and decided positions was time-boxed and dropped: the row's list
+  membership is server-driven (`revalidatePath` inside the `pickTonight` /
+  `rejectOption` actions, resolved through Next's router refresh), and there
+  is no public hook for "the refreshed RSC tree has committed" to resolve the
+  transition's callback against — closing that gap needs a cross-component
+  promise/ref coordinating the triggering row with the parent's prop change,
+  which is exactly the "more than a small hook" the plan's fallback
+  anticipated. Shipped instead: the newly-mounted decided row and the
+  Pick button's "Logged ✓" label both use the `.expand-in` treatment above, so
+  the row's *arrival* still reads as a soft entrance even though its *move*
+  doesn't. Revisit if React's `<ViewTransition>` (currently canary-only)
+  reaches stable, or if Tonight's row membership ever moves to client state.
+- **Reduced motion:** `.expand-in` drops to an opacity-only fade (its
+  transform is simply never interpolated, since
+  `@media (prefers-reduced-motion: reduce)` narrows its `transition-property`
+  to `opacity`); press feedback's scale is cancelled per button via
+  `motion-reduce:` utilities, leaving the color change only. Applies globally,
+  `app/globals.css`.
 - **Destructive actions** use inline-confirm (the row reveals a confirm/cancel
   in place) rather than a modal — consistent with the plan's §17.
 
@@ -493,3 +575,17 @@ chips kept the carried-over `exclude` token and await their own visual pass.
 | 2026-09-21 | Desktop Tonight row: dropped the single-dense-line / centered Explanation chip; widened the desktop column to 900px; PICK/Reject swap gated behind 900px, not the 720px rail breakpoint | A literal single dense line never fit rows with an Affinity chip, tags, a Last note, or an AI reason, and an earlier attempt to merge the name+chip lines only fit sometimes — depending on name/tag length — so chips inconsistently rode the name's line. Chips now stack under the name at every width, same order and position always. Separately: the rail's ~200px and the column's desktop max-width land at the same 720px step, so right after it the column is briefly narrower than its own mobile cap; letting PICK/Reject go horizontal at that same step squeezed the row twice at once, so that swap was moved to a later 900px breakpoint. |
 | 2026-09-22 | `line` (light) darkened `#d8dade` → `#8a8c8e` | `docs/design-review-2026-09-21.md` UX idea #2: the hairline ledger rule measured 1.27:1 against `bg`, near-invisible on a bright kitchen screen. `#8a8c8e` clears 3:1. Dark theme's `line` was left as-is — it wasn't part of the measured finding and dark is separately flagged as not yet visually verified. |
 | 2026-09-22 | Split `line` into `line` (light) and a new, lighter `divider` (light) — `#b1b3b6`, ~1.91:1 against `bg` | Direct user report, in light theme: `line`'s 3:1 (above) reads too dark once it is reused for every row/section divider in the app, not only the one hairline rule idea #2 measured. `line` now renders only a control/box's own border (input, button, popup), where the 3:1 UI-component-boundary reasoning still applies; `divider` covers row and section rules, which are decorative structure rather than a UI component boundary, so a lower contrast is appropriate. `divider`'s hex is the exact per-channel RGB midpoint of `line` (#8a8c8e) and the original near-invisible `#d8dade` (1.27:1), per a follow-up user request to land it halfway between the two rather than the initially-picked `#b3b5b8`. Dark theme's `divider` was left equal to `line` (`#383b40`) — dark hasn't been looked at live yet, so there is no finding to split it against. |
+| 2026-09-24 | PICK demoted to the secondary outlined style everywhere except Tonight's ranked rows; decided-block Menu/Call/Recipe demoted the same way | `/impeccable` review of the live app: a column of ~20 identical filled charcoal PICK buttons on Catalog/Log, and Menu/Call/Recipe matching PICK's own fill, left the primary action nothing to stand out against. Tonight's ranked-row PICK (the screen's one true primary action) is unchanged; repeated row actions everywhere else read as `surface`/`line`/`ink` instead. Part of the UI smoothness polish plan (P1). |
+| 2026-09-24 | Tonight's tag filter chips and the Log's per-day add buttons lose their borders/fills; the top-of-Log add buttons switch to the P1 secondary style | Same `/impeccable` review: ~20 bordered tag chips read as a grid of boxes, and a `bg-raised` + `border-line` "+ Dinner / + Rejection" pair under every day repeated that weight down the page. Tag chips keep their non-color state cues (underline/strikethrough) and tap size; per-day add buttons go borderless/unfilled until hovered; the top-of-screen add pair — the screen's one primary entry point — keeps a border but drops its fill to match PICK's secondary style. |
+| 2026-09-24 | Tinted/washed rows (Tonight picker, Closed disclosure, decided block, Log entry/rejection rows) drop their per-row `divider` rule in favor of a `gap-[2px]` sliver of `bg` between rows; untinted rows keep the rule | Same `/impeccable` review: a tinted row already carries a background + a 3px kind bar, so the divider on top read as a third, redundant edge — "rows edged three times" in the diagnosis. The Log's day separator was also thinned from `border-t-2` to `border-t` (still `divider`) so it reads as a section rule, not another row-weight seam. |
+| 2026-09-24 | Tonight header's day stepper (‹, date, ›) and kind segment (All/Home/Restaurant) become one joined control each, instead of three separately-boxed elements | Same `/impeccable` review: "header controls drawn as separate boxes" in the diagnosis. The day stepper now shares one outer `line` border with inner 1px separators; the kind segment is one `raised` track with an `action`-filled thumb sliding under the selected label. Both keep their exact 36px header-row height and the header's existing 44px-floor exception (ADR-0009); joining them freed width the day name (measured at 375px) needed. |
+| 2026-09-24 | Text-entry fields (inputs, textareas, the combobox, the date input) use `focus-visible:outline-offset-[-1px]`; buttons keep `outline-offset-2` | Same `/impeccable` review: the default offset-2 ring drew a second box 2px outside a field's own border, and — unlike a button — a field matches `:focus-visible` on ordinary mouse/tap focus too, so everyone saw the double box (visible in the Reject reason input at 375px). The ring stays 2px `action` either way; this only moves it onto the field's border. `app/focus-ring.ts` now holds both shared constants (`focusRing`, `fieldFocusRing`), replacing ~15 duplicated local copies. |
+| 2026-09-24 | Named `--ease-enter`/`--ease-exit`/`--ease-move` easings added; a freshly-mounted conditional block (Reject box, disclosure body, inline edit form, armed confirm pair) fades + slides up 4px + grows height over `--motion-medium`/`ease-enter` via a shared `.expand-in` CSS class, using `@starting-style` instead of a JS-timed animation | Part of the UI smoothness polish plan (P6, "inline expands open instead of popping" — conditional rendering elsewhere in the app previously popped in with no transition at all). `@starting-style` only fires on an element's first style resolution, so it needs no JS and can't fire on an element already on screen. Exits deliberately still snap — a delayed-unmount exit animation is machinery the plan ruled out. Height grow is Chromium-only progressive enhancement (`interpolate-size: allow-keywords`); other browsers still fade/slide and simply snap the height. |
+| 2026-09-24 | Filled buttons (Tonight Pick, AI Search, Catalog add buttons, form submits) get `active:scale-[0.98]` press feedback at `--motion-micro`/`ease-enter`, alongside their existing hover color shade; outlined/text buttons keep the color change only | Plan P8. A tap on a filled button previously gave only a color shade with no tactile confirmation. Shared as `app/press-feedback.ts` rather than duplicated per file, mirroring the `focus-ring.ts` precedent. Reduced motion cancels the scale via `motion-reduce:` utilities per button, leaving color only. |
+| 2026-09-24 | P7 (rows move instead of teleporting after Pick/Reject) spike dropped; fallback shipped instead — the picked/rejected row move still snaps, but the newly-mounted decided row and the Pick button's "Logged ✓" label use `.expand-in` | Time-boxed per the plan. A `document.startViewTransition` around the row's cross-list move needs to resolve its callback once the *server-revalidated* RSC tree has actually committed — Next exposes no hook for that moment, so closing the gap would need a promise/ref shared between the triggering row and the parent's prop change: exactly the "more than a small hook" the plan named as the fallback trigger. React's `<ViewTransition>` (canary-only) would solve this properly; revisit if it reaches stable, or if Tonight's row membership ever becomes client state instead of server-derived. |
+| 2026-09-24 | Kind segment track is an equal-thirds grid (`grid-cols-3`), not a `flex-1` row | Post-implementation review of the P4 segment: inside an auto-width track, `flex-1` buttons took their own content widths ("All" narrow, "Restaurant" wide) while the sliding thumb was always a third of the track, so the thumb drifted across the labels — the selected label rendered white on the light track and an unselected label rendered grey on the charcoal thumb, in every state. An auto-width grid sizes every `1fr` column to the widest label, so the buttons are genuine thirds and the no-measurement `translateX(index * 100%)` thumb lands exactly under each. |
+| 2026-09-24 | `.expand-in` drops its `height: 0 → auto` grow and `overflow: clip`; fade + 4px slide only | Post-implementation review of P6: the clip needed to hide content during the height grow also cut off the 2px-offset focus ring of buttons inside the expanding block — an armed confirm's Cancel showed a sliver of ring, the Reject box's Submit lost its top and bottom edges. Visible focus is part of the AA bar (PRODUCT.md); the grow was Chromium-only progressive enhancement, so it was the part to give up. `interpolate-size: allow-keywords` went with it. |
+| 2026-09-24 | Kind segment moved from the Tonight header into the sticky filter zone, at Tag-chip scale; the filter hint line ("Showing all Options") is visible only while a Tag filter is on | Direct user feedback: the segment sat in the wrong place, away from the other filters, and is not commonly used. It now leads the Tag-chip line so every filter is in one neighborhood, sized like the chips (~21px) rather than the header's 36px. With the segment beside the chips, the hint only repeated what the segment already shows when no Tag is filtered, so it drops to `sr-only` there — still a live region, so a kind change is still announced — and shows once include/exclude chips need summarising. The Tonight header is now just the H1 and the day stepper. |
+| 2026-09-24 | Kind segment and Tag chips are flat siblings of one `flex-wrap` row; the Tag group's `role="group"` div is `display: contents` instead of its own `flex-1`/`basis-full` box | Direct user feedback, same day: boxing the Tag chips into their own flex item reserved that item's reduced width for *every* wrapped line, not just the line beside the segment, so chips wrapped earlier than the row had room for and left blank space under the segment. `display: contents` keeps the div's `role`/`aria-label` for assistive tech while dropping it from the box tree, so its chip children wrap as if they were direct children of the row — a wrapped line now reclaims the full row width. |
+| 2026-09-24 | The All/Home/Restaurant segmented track is replaced by two ordinary toggle chips (Home, Restaurant, no All); their selected fill is the Option's own `kind-home`/`kind-restaurant` color instead of the Tag chips' generic `action` fill | Direct user feedback, same day: "make Home and Restaurant act like the other filter chips" and "use their type colors instead of gray". With only two kinds, zero chips selected already reads as "show everything", so All was a redundant third state — dropping it also drops the track, the sliding thumb, and the invisible-bold-copy width-stability hack. Each chip is now a flat sibling in the filter row's `flex-wrap` (same `contents`-wrapped-group pattern as the Tag chips) and a plain on/off toggle — tapping the active one clears back to "all", tapping the other switches to it — rather than the Tag chips' tri-state include/exclude cycle, which has no analogous third state for a kind. The kind colors already mean "home"/"restaurant" on every Tonight row's kind bar, so reusing them on the selected chip (`text-action-ink` on `kind-home`/`kind-restaurant`, both ≥4.9:1 in both themes) says what the filter does at a glance instead of reading as an arbitrary "selected" gray. |
+| 2026-09-24 | The Home/Restaurant chips' *unselected* fill is `kind-home-wash`/`kind-restaurant-wash` (the same hue the Decided row uses), not the Tag chips' neutral `raised` | Direct user feedback, same day: "use a faded version of the type colors when unselected to make them more obvious" — an unselected kind chip sitting in flat gray next to a colored selected one read as belonging to a different control. `-wash`, not the even-fainter `-tint` the picker rows carry: `-tint` is tuned to sit *behind* other chips without competing and read as barely-off-gray at chip scale, while `-wash` is visibly the kind's hue at a glance. Text stays `text-ink`, unaffected — `-wash` sits at close to the same lightness as `raised`/`bg` in both themes, the same relationship `text-ink` already works against. |

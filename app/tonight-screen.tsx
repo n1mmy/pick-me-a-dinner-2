@@ -29,15 +29,13 @@ import {
   filterOptionChoices,
   useComboboxKeyboard,
 } from "./option-combobox";
+import { fieldFocusRing, focusRing } from "./focus-ring";
 import { pickTonight } from "./log/actions";
+import { pressFeedback } from "./press-feedback";
 import { deleteRejection } from "./rejection-actions";
 import { aiSearchAction } from "./tonight-search-client";
 import { TonightRowItem } from "./tonight-row";
 import { TonightsDinnerBlock } from "./tonights-dinner-block";
-
-const focusRing =
-  "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 /** The no-Last-notes default — module-level so its identity stays stable. */
 const NO_LAST_NOTES: Map<string, LastNote> = new Map();
@@ -47,15 +45,15 @@ const NO_LAST_NOTES: Map<string, LastNote> = new Map();
  * screen, with two modes decided server-side from the Household's Log.
  *
  * **Picker mode** — no Log entry dated today — is the ranked picker exactly as
- * v1: the All/Home/Restaurant kind segment, the tri-state Tag filters, and the
- * flat ranked list.
+ * v1: the Home/Restaurant kind chips, the tri-state Tag filters, and the flat
+ * ranked list.
  *
  * **Decided mode** — one or more Log entries dated today — surfaces a "Tonight's
  * dinner" block of what was Picked, then keeps the ranked picker open below it
- * under an "Add another option" divider. Picking from that picker appends the
- * Option to Tonight's dinner — a deliberate second dinner, not a replacement,
- * which the divider's heading and hint make explicit. The heading stays
- * "Tonight" in both modes; a visually-hidden live region announces the switch.
+ * under a plain divider (`aria-label="Add another option"`, unlabeled on
+ * screen). Picking from that picker appends the Option to Tonight's dinner —
+ * a deliberate second dinner, not a replacement. The heading stays "Tonight"
+ * in both modes; a visually-hidden live region announces the switch.
  *
  * The mode is not client state: it follows `tonightsDinner`, which the server
  * recomputes from today's Log on every Pick. A new calendar day empties
@@ -147,16 +145,16 @@ export function TonightScreen({
   // copy).
   const catalogEmpty = !decided && pickerRows.length === 0 && !allFiltered;
 
-  // The All/Home/Restaurant kind filter lives here so its segment can sit in
-  // the page header beside "Tonight"; the Picker still owns the filtering.
+  // The Home/Restaurant kind filter lives here, not in the Picker: a Pick or
+  // day change that flips picker ↔ decided mode remounts the Picker, and the
+  // chosen kind should survive that. The chips themselves render in the
+  // Picker's filter zone, beside the Tag chips.
   const [kind, setKind] = useState<KindFilter>("all");
 
   // AI search state lifted out of the Picker — see the component comment for
   // why. `aiResults === null` is the default deterministic view; a non-null
   // value (including an empty array — a real "no fit" answer) swaps the list
-  // for the AI result. `aiActive` is derived directly so the kind segment can
-  // hide while the result is on screen, without the Picker → parent
-  // `useEffect` ping-pong this used to need.
+  // for the AI result.
   const [query, setQuery] = useState("");
   const [aiResults, setAiResults] = useState<AiRankingRow[] | null>(null);
   const [aiError, setAiError] = useState(false);
@@ -196,7 +194,6 @@ export function TonightScreen({
   // day was never a candidate, so it is missing from the result until the
   // search is cleared.
   const searchGenerationRef = useRef(0);
-  const aiActive = aiResults !== null;
 
   // An ordinary async function, deliberately not an async transition — see the
   // `startSearchTransition` comment above. The fetch itself is not a state
@@ -272,30 +269,21 @@ export function TonightScreen({
     ? `${capitalize(dayLabel)}'s dinner is decided.`
     : `Choosing ${dayLabel}'s dinner.`;
 
-  // The kind segment shows only when a Picker is actually on screen and not
-  // overridden by an AI result. The picker is on screen whenever there are rows
-  // to rank — in picker mode, and below the divider in decided mode.
-  const pickerRendered = pickerRows.length > 0;
-  const showKindSegment = pickerRendered && !aiActive;
-
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        {/* On a phone the H1 and the stepper take a full-width row with the
-            stepper pinned right, so it holds still as the day name changes
-            length instead of sliding with it — and a long name shortens the H1
-            rather than pushing the forward arrow off-screen. From `desktop:`
-            up there is room to sit them side by side, as before. */}
-        <div
-          className="flex w-full items-center justify-between gap-2
-            desktop:w-auto desktop:justify-start desktop:gap-3"
-        >
-          <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
-            <DayNameReset heading={heading} />
-          </h1>
-          <DayStepper selectedDay={selectedDay} todaySql={todaySql} />
-        </div>
-        {showKindSegment && <KindSegment kind={kind} onChange={setKind} />}
+      {/* The H1 and the stepper share a full-width row with the stepper
+          pinned right at every width, so it holds still as the day name
+          changes length instead of sliding with it — and a long name
+          shortens the H1 rather than pushing the forward arrow off-screen.
+          (Until the kind segment moved into the filter zone, this row also
+          held it, which needed `justify-start` on desktop to keep the three
+          together instead of spread edge-to-edge; with only two items left,
+          the stepper stays right at every width.) */}
+      <div className="flex w-full items-center justify-between gap-2">
+        <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
+          <DayNameReset heading={heading} />
+        </h1>
+        <DayStepper selectedDay={selectedDay} todaySql={todaySql} />
       </div>
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}
@@ -337,25 +325,20 @@ export function TonightScreen({
             </p>
           ) : (
             // The ranked picker stays open below the decided block, under a
-            // divider. Picking from it Picks a *second* dinner for the
-            // Selected day rather than replacing the first — the heading and
-            // hint say so.
+            // plain divider — no heading or explanatory copy, just the rule
+            // (2026-09-24, direct user feedback: "don't need it explained to
+            // me"). `aria-label` still names the region for assistive tech,
+            // which has no rule to read as a section break.
             <section
               aria-label="Add another option"
               className="flex flex-col gap-2 border-t border-divider pt-5.5"
             >
-              <h2 className="text-meta uppercase tracking-wide text-muted">
-                Add another option
-              </h2>
-              <p className="text-meta text-muted">
-                Picking one adds it to {dayLabel}&rsquo;s dinner — it
-                won&rsquo;t replace what&rsquo;s already chosen.
-              </p>
               <Picker
                 rows={pickerRows}
                 lastNotes={lastNotes}
                 searchEnabled={searchEnabled}
                 kind={kind}
+                onKindChange={setKind}
                 query={query}
                 onQueryChange={setQuery}
                 aiResults={aiResults}
@@ -377,6 +360,7 @@ export function TonightScreen({
           lastNotes={lastNotes}
           searchEnabled={searchEnabled}
           kind={kind}
+          onKindChange={setKind}
           query={query}
           onQueryChange={setQuery}
           aiResults={aiResults}
@@ -514,7 +498,7 @@ function RejectedTonightDisclosure({
         }
       />
       {open && (
-        <ul className="flex flex-col">
+        <ul className="expand-in flex flex-col">
           {rejections.map((rejection) => (
             <li
               key={rejection.id}
@@ -617,7 +601,8 @@ function ClosedDisclosure({
         {rejectNotice}
       </p>
       {open && (
-        <ul className="flex flex-col">
+        // See the picker list above for why `gap-[2px]` replaces a divider here.
+        <ul className="expand-in flex flex-col gap-[2px]">
           {rows.map((row) => (
             <TonightRowItem
               key={row.option.id}
@@ -637,11 +622,12 @@ function ClosedDisclosure({
 
 /**
  * The ranked picker: a sticky filter zone — optional AI search box, the
- * tri-state Tag filter chips — above the flat ranked `<ol>`. It is the whole
- * screen in picker mode and the collapsible body in decided mode; its behavior
- * is identical either way. The All/Home/Restaurant kind segment lives in the
- * page header (`TonightScreen`) and scrolls away with it; the picker only reads
- * the resulting `kind`.
+ * Home/Restaurant kind chips, the tri-state Tag filter chips — above the flat
+ * ranked `<ol>`. It is the whole screen in picker mode and the collapsible
+ * body in decided mode; its behavior is identical either way. The kind chips
+ * lead the Tag-chip line in the sticky filter zone, so every filter is in one
+ * place; their state is owned by `TonightScreen` (see the `kind` comment
+ * there) and threaded in as `kind` / `onKindChange`.
  *
  * AI search state — `query`, `aiResults`, `aiError`, the in-flight search's
  * start time, the last search's duration — is owned by `TonightScreen` and
@@ -651,7 +637,7 @@ function ClosedDisclosure({
  * when AI search is configured (`searchEnabled`). Submitting it runs an **AI
  * search** (PRD: AI search) — the deterministic list swaps in place for an
  * AI-ranked result, each row carrying an AI rationale. While an AI result is
- * shown the kind segment and Tag chips are hidden so the query is the single
+ * shown the kind chips and Tag chips are hidden so the query is the single
  * ranking authority; clearing the search restores both.
  *
  * Each row carries the `pick = log` write action (§6) in `tonight-row.tsx`.
@@ -661,6 +647,7 @@ function Picker({
   lastNotes,
   searchEnabled,
   kind,
+  onKindChange,
   query,
   onQueryChange,
   aiResults,
@@ -678,6 +665,7 @@ function Picker({
   lastNotes: Map<string, LastNote>;
   searchEnabled: boolean;
   kind: KindFilter;
+  onKindChange: (next: KindFilter) => void;
   query: string;
   onQueryChange: (next: string) => void;
   aiResults: AiRankingRow[] | null;
@@ -695,6 +683,15 @@ function Picker({
   isToday: boolean;
 }) {
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
+  // The hint line restates the filter in words. With only a kind chip in
+  // play it just repeats what the chip itself already shows ("Showing all
+  // Options", "Showing Home meals"), so it is visible only once a Tag filter
+  // is on — where it earns its place summarising include/exclude chips
+  // scattered across a wrapped row. It stays in the DOM as a live region
+  // either way, so a kind change is still announced.
+  const tagFilterActive = Object.values(tagFilters).some(
+    (state) => state !== "off",
+  );
 
   // A submitted Rejection removes its row from the list on revalidation; this
   // live region — stable across that re-render, unlike the row itself —
@@ -772,28 +769,38 @@ function Picker({
             </p>
           </>
         )}
-        {/* The filter zone — kind segment and Tag chips — is hidden while an
+        {/* The filter zone — kind chips and Tag chips — is hidden while an
             AI result is shown so the query alone ranks the list; clearing
             the search restores it with the deterministic list. */}
         {aiRows === null && (
           <>
-            {tags.length > 0 && (
-              <div
-                role="group"
-                aria-label="Filter by tag"
-                className="flex flex-wrap gap-1"
-              >
-                {tags.map((tag) => (
-                  <TagFilterChip
-                    key={tag}
-                    tag={tag}
-                    state={tagFilters[tag] ?? "off"}
-                    onClick={() => cycleTag(tag)}
-                  />
-                ))}
-              </div>
-            )}
-            <p role="status" aria-live="polite" className="text-meta text-muted">
+            {/* One filter line: the kind chips and every Tag chip are flat
+                siblings in a single flex-wrap row, so a wrapped second (or
+                third) line reclaims a chip's own width instead of staying
+                squeezed into a narrower column beside it — both group divs
+                carry the a11y grouping (`role="group"`) but `contents`
+                removes them from layout, so their chip children wrap exactly
+                as if they were direct children of the row. */}
+            <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+              <KindChips kind={kind} onChange={onKindChange} />
+              {tags.length > 0 && (
+                <div role="group" aria-label="Filter by tag" className="contents">
+                  {tags.map((tag) => (
+                    <TagFilterChip
+                      key={tag}
+                      tag={tag}
+                      state={tagFilters[tag] ?? "off"}
+                      onClick={() => cycleTag(tag)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+            <p
+              role="status"
+              aria-live="polite"
+              className={tagFilterActive ? "text-meta text-muted" : "sr-only"}
+            >
               {hint}
             </p>
           </>
@@ -821,7 +828,11 @@ function Picker({
             </button>
           </div>
         ) : (
-          <ol className="flex flex-col">
+          // gap-[2px] (off-scale, like the 3px kind bar — a rule weight, not
+          // a layout step) separates rows with a sliver of `bg` instead of a
+          // divider: every row already carries a kind-tinted background, so a
+          // divider between two tinted rows read as a redundant, heavy seam.
+          <ol className="flex flex-col gap-[2px]">
             {aiRows.map(({ row, reason }, index) => (
               <TonightRowItem
                 key={row.option.id}
@@ -841,7 +852,8 @@ function Picker({
           No Options match the current filter.
         </p>
       ) : (
-        <ol className="flex flex-col">
+        // See the AI-rows list above for why `gap-[2px]` replaces a divider here.
+        <ol className="flex flex-col gap-[2px]">
           {visible.map((row) => (
             <TonightRowItem
               key={row.option.id}
@@ -862,7 +874,7 @@ function Picker({
 
 const inputClass =
   "min-h-11 rounded-input border border-line bg-surface px-3 text-body " +
-  `text-ink placeholder:text-muted disabled:opacity-60 ${focusRing}`;
+  `text-ink placeholder:text-muted disabled:opacity-60 ${fieldFocusRing}`;
 
 /**
  * The Tonight search box — one input doing two jobs (treatment A). Typing
@@ -1138,7 +1150,7 @@ function SearchBox({
           }
           className={`flex min-h-11 w-[7rem] min-w-[7rem] shrink-0
             items-center justify-center gap-1.5 rounded-control px-4 text-body
-            font-emphasis transition-colors duration-short
+            font-emphasis ${pressFeedback}
             ${
               completed
                 ? "bg-success text-action-ink"
@@ -1217,14 +1229,42 @@ function CheckIcon() {
   );
 }
 
-const KIND_SEGMENTS: { value: KindFilter; label: string }[] = [
-  { value: "all", label: "All" },
+const KIND_CHIPS: { value: "home" | "restaurant"; label: string }[] = [
   { value: "home", label: "Home" },
   { value: "restaurant", label: "Restaurant" },
 ];
 
-/** The All/Home/Restaurant segment that narrows the list by Option kind. */
-function KindSegment({
+/**
+ * The Home/Restaurant kind filter (2026-09-24) — two ordinary toggle chips,
+ * not the earlier three-way All/Home/Restaurant segmented track. With only
+ * two kinds, "neither chip selected" already reads as "show everything", so
+ * a dedicated All button was a third state doing the same job as zero
+ * selected; dropping it also drops the track, the sliding thumb, and their
+ * width-stability machinery entirely. Each chip is exactly a
+ * `TagFilterChip`'s shape and sits flat in the filter row the same way (see
+ * the `contents` wrapper in `Picker`) — same `rounded-badge`, `meta` text,
+ * `py-0.5`, same `chipStateLabel` wording in its accessible name — but is a
+ * plain on/off toggle rather than the tri-state include/exclude cycle: a
+ * kind has no third value to exclude toward. Tapping the active chip clears
+ * back to "all"; tapping the other chip switches to it, so only one kind
+ * ever filters at a time, same as the old segment.
+ *
+ * The selected fill is the Option's own kind color — teal `kind-home` /
+ * plum `kind-restaurant` (DESIGN.md "Two color channels") — instead of the
+ * Tag chips' generic `action` fill: this is the one filter where that color
+ * already means something elsewhere in the app (the row's own kind bar), so
+ * reusing it here says what the chip does at a glance instead of reading as
+ * an arbitrary "selected" gray. Both fills clear 4.5:1 against
+ * `text-action-ink` in both themes. The *unselected* fill is the same hue's
+ * `-wash` token rather than the Tag chips' neutral `raised` — a faded tint
+ * instead of flat gray, so each chip reads as "this kind's control" even
+ * before it's tapped (2026-09-24, direct user feedback). `-wash`, not the
+ * even-fainter `-tint` the picker rows use, because `-tint` is tuned to sit
+ * *behind* other chips without competing and reads as barely-off-gray here.
+ * Below the 44px tap floor by design, like the Tag chips: a mis-tap only
+ * re-filters the list and the next tap undoes it.
+ */
+function KindChips({
   kind,
   onChange,
 }: {
@@ -1232,23 +1272,26 @@ function KindSegment({
   onChange: (next: KindFilter) => void;
 }) {
   return (
-    <div role="group" aria-label="Filter by kind" className="flex gap-1">
-      {KIND_SEGMENTS.map((segment) => {
-        const selected = kind === segment.value;
+    <div role="group" aria-label="Filter by kind" className="contents">
+      {KIND_CHIPS.map((chip) => {
+        const selected = kind === chip.value;
+        const home = chip.value === "home";
         return (
           <button
-            key={segment.value}
+            key={chip.value}
             type="button"
-            aria-pressed={selected}
-            onClick={() => onChange(segment.value)}
-            className={`min-h-9 rounded-control px-2.5 text-chip
-              transition-colors duration-micro ${focusRing} ${
+            onClick={() => onChange(selected ? "all" : chip.value)}
+            aria-label={`${chip.label}, ${chipStateLabel(selected ? "include" : "off")}`}
+            className={`inline-flex items-center justify-center rounded-badge
+              border border-transparent px-2 py-0.5 text-meta leading-tight
+              underline-offset-2 transition-colors duration-micro
+              ${focusRing} ${
                 selected
-                  ? "bg-action font-emphasis text-action-ink"
-                  : "bg-raised text-muted"
+                  ? `${home ? "bg-kind-home" : "bg-kind-restaurant"} text-action-ink underline`
+                  : `${home ? "bg-kind-home-wash" : "bg-kind-restaurant-wash"} text-ink`
               }`}
           >
-            {segment.label}
+            {chip.label}
           </button>
         );
       })}
@@ -1258,14 +1301,17 @@ function KindSegment({
 
 /**
  * One tri-state tag filter chip. It cycles off → include → exclude → off on
- * tap. Each state has its own fill — a neutral off chip, a filled action
- * include chip, a filled exclude chip — plus a text decoration
+ * tap. Each state has its own fill — a neutral `raised` off chip, a filled
+ * action include chip, a filled exclude chip — plus a text decoration
  * (underline / strikethrough) so state stays legible without relying on color
- * alone (§18). The border is present in every state so toggling never changes
- * the chip's width and the wrapped rows never reflow. The chip's accessible
- * name announces its state ("pasta, included") for assistive tech. The chips
- * are deliberately compact — the filter zone holds ~20 tags and density beats
- * a 44px tap target here.
+ * alone (§18). Every state keeps a `border` class (transparent off-state,
+ * same-hue-as-fill for include/exclude) so toggling never changes the chip's
+ * width and the wrapped rows never reflow — only the off state used to render
+ * a *visible* border; it is now borderless like the other two, so a row of
+ * chips reads as fills, not a grid of boxes. The chip's accessible name
+ * announces its state ("pasta, included") for assistive tech. The chips are
+ * deliberately compact — the filter zone holds ~20 tags and density beats a
+ * 44px tap target here.
  */
 function TagFilterChip({
   tag,
@@ -1282,13 +1328,13 @@ function TagFilterChip({
       onClick={onClick}
       aria-label={`${tag}, ${chipStateLabel(state)}`}
       className={`inline-flex items-center justify-center rounded-badge border
-        px-2 py-0.5 text-meta leading-tight underline-offset-2 transition-colors
-        duration-micro ${focusRing} ${
+        border-transparent px-2 py-0.5 text-meta leading-tight
+        underline-offset-2 transition-colors duration-micro ${focusRing} ${
           state === "include"
-            ? "border-action bg-action text-action-ink underline"
+            ? "bg-action text-action-ink underline"
             : state === "exclude"
-              ? "border-exclude bg-exclude text-action-ink line-through"
-              : "border-line bg-surface text-muted"
+              ? "bg-exclude text-action-ink line-through"
+              : "bg-raised text-ink"
         }`}
     >
       {tag}

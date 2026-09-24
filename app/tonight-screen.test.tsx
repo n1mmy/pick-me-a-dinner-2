@@ -910,16 +910,13 @@ describe("TonightScreen — decided-mode picker", () => {
       />,
     );
     // No collapse toggle: the picker is on screen straight away, under an
-    // "Add another option" divider whose hint says picking adds a second
-    // dinner rather than replacing the first.
+    // "Add another option" divider — unlabeled on screen, named only for
+    // assistive tech.
     expect(
       screen.queryByRole("button", { name: "Add another option" }),
     ).toBeNull();
     expect(
       screen.getByRole("region", { name: "Add another option" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(/won.t replace what.s already chosen/i),
     ).toBeTruthy();
     expect(
       screen.getByRole("group", { name: "Filter by kind" }),

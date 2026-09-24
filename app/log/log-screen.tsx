@@ -13,7 +13,9 @@ import {
   groupByDay,
 } from "../../lib/dinner-grouping";
 import { escapeToCancel } from "../escape-to-cancel";
+import { focusRing } from "../focus-ring";
 import { OptionCombobox } from "../option-combobox";
+import { pressFeedback } from "../press-feedback";
 import { logForDate } from "./actions";
 import { EntryRow, inputClass, labelClass } from "./log-entry-row";
 import { AddRejectionForm, RejectionRow } from "./rejection-row";
@@ -69,9 +71,7 @@ export function LogScreen({
           No dinners logged yet —{" "}
           <Link
             href="/"
-            className="font-emphasis text-action focus-visible:outline
-              focus-visible:outline-2 focus-visible:outline-offset-2
-              focus-visible:outline-action"
+            className={`font-emphasis text-action ${focusRing}`}
           >
             pick one on Tonight →
           </Link>
@@ -116,19 +116,20 @@ export function LogScreen({
   );
 }
 
-// Secondary button — bordered, neutral-filled. Reads as a button without the
-// weight of the filled `action` primary (Add / Pick).
+// Secondary button — the screen's primary entry point, so it keeps a border
+// (matching PickButton's secondary style) but no fill, reading as a button
+// without the weight of the filled `action` primary (Add / Pick).
 const addButtonClass =
-  "min-h-11 self-start rounded-control border border-line bg-raised px-3 " +
+  "min-h-11 self-start rounded-control border border-line bg-surface px-3 " +
   "text-body font-emphasis text-ink transition-colors duration-micro " +
-  "hover:bg-line focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
+  `hover:bg-raised ${focusRing}`;
 
+// Per-day add controls — one pair repeats under every date group, so they
+// stay borderless and unfilled until hovered rather than adding another row
+// of boxes down the page.
 const groupButtonClass =
-  "min-h-11 self-start rounded-control border border-line bg-raised px-3 " +
-  "text-chip font-emphasis text-ink transition-colors duration-micro " +
-  "hover:bg-line focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
+  "min-h-11 self-start rounded-control px-3 text-chip font-emphasis " +
+  `text-muted transition-colors duration-micro hover:bg-raised hover:text-ink ${focusRing}`;
 
 /**
  * The two top-of-Log add controls (PRD: Dated Dinners — two add controls):
@@ -213,13 +214,18 @@ function DayGroup({
       className={
         isFirst
           ? "flex flex-col gap-1"
-          : "flex flex-col gap-1 border-t-2 border-divider pt-5.5"
+          : "flex flex-col gap-1 border-t border-divider pt-5.5"
       }
     >
       <h3 className="text-chip font-emphasis text-muted">
         {formatDinnerDate(record.date, today)}
       </h3>
-      <ul className="flex flex-col">
+      {/* gap-[2px] (off-scale, like the 3px kind bar — a rule weight, not a
+          layout step) separates rows with a sliver of `bg` instead of a
+          divider: every entry/rejection row already carries a kind- or
+          danger-wash background, so a divider between two washed rows read
+          as a redundant, heavy seam. */}
+      <ul className="flex flex-col gap-[2px]">
         {record.entries.map((entry) => (
           <EntryRow key={entry.id} entry={entry} optionChoices={optionChoices} />
         ))}
@@ -404,11 +410,9 @@ function AddEntryForm({
         <button
           type="submit"
           disabled={pending}
-          className="min-h-11 rounded-control bg-action px-4 text-body
-            font-emphasis text-action-ink transition-colors duration-micro
-            hover:bg-action-hover focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action
-            disabled:opacity-60"
+          className={`min-h-11 rounded-control bg-action px-4 text-body
+            font-emphasis text-action-ink hover:bg-action-hover
+            disabled:opacity-60 ${pressFeedback} ${focusRing}`}
         >
           Add
         </button>
@@ -416,9 +420,8 @@ function AddEntryForm({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="min-h-11 rounded-control px-3 text-body text-muted
-            focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action"
+          className={`min-h-11 rounded-control px-3 text-body text-muted
+            ${focusRing}`}
         >
           Cancel
         </button>

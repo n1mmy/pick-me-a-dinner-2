@@ -114,14 +114,16 @@ export function OptionRow({
               </button>
             </>
           ) : (
-            <ConfirmPair
-              buttonClass={actionButton}
-              label={confirm === "delete" ? "Delete" : "Archive"}
-              tone={confirm === "delete" ? "danger" : "action"}
-              pending={pending}
-              onConfirm={confirm === "delete" ? runDelete : runArchive}
-              onCancel={() => setConfirm(null)}
-            />
+            <div className="expand-in flex items-center gap-1">
+              <ConfirmPair
+                buttonClass={actionButton}
+                label={confirm === "delete" ? "Delete" : "Archive"}
+                tone={confirm === "delete" ? "danger" : "action"}
+                pending={pending}
+                onConfirm={confirm === "delete" ? runDelete : runArchive}
+                onCancel={() => setConfirm(null)}
+              />
+            </div>
           )}
           <PickButton optionId={option.id} />
         </div>

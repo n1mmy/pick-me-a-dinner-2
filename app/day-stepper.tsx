@@ -3,10 +3,7 @@
 import type { ChangeEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { shiftSqlDate } from "../lib/local-day";
-
-const focusRing =
-  "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
+import { fieldFocusRing, focusRing } from "./focus-ring";
 
 /**
  * The Tonight screen's **Selected day** stepper (ADR-0009, amended): a
@@ -70,23 +67,40 @@ export function DayStepper({
   // arrows and the input give up is a pixel the day name gets to keep, so these
   // sit below the 44px touch-target ideal by design (ADR-0009, amendment
   // 2026-09-08) — 36px is still a comfortable thumb target at this density.
-  const buttonClass =
-    "inline-flex h-9 w-9 items-center justify-center rounded-control " +
-    "border border-line bg-surface text-ink transition-colors " +
-    "duration-short hover:bg-raised disabled:opacity-40 disabled:hover:bg-surface " +
+  //
+  // The three controls share one outer `line` border and `rounded-input`
+  // corners (2026-09-24) instead of each drawing its own box: an inner
+  // `border-r` between them stands in for the two borders that used to
+  // double up there, and the outer `gap-1` between separately-boxed controls
+  // is gone too — together that's the ~4px this saved back for the day name.
+  // The end controls carry the matching directional radius themselves
+  // (`rounded-l-input` / `rounded-r-input`) rather than the group clipping
+  // via `overflow-hidden`, so a hover fill on ‹ or › still respects the
+  // rounded corner instead of squaring it off.
+  //
+  // The group's `h-9` is border-box, so its content box is 2px shorter; the
+  // children take no height of their own and `self-stretch` to that content
+  // box instead (review fix, 2026-09-24 — a child `h-9` overflowed 1px past
+  // the content box top and bottom, so a hover fill or the input's
+  // background painted over the outer border). The 36px height lives on the
+  // group alone.
+  const endButtonBase =
+    "inline-flex w-9 items-center justify-center self-stretch text-ink " +
+    "transition-colors duration-short hover:bg-raised disabled:opacity-40 " +
+    "disabled:hover:bg-surface " +
     focusRing;
 
   return (
     <div
       role="group"
       aria-label="Selected day"
-      className="flex shrink-0 items-center gap-1"
+      className="flex h-9 shrink-0 items-center rounded-input border border-line bg-surface"
     >
       <button
         type="button"
         onClick={stepBack}
         aria-label="Previous day"
-        className={buttonClass}
+        className={`${endButtonBase} rounded-l-input border-r border-line`}
       >
         ‹
       </button>
@@ -95,13 +109,13 @@ export function DayStepper({
         value={selectedDay}
         onChange={onPickerChange}
         aria-label="Pick a date"
-        className={`h-9 rounded-input border border-line bg-surface px-2 text-meta text-ink ${focusRing}`}
+        className={`self-stretch border-r border-line bg-transparent px-2 text-meta text-ink ${fieldFocusRing}`}
       />
       <button
         type="button"
         onClick={stepForward}
         aria-label="Next day"
-        className={buttonClass}
+        className={`${endButtonBase} rounded-r-input`}
       >
         ›
       </button>

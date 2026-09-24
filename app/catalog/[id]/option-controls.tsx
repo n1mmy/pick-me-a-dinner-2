@@ -5,14 +5,11 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { OptionWithTags } from "../../../db/queries";
 import { escapeToCancel } from "../../escape-to-cancel";
+import { fieldFocusRing, focusRing } from "../../focus-ring";
 import { PickButton } from "../../pick-button";
 import { ConfirmPair } from "../../confirm-pair";
 import { rejectOption } from "../../rejection-actions";
 import { archiveOption, deleteOption, unarchiveOption } from "../actions";
-
-const focusRing =
-  "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-action";
 
 const actionButton = `min-h-11 rounded-control px-3 text-body ${focusRing}`;
 
@@ -173,14 +170,16 @@ export function OptionControls({
             )}
           </>
         ) : (
-          <ConfirmPair
-            buttonClass={actionButton}
-            label={confirm === "delete" ? "Delete" : "Archive"}
-            tone={confirm === "delete" ? "danger" : "action"}
-            pending={pending}
-            onConfirm={confirm === "delete" ? runDelete : runArchive}
-            onCancel={() => setConfirm(null)}
-          />
+          <div className="expand-in flex items-center gap-1">
+            <ConfirmPair
+              buttonClass={actionButton}
+              label={confirm === "delete" ? "Delete" : "Archive"}
+              tone={confirm === "delete" ? "danger" : "action"}
+              pending={pending}
+              onConfirm={confirm === "delete" ? runDelete : runArchive}
+              onCancel={() => setConfirm(null)}
+            />
+          </div>
         )}
         <div className="ml-auto flex items-center gap-1">
           {confirm === null && (
@@ -210,7 +209,7 @@ export function OptionControls({
             submitReject();
           }}
           onKeyDown={escapeToCancel(cancelReject, pending)}
-          className="flex items-center gap-2"
+          className="expand-in flex items-center gap-2"
         >
           <input
             type="text"
@@ -229,7 +228,7 @@ export function OptionControls({
             aria-label={`Reason for rejecting ${option.name} (optional)`}
             className={`min-h-11 min-w-0 flex-1 rounded-input border border-line
               bg-surface px-3 text-body text-ink placeholder:text-muted
-              disabled:opacity-60 ${focusRing}`}
+              disabled:opacity-60 ${fieldFocusRing}`}
           />
           <button
             type="submit"

@@ -2,6 +2,7 @@
 
 import { useId, useState, type KeyboardEvent } from "react";
 import { normalizeTag } from "../../lib/normalize-tag";
+import { fieldFocusRing, focusRing } from "../focus-ring";
 
 const labelClass = "text-meta font-emphasis uppercase tracking-wide text-muted";
 
@@ -126,9 +127,8 @@ export function TagInput({
               <button
                 type="button"
                 onClick={() => removeTag(tag)}
-                className="flex items-center gap-1 rounded-badge bg-raised px-2 py-1.5
-                  text-chip text-ink focus-visible:outline focus-visible:outline-2
-                  focus-visible:outline-offset-2 focus-visible:outline-action"
+                className={`flex items-center gap-1 rounded-badge bg-raised px-2
+                  py-1.5 text-chip text-ink ${focusRing}`}
               >
                 {tag}
                 <span aria-hidden="true" className="text-muted">
@@ -144,9 +144,8 @@ export function TagInput({
       <div className="relative">
         <input
           id={`${fieldId}-tag`}
-          className="min-h-11 w-full rounded-input border border-line bg-surface px-3
-            text-body text-ink focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action"
+          className={`min-h-11 w-full rounded-input border border-line bg-surface
+            px-3 text-body text-ink ${fieldFocusRing}`}
           value={draft}
           placeholder="Add a tag"
           autoComplete="off"

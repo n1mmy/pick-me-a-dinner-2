@@ -84,6 +84,11 @@ const config: Config = {
         short: "var(--motion-short)",
         medium: "var(--motion-medium)",
       },
+      transitionTimingFunction: {
+        enter: "var(--ease-enter)",
+        exit: "var(--ease-exit)",
+        move: "var(--ease-move)",
+      },
       screens: {
         desktop: "720px",
       },

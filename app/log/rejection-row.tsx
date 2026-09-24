@@ -4,7 +4,9 @@ import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogRejectionRow, OptionChoice } from "../../db/queries";
 import { escapeToCancel } from "../escape-to-cancel";
+import { focusRing } from "../focus-ring";
 import { OptionCombobox } from "../option-combobox";
+import { pressFeedback } from "../press-feedback";
 import { ConfirmPair } from "../confirm-pair";
 import { inputClass, labelClass } from "./log-entry-row";
 import {
@@ -21,9 +23,7 @@ import {
  * Edit expands the row into a form, Delete uses the §17 inline-confirm.
  */
 
-const actionButton =
-  "min-h-11 rounded-control px-2 text-chip focus-visible:outline " +
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
+const actionButton = `min-h-11 rounded-control px-2 text-chip ${focusRing}`;
 
 /**
  * The form body shared by the add-rejection form and the inline edit form: an
@@ -83,7 +83,7 @@ function RejectionForm({
     <form
       onSubmit={handleSubmit}
       onKeyDown={escapeToCancel(onCancel, pending)}
-      className="flex flex-col gap-3"
+      className="expand-in flex flex-col gap-3"
     >
       <div className="flex flex-col gap-1">
         <label htmlFor={`${fieldId}-option`} className={labelClass}>
@@ -162,11 +162,9 @@ function RejectionForm({
         <button
           type="submit"
           disabled={pending}
-          className="min-h-11 rounded-control bg-action px-4 text-body
-            font-emphasis text-action-ink transition-colors duration-micro
-            hover:bg-action-hover focus-visible:outline focus-visible:outline-2
-            focus-visible:outline-offset-2 focus-visible:outline-action
-            disabled:opacity-60"
+          className={`min-h-11 rounded-control bg-action px-4 text-body
+            font-emphasis text-action-ink hover:bg-action-hover
+            disabled:opacity-60 ${pressFeedback} ${focusRing}`}
         >
           {submitLabel}
         </button>
@@ -274,7 +272,7 @@ export function RejectionRow({
 
   if (editing) {
     return (
-      <li className="border-b border-divider bg-danger-wash px-3 py-3">
+      <li className="bg-danger-wash px-3 py-3">
         <RejectionForm
           optionChoices={optionChoices}
           initialOptionId={rejection.optionId}
@@ -293,7 +291,7 @@ export function RejectionRow({
   }
 
   return (
-    <li className="flex flex-col gap-1 border-b border-divider bg-danger-wash px-3 py-3">
+    <li className="flex flex-col gap-1 bg-danger-wash px-3 py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-meta font-emphasis uppercase tracking-wide text-danger">
@@ -315,13 +313,15 @@ export function RejectionRow({
             </span>
           )}
           {confirmDelete ? (
-            <ConfirmPair
-              buttonClass={actionButton}
-              label="Delete"
-              pending={pending}
-              onConfirm={runDelete}
-              onCancel={() => setConfirmDelete(false)}
-            />
+            <div className="expand-in flex items-center gap-1">
+              <ConfirmPair
+                buttonClass={actionButton}
+                label="Delete"
+                pending={pending}
+                onConfirm={runDelete}
+                onCancel={() => setConfirmDelete(false)}
+              />
+            </div>
           ) : (
             <>
               <button
