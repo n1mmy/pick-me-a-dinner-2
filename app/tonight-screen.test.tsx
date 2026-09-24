@@ -1179,9 +1179,19 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
     expect(mockedCreate).toHaveBeenCalledTimes(1);
     expect(mockedPick).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Add & Pick for tonight" }),
-    );
+    // The button stays disabled (`pending`) for a tick after the error text
+    // itself commits — a React 19 async-transition async callback keeps
+    // `isPending` true until its own promise chain fully settles, which can
+    // land in a later render than the `setError` that painted "Pick failed".
+    // Wait for it to re-enable before the retry click, or the click can land
+    // while it's still disabled and go nowhere.
+    const retryBtn = screen.getByRole("button", {
+      name: "Add & Pick for tonight",
+    });
+    await waitFor(() => {
+      expect((retryBtn as HTMLButtonElement).disabled).toBe(false);
+    });
+    fireEvent.click(retryBtn);
 
     await waitFor(() => {
       expect(mockedPick).toHaveBeenCalledTimes(2);
