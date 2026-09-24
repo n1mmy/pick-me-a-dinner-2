@@ -271,15 +271,15 @@ export function TonightScreen({
 
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
-      {/* On a phone the H1 and the stepper take a full-width row with the
-          stepper pinned right, so it holds still as the day name changes
-          length instead of sliding with it — and a long name shortens the H1
-          rather than pushing the forward arrow off-screen. From `desktop:` up
-          there is room to sit them side by side. */}
-      <div
-        className="flex w-full items-center justify-between gap-2
-          desktop:justify-start desktop:gap-3"
-      >
+      {/* The H1 and the stepper share a full-width row with the stepper
+          pinned right at every width, so it holds still as the day name
+          changes length instead of sliding with it — and a long name
+          shortens the H1 rather than pushing the forward arrow off-screen.
+          (Until the kind segment moved into the filter zone, this row also
+          held it, which needed `justify-start` on desktop to keep the three
+          together instead of spread edge-to-edge; with only two items left,
+          the stepper stays right at every width.) */}
+      <div className="flex w-full items-center justify-between gap-2">
         <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
           <DayNameReset heading={heading} />
         </h1>
