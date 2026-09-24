@@ -42,6 +42,13 @@ vi.mock("./log/actions", () => ({
   pickTonight: vi.fn(async () => ({ ok: true })),
   deleteLogEntry: vi.fn(async () => ({ ok: true })),
 }));
+// The quick-add form's own write (issue 03) — stubbed so the Add-row suite
+// never pulls in the database client, and so a create can be asserted on
+// the mock the same way every other write action is here.
+vi.mock("./catalog/actions", () => ({
+  createOption: vi.fn(async () => ({ ok: true, id: "new-id" })),
+  updateOption: vi.fn(async () => ({ ok: true })),
+}));
 // Both day-navigation controls use Next.js router hooks (`useRouter`,
 // `useSearchParams`, `usePathname`) that aren't wired up in this jsdom render.
 // Each has its own (intentionally tiny) surface and no behaviour these
@@ -55,11 +62,13 @@ vi.mock("./day-stepper", () => ({
 import type { AiSearchResult } from "../lib/ai-search";
 import { aiSearchAction } from "./tonight-search-client";
 import { deleteLogEntry, pickTonight } from "./log/actions";
+import { createOption } from "./catalog/actions";
 import { TonightScreen } from "./tonight-screen";
 
 const mockedAiSearch = vi.mocked(aiSearchAction);
 const mockedDelete = vi.mocked(deleteLogEntry);
 const mockedPick = vi.mocked(pickTonight);
+const mockedCreate = vi.mocked(createOption);
 
 /**
  * A deterministic Tonight row. `tags` are the Option's Tags, which drive the
@@ -860,7 +869,9 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
         searchEnabled
       />,
     );
-    fireEvent.change(searchInput(), { target: { value: "Zed" } });
+    // The exact name, not a mere substring, so it is the sole candidate and
+    // no trailing Add row (issue 03) interferes with this disabled-row check.
+    fireEvent.change(searchInput(), { target: { value: "Zed Diner" } });
     const optionRow = screen.getAllByRole("option")[0];
     expect(optionRow.getAttribute("aria-disabled")).toBe("true");
     expect(optionRow.textContent).toContain("already picked");
@@ -971,6 +982,197 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
       expect(mockedPick).toHaveBeenCalledWith("o1", undefined);
     });
     expect(screen.queryByText(/Pick anyway/)).toBeNull();
+  });
+});
+
+describe("TonightScreen — Add row and inline quick-add form (issue 03)", () => {
+  it("shows only the Add row for a name matching no active Option", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Pizza Place" } });
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(1);
+    expect(options[0].textContent).toContain("Add “Pizza Place”…");
+  });
+
+  it("shows a substring match and the Add row last", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={[...ROWS, row("o5", "Thai Orchid")]}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Thai" } });
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(options[0].textContent).toContain("Thai Orchid");
+    expect(options[1].textContent).toContain("Add “Thai”…");
+  });
+
+  it("shows no Add row for an exact existing name, any case", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "apple crumble" } });
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(1);
+    expect(options[0].textContent).not.toContain("Add ");
+  });
+
+  it("runs AI search on Enter with nothing highlighted, even with the Add row shown", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Pizza Place" } });
+    const notPrevented = fireEvent.keyDown(searchInput(), { key: "Enter" });
+    expect(notPrevented).toBe(true);
+    expect(mockedCreate).not.toHaveBeenCalled();
+  });
+
+  it("is reachable via ArrowDown and Enter", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Pizza Place" } });
+    fireEvent.keyDown(searchInput(), { key: "ArrowDown" });
+    fireEvent.keyDown(searchInput(), { key: "Enter" });
+    expect(screen.getByLabelText("Restaurant name")).toBeTruthy();
+  });
+
+  it("selecting the Add row opens the inline form prefilled with the name, kind Restaurant, switchable to Home meal", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Pizza Place" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+
+    expect(screen.queryByRole("listbox")).toBeNull();
+    const nameField = screen.getByLabelText("Restaurant name") as HTMLInputElement;
+    expect(nameField.value).toBe("Pizza Place");
+    expect(
+      screen.getByRole("button", { name: "Restaurant" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Home meal" }));
+    expect(screen.getByLabelText("Meal name")).toBeTruthy();
+  });
+
+  it("Cancel closes the form and keeps the query", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Pizza Place" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByLabelText("Restaurant name")).toBeNull();
+    expect(searchInput().value).toBe("Pizza Place");
+  });
+
+  it("Add & Pick creates the Option and Picks it for the Selected day, with a day-aware label — including a past Selected day", async () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-18"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Pizza Place" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+
+    const dayLabel = weekdayName("2026-05-18");
+    fireEvent.click(
+      screen.getByRole("button", { name: `Add & Pick for ${dayLabel}` }),
+    );
+
+    await waitFor(() => {
+      expect(mockedCreate).toHaveBeenCalledWith(
+        "restaurant",
+        expect.objectContaining({ name: "Pizza Place" }),
+      );
+      expect(mockedPick).toHaveBeenCalledWith("new-id", "2026-05-18");
+    });
+  });
+
+  it("Add creates the Option without Picking it", async () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Pizza Place" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() => {
+      expect(mockedCreate).toHaveBeenCalled();
+    });
+    expect(mockedPick).not.toHaveBeenCalled();
+  });
+
+  it("shows a warning linking to the detail page when the name matches an Archived Option", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        archivedOptions={[{ id: "a1", name: "Aji Ichi" }]}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Aji Ichi" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+
+    expect(screen.getByText(/is archived/)).toBeTruthy();
+    const link = screen.getByRole("link", { name: "Aji Ichi" });
+    expect(link.getAttribute("href")).toBe("/catalog/a1");
   });
 });
 

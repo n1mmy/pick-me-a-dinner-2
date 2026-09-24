@@ -9,7 +9,7 @@ import {
   useTransition,
 } from "react";
 import Link from "next/link";
-import type { TodayRejection } from "../db/queries";
+import type { ArchivedOption, TodayRejection } from "../db/queries";
 import type { AiRankingRow } from "../lib/ai-search";
 import type { LastNote } from "../lib/last-note";
 import { weekdayName } from "../lib/local-day";
@@ -18,6 +18,7 @@ import {
   chipStateLabel,
   cycleChipState,
   pickerView,
+  showAddRow,
   type ChipState,
   type KindFilter,
   type TagFilters,
@@ -25,6 +26,7 @@ import {
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 import { DayNameReset, DayStepper } from "./day-stepper";
 import type { TonightChoice } from "../lib/picker-view";
+import { OptionForm } from "./catalog/option-form";
 import { ConfirmPair } from "./confirm-pair";
 import {
   OptionListbox,
@@ -38,6 +40,9 @@ import { deleteRejection } from "./rejection-actions";
 import { aiSearchAction } from "./tonight-search-client";
 import { TonightRowItem } from "./tonight-row";
 import { TonightsDinnerBlock } from "./tonights-dinner-block";
+
+/** The Add row's sentinel id — never a real Option id, so `selectChoice` (issue 03) can tell it apart. */
+const ADD_ROW_ID = "__add__";
 
 /** The no-Last-notes default — module-level so its identity stays stable. */
 const NO_LAST_NOTES: Map<string, LastNote> = new Map();
@@ -82,6 +87,9 @@ export function TonightScreen({
   rejectedRows = [],
   selectedDay,
   todaySql,
+  allTags = [],
+  placesEnabled = false,
+  archivedOptions = [],
 }: {
   /** The Picked Options, in pick order — non-empty puts Tonight in decided mode. */
   tonightsDinner: TonightsDinnerEntry[];
@@ -138,6 +146,12 @@ export function TonightScreen({
   selectedDay: string;
   /** Today's SQL date in the Household's `APP_TZ`. */
   todaySql: string;
+  /** The Tag vocabulary the quick-add form's Tag input suggests from (issue 03). */
+  allTags?: string[];
+  /** Whether Places search is configured — gates the quick-add form's "Start from Google" box. */
+  placesEnabled?: boolean;
+  /** Archived Options the quick-add form warns a typed name-match against. */
+  archivedOptions?: ArchivedOption[];
 }) {
   const isToday = selectedDay === todaySql;
   // The H1 label: "Tonight" today, the weekday name on any other Selected day,
@@ -363,6 +377,9 @@ export function TonightScreen({
                 onClearSearch={clearSearch}
                 selectedDay={selectedDay}
                 isToday={isToday}
+                allTags={allTags}
+                placesEnabled={placesEnabled}
+                archivedOptions={archivedOptions}
               />
             </section>
           )}
@@ -388,6 +405,9 @@ export function TonightScreen({
           onClearSearch={clearSearch}
           selectedDay={selectedDay}
           isToday={isToday}
+          allTags={allTags}
+          placesEnabled={placesEnabled}
+          archivedOptions={archivedOptions}
         />
       )}
 
@@ -678,6 +698,9 @@ function Picker({
   onClearSearch,
   selectedDay,
   isToday,
+  allTags,
+  placesEnabled,
+  archivedOptions,
 }: {
   rows: TonightRow[];
   /** The rows Closed, Rejected, and already Picked for the Selected day — widens the typeahead past `rows` (issue 02). */
@@ -704,8 +727,20 @@ function Picker({
   selectedDay: string;
   /** True when the Selected day is today — drives copy and lets AI search skip the parameter. */
   isToday: boolean;
+  /** The quick-add form's Tag autocomplete vocabulary (issue 03). */
+  allTags: string[];
+  /** Gates the quick-add form's "Start from Google" box. */
+  placesEnabled: boolean;
+  /** Archived Options the quick-add form warns a typed name-match against. */
+  archivedOptions: ArchivedOption[];
 }) {
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
+  // The quick-add form (issue 03): the typed query it opened with, or `null`
+  // when closed. Selecting the search box's trailing Add row arms it; either
+  // save clears both this and the shared query, Cancel clears only this one
+  // — the query itself survives so the Household doesn't retype it.
+  const [addQuery, setAddQuery] = useState<string | null>(null);
+  const addDayLabel = isToday ? "tonight" : weekdayName(selectedDay);
   // The hint line restates the filter in words. With only a kind chip in
   // play it just repeats what the chip itself already shows ("Showing all
   // Options", "Showing Home meals"), so it is visible only once a Tag filter
@@ -791,6 +826,7 @@ function Picker({
               choices={choices}
               selectedDay={selectedDay}
               isToday={isToday}
+              onSelectAdd={setAddQuery}
             />
             <p className="sr-only" role="status" aria-live="polite">
               {searchStatus}
@@ -798,9 +834,9 @@ function Picker({
           </>
         )}
         {/* The filter zone — kind chips and Tag chips — is hidden while an
-            AI result is shown so the query alone ranks the list; clearing
-            the search restores it with the deterministic list. */}
-        {aiRows === null && (
+            AI result is shown, or the quick-add form is open, so the query
+            (or the form) alone owns the space below the search box. */}
+        {aiRows === null && addQuery === null && (
           <>
             {/* One filter line: the kind chips and every Tag chip are flat
                 siblings in a single flex-wrap row, so a wrapped second (or
@@ -834,6 +870,30 @@ function Picker({
           </>
         )}
       </div>
+      {/* The quick-add form (issue 03) — selecting the search box's trailing
+          Add row opens this directly below the search box, pushing the
+          rest of the list down. Restaurant by default (`showKindSwitch`
+          lets the Household switch to Home meal), with the typed query
+          prefilling the Name field. */}
+      {addQuery !== null && (
+        <OptionForm
+          key={addQuery}
+          kind="restaurant"
+          showKindSwitch
+          defaultName={addQuery}
+          allTags={allTags}
+          placesEnabled={placesEnabled}
+          archivedOptions={archivedOptions}
+          primaryLabel={`Add & Pick for ${addDayLabel}`}
+          secondaryLabel="Add"
+          onCreated={(id) => pickTonight(id, isToday ? undefined : selectedDay)}
+          onCancel={() => setAddQuery(null)}
+          onSaved={() => {
+            setAddQuery(null);
+            onQueryChange("");
+          }}
+        />
+      )}
       <p className="sr-only" role="status" aria-live="polite">
         {rejectNotice}
       </p>
@@ -954,6 +1014,7 @@ function SearchBox({
   choices,
   selectedDay,
   isToday,
+  onSelectAdd,
 }: {
   query: string;
   onQueryChange: (next: string) => void;
@@ -975,6 +1036,8 @@ function SearchBox({
   selectedDay: string;
   /** True when the Selected day is today — then the pick omits the day. */
   isToday: boolean;
+  /** Selecting the dropdown's trailing Add row (issue 03) — opens the quick-add form for the trimmed query. */
+  onSelectAdd: (query: string) => void;
 }) {
   const listId = useId();
   // The day-aware noun for a suppression note — "tonight" today, the weekday
@@ -1022,8 +1085,26 @@ function SearchBox({
     [query, choices],
   );
 
-  // The dropdown shows only when there is something to pick.
-  const showList = open && matches.length > 0;
+  // The trailing `Add "<query>"…` row (issue 03) — appended to `matches` as
+  // an ordinary (if sentinel-id'd) `TonightChoice` so it rides the same
+  // keyboard/mouse/listbox machinery every real row does: reachable by ↑/↓,
+  // never the default highlight (`initialActiveIndex: -1` below), selectable
+  // by Enter or a click. Independent of the substring filter above — it
+  // checks every candidate for an exact name match, not merely a substring
+  // one — so it appears even when `matches` itself is empty.
+  const trimmedQuery = query.trim();
+  const extendedMatches = useMemo<TonightChoice[]>(() => {
+    if (!showAddRow(choices, query)) return matches;
+    return [
+      ...matches,
+      { id: ADD_ROW_ID, name: trimmedQuery, kind: "restaurant", suppression: "none" },
+    ];
+  }, [matches, choices, query, trimmedQuery]);
+
+  // The dropdown shows whenever there is something to pick — a real match,
+  // the Add row, or both (issue 03: "the dropdown now also opens when the
+  // Add row is the only row").
+  const showList = open && extendedMatches.length > 0;
 
   function pick(optionId: string) {
     setPickError(null);
@@ -1051,6 +1132,11 @@ function SearchBox({
    * confirm arms instead, so the Household sees why before overriding it.
    */
   function selectChoice(option: TonightChoice) {
+    if (option.id === ADD_ROW_ID) {
+      setOpen(false);
+      onSelectAdd(option.name);
+      return;
+    }
     if (option.suppression === "none") {
       pick(option.id);
       return;
@@ -1067,8 +1153,9 @@ function SearchBox({
   // The same ↑/↓/Enter/Escape contract every Option typeahead uses
   // (`option-combobox`), with `initialActiveIndex: -1` so Enter with nothing
   // highlighted falls through to the form's own submit — the AI search —
-  // rather than picking. `isDisabled` keeps an already-Picked row off the
-  // keyboard highlight entirely.
+  // rather than picking (or, now, adding). `isDisabled` keeps an
+  // already-Picked row off the keyboard highlight entirely; the Add row is
+  // never disabled.
   const {
     activeIndex,
     setActiveIndex,
@@ -1078,7 +1165,7 @@ function SearchBox({
   } = useComboboxKeyboard({
     open,
     setOpen,
-    matches,
+    matches: extendedMatches,
     initialActiveIndex: -1,
     onSelect: selectChoice,
     onEscape: () => setOpen(false),
@@ -1169,13 +1256,14 @@ function SearchBox({
           {showList && (
             <OptionListbox
               listId={listId}
-              matches={matches}
+              matches={extendedMatches}
               activeIndex={activeIndex}
               isSelected={(_option, index) => index === activeIndex}
               onSelect={selectChoice}
               onHover={setActiveIndex}
               getNote={suppressionNote}
               isDisabled={(option) => option.suppression === "picked"}
+              isAddRow={(option) => option.id === ADD_ROW_ID}
               className="absolute left-0 right-0 top-full z-20 mt-1 flex
                 max-h-64 flex-col overflow-y-auto rounded-input border
                 border-line bg-surface py-1 shadow-sm"

@@ -6,10 +6,13 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   useId,
+  useMemo,
+  useRef,
   useState,
   useTransition,
 } from "react";
-import type { OptionWithTags } from "../../db/queries";
+import Link from "next/link";
+import type { ArchivedOption, OptionWithTags } from "../../db/queries";
 import { WEEKDAY_NAMES } from "../../lib/local-day";
 import { escapeToCancel } from "../escape-to-cancel";
 import { fieldFocusRing, focusRing } from "../focus-ring";
@@ -59,16 +62,54 @@ export function OptionForm({
   placesEnabled,
   onCancel,
   onSaved,
+  showKindSwitch = false,
+  primaryLabel,
+  secondaryLabel,
+  onCreated,
+  archivedOptions = [],
+  defaultName,
 }: {
+  /** The kind to start from. With `showKindSwitch`, the switch can change it. */
   kind: OptionKind;
   initial?: OptionWithTags;
   allTags: string[];
   placesEnabled: boolean;
   onCancel: () => void;
   onSaved: () => void;
+  /**
+   * Renders a Home meal / Restaurant switch inside the form, letting `kind`
+   * change (Tonight's quick-add, issue 03) instead of being fixed by which
+   * Catalog add button opened the form.
+   */
+  showKindSwitch?: boolean;
+  /** Overrides the primary submit button's label (default "Save"/"Add"). */
+  primaryLabel?: string;
+  /**
+   * When given (add-only; ignored on `initial`), a second submit button with
+   * this label creates the Option without calling `onCreated` — Tonight's
+   * plain "Add", which never Picks.
+   */
+  secondaryLabel?: string;
+  /**
+   * Called after a successful *create* (never on edit) when the primary
+   * button was the one submitted — Tonight's "Add & Pick" Picks the new
+   * Option for the Selected day. A returned failure keeps the form open with
+   * the error shown inline; the Option itself stays created.
+   */
+  onCreated?: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Active-Option-independent Archived Options to warn a name-match against (Tonight only). */
+  archivedOptions?: ArchivedOption[];
+  /** Prefills the Name field on a fresh add (`initial` absent) — Tonight's typed query. */
+  defaultName?: string;
 }) {
   const fieldId = useId();
-  const [name, setName] = useState(initial?.name ?? "");
+  const [formKind, setFormKind] = useState<OptionKind>(kind);
+  // Which submit button was clicked — a ref, not state, so `handleSubmit`
+  // (which fires in the same click) always reads the up-to-date value; a
+  // state update here could still be showing the previous render's value by
+  // the time the submit handler runs.
+  const submitIntentRef = useRef<"primary" | "secondary">("primary");
+  const [name, setName] = useState(initial?.name ?? defaultName ?? "");
   const [url, setUrl] = useState(initial?.url ?? "");
   // A Places autofill leaves an already-filled URL untouched; this flags that
   // so the URL field can disclose it was kept rather than overwritten.
@@ -101,7 +142,18 @@ export function OptionForm({
   const [justSaved, setJustSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const isRestaurant = kind === "restaurant";
+  const isRestaurant = formKind === "restaurant";
+  // The Archived Option this typed name matches, case-insensitive — recomputed
+  // live as `name` is edited (Tonight's quick-add, issue 03). Catalog never
+  // passes `archivedOptions`, so this is always `null` there.
+  const archivedMatch = useMemo(() => {
+    const needle = name.trim().toLowerCase();
+    if (needle.length === 0) return null;
+    return (
+      archivedOptions.find((option) => option.name.toLowerCase() === needle) ??
+      null
+    );
+  }, [name, archivedOptions]);
   // The only validation error that is actually about the Name field; every
   // other server error (e.g. "That option is no longer available" — the
   // Option was deleted out from under an in-progress edit) is form-level and
@@ -114,7 +166,7 @@ export function OptionForm({
   // Places search — or hand entry — fills it.
   const [hasLocationData] = useState(
     () =>
-      isRestaurant &&
+      formKind === "restaurant" &&
       (Boolean(initial?.address) ||
         Boolean(initial?.phone) ||
         Boolean(initial?.mapsUrl) ||
@@ -183,19 +235,39 @@ export function OptionForm({
       tags,
       closedDays,
     };
+    const intent = submitIntentRef.current;
     startTransition(async () => {
-      const result = initial
-        ? await updateOption(initial.id, kind, values)
-        : await createOption(kind, values);
-      if (result.ok) {
-        // Hold "Saved ✓" briefly before handing off — the same beat
-        // `PickButton` gives "Logged ✓" — so the save is visible even though
-        // `onSaved` immediately collapses or navigates away from this form.
-        setJustSaved(true);
-        window.setTimeout(onSaved, 700);
-      } else {
-        setError(result.error);
+      if (initial) {
+        const result = await updateOption(initial.id, formKind, values);
+        if (result.ok) {
+          // Hold "Saved ✓" briefly before handing off — the same beat
+          // `PickButton` gives "Logged ✓" — so the save is visible even
+          // though `onSaved` immediately collapses or navigates away.
+          setJustSaved(true);
+          window.setTimeout(onSaved, 700);
+        } else {
+          setError(result.error);
+        }
+        return;
       }
+      const result = await createOption(formKind, values);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      // The secondary button ("Add") never Picks; the primary one does when
+      // `onCreated` is wired (Tonight's "Add & Pick"). A Pick failure leaves
+      // the form open with the error shown inline — the Option is already
+      // created, so retrying here would create a duplicate rather than help.
+      if (intent === "primary" && onCreated) {
+        const pickResult = await onCreated(result.id);
+        if (!pickResult.ok) {
+          setError(pickResult.error);
+          return;
+        }
+      }
+      setJustSaved(true);
+      window.setTimeout(onSaved, 700);
     });
   }
 
@@ -211,6 +283,8 @@ export function OptionForm({
       onKeyDown={escapeToCancel(onCancel, pending || justSaved)}
       className="expand-in flex flex-col gap-3 pb-[80px]"
     >
+      {showKindSwitch && <KindSwitch kind={formKind} onChange={setFormKind} />}
+
       {isRestaurant && placesEnabled && (
         <PlacesSearchBox
           onAutofill={applyAutofill}
@@ -359,6 +433,18 @@ export function OptionForm({
         </p>
       )}
 
+      {archivedMatch && (
+        <p className="text-chip text-muted">
+          <Link
+            href={`/catalog/${archivedMatch.id}`}
+            className={`font-emphasis text-action underline-offset-2 hover:underline ${focusRing}`}
+          >
+            {archivedMatch.name}
+          </Link>
+          {" is archived"}
+        </p>
+      )}
+
       {/* A fixed footer bar, not a `sticky` one — `sticky` only ever bleeds
           to the edges of `.column`'s own padding, and on desktop `.column`
           is a 900px box centered with leftover margin on either side (see
@@ -379,9 +465,12 @@ export function OptionForm({
           z-10 border-t border-divider bg-surface desktop:bottom-0
           desktop:left-[var(--rail-width)]"
       >
-        <div className="column flex items-center gap-2 py-3">
+        <div className="column flex flex-wrap items-center gap-2 py-3">
           <button
             type="submit"
+            onClick={() => {
+              submitIntentRef.current = "primary";
+            }}
             disabled={pending || justSaved}
             className={`min-h-11 rounded-control px-4 text-body font-emphasis
               disabled:opacity-60 ${pressFeedback} ${focusRing} ${
@@ -390,8 +479,23 @@ export function OptionForm({
                   : "bg-action text-action-ink hover:bg-action-hover"
               }`}
           >
-            {justSaved ? "Saved ✓" : initial ? "Save" : "Add"}
+            {justSaved ? "Saved ✓" : primaryLabel ?? (initial ? "Save" : "Add")}
           </button>
+          {secondaryLabel && !initial && (
+            <button
+              type="submit"
+              onClick={() => {
+                submitIntentRef.current = "secondary";
+              }}
+              disabled={pending || justSaved}
+              className={`min-h-11 rounded-control border border-line px-4
+                text-body font-emphasis text-action transition-colors
+                duration-short hover:bg-raised disabled:opacity-60
+                ${focusRing}`}
+            >
+              {secondaryLabel}
+            </button>
+          )}
           <button
             type="button"
             onClick={onCancel}
@@ -410,6 +514,48 @@ export function OptionForm({
         </div>
       </div>
     </form>
+  );
+}
+
+/**
+ * The Home meal / Restaurant switch shown inside the form only when
+ * `showKindSwitch` is set (Tonight's quick-add, issue 03) — Catalog decides
+ * the kind by which of its two add buttons was clicked, so it never renders
+ * this. Same fill logic as Tonight's kind filter chips (`KindChips` in
+ * `tonight-screen.tsx`): the selected chip fills with the Option's own
+ * `kind-home`/`kind-restaurant` hue, the other stays a faded `-wash` tint.
+ */
+function KindSwitch({
+  kind,
+  onChange,
+}: {
+  kind: OptionKind;
+  onChange: (kind: OptionKind) => void;
+}) {
+  return (
+    <div role="group" aria-label="Kind" className="flex gap-2">
+      {(["home", "restaurant"] as const).map((value) => {
+        const selected = kind === value;
+        const home = value === "home";
+        return (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(value)}
+            className={`min-h-11 flex-1 rounded-control border
+              border-transparent px-3 text-body font-emphasis
+              transition-colors duration-short ${focusRing} ${
+                selected
+                  ? `${home ? "bg-kind-home" : "bg-kind-restaurant"} text-action-ink`
+                  : `${home ? "bg-kind-home-wash" : "bg-kind-restaurant-wash"} text-ink`
+              }`}
+          >
+            {home ? "Home meal" : "Restaurant"}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

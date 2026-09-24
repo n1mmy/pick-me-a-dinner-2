@@ -191,6 +191,7 @@ export function OptionListbox<T extends OptionChoice>({
   rowClassName = "",
   getNote,
   isDisabled,
+  isAddRow,
 }: {
   listId: string;
   matches: T[];
@@ -205,6 +206,14 @@ export function OptionListbox<T extends OptionChoice>({
   getNote?: (option: T) => string | undefined;
   /** Rows this box must not let the Household select. */
   isDisabled?: (option: T) => boolean;
+  /**
+   * Marks a row as Tonight's trailing `Add "<query>"…` row (issue 03): it
+   * renders as plain action-colored text with no kind bar or kind label —
+   * it names no Option yet — instead of the usual name-plus-kind-label row.
+   * Omitted (every caller but Tonight's search box) renders every row the
+   * ordinary way.
+   */
+  isAddRow?: (option: T) => boolean;
 }) {
   return (
     <ul id={listId} role="listbox" className={className}>
@@ -216,6 +225,7 @@ export function OptionListbox<T extends OptionChoice>({
         matches.map((option, index) => {
           const disabled = isDisabled?.(option) ?? false;
           const note = getNote?.(option);
+          const addRow = isAddRow?.(option) ?? false;
           return (
             <li key={option.id} role="presentation">
               <div
@@ -224,8 +234,9 @@ export function OptionListbox<T extends OptionChoice>({
                 tabIndex={-1}
                 aria-selected={isSelected(option, index)}
                 aria-disabled={disabled || undefined}
-                className={`flex min-h-11 w-full flex-col py-1.5 text-left
-                  ${kindBarClass(option.kind)} ${rowClassName} ${
+                className={`flex min-h-11 w-full flex-col justify-center
+                  text-left ${addRow ? "" : kindBarClass(option.kind)}
+                  ${rowClassName} ${
                     disabled
                       ? "cursor-not-allowed opacity-60"
                       : "cursor-pointer"
@@ -243,13 +254,21 @@ export function OptionListbox<T extends OptionChoice>({
                 }}
                 onMouseEnter={() => onHover(index)}
               >
-                <span className="text-body text-ink">
-                  {option.name}
-                  {note && <span className="text-muted"> · {note}</span>}
-                </span>
-                <span className="text-meta text-muted">
-                  {kindLabel(option.kind)}
-                </span>
+                {addRow ? (
+                  <span className="text-body font-emphasis text-action">
+                    Add &ldquo;{option.name}&rdquo;…
+                  </span>
+                ) : (
+                  <>
+                    <span className="py-1.5 text-body text-ink">
+                      {option.name}
+                      {note && <span className="text-muted"> · {note}</span>}
+                    </span>
+                    <span className="pb-1.5 text-meta text-muted">
+                      {kindLabel(option.kind)}
+                    </span>
+                  </>
+                )}
               </div>
             </li>
           );

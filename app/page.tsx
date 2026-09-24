@@ -1,6 +1,12 @@
-import { getTodayRejections, getTonightData } from "../db/queries";
+import {
+  getAllTags,
+  getArchivedOptions,
+  getTodayRejections,
+  getTonightData,
+} from "../db/queries";
 import { aiSearchEnabled } from "../lib/ai-search";
 import { parseSelectedDay, today } from "../lib/local-day";
+import { placesEnabled } from "../lib/places";
 import { tonightForDay } from "../lib/tonight-day";
 import { TonightScreen } from "./tonight-screen";
 
@@ -31,11 +37,17 @@ export default async function TonightPage({
   // The Selected day is parsed at the page boundary so every downstream call
   // works with a validated SQL date — past / malformed / missing → today.
   const selectedDay = parseSelectedDay(rawDay, todaySql);
-  const [{ options, logEntries, todayEntries }, anchorRejections] =
-    await Promise.all([
-      getTonightData(selectedDay),
-      getTodayRejections(selectedDay),
-    ]);
+  const [
+    { options, logEntries, todayEntries },
+    anchorRejections,
+    allTags,
+    archivedOptions,
+  ] = await Promise.all([
+    getTonightData(selectedDay),
+    getTodayRejections(selectedDay),
+    getAllTags(),
+    getArchivedOptions(),
+  ]);
 
   // Every Selected-day suppression rule — Picked, Rejected, Closed — and the
   // Last note reduction compose inside `tonightForDay` (issue 05); the page
@@ -63,6 +75,9 @@ export default async function TonightPage({
       searchEnabled={aiSearchEnabled()}
       selectedDay={selectedDay}
       todaySql={todaySql}
+      allTags={allTags}
+      placesEnabled={placesEnabled()}
+      archivedOptions={archivedOptions}
     />
   );
 }

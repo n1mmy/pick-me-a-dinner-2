@@ -22,6 +22,20 @@ import type { TonightRow } from "./ranking";
  */
 export type TonightChoice = OptionChoice & { suppression: Suppression | "none" };
 
+/**
+ * Whether Tonight's typeahead dropdown should append its trailing `Add
+ * "<query>"…` row (issue 03): the trimmed query is non-empty and no
+ * candidate — every active Option, whatever its suppression (issue 02's
+ * widened `choices`) — has that exact name, case-insensitive. An Option that
+ * matches exactly (any case, any suppression) already has a row to pick, so
+ * the Add row would just offer a confusing duplicate.
+ */
+export function showAddRow(choices: TonightChoice[], query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (needle.length === 0) return false;
+  return !choices.some((choice) => choice.name.toLowerCase() === needle);
+}
+
 function toChoice(row: TonightRow, suppression: Suppression | "none"): TonightChoice {
   return {
     id: row.option.id,
