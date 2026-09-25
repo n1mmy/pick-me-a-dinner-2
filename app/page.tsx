@@ -75,9 +75,11 @@ export default async function TonightPage({
       searchEnabled={aiSearchEnabled()}
       selectedDay={selectedDay}
       todaySql={todaySql}
-      allTags={allTags}
-      placesEnabled={placesEnabled()}
-      archivedOptions={archivedOptions}
+      quickAddSources={{
+        allTags,
+        placesEnabled: placesEnabled(),
+        archivedOptions,
+      }}
     />
   );
 }

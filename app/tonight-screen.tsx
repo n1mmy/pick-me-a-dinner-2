@@ -54,6 +54,22 @@ function isPickedRow(row: SearchRow): boolean {
   return !isAddRow(row) && row.suppression === "picked";
 }
 
+/** What the typeahead's quick-add form (issue 03) needs from the server. */
+export type QuickAddSources = {
+  /** The Tag autocomplete vocabulary. */
+  allTags: string[];
+  /** Gates the form's "Start from Google" box. */
+  placesEnabled: boolean;
+  /** Archived Options the form warns a typed name-match against. */
+  archivedOptions: ArchivedOption[];
+};
+
+const NO_QUICK_ADD_SOURCES: QuickAddSources = {
+  allTags: [],
+  placesEnabled: false,
+  archivedOptions: [],
+};
+
 /** The no-Last-notes default — module-level so its identity stays stable. */
 const NO_LAST_NOTES: Map<string, LastNote> = new Map();
 
@@ -97,9 +113,7 @@ export function TonightScreen({
   rejectedRows = [],
   selectedDay,
   todaySql,
-  allTags = [],
-  placesEnabled = false,
-  archivedOptions = [],
+  quickAddSources = NO_QUICK_ADD_SOURCES,
 }: {
   /** The Picked Options, in pick order — non-empty puts Tonight in decided mode. */
   tonightsDinner: TonightsDinnerEntry[];
@@ -156,12 +170,7 @@ export function TonightScreen({
   selectedDay: string;
   /** Today's SQL date in the Household's `APP_TZ`. */
   todaySql: string;
-  /** The Tag vocabulary the quick-add form's Tag input suggests from (issue 03). */
-  allTags?: string[];
-  /** Whether Places search is configured — gates the quick-add form's "Start from Google" box. */
-  placesEnabled?: boolean;
-  /** Archived Options the quick-add form warns a typed name-match against. */
-  archivedOptions?: ArchivedOption[];
+  quickAddSources?: QuickAddSources;
 }) {
   const isToday = selectedDay === todaySql;
   // The H1 label: "Tonight" today, the weekday name on any other Selected day,
@@ -330,9 +339,7 @@ export function TonightScreen({
       onClearSearch={clearSearch}
       selectedDay={selectedDay}
       isToday={isToday}
-      allTags={allTags}
-      placesEnabled={placesEnabled}
-      archivedOptions={archivedOptions}
+      quickAddSources={quickAddSources}
     />
   );
 
@@ -695,9 +702,7 @@ function Picker({
   onClearSearch,
   selectedDay,
   isToday,
-  allTags,
-  placesEnabled,
-  archivedOptions,
+  quickAddSources,
 }: {
   rows: TonightRow[];
   /** The rows Closed, Rejected, and already Picked for the Selected day — widens the typeahead past `rows` (issue 02). */
@@ -724,12 +729,7 @@ function Picker({
   selectedDay: string;
   /** True when the Selected day is today — drives copy and lets AI search skip the parameter. */
   isToday: boolean;
-  /** The quick-add form's Tag autocomplete vocabulary (issue 03). */
-  allTags: string[];
-  /** Gates the quick-add form's "Start from Google" box. */
-  placesEnabled: boolean;
-  /** Archived Options the quick-add form warns a typed name-match against. */
-  archivedOptions: ArchivedOption[];
+  quickAddSources: QuickAddSources;
 }) {
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
   // The quick-add form (issue 03): the typed query it opened with, or `null`
@@ -876,11 +876,11 @@ function Picker({
         <OptionForm
           key={addQuery}
           kind="restaurant"
-          allTags={allTags}
-          placesEnabled={placesEnabled}
+          allTags={quickAddSources.allTags}
+          placesEnabled={quickAddSources.placesEnabled}
           quickAdd={{
             defaultName: addQuery,
-            archivedOptions,
+            archivedOptions: quickAddSources.archivedOptions,
             pickLabel: `Add & Pick for ${addDayLabel}`,
             pick: (id) => pickTonight(id, isToday ? undefined : selectedDay),
           }}

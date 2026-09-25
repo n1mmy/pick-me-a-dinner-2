@@ -1209,7 +1209,11 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
         todaySql="2026-05-20"
         tonightsDinner={[]}
         pickerRows={ROWS}
-        archivedOptions={[{ id: "a1", name: "Aji Ichi" }]}
+        quickAddSources={{
+          allTags: [],
+          placesEnabled: false,
+          archivedOptions: [{ id: "a1", name: "Aji Ichi" }],
+        }}
         searchEnabled
       />,
     );
