@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import type { ArchivedOption, TodayRejection } from "../db/queries";
 import type { AiRankingRow } from "../lib/ai-search";
+import type { Suppression } from "../lib/day-suppressions";
 import type { LastNote } from "../lib/last-note";
 import { weekdayName } from "../lib/local-day";
 import type { TonightRow } from "../lib/ranking";
@@ -1054,7 +1055,6 @@ function SearchBox({
   // always names the weekday, pluralised as a standing fact ("closed
   // Mondays"), even when the Selected day is today.
   const dayLabel = isToday ? "tonight" : weekdayName(selectedDay);
-  const closedLabel = `closed ${weekdayName(selectedDay)}s`;
   const pending = startedAt !== null;
   // Elapsed whole seconds of the in-flight search. An AI search runs ~50–90s,
   // so a live counter reassures the Household the request is still working.
@@ -1179,14 +1179,14 @@ function SearchBox({
   });
 
   /** The muted row suffix naming why a candidate is off the ranked list. */
+  const suppressionNotes: Record<Suppression, string> = {
+    closed: `closed ${weekdayName(selectedDay)}s`,
+    rejected: `rejected ${dayLabel}`,
+    picked: "already picked",
+  };
   function suppressionNote(option: SearchRow): string | undefined {
-    if (isAddRow(option)) return undefined;
-    if (option.suppression === "closed") {
-      return closedLabel;
-    }
-    if (option.suppression === "rejected") return `rejected ${dayLabel}`;
-    if (option.suppression === "picked") return "already picked";
-    return undefined;
+    if (isAddRow(option) || option.suppression === "none") return undefined;
+    return suppressionNotes[option.suppression];
   }
 
   // The done badge shows only while a successful AI result is on screen —
@@ -1367,7 +1367,7 @@ function SearchBox({
               >
                 {pendingConfirm.name}
               </Link>
-              {` is ${closedLabel}`}
+              {` is ${suppressionNotes.closed}`}
             </>
           ) : (
             <>
