@@ -41,7 +41,7 @@
  * This is a presentation composition only: it runs after `rankTonight`, so
  * the Score and the ranking stay untouched (ADR-0003, ADR-0006, ADR-0010).
  */
-import { suppressionsOn } from "./day-suppressions";
+import { suppressionsOn, type Suppression } from "./day-suppressions";
 import {
   lastNotesByOption,
   type LastNote,
@@ -177,12 +177,12 @@ export function tonightForDay({
   const visiblePicker = picker.filter(
     (row) => !suppressions.has(row.option.id),
   );
-  const closed = picker
-    .filter((row) => suppressions.get(row.option.id) === "closed")
-    .sort((a, b) => a.option.name.localeCompare(b.option.name));
-  const rejected = picker
-    .filter((row) => suppressions.get(row.option.id) === "rejected")
-    .sort((a, b) => a.option.name.localeCompare(b.option.name));
+  const suppressedByName = (reason: Suppression) =>
+    picker
+      .filter((row) => suppressions.get(row.option.id) === reason)
+      .sort((a, b) => a.option.name.localeCompare(b.option.name));
+  const closed = suppressedByName("closed");
+  const rejected = suppressedByName("rejected");
 
   // 6. Last notes, for every row type — one Map serves picker, AI result,
   // and decided rows alike.
