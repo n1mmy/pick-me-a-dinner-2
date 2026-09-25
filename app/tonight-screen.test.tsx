@@ -819,7 +819,7 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
     );
     fireEvent.change(searchInput(), { target: { value: "Aji" } });
     expect(screen.getAllByRole("option")[0].textContent).toContain(
-      `closed ${weekdayName("2026-05-20")}`,
+      "closed Wednesdays",
     );
   });
 
@@ -897,7 +897,7 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
 
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(mockedPick).not.toHaveBeenCalled();
-    expect(screen.getByText(/is closed/)).toBeTruthy();
+    expect(screen.getByText(/is closed Wednesdays/)).toBeTruthy();
     const link = screen.getByRole("link", { name: "Aji Ichi" });
     expect(link.getAttribute("href")).toBe("/catalog/o9");
 

@@ -1041,11 +1041,11 @@ function SearchBox({
 }) {
   const listId = useId();
   // The day-aware noun for a suppression note — "tonight" today, the weekday
-  // name otherwise — mirroring the screen's own `dayLabel`. `weekdayName` is
-  // used directly for a Closed note, which always names the weekday
-  // (DESIGN.md; issue 02's row-label spec) even when the Selected day is
-  // today, unlike the "tonight" a Rejected note gets.
+  // name otherwise — mirroring the screen's own `dayLabel`. A Closed note
+  // always names the weekday, pluralised as a standing fact ("closed
+  // Mondays"), even when the Selected day is today.
   const dayLabel = isToday ? "tonight" : weekdayName(selectedDay);
+  const closedLabel = `closed ${weekdayName(selectedDay)}s`;
   const pending = startedAt !== null;
   // Elapsed whole seconds of the in-flight search. An AI search runs ~50–90s,
   // so a live counter reassures the Household the request is still working.
@@ -1175,7 +1175,7 @@ function SearchBox({
   /** The muted row suffix naming why a candidate is off the ranked list. */
   function suppressionNote(option: TonightChoice): string | undefined {
     if (option.suppression === "closed") {
-      return `closed ${weekdayName(selectedDay)}`;
+      return closedLabel;
     }
     if (option.suppression === "rejected") return `rejected ${dayLabel}`;
     if (option.suppression === "picked") return "already picked";
@@ -1361,7 +1361,7 @@ function SearchBox({
               >
                 {pendingConfirm.name}
               </Link>
-              {` is closed ${weekdayName(selectedDay)}`}
+              {` is ${closedLabel}`}
             </>
           ) : (
             <>
