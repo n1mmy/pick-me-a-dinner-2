@@ -10,6 +10,21 @@ import { trimToNull } from "../../lib/action-result";
 import { pgErrorMessage } from "../../lib/pg-error";
 import { revalidateDinnerViews } from "../revalidate";
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** A Pick supersedes that date's Rejection of the same Option (`CONTEXT.md`: **Pick**). */
+async function deleteSameDayRejection(
+  tx: Tx,
+  optionId: string,
+  eatenOn: string,
+): Promise<void> {
+  await tx
+    .delete(rejections)
+    .where(
+      and(eq(rejections.optionId, optionId), eq(rejections.rejectedOn, eatenOn)),
+    );
+}
+
 /**
  * Pick tonight: log the Option for the Selected day — `pick = log`. The insert
  * upserts on `(option_id, eaten_on)` via `onConflictDoNothing`, so an
@@ -45,14 +60,7 @@ export const pickTonight = authedAction(
           .insert(dinnerLog)
           .values({ optionId, eatenOn })
           .onConflictDoNothing();
-        await tx
-          .delete(rejections)
-          .where(
-            and(
-              eq(rejections.optionId, optionId),
-              eq(rejections.rejectedOn, eatenOn),
-            ),
-          );
+        await deleteSameDayRejection(tx, optionId, eatenOn);
       });
     } catch {
       return { ok: false, error: "Couldn't log that — try again" };
@@ -90,14 +98,7 @@ export const logForDate = authedAction(
         await tx
           .insert(dinnerLog)
           .values({ optionId, eatenOn, note: trimToNull(note ?? "") });
-        await tx
-          .delete(rejections)
-          .where(
-            and(
-              eq(rejections.optionId, optionId),
-              eq(rejections.rejectedOn, eatenOn),
-            ),
-          );
+        await deleteSameDayRejection(tx, optionId, eatenOn);
       });
     } catch (error) {
       return pgErrorMessage(error, {
