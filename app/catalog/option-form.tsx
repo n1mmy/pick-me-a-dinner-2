@@ -42,6 +42,23 @@ function sameDays(a: number[], b: number[]): boolean {
 }
 
 /**
+ * Tonight's quick-add (issue 03): a fresh add prefilled with the typed query,
+ * with a Home meal / Restaurant switch, an Archived name-match warning, and a
+ * plain "Add" beside the primary button, which also Picks.
+ */
+export type QuickAdd = {
+  defaultName: string;
+  archivedOptions: ArchivedOption[];
+  /** The primary button's label, e.g. "Add & Pick for tonight". */
+  pickLabel: string;
+  /**
+   * Picks the just-created Option. A returned failure keeps the form open
+   * with the error inline; the Option itself stays created.
+   */
+  pick: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+};
+
+/**
  * The inline add/edit form for one Option — identical on phone and desktop. An
  * `initial` Option means edit; its absence means add. The Restaurant form
  * exposes the restaurant-only fields for manual entry, and — when `placesEnabled`
@@ -64,45 +81,17 @@ export function OptionForm({
   placesEnabled,
   onCancel,
   onSaved,
-  showKindSwitch = false,
-  primaryLabel,
-  secondaryLabel,
-  onCreated,
-  archivedOptions = [],
-  defaultName,
+  quickAdd,
 }: {
-  /** The kind to start from. With `showKindSwitch`, the switch can change it. */
+  /** The kind to start from. With `quickAdd`, its switch can change it. */
   kind: OptionKind;
   initial?: OptionWithTags;
   allTags: string[];
   placesEnabled: boolean;
   onCancel: () => void;
   onSaved: () => void;
-  /**
-   * Renders a Home meal / Restaurant switch inside the form, letting `kind`
-   * change (Tonight's quick-add, issue 03) instead of being fixed by which
-   * Catalog add button opened the form.
-   */
-  showKindSwitch?: boolean;
-  /** Overrides the primary submit button's label (default "Save"/"Add"). */
-  primaryLabel?: string;
-  /**
-   * When given (add-only; ignored on `initial`), a second submit button with
-   * this label creates the Option without calling `onCreated` — Tonight's
-   * plain "Add", which never Picks.
-   */
-  secondaryLabel?: string;
-  /**
-   * Called after a successful *create* (never on edit) when the primary
-   * button was the one submitted — Tonight's "Add & Pick" Picks the new
-   * Option for the Selected day. A returned failure keeps the form open with
-   * the error shown inline; the Option itself stays created.
-   */
-  onCreated?: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
-  /** Active-Option-independent Archived Options to warn a name-match against (Tonight only). */
-  archivedOptions?: ArchivedOption[];
-  /** Prefills the Name field on a fresh add (`initial` absent) — Tonight's typed query. */
-  defaultName?: string;
+  /** Tonight's quick-add; add-only, never combined with `initial`. */
+  quickAdd?: QuickAdd;
 }) {
   const fieldId = useId();
   const [formKind, setFormKind] = useState<OptionKind>(kind);
@@ -111,12 +100,14 @@ export function OptionForm({
   // state update here could still be showing the previous render's value by
   // the time the submit handler runs.
   const submitIntentRef = useRef<"primary" | "secondary">("primary");
-  // Set once `createOption` succeeds, so a retry after a failed `onCreated`
+  // Set once `createOption` succeeds, so a retry after a failed quick-add
   // Pick (Tonight's "Add & Pick") re-tries only the Pick — calling
   // `createOption` again would create a duplicate Option, since the first one
   // already exists.
   const createdIdRef = useRef<string | null>(null);
-  const [name, setName] = useState(initial?.name ?? defaultName ?? "");
+  const [name, setName] = useState(
+    initial?.name ?? quickAdd?.defaultName ?? "",
+  );
   const [url, setUrl] = useState(initial?.url ?? "");
   // A Places autofill leaves an already-filled URL untouched; this flags that
   // so the URL field can disclose it was kept rather than overwritten.
@@ -151,11 +142,11 @@ export function OptionForm({
 
   const isRestaurant = formKind === "restaurant";
   // The Archived Option this typed name matches, case-insensitive — recomputed
-  // live as `name` is edited (Tonight's quick-add, issue 03). Catalog never
-  // passes `archivedOptions`, so this is always `null` there.
+  // live as `name` is edited. Always `null` outside Tonight's quick-add.
+  const archivedOptions = quickAdd?.archivedOptions;
   const archivedMatch = useMemo(() => {
     const needle = name.trim().toLowerCase();
-    if (needle.length === 0) return null;
+    if (!archivedOptions || needle.length === 0) return null;
     return (
       archivedOptions.find((option) => option.name.toLowerCase() === needle) ??
       null
@@ -270,12 +261,12 @@ export function OptionForm({
         id = result.id;
         createdIdRef.current = id;
       }
-      // The secondary button ("Add") never Picks; the primary one does when
-      // `onCreated` is wired (Tonight's "Add & Pick"). A Pick failure leaves
-      // the form open with the error shown inline — the Option is already
-      // created, so a retry (via `createdIdRef`) re-tries only the Pick.
-      if (intent === "primary" && onCreated) {
-        const pickResult = await onCreated(id);
+      // The secondary button ("Add") never Picks; the primary one does in
+      // Tonight's quick-add ("Add & Pick"). A Pick failure leaves the form
+      // open with the error shown inline — the Option is already created, so
+      // a retry (via `createdIdRef`) re-tries only the Pick.
+      if (intent === "primary" && quickAdd) {
+        const pickResult = await quickAdd.pick(id);
         if (!pickResult.ok) {
           setError(pickResult.error);
           return;
@@ -298,7 +289,7 @@ export function OptionForm({
       onKeyDown={escapeToCancel(onCancel, pending || justSaved)}
       className="expand-in flex flex-col gap-3 pb-[80px]"
     >
-      {showKindSwitch && <KindSwitch kind={formKind} onChange={setFormKind} />}
+      {quickAdd && <KindSwitch kind={formKind} onChange={setFormKind} />}
 
       {isRestaurant && placesEnabled && (
         <PlacesSearchBox
@@ -494,9 +485,11 @@ export function OptionForm({
                   : "bg-action text-action-ink hover:bg-action-hover"
               }`}
           >
-            {justSaved ? "Saved ✓" : primaryLabel ?? (initial ? "Save" : "Add")}
+            {justSaved
+              ? "Saved ✓"
+              : quickAdd?.pickLabel ?? (initial ? "Save" : "Add")}
           </button>
-          {secondaryLabel && !initial && (
+          {quickAdd && (
             <button
               type="submit"
               onClick={() => {
@@ -513,7 +506,7 @@ export function OptionForm({
                 transition-colors duration-short hover:bg-raised
                 disabled:opacity-60 ${focusRing}`}
             >
-              {secondaryLabel}
+              Add
             </button>
           )}
           <button
@@ -538,8 +531,8 @@ export function OptionForm({
 }
 
 /**
- * The Home meal / Restaurant switch shown inside the form only when
- * `showKindSwitch` is set (Tonight's quick-add, issue 03) — Catalog decides
+ * The Home meal / Restaurant switch shown inside the form only for
+ * `quickAdd` (Tonight's quick-add, issue 03) — Catalog decides
  * the kind by which of its two add buttons was clicked, so it never renders
  * this. Filled like Tonight's kind filter chips (`kindChipFillClass`).
  */

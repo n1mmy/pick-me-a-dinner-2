@@ -876,14 +876,14 @@ function Picker({
         <OptionForm
           key={addQuery}
           kind="restaurant"
-          showKindSwitch
-          defaultName={addQuery}
           allTags={allTags}
           placesEnabled={placesEnabled}
-          archivedOptions={archivedOptions}
-          primaryLabel={`Add & Pick for ${addDayLabel}`}
-          secondaryLabel="Add"
-          onCreated={(id) => pickTonight(id, isToday ? undefined : selectedDay)}
+          quickAdd={{
+            defaultName: addQuery,
+            archivedOptions,
+            pickLabel: `Add & Pick for ${addDayLabel}`,
+            pick: (id) => pickTonight(id, isToday ? undefined : selectedDay),
+          }}
           onCancel={() => setAddQuery(null)}
           onSaved={() => {
             setAddQuery(null);
