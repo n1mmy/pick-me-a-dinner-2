@@ -208,8 +208,9 @@ export function OptionListbox<T extends OptionChoice>({
   isDisabled?: (option: T) => boolean;
   /**
    * Marks a row as Tonight's trailing `Add "<query>"…` row (issue 03): it
-   * renders as plain action-colored text with no kind bar or kind label —
-   * it names no Option yet — instead of the usual name-plus-kind-label row.
+   * renders as plain action-colored text behind a neutral `line` bar with no
+   * kind label — it names no Option yet, so it has no kind to color —
+   * instead of the usual name-plus-kind-label row.
    * Omitted (every caller but Tonight's search box) renders every row the
    * ordinary way.
    */
@@ -235,7 +236,11 @@ export function OptionListbox<T extends OptionChoice>({
                 aria-selected={isSelected(option, index)}
                 aria-disabled={disabled || undefined}
                 className={`flex min-h-11 w-full flex-col justify-center
-                  text-left ${kindBarClass(option.kind)}
+                  text-left ${
+                    addRow
+                      ? "border-l-[3px] border-l-line pl-2"
+                      : kindBarClass(option.kind)
+                  }
                   ${rowClassName} ${
                     disabled
                       ? "cursor-not-allowed opacity-60"
