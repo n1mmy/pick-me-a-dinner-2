@@ -34,6 +34,7 @@ import {
   useComboboxKeyboard,
 } from "./option-combobox";
 import { fieldFocusRing, focusRing } from "./focus-ring";
+import { kindChipFillClass } from "./kind-bar";
 import { pickTonight } from "./log/actions";
 import { pressFeedback } from "./press-feedback";
 import { deleteRejection } from "./rejection-actions";
@@ -1481,7 +1482,6 @@ function KindChips({
     <div role="group" aria-label="Filter by kind" className="contents">
       {KIND_CHIPS.map((chip) => {
         const selected = kind === chip.value;
-        const home = chip.value === "home";
         return (
           <button
             key={chip.value}
@@ -1491,10 +1491,8 @@ function KindChips({
             className={`inline-flex items-center justify-center rounded-badge
               border border-transparent px-2 py-0.5 text-meta leading-tight
               underline-offset-2 transition-colors duration-micro
-              ${focusRing} ${
-                selected
-                  ? `${home ? "bg-kind-home" : "bg-kind-restaurant"} text-action-ink underline`
-                  : `${home ? "bg-kind-home-wash" : "bg-kind-restaurant-wash"} text-ink`
+              ${focusRing} ${kindChipFillClass(chip.value, selected)} ${
+                selected ? "underline" : ""
               }`}
           >
             {chip.label}

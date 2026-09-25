@@ -16,6 +16,7 @@ import type { ArchivedOption, OptionWithTags } from "../../db/queries";
 import { WEEKDAY_NAMES } from "../../lib/local-day";
 import { escapeToCancel } from "../escape-to-cancel";
 import { fieldFocusRing, focusRing } from "../focus-ring";
+import { kindChipFillClass } from "../kind-bar";
 import { pressFeedback } from "../press-feedback";
 import {
   createOption,
@@ -539,9 +540,7 @@ export function OptionForm({
  * The Home meal / Restaurant switch shown inside the form only when
  * `showKindSwitch` is set (Tonight's quick-add, issue 03) — Catalog decides
  * the kind by which of its two add buttons was clicked, so it never renders
- * this. Same fill logic as Tonight's kind filter chips (`KindChips` in
- * `tonight-screen.tsx`): the selected chip fills with the Option's own
- * `kind-home`/`kind-restaurant` hue, the other stays a faded `-wash` tint.
+ * this. Filled like Tonight's kind filter chips (`kindChipFillClass`).
  */
 function KindSwitch({
   kind,
@@ -554,7 +553,6 @@ function KindSwitch({
     <div role="group" aria-label="Kind" className="flex gap-2">
       {(["home", "restaurant"] as const).map((value) => {
         const selected = kind === value;
-        const home = value === "home";
         return (
           <button
             key={value}
@@ -563,13 +561,10 @@ function KindSwitch({
             onClick={() => onChange(value)}
             className={`min-h-11 flex-1 rounded-control border
               border-transparent px-3 text-body font-emphasis
-              transition-colors duration-short ${focusRing} ${
-                selected
-                  ? `${home ? "bg-kind-home" : "bg-kind-restaurant"} text-action-ink`
-                  : `${home ? "bg-kind-home-wash" : "bg-kind-restaurant-wash"} text-ink`
-              }`}
+              transition-colors duration-short ${focusRing}
+              ${kindChipFillClass(value, selected)}`}
           >
-            {home ? "Home meal" : "Restaurant"}
+            {value === "home" ? "Home meal" : "Restaurant"}
           </button>
         );
       })}
