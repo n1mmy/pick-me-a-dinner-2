@@ -1220,6 +1220,33 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
     expect(mockedPick).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["Add & Pick for tonight"],
+    ["Add"],
+  ])("%s clears the query and closes the form once saved", async (button) => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Pizza Place" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+    fireEvent.click(screen.getByRole("button", { name: button }));
+
+    // The form holds "Saved ✓" for 700ms before handing off.
+    await waitFor(
+      () => {
+        expect(screen.queryByLabelText("Restaurant name")).toBeNull();
+      },
+      { timeout: 2000 },
+    );
+    expect(searchInput().value).toBe("");
+  });
+
   it("a failed Pick after a successful add shows the error and offers no retry", async () => {
     mockedPick.mockResolvedValueOnce({ ok: false, error: "Pick failed" });
     render(
