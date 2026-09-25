@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { dinnerLog, options, rejections } from "../../db/schema";
-import { getLog, getTonightData } from "../../db/queries";
+import { revalidatePath } from "next/cache";
+import { getLog, getTodayRejections, getTonightData } from "../../db/queries";
 import { truncateAll } from "../../db/test-support";
 import { todaySqlDate } from "../../lib/local-day";
 import {
@@ -231,6 +232,21 @@ describe("a Pick supersedes that date's Rejection", () => {
     expect(result.ok).toBe(true);
     expect(await db.select().from(dinnerLog)).toHaveLength(1);
     expect(await db.select().from(rejections)).toHaveLength(0);
+  });
+
+  it("a detail-page Pick (no Selected day) drops the Option from Tonight's Rejected disclosure", async () => {
+    // The detail page's PickButton calls `pickTonight(id)` with no day; Tonight's
+    // Rejected disclosure reads `getTodayRejections` and is revalidated at `/`.
+    const pizza = await makeOption("Pizza");
+    await makeRejection(pizza, TODAY);
+    expect(await getTodayRejections(TODAY)).toHaveLength(1);
+    // Mocks aren't reset between tests — clear so an earlier call can't pass this.
+    vi.mocked(revalidatePath).mockClear();
+
+    await pickTonight(pizza);
+
+    expect(await getTodayRejections(TODAY)).toEqual([]);
+    expect(revalidatePath).toHaveBeenCalledWith("/");
   });
 
   it("pickTonight on an already-logged Option still clears a lingering same-date Rejection", async () => {
