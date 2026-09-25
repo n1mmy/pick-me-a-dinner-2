@@ -29,8 +29,10 @@ import type { TonightChoice } from "../lib/picker-view";
 import { OptionForm } from "./catalog/option-form";
 import { ConfirmPair } from "./confirm-pair";
 import {
+  type AddRow,
   OptionListbox,
   filterOptionChoices,
+  isAddRow,
   useComboboxKeyboard,
 } from "./option-combobox";
 import { fieldFocusRing, focusRing } from "./focus-ring";
@@ -43,8 +45,13 @@ import { aiSearchAction } from "./tonight-search-client";
 import { TonightRowItem } from "./tonight-row";
 import { TonightsDinnerBlock } from "./tonights-dinner-block";
 
-/** The Add row's sentinel id — never a real Option id, so `selectChoice` (issue 03) can tell it apart. */
-const ADD_ROW_ID = "__add__";
+/** A row in Tonight's search dropdown: an Option, or the trailing Add row. */
+type SearchRow = TonightChoice | AddRow;
+
+/** Picked rows show in the dropdown but can't be chosen from it (issue 02). */
+function isPickedRow(row: SearchRow): boolean {
+  return !isAddRow(row) && row.suppression === "picked";
+}
 
 /** The no-Last-notes default — module-level so its identity stays stable. */
 const NO_LAST_NOTES: Map<string, LastNote> = new Map();
@@ -1087,20 +1094,17 @@ function SearchBox({
     [query, choices],
   );
 
-  // The trailing `Add "<query>"…` row (issue 03) — appended to `matches` as
-  // an ordinary (if sentinel-id'd) `TonightChoice` so it rides the same
-  // keyboard/mouse/listbox machinery every real row does: reachable by ↑/↓,
+  // The trailing `Add "<query>"…` row (issue 03) — appended to `matches` so
+  // it rides the same keyboard/mouse/listbox machinery every real row does:
+  // reachable by ↑/↓,
   // never the default highlight (`initialActiveIndex: -1` below), selectable
   // by Enter or a click. Independent of the substring filter above — it
   // checks every candidate for an exact name match, not merely a substring
   // one — so it appears even when `matches` itself is empty.
   const trimmedQuery = query.trim();
-  const extendedMatches = useMemo<TonightChoice[]>(() => {
+  const extendedMatches = useMemo<SearchRow[]>(() => {
     if (!showAddRow(choices, query)) return matches;
-    return [
-      ...matches,
-      { id: ADD_ROW_ID, name: trimmedQuery, kind: "restaurant", suppression: "none" },
-    ];
+    return [...matches, { type: "add", id: "add", name: trimmedQuery }];
   }, [matches, choices, query, trimmedQuery]);
 
   // The dropdown shows whenever there is something to pick — a real match,
@@ -1133,8 +1137,8 @@ function SearchBox({
    * Closed or Rejected row does not Pick: the dropdown closes and the inline
    * confirm arms instead, so the Household sees why before overriding it.
    */
-  function selectChoice(option: TonightChoice) {
-    if (option.id === ADD_ROW_ID) {
+  function selectChoice(option: SearchRow) {
+    if (isAddRow(option)) {
       setOpen(false);
       onSelectAdd(option.name);
       return;
@@ -1171,11 +1175,12 @@ function SearchBox({
     initialActiveIndex: -1,
     onSelect: selectChoice,
     onEscape: () => setOpen(false),
-    isDisabled: (option) => option.suppression === "picked",
+    isDisabled: isPickedRow,
   });
 
   /** The muted row suffix naming why a candidate is off the ranked list. */
-  function suppressionNote(option: TonightChoice): string | undefined {
+  function suppressionNote(option: SearchRow): string | undefined {
+    if (isAddRow(option)) return undefined;
     if (option.suppression === "closed") {
       return closedLabel;
     }
@@ -1264,8 +1269,7 @@ function SearchBox({
               onSelect={selectChoice}
               onHover={setActiveIndex}
               getNote={suppressionNote}
-              isDisabled={(option) => option.suppression === "picked"}
-              isAddRow={(option) => option.id === ADD_ROW_ID}
+              isDisabled={isPickedRow}
               className="absolute left-0 right-0 top-full z-20 mt-1 flex
                 max-h-64 flex-col overflow-y-auto rounded-input border
                 border-line bg-surface py-1 shadow-sm"

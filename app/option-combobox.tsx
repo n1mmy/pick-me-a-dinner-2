@@ -15,6 +15,16 @@ function kindLabel(kind: "home" | "restaurant"): string {
 }
 
 /**
+ * Tonight's trailing `Add "<query>"…` row (issue 03). It names no Option yet,
+ * so it has no kind — a listbox row, not an `OptionChoice`.
+ */
+export type AddRow = { type: "add"; id: string; name: string };
+
+export function isAddRow(row: OptionChoice | AddRow): row is AddRow {
+  return "type" in row && row.type === "add";
+}
+
+/**
  * What an empty query shows: `"all"` (the Log/detail forms) returns every
  * choice; `"none"` (Tonight's search box, which doubles as an AI search
  * field) returns nothing, so a blank field reads as a clean AI "recommend"
@@ -55,7 +65,7 @@ export function filterOptionChoices<T extends OptionChoice>(
  * uses it for an already-Picked Option (issue 02), which shows in the
  * dropdown but cannot be chosen from it.
  */
-export function useComboboxKeyboard<T extends OptionChoice>({
+export function useComboboxKeyboard<T extends { id: string }>({
   open,
   setOpen,
   matches,
@@ -179,7 +189,7 @@ export function useComboboxKeyboard<T extends OptionChoice>({
  * picked: `aria-disabled`, dimmed, and `onMouseDown` a no-op. ↑/↓ skipping a
  * disabled row is `useComboboxKeyboard`'s job, not this component's.
  */
-export function OptionListbox<T extends OptionChoice>({
+export function OptionListbox<T extends OptionChoice | AddRow>({
   listId,
   matches,
   activeIndex,
@@ -191,7 +201,6 @@ export function OptionListbox<T extends OptionChoice>({
   rowClassName = "",
   getNote,
   isDisabled,
-  isAddRow,
 }: {
   listId: string;
   matches: T[];
@@ -206,15 +215,6 @@ export function OptionListbox<T extends OptionChoice>({
   getNote?: (option: T) => string | undefined;
   /** Rows this box must not let the Household select. */
   isDisabled?: (option: T) => boolean;
-  /**
-   * Marks a row as Tonight's trailing `Add "<query>"…` row (issue 03): it
-   * renders as plain action-colored text behind a neutral `line` bar with no
-   * kind label — it names no Option yet, so it has no kind to color —
-   * instead of the usual name-plus-kind-label row.
-   * Omitted (every caller but Tonight's search box) renders every row the
-   * ordinary way.
-   */
-  isAddRow?: (option: T) => boolean;
 }) {
   return (
     <ul id={listId} role="listbox" className={className}>
@@ -226,7 +226,6 @@ export function OptionListbox<T extends OptionChoice>({
         matches.map((option, index) => {
           const disabled = isDisabled?.(option) ?? false;
           const note = getNote?.(option);
-          const addRow = isAddRow?.(option) ?? false;
           return (
             <li key={option.id} role="presentation">
               <div
@@ -237,7 +236,9 @@ export function OptionListbox<T extends OptionChoice>({
                 aria-disabled={disabled || undefined}
                 className={`flex min-h-11 w-full flex-col justify-center
                   text-left ${
-                    addRow
+                    // An Add row has no kind yet: a neutral bar keeps the
+                    // same inset without claiming one (DESIGN.md 2026-09-25).
+                    isAddRow(option)
                       ? "border-l-[3px] border-l-line pl-2"
                       : kindBarClass(option.kind)
                   }
@@ -259,7 +260,7 @@ export function OptionListbox<T extends OptionChoice>({
                 }}
                 onMouseEnter={() => onHover(index)}
               >
-                {addRow ? (
+                {isAddRow(option) ? (
                   <span className="text-body font-emphasis text-action">
                     Add &ldquo;{option.name}&rdquo;…
                   </span>
