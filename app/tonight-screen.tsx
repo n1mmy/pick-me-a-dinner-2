@@ -303,6 +303,39 @@ export function TonightScreen({
     ? `${capitalize(dayLabel)}'s dinner is decided.`
     : `Choosing ${dayLabel}'s dinner.`;
 
+  // Memoised so `Picker`'s `pickerView` memo isn't invalidated every render.
+  const pickedRows = useMemo(
+    () => tonightsDinner.map((entry) => entry.row),
+    [tonightsDinner],
+  );
+  // One element for both modes: under the decided block, or on its own.
+  const picker = (
+    <Picker
+      rows={pickerRows}
+      closedRows={closedTonight}
+      rejectedRows={rejectedRows}
+      pickedRows={pickedRows}
+      lastNotes={lastNotes}
+      searchEnabled={searchEnabled}
+      kind={kind}
+      onKindChange={setKind}
+      query={query}
+      onQueryChange={setQuery}
+      aiResults={aiResults}
+      aiError={aiError}
+      searchStartedAt={searchStartedAt}
+      searchDoneSeconds={searchDoneSeconds}
+      onSubmitSearch={runSearch}
+      onCancelSearch={cancelSearch}
+      onClearSearch={clearSearch}
+      selectedDay={selectedDay}
+      isToday={isToday}
+      allTags={allTags}
+      placesEnabled={placesEnabled}
+      archivedOptions={archivedOptions}
+    />
+  );
+
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
       {/* The H1 and the stepper share a full-width row with the stepper
@@ -367,58 +400,12 @@ export function TonightScreen({
               aria-label="Add another option"
               className="flex flex-col gap-2 border-t border-divider pt-5.5"
             >
-              <Picker
-                rows={pickerRows}
-                closedRows={closedTonight}
-                rejectedRows={rejectedRows}
-                pickedRows={tonightsDinner.map((entry) => entry.row)}
-                lastNotes={lastNotes}
-                searchEnabled={searchEnabled}
-                kind={kind}
-                onKindChange={setKind}
-                query={query}
-                onQueryChange={setQuery}
-                aiResults={aiResults}
-                aiError={aiError}
-                searchStartedAt={searchStartedAt}
-                searchDoneSeconds={searchDoneSeconds}
-                onSubmitSearch={runSearch}
-                onCancelSearch={cancelSearch}
-                onClearSearch={clearSearch}
-                selectedDay={selectedDay}
-                isToday={isToday}
-                allTags={allTags}
-                placesEnabled={placesEnabled}
-                archivedOptions={archivedOptions}
-              />
+              {picker}
             </section>
           )}
         </>
       ) : (
-        <Picker
-          rows={pickerRows}
-          closedRows={closedTonight}
-          rejectedRows={rejectedRows}
-          pickedRows={tonightsDinner.map((entry) => entry.row)}
-          lastNotes={lastNotes}
-          searchEnabled={searchEnabled}
-          kind={kind}
-          onKindChange={setKind}
-          query={query}
-          onQueryChange={setQuery}
-          aiResults={aiResults}
-          aiError={aiError}
-          searchStartedAt={searchStartedAt}
-          searchDoneSeconds={searchDoneSeconds}
-          onSubmitSearch={runSearch}
-          onCancelSearch={cancelSearch}
-          onClearSearch={clearSearch}
-          selectedDay={selectedDay}
-          isToday={isToday}
-          allTags={allTags}
-          placesEnabled={placesEnabled}
-          archivedOptions={archivedOptions}
-        />
+        picker
       )}
 
       {/* Pinned to the bottom of the page, after the ranked rows — collapsed
