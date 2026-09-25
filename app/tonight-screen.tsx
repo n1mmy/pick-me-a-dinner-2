@@ -34,6 +34,7 @@ import {
   useComboboxKeyboard,
 } from "./option-combobox";
 import { fieldFocusRing, focusRing } from "./focus-ring";
+import { inlineLinkClass } from "./inline-link";
 import { kindChipFillClass } from "./kind-bar";
 import { pickTonight } from "./log/actions";
 import { pressFeedback } from "./press-feedback";
@@ -1358,7 +1359,7 @@ function SearchBox({
             <>
               <Link
                 href={`/catalog/${pendingConfirm.id}`}
-                className={`font-emphasis text-action underline-offset-2 hover:underline ${focusRing}`}
+                className={inlineLinkClass}
               >
                 {pendingConfirm.name}
               </Link>
@@ -1369,7 +1370,7 @@ function SearchBox({
               {"You rejected "}
               <Link
                 href={`/catalog/${pendingConfirm.id}`}
-                className={`font-emphasis text-action underline-offset-2 hover:underline ${focusRing}`}
+                className={inlineLinkClass}
               >
                 {pendingConfirm.name}
               </Link>

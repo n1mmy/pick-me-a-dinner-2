@@ -16,6 +16,7 @@ import type { ArchivedOption, OptionWithTags } from "../../db/queries";
 import { WEEKDAY_NAMES } from "../../lib/local-day";
 import { escapeToCancel } from "../escape-to-cancel";
 import { fieldFocusRing, focusRing } from "../focus-ring";
+import { inlineLinkClass } from "../inline-link";
 import { kindChipFillClass } from "../kind-bar";
 import { pressFeedback } from "../press-feedback";
 import {
@@ -451,7 +452,7 @@ export function OptionForm({
         <p className="text-chip text-muted">
           <Link
             href={`/catalog/${archivedMatch.id}`}
-            className={`font-emphasis text-action underline-offset-2 hover:underline ${focusRing}`}
+            className={inlineLinkClass}
           >
             {archivedMatch.name}
           </Link>
