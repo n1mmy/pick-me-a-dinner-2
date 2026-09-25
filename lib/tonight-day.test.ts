@@ -92,6 +92,45 @@ describe("tonightForDay", () => {
     // Beta is neither closed nor rejected, so it stays on the picker.
     expect(result.picker.map((r) => r.option.id)).toEqual(["b"]);
     expect(result.closed).toEqual([]);
+    // …but in `rejected`, so the typeahead reads it as rejected (issue 02).
+    expect(result.rejected.map((r) => r.option.id)).toEqual(["a"]);
+  });
+
+  it("lists rejected rows alphabetically, not in rank order", () => {
+    const result = tonightForDay({
+      options: [
+        option("c", "Charlie"),
+        option("a", "Alpha"),
+        option("b", "Beta"),
+      ],
+      // Rank order is Charlie, Beta, Alpha — the reverse of alphabetical.
+      logEntries: [
+        logEntry("c", "2026-04-01"),
+        logEntry("b", "2026-05-01"),
+        logEntry("a", "2026-05-16"),
+      ],
+      dayEntries: [],
+      rejectedOptionIds: ["a", "b", "c"],
+      selectedDay: SUNDAY,
+    });
+    expect(result.picker).toEqual([]);
+    expect(result.rejected.map((r) => r.option.name)).toEqual([
+      "Alpha",
+      "Beta",
+      "Charlie",
+    ]);
+  });
+
+  it("keeps an Option Picked for the day out of `rejected`, even with a lingering Rejection", () => {
+    const result = tonightForDay({
+      options: [option("a", "Alpha")],
+      logEntries: [logEntry("a", SUNDAY)],
+      dayEntries: [dayEntry("e1", "a")],
+      rejectedOptionIds: ["a"],
+      selectedDay: SUNDAY,
+    });
+    expect(result.tonightsDinner.map((d) => d.row.option.id)).toEqual(["a"]);
+    expect(result.rejected).toEqual([]);
   });
 
   it("gives the decided block's row pre-Pick recency, not the Selected day's own entry", () => {
