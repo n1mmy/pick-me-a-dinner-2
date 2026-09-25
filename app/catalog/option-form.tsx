@@ -53,7 +53,8 @@ export type QuickAdd = {
   pickLabel: string;
   /**
    * Picks the just-created Option. A returned failure keeps the form open
-   * with the error inline; the Option itself stays created.
+   * with the error inline and both submits disabled — the Option itself
+   * stays created, so there is nothing to retry from here.
    */
   pick: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 };
@@ -100,11 +101,11 @@ export function OptionForm({
   // state update here could still be showing the previous render's value by
   // the time the submit handler runs.
   const submitIntentRef = useRef<"primary" | "secondary">("primary");
-  // Set once `createOption` succeeds, so a retry after a failed quick-add
-  // Pick (Tonight's "Add & Pick") re-tries only the Pick — calling
-  // `createOption` again would create a duplicate Option, since the first one
-  // already exists.
-  const createdIdRef = useRef<string | null>(null);
+  // Set when Tonight's "Add & Pick" created the Option but the Pick failed.
+  // A rare case, so no retry: the error stays up, both submits stay disabled
+  // (submitting again would create a duplicate), and the Household closes
+  // the form and Picks the now-existing Option like any other.
+  const [pickFailed, setPickFailed] = useState(false);
   const [name, setName] = useState(
     initial?.name ?? quickAdd?.defaultName ?? "",
   );
@@ -248,27 +249,18 @@ export function OptionForm({
         }
         return;
       }
-      // A retry after a failed Pick (below) lands here with the Option
-      // already created — skip straight to the Pick instead of creating a
-      // second Option for the same submit.
-      let id = createdIdRef.current;
-      if (id === null) {
-        const result = await createOption(formKind, values);
-        if (!result.ok) {
-          setError(result.error);
-          return;
-        }
-        id = result.id;
-        createdIdRef.current = id;
+      const result = await createOption(formKind, values);
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
       // The secondary button ("Add") never Picks; the primary one does in
-      // Tonight's quick-add ("Add & Pick"). A Pick failure leaves the form
-      // open with the error shown inline — the Option is already created, so
-      // a retry (via `createdIdRef`) re-tries only the Pick.
+      // Tonight's quick-add ("Add & Pick"). See `pickFailed` for a failure.
       if (intent === "primary" && quickAdd) {
-        const pickResult = await quickAdd.pick(id);
+        const pickResult = await quickAdd.pick(result.id);
         if (!pickResult.ok) {
-          setError(pickResult.error);
+          setError(`Added, but couldn’t Pick it: ${pickResult.error}`);
+          setPickFailed(true);
           return;
         }
       }
@@ -477,7 +469,7 @@ export function OptionForm({
             onClick={() => {
               submitIntentRef.current = "primary";
             }}
-            disabled={pending || justSaved}
+            disabled={pending || justSaved || pickFailed}
             className={`min-h-11 rounded-control px-4 text-body font-emphasis
               disabled:opacity-60 ${pressFeedback} ${focusRing} ${
                 justSaved
@@ -495,7 +487,7 @@ export function OptionForm({
               onClick={() => {
                 submitIntentRef.current = "secondary";
               }}
-              disabled={pending || justSaved}
+              disabled={pending || justSaved || pickFailed}
               // The app's one secondary-outlined style (DESIGN.md "Button
               // hierarchy"; see `PickButton` for the canonical
               // implementation): `surface` fill, `line` border, `ink`
@@ -516,7 +508,8 @@ export function OptionForm({
             className={`min-h-11 rounded-control px-3 text-body text-muted
               disabled:opacity-60 ${focusRing}`}
           >
-            Cancel
+            {/* The Option exists now — there is nothing left to cancel. */}
+            {pickFailed ? "Close" : "Cancel"}
           </button>
           {/* A sibling live region, not `aria-live` on the button itself —
               the button is usually still focused when its label flips

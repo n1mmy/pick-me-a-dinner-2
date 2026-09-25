@@ -1178,7 +1178,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
     expect(mockedPick).not.toHaveBeenCalled();
   });
 
-  it("retrying Add & Pick after a failed Pick does not create a duplicate Option", async () => {
+  it("a failed Pick after a successful add shows the error and offers no retry", async () => {
     mockedPick.mockResolvedValueOnce({ ok: false, error: "Pick failed" });
     render(
       <TonightScreen
@@ -1196,32 +1196,28 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Pick failed")).toBeTruthy();
+      expect(screen.getByText(/Added, but couldn’t Pick it: Pick failed/)).toBeTruthy();
     });
     expect(mockedCreate).toHaveBeenCalledTimes(1);
     expect(mockedPick).toHaveBeenCalledTimes(1);
 
-    // The button stays disabled (`pending`) for a tick after the error text
-    // itself commits — a React 19 async-transition async callback keeps
-    // `isPending` true until its own promise chain fully settles, which can
-    // land in a later render than the `setError` that painted "Pick failed".
-    // Wait for it to re-enable before the retry click, or the click can land
-    // while it's still disabled and go nowhere.
-    const retryBtn = screen.getByRole("button", {
-      name: "Add & Pick for tonight",
-    });
+    // Both submits stay disabled — submitting again would create a duplicate
+    // Option — and Cancel becomes Close, since the Option already exists.
+    // `waitFor`: React 19 keeps `isPending` true a render past the error.
+    const close = await screen.findByRole("button", { name: "Close" });
     await waitFor(() => {
-      expect((retryBtn as HTMLButtonElement).disabled).toBe(false);
+      expect((close as HTMLButtonElement).disabled).toBe(false);
     });
-    fireEvent.click(retryBtn);
+    expect(
+      (screen.getByRole("button", { name: "Add & Pick for tonight" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Add" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
 
-    await waitFor(() => {
-      expect(mockedPick).toHaveBeenCalledTimes(2);
-    });
-    // The retry re-tries only the Pick — the Option created on the first
-    // submit is reused, not recreated.
-    expect(mockedCreate).toHaveBeenCalledTimes(1);
-    expect(mockedPick).toHaveBeenNthCalledWith(2, "new-id", undefined);
+    fireEvent.click(close);
+    expect(screen.queryByLabelText("Restaurant name")).toBeNull();
   });
 
   it("shows a warning linking to the detail page when the name matches an Archived Option", () => {
