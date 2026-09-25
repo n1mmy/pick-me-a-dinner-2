@@ -754,10 +754,11 @@ function Picker({
   const [rejectNotice, setRejectNotice] = useState("");
 
   // The Picker's view model: the filtered rows in rank order, each Option's
-  // true rank and typeahead candidates from the unfiltered `rows` (so a
-  // filtered row keeps its true rank instead of being renumbered, and a
-  // typeahead pick can never hit an already-Picked or Selected-day-rejected
-  // Option), the chip row's Tags, and the hint line.
+  // true rank from the unfiltered `rows` (so a filtered row keeps its true
+  // rank instead of being renumbered), the typeahead candidates — every
+  // active Option, each tagged with its suppression so SearchBox can confirm
+  // a Closed/Rejected pick and disable a Picked one (issue 02) — the chip
+  // row's Tags, and the hint line.
   const { visible, rankOf, choices, tags, hint } = useMemo(
     () =>
       pickerView(rows, kind, tagFilters, {

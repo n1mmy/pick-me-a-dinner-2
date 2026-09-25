@@ -150,9 +150,8 @@ describe("pickerView — rankOf", () => {
 describe("pickerView — choices", () => {
   it("mirrors every row in `rows`, name-sorted, regardless of the active filter, each unsuppressed", () => {
     // Restaurant-only filter still yields typeahead choices for every Option
-    // in `rows`, including the suppressed Home rows — so a typeahead pick can
-    // never hit an already-Picked or Selected-day-rejected Option that the
-    // filter (not the ranking) has hidden.
+    // in `rows`, including the Home rows it hides — the kind/Tag filter
+    // narrows the ranked list, never what the typeahead can find.
     const { choices } = pickerView(ROWS, "restaurant", {});
     expect(choices).toEqual([
       { id: "fish-home", name: "fish-home", kind: "home", suppression: "none" },

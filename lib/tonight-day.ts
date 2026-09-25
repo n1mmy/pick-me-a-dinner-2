@@ -33,7 +33,7 @@
  *      rather than a meaningless "0d";
  *   4. `splitTonight` → `tonightsDinner` + `picker`;
  *   5. `suppressionsOn` → drop every suppressed row from the picker, keeping
- *      the Closed ones aside as `closed`;
+ *      the Closed and Rejected ones aside as `closed` and `rejected`;
  *   6. `lastNotesByOption` for every row type;
  *   7. `allFiltered` — the picker had rows before step 5 and none after, so
  *      the screen can tell "filtered empty" from "genuinely empty Catalog".
