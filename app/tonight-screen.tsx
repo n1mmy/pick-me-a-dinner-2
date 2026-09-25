@@ -811,6 +811,9 @@ function Picker({
         {searchEnabled && (
           <>
             <SearchBox
+              // Remount per Selected day, so a confirm or pick error armed
+              // for one day never carries over to — and acts on — another.
+              key={selectedDay}
               query={query}
               onQueryChange={onQueryChange}
               onSubmit={onSubmitSearch}
@@ -1215,6 +1218,9 @@ function SearchBox({
               onQueryChange(event.target.value);
               setOpen(true);
               resetActiveIndex();
+              // A new query is a new search — any confirm armed from the
+              // old one no longer matches what the Household is looking at.
+              setPendingConfirm(null);
             }}
             onKeyDown={handleKeyDown}
             onFocus={() => setOpen(true)}
@@ -1233,7 +1239,10 @@ function SearchBox({
           {canClear && (
             <button
               type="button"
-              onClick={onClear}
+              onClick={() => {
+                onClear();
+                setPendingConfirm(null);
+              }}
               aria-label="Clear search"
               className={`absolute inset-y-0 right-0 flex w-11 items-center
                 justify-center rounded-input text-muted transition-colors

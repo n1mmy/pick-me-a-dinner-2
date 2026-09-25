@@ -1005,6 +1005,45 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
     });
     expect(screen.queryByText(/Pick anyway/)).toBeNull();
   });
+
+  it("clears an armed confirm when the query changes", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        closedTonight={[row("o9", "Aji Ichi")]}
+        searchEnabled
+      />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Aji" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+    expect(screen.getByRole("button", { name: "Pick anyway" })).toBeTruthy();
+
+    fireEvent.change(searchInput(), { target: { value: "Aj" } });
+    expect(screen.queryByRole("button", { name: "Pick anyway" })).toBeNull();
+  });
+
+  it("clears an armed confirm when the Selected day changes", () => {
+    const props = {
+      todaySql: "2026-05-20",
+      tonightsDinner: [],
+      pickerRows: ROWS,
+      closedTonight: [row("o9", "Aji Ichi")],
+      searchEnabled: true,
+    };
+    const { rerender } = render(
+      <TonightScreen {...props} selectedDay="2026-05-20" />,
+    );
+    fireEvent.change(searchInput(), { target: { value: "Aji" } });
+    fireEvent.mouseDown(screen.getAllByRole("option")[0]);
+    expect(screen.getByText(/is closed Wednesdays/)).toBeTruthy();
+
+    rerender(<TonightScreen {...props} selectedDay="2026-05-21" />);
+    expect(screen.queryByText(/is closed/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Pick anyway" })).toBeNull();
+  });
 });
 
 describe("TonightScreen — Add row and inline quick-add form (issue 03)", () => {
