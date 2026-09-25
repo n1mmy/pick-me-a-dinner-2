@@ -137,6 +137,13 @@ function filterHint(kind: KindFilter, tagFilters: TagFilters): string {
     : `Showing ${noun}`;
 }
 
+/** The rows Closed, Rejected, and already Picked for the Selected day. */
+export type SuppressedRows = {
+  closed: TonightRow[];
+  rejected: TonightRow[];
+  picked: TonightRow[];
+};
+
 /**
  * The Picker's view model: everything the Picker renders, derived from the
  * ranked (unfiltered) rows and the active filter state.
@@ -153,11 +160,7 @@ export function pickerView(
   rows: TonightRow[],
   kind: KindFilter,
   tagFilters: TagFilters,
-  suppressed: {
-    closed: TonightRow[];
-    rejected: TonightRow[];
-    picked: TonightRow[];
-  } = { closed: [], rejected: [], picked: [] },
+  suppressed: SuppressedRows = { closed: [], rejected: [], picked: [] },
 ): {
   visible: TonightRow[];
   rankOf: Map<string, number>;

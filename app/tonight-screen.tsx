@@ -26,7 +26,7 @@ import {
 } from "../lib/picker-view";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
 import { DayNameReset, DayStepper } from "./day-stepper";
-import type { TonightChoice } from "../lib/picker-view";
+import type { SuppressedRows, TonightChoice } from "../lib/picker-view";
 import { OptionForm } from "./catalog/option-form";
 import { ConfirmPair } from "./confirm-pair";
 import {
@@ -313,17 +313,19 @@ export function TonightScreen({
     : `Choosing ${dayLabel}'s dinner.`;
 
   // Memoised so `Picker`'s `pickerView` memo isn't invalidated every render.
-  const pickedRows = useMemo(
-    () => tonightsDinner.map((entry) => entry.row),
-    [tonightsDinner],
+  const suppressedRows = useMemo<SuppressedRows>(
+    () => ({
+      closed: closedTonight,
+      rejected: rejectedRows,
+      picked: tonightsDinner.map((entry) => entry.row),
+    }),
+    [closedTonight, rejectedRows, tonightsDinner],
   );
   // One element for both modes: under the decided block, or on its own.
   const picker = (
     <Picker
       rows={pickerRows}
-      closedRows={closedTonight}
-      rejectedRows={rejectedRows}
-      pickedRows={pickedRows}
+      suppressedRows={suppressedRows}
       lastNotes={lastNotes}
       searchEnabled={searchEnabled}
       kind={kind}
@@ -684,9 +686,7 @@ function ClosedDisclosure({
  */
 function Picker({
   rows,
-  closedRows,
-  rejectedRows,
-  pickedRows,
+  suppressedRows,
   lastNotes,
   searchEnabled,
   kind,
@@ -705,10 +705,8 @@ function Picker({
   quickAddSources,
 }: {
   rows: TonightRow[];
-  /** The rows Closed, Rejected, and already Picked for the Selected day — widens the typeahead past `rows` (issue 02). */
-  closedRows: TonightRow[];
-  rejectedRows: TonightRow[];
-  pickedRows: TonightRow[];
+  /** Widens the typeahead past `rows` (issue 02). */
+  suppressedRows: SuppressedRows;
   /** Each Option's Last note, keyed by Option id; absent means no note line. */
   lastNotes: Map<string, LastNote>;
   searchEnabled: boolean;
@@ -760,13 +758,8 @@ function Picker({
   // a Closed/Rejected pick and disable a Picked one (issue 02) — the chip
   // row's Tags, and the hint line.
   const { visible, rankOf, choices, tags, hint } = useMemo(
-    () =>
-      pickerView(rows, kind, tagFilters, {
-        closed: closedRows,
-        rejected: rejectedRows,
-        picked: pickedRows,
-      }),
-    [rows, kind, tagFilters, closedRows, rejectedRows, pickedRows],
+    () => pickerView(rows, kind, tagFilters, suppressedRows),
+    [rows, kind, tagFilters, suppressedRows],
   );
 
   // The AI search mode restated for assistive tech: a polite announcement of
