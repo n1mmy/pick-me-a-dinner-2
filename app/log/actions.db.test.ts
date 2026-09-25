@@ -322,7 +322,7 @@ describe("a Pick supersedes that date's Rejection", () => {
     expect(rows[0].id).toBe(otherOption);
   });
 
-  it("logForDate leaves the Rejection in place when the Log insert fails (transactional)", async () => {
+  it("logForDate on an already-logged date reports the duplicate and leaves the Rejection in place", async () => {
     const pizza = await makeOption("Pizza");
     await makeEntry(pizza, "2026-01-10");
     await makeRejection(pizza, "2026-01-10");
@@ -336,7 +336,62 @@ describe("a Pick supersedes that date's Rejection", () => {
     // The insert threw before the delete ran — the Rejection survives.
     expect(await db.select().from(rejections)).toHaveLength(1);
   });
+
+  it("pickTonight rolls back its Log insert when the Rejection delete fails (transactional)", async () => {
+    const pizza = await makeOption("Pizza");
+    await makeRejection(pizza, TODAY);
+
+    const result = await withFailingRejectionDelete(() => pickTonight(pizza));
+
+    expect(result.ok).toBe(false);
+    expect(await db.select().from(dinnerLog)).toHaveLength(0);
+    expect(await db.select().from(rejections)).toHaveLength(1);
+  });
+
+  it("logForDate rolls back its Log insert when the Rejection delete fails (transactional)", async () => {
+    const pizza = await makeOption("Pizza");
+    await makeRejection(pizza, "2026-01-10");
+
+    const result = await withFailingRejectionDelete(() =>
+      logForDate(pizza, "2026-01-10"),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(await db.select().from(dinnerLog)).toHaveLength(0);
+    expect(await db.select().from(rejections)).toHaveLength(1);
+  });
 });
+
+/**
+ * Runs `action` with the next `db.transaction`'s `delete` throwing. The Log
+ * insert has already landed inside the transaction by then, so only a real
+ * rollback leaves the table empty — the insert-first duplicate case above
+ * can't tell a transaction from none.
+ */
+async function withFailingRejectionDelete<T>(
+  action: () => Promise<T>,
+): Promise<T> {
+  const realTransaction = db.transaction.bind(db);
+  const spy = vi.spyOn(db, "transaction").mockImplementationOnce((run) =>
+    realTransaction((tx) =>
+      run(
+        new Proxy(tx, {
+          get: (target, prop, receiver) =>
+            prop === "delete"
+              ? () => {
+                  throw new Error("injected Rejection delete failure");
+                }
+              : Reflect.get(target, prop, receiver),
+        }),
+      ),
+    ),
+  );
+  try {
+    return await action();
+  } finally {
+    spy.mockRestore();
+  }
+}
 
 describe("updateLogEntry", () => {
   it("changes the Option of an entry", async () => {
