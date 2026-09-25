@@ -1096,7 +1096,9 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
     expect(options[0].textContent).not.toContain("Add ");
   });
 
-  it("runs AI search on Enter with nothing highlighted, even with the Add row shown", () => {
+  // Like "leaves Enter unhandled…" above: jsdom has no implicit submit, so
+  // this pins only the half that lets the form's own submit run AI search.
+  it("leaves Enter unhandled with nothing highlighted, even with the Add row shown", () => {
     render(
       <TonightScreen
         selectedDay="2026-05-20"
@@ -1110,6 +1112,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
     const notPrevented = fireEvent.keyDown(searchInput(), { key: "Enter" });
     expect(notPrevented).toBe(true);
     expect(mockedCreate).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Restaurant name")).toBeNull();
   });
 
   it("is reachable via ArrowDown and Enter", () => {
