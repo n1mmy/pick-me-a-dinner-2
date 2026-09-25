@@ -803,6 +803,28 @@ describe("TonightScreen — search typeahead", () => {
     });
     expect(mockedAiSearch).not.toHaveBeenCalled();
   });
+
+  it("ArrowUp from the first row returns to nothing highlighted", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled
+      />,
+    );
+
+    fireEvent.change(searchInput(), { target: { value: "Apple" } });
+    fireEvent.keyDown(searchInput(), { key: "ArrowDown" });
+    expect(searchInput().getAttribute("aria-activedescendant")).not.toBeNull();
+
+    fireEvent.keyDown(searchInput(), { key: "ArrowUp" });
+    expect(searchInput().getAttribute("aria-activedescendant")).toBeNull();
+    const notPrevented = fireEvent.keyDown(searchInput(), { key: "Enter" });
+    expect(notPrevented).toBe(true);
+    expect(mockedPick).not.toHaveBeenCalled();
+  });
 });
 
 describe("TonightScreen — search typeahead widens to every active Option (issue 02)", () => {

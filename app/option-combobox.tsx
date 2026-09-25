@@ -102,7 +102,9 @@ export function useComboboxKeyboard<T extends { id: string }>({
         return from;
       }
       index = next;
-      if (!disabled(matches[index])) return index;
+      // `-1` (Tonight's floor) is "nothing highlighted" — always a valid
+      // stop, and there is no row there to ask `disabled` about.
+      if (index < 0 || !disabled(matches[index])) return index;
     }
   }
 
@@ -126,14 +128,12 @@ export function useComboboxKeyboard<T extends { id: string }>({
         matches.length === 0 ? initialActiveIndex : step(index, -1),
       );
     } else if (event.key === "Enter") {
-      if (
-        open &&
-        matches.length > 0 &&
-        activeIndex >= 0 &&
-        !disabled(matches[activeIndex])
-      ) {
+      // `matches` can shrink under a stale highlight (a revalidation while a
+      // row is highlighted), so the highlighted row may no longer exist.
+      const highlighted = activeIndex >= 0 ? matches[activeIndex] : undefined;
+      if (open && highlighted !== undefined && !disabled(highlighted)) {
         event.preventDefault();
-        onSelect(matches[activeIndex] ?? matches[0]);
+        onSelect(highlighted);
       }
     } else if (event.key === "Escape") {
       if (open) {
