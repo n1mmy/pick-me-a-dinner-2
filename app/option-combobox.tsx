@@ -15,6 +15,16 @@ function kindLabel(kind: "home" | "restaurant"): string {
 }
 
 /**
+ * Tonight's trailing `Add "<query>"…` row (issue 03). It names no Option yet,
+ * so it has no kind — a listbox row, not an `OptionChoice`.
+ */
+export type AddRow = { type: "add"; id: string; name: string };
+
+export function isAddRow(row: OptionChoice | AddRow): row is AddRow {
+  return "type" in row && row.type === "add";
+}
+
+/**
  * What an empty query shows: `"all"` (the Log/detail forms) returns every
  * choice; `"none"` (Tonight's search box, which doubles as an AI search
  * field) returns nothing, so a blank field reads as a clean AI "recommend"
@@ -27,11 +37,11 @@ export type EmptyQueryBehaviour = "all" | "none";
  * Option typeahead. `choices` already arrives ordered by name; this sorts
  * nothing on its own.
  */
-export function filterOptionChoices(
-  choices: OptionChoice[],
+export function filterOptionChoices<T extends OptionChoice>(
+  choices: T[],
   query: string,
   emptyQueryBehaviour: EmptyQueryBehaviour = "all",
-): OptionChoice[] {
+): T[] {
   const needle = query.trim().toLowerCase();
   if (needle.length === 0) {
     return emptyQueryBehaviour === "none" ? [] : choices;
@@ -49,23 +59,54 @@ export function filterOptionChoices(
  * Enter with nothing highlighted falls through to the surrounding form's own
  * submit instead of picking. Enter only ever picks when a highlight is
  * actually active (`activeIndex >= 0`).
+ *
+ * `isDisabled` (optional; every caller but Tonight's search box omits it)
+ * marks rows ↑/↓ must skip and Enter must not select — Tonight's typeahead
+ * uses it for an already-Picked Option (issue 02), which shows in the
+ * dropdown but cannot be chosen from it.
  */
-export function useComboboxKeyboard({
+export function useComboboxKeyboard<T extends { id: string }>({
   open,
   setOpen,
   matches,
   initialActiveIndex = 0,
   onSelect,
   onEscape,
+  isDisabled,
 }: {
   open: boolean;
   setOpen: (open: boolean) => void;
-  matches: OptionChoice[];
+  matches: T[];
   initialActiveIndex?: 0 | -1;
-  onSelect: (option: OptionChoice) => void;
+  onSelect: (option: T) => void;
   onEscape: () => void;
+  isDisabled?: (option: T) => boolean;
 }) {
   const [activeIndex, setActiveIndex] = useState<number>(initialActiveIndex);
+  const disabled = isDisabled ?? (() => false);
+
+  /**
+   * The next highlight index stepping from `from` in `direction`, skipping
+   * any disabled row, clamped at `initialActiveIndex` / the last match —
+   * same floor/ceiling `Math.max`/`Math.min` used before disabled rows
+   * existed.
+   */
+  function step(from: number, direction: 1 | -1): number {
+    let index = from;
+    while (true) {
+      const next = index + direction;
+      if (next < initialActiveIndex || next > matches.length - 1) {
+        // No selectable row further in this direction — stay exactly where
+        // the Household already was, not on whatever disabled row this walk
+        // passed through en route to the boundary.
+        return from;
+      }
+      index = next;
+      // `-1` (Tonight's floor) is "nothing highlighted" — always a valid
+      // stop, and there is no row there to ask `disabled` about.
+      if (index < 0 || !disabled(matches[index])) return index;
+    }
+  }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "ArrowDown") {
@@ -75,9 +116,7 @@ export function useComboboxKeyboard({
         return;
       }
       setActiveIndex((index) =>
-        matches.length === 0
-          ? initialActiveIndex
-          : Math.min(index + 1, matches.length - 1),
+        matches.length === 0 ? initialActiveIndex : step(index, 1),
       );
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
@@ -85,11 +124,16 @@ export function useComboboxKeyboard({
         setOpen(true);
         return;
       }
-      setActiveIndex((index) => Math.max(index - 1, initialActiveIndex));
+      setActiveIndex((index) =>
+        matches.length === 0 ? initialActiveIndex : step(index, -1),
+      );
     } else if (event.key === "Enter") {
-      if (open && matches.length > 0 && activeIndex >= 0) {
+      // `matches` can shrink under a stale highlight (a revalidation while a
+      // row is highlighted), so the highlighted row may no longer exist.
+      const highlighted = activeIndex >= 0 ? matches[activeIndex] : undefined;
+      if (open && highlighted !== undefined && !disabled(highlighted)) {
         event.preventDefault();
-        onSelect(matches[activeIndex] ?? matches[0]);
+        onSelect(highlighted);
       }
     } else if (event.key === "Escape") {
       if (open) {
@@ -137,8 +181,15 @@ export function useComboboxKeyboard({
  * search box never needs (it only opens once something matches). Both are
  * `className`/`showNoMatchesRow` inputs so the two boxes' markup and ARIA
  * wiring stay the one implementation.
+ *
+ * `getNote` and `isDisabled` (both optional; the Log/detail forms pass
+ * neither) let Tonight's search box (issue 02) show why a row is off the
+ * ranked list — a muted `· closed Mondays` / `· rejected tonight` / `·
+ * already picked` suffix — and, for the last of those, block it from being
+ * picked: `aria-disabled`, dimmed, and `onMouseDown` a no-op. ↑/↓ skipping a
+ * disabled row is `useComboboxKeyboard`'s job, not this component's.
  */
-export function OptionListbox({
+export function OptionListbox<T extends OptionChoice | AddRow>({
   listId,
   matches,
   activeIndex,
@@ -148,16 +199,22 @@ export function OptionListbox({
   onHover,
   className,
   rowClassName = "",
+  getNote,
+  isDisabled,
 }: {
   listId: string;
-  matches: OptionChoice[];
+  matches: T[];
   activeIndex: number;
-  isSelected: (option: OptionChoice, index: number) => boolean;
+  isSelected: (option: T, index: number) => boolean;
   showNoMatchesRow?: boolean;
-  onSelect: (option: OptionChoice) => void;
+  onSelect: (option: T) => void;
   onHover: (index: number) => void;
   className: string;
   rowClassName?: string;
+  /** A muted suffix note after the name (e.g. "closed Mondays"); omitted renders none. */
+  getNote?: (option: T) => string | undefined;
+  /** Rows this box must not let the Household select. */
+  isDisabled?: (option: T) => boolean;
 }) {
   return (
     <ul id={listId} role="listbox" className={className}>
@@ -166,31 +223,62 @@ export function OptionListbox({
           No matches
         </li>
       ) : (
-        matches.map((option, index) => (
-          <li key={option.id} role="presentation">
-            <div
-              id={`${listId}-option-${option.id}`}
-              role="option"
-              tabIndex={-1}
-              aria-selected={isSelected(option, index)}
-              className={`flex min-h-11 w-full cursor-pointer flex-col py-1.5
-                text-left
-                ${kindBarClass(option.kind)} ${rowClassName} ${
-                  index === activeIndex ? "bg-raised" : "hover:bg-raised"
-                }`}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                onSelect(option);
-              }}
-              onMouseEnter={() => onHover(index)}
-            >
-              <span className="text-body text-ink">{option.name}</span>
-              <span className="text-meta text-muted">
-                {kindLabel(option.kind)}
-              </span>
-            </div>
-          </li>
-        ))
+        matches.map((option, index) => {
+          const disabled = isDisabled?.(option) ?? false;
+          const note = getNote?.(option);
+          return (
+            <li key={option.id} role="presentation">
+              <div
+                id={`${listId}-option-${option.id}`}
+                role="option"
+                tabIndex={-1}
+                aria-selected={isSelected(option, index)}
+                aria-disabled={disabled || undefined}
+                className={`flex min-h-11 w-full flex-col justify-center
+                  text-left ${
+                    // An Add row has no kind yet: a neutral bar keeps the
+                    // same inset without claiming one (DESIGN.md 2026-09-25).
+                    isAddRow(option)
+                      ? "border-l-[3px] border-l-line pl-2"
+                      : kindBarClass(option.kind)
+                  }
+                  ${rowClassName} ${
+                    disabled
+                      ? "cursor-not-allowed opacity-60"
+                      : "cursor-pointer"
+                  } ${
+                    index === activeIndex
+                      ? "bg-raised"
+                      : disabled
+                        ? ""
+                        : "hover:bg-raised"
+                  }`}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  if (disabled) return;
+                  onSelect(option);
+                }}
+                onMouseEnter={() => onHover(index)}
+              >
+                {isAddRow(option) ? (
+                  <span className="text-body font-emphasis text-action">
+                    Add &ldquo;{option.name}&rdquo;…
+                  </span>
+                ) : (
+                  <>
+                    <span className="py-1.5 text-body text-ink">
+                      {option.name}
+                      {note && <span className="text-muted"> · {note}</span>}
+                    </span>
+                    <span className="pb-1.5 text-meta text-muted">
+                      {kindLabel(option.kind)}
+                    </span>
+                  </>
+                )}
+              </div>
+            </li>
+          );
+        })
       )}
     </ul>
   );

@@ -138,25 +138,35 @@ async function syncOptionTags(
   await tx.insert(optionTags).values(tagIds.map((tagId) => ({ optionId, tagId })));
 }
 
+/** `createOption`'s result — `ActionResult` plus the new Option's id on success, so Tonight's quick-add (issue 03) can Pick it right after creating. */
+export type CreateOptionResult =
+  | { ok: true; id: string }
+  | { ok: false; error: string };
+
 /**
  * Add a Home meal or Restaurant to the Catalog. The Option insert and its Tag
  * sync run in one transaction, so a mid-write failure rolls back rather than
  * leaving an Option with missing Tags.
  */
 export const createOption = authedAction(
-  async (kind: OptionKind, values: OptionFormValues): Promise<ActionResult> => {
+  async (
+    kind: OptionKind,
+    values: OptionFormValues,
+  ): Promise<CreateOptionResult> => {
     if (values.name.trim().length === 0) {
       return { ok: false, error: "Enter a name" };
     }
+    let id = "";
     await db.transaction(async (tx) => {
       const [created] = await tx
         .insert(options)
         .values({ kind, ...columnsFor(kind, values) })
         .returning({ id: options.id });
+      id = created.id;
       await syncOptionTags(tx, created.id, values.tags);
     });
     revalidateCatalogViews();
-    return { ok: true };
+    return { ok: true, id };
   },
 );
 

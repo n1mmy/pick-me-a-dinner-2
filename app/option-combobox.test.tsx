@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { OptionChoice } from "../db/queries";
-import { OptionCombobox } from "./option-combobox";
+import {
+  OptionCombobox,
+  OptionListbox,
+  useComboboxKeyboard,
+} from "./option-combobox";
 
 /**
  * `OptionCombobox` is the shared type-ahead Option picker. These tests render
@@ -277,5 +282,91 @@ describe("OptionCombobox", () => {
 
       expect(onChange).not.toHaveBeenCalled();
     });
+  });
+});
+
+/**
+ * `OptionListbox` and `useComboboxKeyboard`'s optional `getNote` / `isDisabled`
+ * (issue 02, Tonight's search box) — the Log/detail forms above never pass
+ * either, so those tests already prove the defaults are unaffected. This
+ * harness drives the two together the way Tonight's search box does.
+ */
+type Choice = OptionChoice & { disabled?: boolean; note?: string };
+
+const HARNESS_CHOICES: Choice[] = [
+  { id: "h1", name: "Aji Ichi", kind: "restaurant" },
+  { id: "h2", name: "Burger Night", kind: "home", disabled: true, note: "already picked" },
+  { id: "h3", name: "Curry House", kind: "restaurant", note: "closed Mondays" },
+];
+
+function Harness() {
+  const [open, setOpen] = useState(true);
+  const [selected, setSelected] = useState<string | null>(null);
+  const { activeIndex, setActiveIndex, handleKeyDown, activeId } =
+    useComboboxKeyboard<Choice>({
+      open,
+      setOpen,
+      matches: HARNESS_CHOICES,
+      initialActiveIndex: 0,
+      onSelect: (option) => setSelected(option.id),
+      onEscape: () => setOpen(false),
+      isDisabled: (option) => option.disabled === true,
+    });
+  return (
+    <div>
+      <input
+        role="combobox"
+        aria-expanded={open}
+        aria-controls="list"
+        aria-activedescendant={activeId("list")}
+        onKeyDown={handleKeyDown}
+        readOnly
+      />
+      <output>{selected ?? "none"}</output>
+      {open && (
+        <OptionListbox
+          listId="list"
+          matches={HARNESS_CHOICES}
+          activeIndex={activeIndex}
+          isSelected={(_o, index) => index === activeIndex}
+          onSelect={(option) => setSelected(option.id)}
+          onHover={setActiveIndex}
+          getNote={(option) => option.note}
+          isDisabled={(option) => option.disabled === true}
+          className="listbox"
+        />
+      )}
+    </div>
+  );
+}
+
+describe("OptionListbox / useComboboxKeyboard — getNote and isDisabled", () => {
+  it("shows the muted note and marks a disabled row aria-disabled", () => {
+    render(<Harness />);
+    const rows = screen.getAllByRole("option");
+    expect(rows[1].getAttribute("aria-disabled")).toBe("true");
+    expect(rows[1].textContent).toContain("already picked");
+    expect(rows[2].textContent).toContain("closed Mondays");
+    expect(rows[0].getAttribute("aria-disabled")).toBeNull();
+  });
+
+  it("a mousedown on a disabled row does not select it", () => {
+    render(<Harness />);
+    fireEvent.mouseDown(screen.getAllByRole("option")[1]);
+    // The selected output is unchanged — the disabled row's mousedown was a no-op.
+    expect(screen.getByText("none")).toBeTruthy();
+  });
+
+  it("↓ skips the disabled row, and Enter on the landed row selects it", () => {
+    render(<Harness />);
+    const combobox = screen.getByRole("combobox");
+    // Starts highlighted on row 0 (Aji Ichi); ↓ must skip disabled row 1 and
+    // land on row 2 (Curry House).
+    fireEvent.keyDown(combobox, { key: "ArrowDown" });
+    const curryHouse = screen.getAllByRole("option")[2];
+    expect(combobox.getAttribute("aria-activedescendant")).toBe(curryHouse.id);
+
+    fireEvent.keyDown(combobox, { key: "Enter" });
+    expect(screen.getByText("h3")).toBeTruthy();
   });
 });

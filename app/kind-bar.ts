@@ -19,6 +19,22 @@ export function kindWashClass(kind: "home" | "restaurant"): string {
 }
 
 /**
+ * A kind toggle chip's fill (DESIGN.md decisions 2026-09-24): the kind's own
+ * hue with `action-ink` text when selected, its faded `-wash` otherwise.
+ */
+export function kindChipFillClass(
+  kind: "home" | "restaurant",
+  selected: boolean,
+): string {
+  if (selected) {
+    return kind === "home"
+      ? "bg-kind-home text-action-ink"
+      : "bg-kind-restaurant text-action-ink";
+  }
+  return `${kindWashClass(kind)} text-ink`;
+}
+
+/**
  * Fainter still than the wash — the picker row's background tint (the wash
  * halved toward `bg`). The ledger carries the kind-coding without the tint
  * competing with the chips' heatmap fills.

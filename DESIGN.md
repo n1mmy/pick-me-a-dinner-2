@@ -65,7 +65,9 @@ stays neutral so those signals read instantly. Light is the primary theme.
 1. **Meal kind** — a 3px solid bar on the row's left edge (`kind-home` teal,
    `kind-restaurant` plum) over a background of the same hue: the faint
    `kind-*-tint` on picker rows, the stronger `kind-*-wash` on decided rows.
-   Home vs out, before reading a word.
+   Home vs out, before reading a word. A row that isn't an Option yet —
+   Tonight typeahead's `Add "<query>"…` row — carries a neutral `line` bar
+   instead: same 3px inset as every Option row, but it claims no kind.
 2. **The green→red heatmap** — green is "good", red is "not now", fading
    through a tan midpoint. `lib/recency-color.ts` interpolates between the
    three `recency-*` anchors with `color-mix()`, saturating at 30 days

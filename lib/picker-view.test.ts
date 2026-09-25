@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { TonightRow } from "./ranking";
-import { chipStateLabel, cycleChipState, pickerView } from "./picker-view";
+import {
+  chipStateLabel,
+  cycleChipState,
+  pickerView,
+  showAddRow,
+  type TonightChoice,
+} from "./picker-view";
 
 /** Build a Tonight row; only `kind` and `tags` drive the filter under test. */
 function row(
@@ -142,18 +148,36 @@ describe("pickerView — rankOf", () => {
 });
 
 describe("pickerView — choices", () => {
-  it("mirrors every row in `rows`, name-sorted, regardless of the active filter", () => {
+  it("mirrors every row in `rows`, name-sorted, regardless of the active filter, each unsuppressed", () => {
     // Restaurant-only filter still yields typeahead choices for every Option
-    // in `rows`, including the suppressed Home rows — so a typeahead pick can
-    // never hit an already-Picked or Selected-day-rejected Option that the
-    // filter (not the ranking) has hidden.
+    // in `rows`, including the Home rows it hides — the kind/Tag filter
+    // narrows the ranked list, never what the typeahead can find.
     const { choices } = pickerView(ROWS, "restaurant", {});
     expect(choices).toEqual([
-      { id: "fish-home", name: "fish-home", kind: "home" },
-      { id: "pasta-home", name: "pasta-home", kind: "home" },
-      { id: "pasta-rest", name: "pasta-rest", kind: "restaurant" },
-      { id: "plain-rest", name: "plain-rest", kind: "restaurant" },
+      { id: "fish-home", name: "fish-home", kind: "home", suppression: "none" },
+      { id: "pasta-home", name: "pasta-home", kind: "home", suppression: "none" },
+      { id: "pasta-rest", name: "pasta-rest", kind: "restaurant", suppression: "none" },
+      { id: "plain-rest", name: "plain-rest", kind: "restaurant", suppression: "none" },
     ]);
+  });
+
+  it("widens past `rows` to the Closed, Rejected, and Picked candidates, each carrying its suppression", () => {
+    const { choices } = pickerView([row("open-home", "home")], "all", {}, {
+      closed: [row("closed-rest", "restaurant")],
+      rejected: [row("rejected-home", "home")],
+      picked: [row("picked-rest", "restaurant")],
+    });
+    expect(choices).toEqual([
+      { id: "closed-rest", name: "closed-rest", kind: "restaurant", suppression: "closed" },
+      { id: "open-home", name: "open-home", kind: "home", suppression: "none" },
+      { id: "picked-rest", name: "picked-rest", kind: "restaurant", suppression: "picked" },
+      { id: "rejected-home", name: "rejected-home", kind: "home", suppression: "rejected" },
+    ]);
+  });
+
+  it("defaults to no suppressed candidates when the caller omits them", () => {
+    const { choices } = pickerView(ROWS, "all", {});
+    expect(choices.every((c) => c.suppression === "none")).toBe(true);
   });
 });
 
@@ -191,5 +215,41 @@ describe("pickerView — hint", () => {
         quick: "off",
       }).hint,
     ).toBe("Showing Home meals with pasta, without fish");
+  });
+});
+
+describe("showAddRow (issue 03)", () => {
+  const CHOICES: TonightChoice[] = [
+    { id: "o1", name: "Thai Orchid", kind: "restaurant", suppression: "none" },
+    { id: "o2", name: "Aji Ichi", kind: "restaurant", suppression: "closed" },
+    { id: "o3", name: "Curry House", kind: "restaurant", suppression: "rejected" },
+    { id: "o4", name: "Zed Diner", kind: "restaurant", suppression: "picked" },
+  ];
+
+  it("is false for an empty or whitespace-only query", () => {
+    expect(showAddRow(CHOICES, "")).toBe(false);
+    expect(showAddRow(CHOICES, "   ")).toBe(false);
+  });
+
+  it("is true when no candidate's name matches at all", () => {
+    expect(showAddRow(CHOICES, "Pizza Place")).toBe(true);
+  });
+
+  it("is true for a substring match that is not an exact name", () => {
+    // "Thai" matches "Thai Orchid" by substring, but not exactly — the Add
+    // row still offers to create "Thai" as its own new Option.
+    expect(showAddRow(CHOICES, "Thai")).toBe(true);
+  });
+
+  it("is false for an exact name match, any case, any suppression", () => {
+    expect(showAddRow(CHOICES, "Thai Orchid")).toBe(false);
+    expect(showAddRow(CHOICES, "thai orchid")).toBe(false);
+    expect(showAddRow(CHOICES, "AJI ICHI")).toBe(false);
+    expect(showAddRow(CHOICES, "curry house")).toBe(false);
+    expect(showAddRow(CHOICES, "Zed Diner")).toBe(false);
+  });
+
+  it("ignores surrounding whitespace on the query", () => {
+    expect(showAddRow(CHOICES, "  Thai Orchid  ")).toBe(false);
   });
 });

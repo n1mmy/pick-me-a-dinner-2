@@ -33,7 +33,7 @@
  *      rather than a meaningless "0d";
  *   4. `splitTonight` → `tonightsDinner` + `picker`;
  *   5. `suppressionsOn` → drop every suppressed row from the picker, keeping
- *      the Closed ones aside as `closed`;
+ *      the Closed and Rejected ones aside as `closed` and `rejected`;
  *   6. `lastNotesByOption` for every row type;
  *   7. `allFiltered` — the picker had rows before step 5 and none after, so
  *      the screen can tell "filtered empty" from "genuinely empty Catalog".
@@ -41,7 +41,7 @@
  * This is a presentation composition only: it runs after `rankTonight`, so
  * the Score and the ranking stay untouched (ADR-0003, ADR-0006, ADR-0010).
  */
-import { suppressionsOn } from "./day-suppressions";
+import { suppressionsOn, type Suppression } from "./day-suppressions";
 import {
   lastNotesByOption,
   type LastNote,
@@ -109,6 +109,13 @@ export type TonightForDay = {
   picker: TonightRow[];
   /** The rows closed on the Selected day, alphabetical by name. */
   closed: TonightRow[];
+  /**
+   * The rows rejected for the Selected day, alphabetical by name — the
+   * Rejected disclosure itself renders `TodayRejection` (with each
+   * Rejection's reason), but the typeahead's candidate set (issue 02) needs
+   * the full row for its kind bar and label, exactly as `closed` does.
+   */
+  rejected: TonightRow[];
   /** Each Option's Last note, keyed by Option id. */
   lastNotes: Map<string, LastNote>;
   /**
@@ -170,9 +177,12 @@ export function tonightForDay({
   const visiblePicker = picker.filter(
     (row) => !suppressions.has(row.option.id),
   );
-  const closed = picker
-    .filter((row) => suppressions.get(row.option.id) === "closed")
-    .sort((a, b) => a.option.name.localeCompare(b.option.name));
+  const suppressedByName = (reason: Suppression) =>
+    picker
+      .filter((row) => suppressions.get(row.option.id) === reason)
+      .sort((a, b) => a.option.name.localeCompare(b.option.name));
+  const closed = suppressedByName("closed");
+  const rejected = suppressedByName("rejected");
 
   // 6. Last notes, for every row type — one Map serves picker, AI result,
   // and decided rows alike.
@@ -195,6 +205,7 @@ export function tonightForDay({
     tonightsDinner,
     picker: visiblePicker,
     closed,
+    rejected,
     lastNotes,
     allFiltered,
   };

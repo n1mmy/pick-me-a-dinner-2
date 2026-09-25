@@ -6,13 +6,18 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   useId,
+  useMemo,
+  useRef,
   useState,
   useTransition,
 } from "react";
-import type { OptionWithTags } from "../../db/queries";
+import Link from "next/link";
+import type { ArchivedOption, OptionWithTags } from "../../db/queries";
 import { WEEKDAY_NAMES } from "../../lib/local-day";
 import { escapeToCancel } from "../escape-to-cancel";
 import { fieldFocusRing, focusRing } from "../focus-ring";
+import { inlineLinkClass } from "../inline-link";
+import { kindChipFillClass } from "../kind-bar";
 import { pressFeedback } from "../press-feedback";
 import {
   createOption,
@@ -37,6 +42,24 @@ function sameDays(a: number[], b: number[]): boolean {
 }
 
 /**
+ * Tonight's quick-add (issue 03): a fresh add prefilled with the typed query,
+ * with a Home meal / Restaurant switch, an Archived name-match warning, and a
+ * plain "Add" beside the primary button, which also Picks.
+ */
+export type QuickAdd = {
+  defaultName: string;
+  archivedOptions: ArchivedOption[];
+  /** The primary button's label, e.g. "Add & Pick for tonight". */
+  pickLabel: string;
+  /**
+   * Picks the just-created Option. A returned failure keeps the form open
+   * with the error inline and both submits disabled — the Option itself
+   * stays created, so there is nothing to retry from here.
+   */
+  pick: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+};
+
+/**
  * The inline add/edit form for one Option — identical on phone and desktop. An
  * `initial` Option means edit; its absence means add. The Restaurant form
  * exposes the restaurant-only fields for manual entry, and — when `placesEnabled`
@@ -59,16 +82,33 @@ export function OptionForm({
   placesEnabled,
   onCancel,
   onSaved,
+  quickAdd,
 }: {
+  /** The kind to start from. With `quickAdd`, its switch can change it. */
   kind: OptionKind;
   initial?: OptionWithTags;
   allTags: string[];
   placesEnabled: boolean;
   onCancel: () => void;
   onSaved: () => void;
+  /** Tonight's quick-add; add-only, never combined with `initial`. */
+  quickAdd?: QuickAdd;
 }) {
   const fieldId = useId();
-  const [name, setName] = useState(initial?.name ?? "");
+  const [formKind, setFormKind] = useState<OptionKind>(kind);
+  // Which submit button was clicked — a ref, not state, so `handleSubmit`
+  // (which fires in the same click) always reads the up-to-date value; a
+  // state update here could still be showing the previous render's value by
+  // the time the submit handler runs.
+  const submitIntentRef = useRef<"primary" | "secondary">("primary");
+  // Set when Tonight's "Add & Pick" created the Option but the Pick failed.
+  // A rare case, so no retry: the error stays up, both submits stay disabled
+  // (submitting again would create a duplicate), and the Household closes
+  // the form and Picks the now-existing Option like any other.
+  const [pickFailed, setPickFailed] = useState(false);
+  const [name, setName] = useState(
+    initial?.name ?? quickAdd?.defaultName ?? "",
+  );
   const [url, setUrl] = useState(initial?.url ?? "");
   // A Places autofill leaves an already-filled URL untouched; this flags that
   // so the URL field can disclose it was kept rather than overwritten.
@@ -101,7 +141,18 @@ export function OptionForm({
   const [justSaved, setJustSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const isRestaurant = kind === "restaurant";
+  const isRestaurant = formKind === "restaurant";
+  // The Archived Option this typed name matches, case-insensitive — recomputed
+  // live as `name` is edited. Always `null` outside Tonight's quick-add.
+  const archivedOptions = quickAdd?.archivedOptions;
+  const archivedMatch = useMemo(() => {
+    const needle = name.trim().toLowerCase();
+    if (!archivedOptions || needle.length === 0) return null;
+    return (
+      archivedOptions.find((option) => option.name.toLowerCase() === needle) ??
+      null
+    );
+  }, [name, archivedOptions]);
   // The only validation error that is actually about the Name field; every
   // other server error (e.g. "That option is no longer available" — the
   // Option was deleted out from under an in-progress edit) is form-level and
@@ -114,7 +165,7 @@ export function OptionForm({
   // Places search — or hand entry — fills it.
   const [hasLocationData] = useState(
     () =>
-      isRestaurant &&
+      formKind === "restaurant" &&
       (Boolean(initial?.address) ||
         Boolean(initial?.phone) ||
         Boolean(initial?.mapsUrl) ||
@@ -183,19 +234,38 @@ export function OptionForm({
       tags,
       closedDays,
     };
+    const intent = submitIntentRef.current;
     startTransition(async () => {
-      const result = initial
-        ? await updateOption(initial.id, kind, values)
-        : await createOption(kind, values);
-      if (result.ok) {
-        // Hold "Saved ✓" briefly before handing off — the same beat
-        // `PickButton` gives "Logged ✓" — so the save is visible even though
-        // `onSaved` immediately collapses or navigates away from this form.
-        setJustSaved(true);
-        window.setTimeout(onSaved, 700);
-      } else {
-        setError(result.error);
+      if (initial) {
+        const result = await updateOption(initial.id, formKind, values);
+        if (result.ok) {
+          // Hold "Saved ✓" briefly before handing off — the same beat
+          // `PickButton` gives "Logged ✓" — so the save is visible even
+          // though `onSaved` immediately collapses or navigates away.
+          setJustSaved(true);
+          window.setTimeout(onSaved, 700);
+        } else {
+          setError(result.error);
+        }
+        return;
       }
+      const result = await createOption(formKind, values);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      // The secondary button ("Add") never Picks; the primary one does in
+      // Tonight's quick-add ("Add & Pick"). See `pickFailed` for a failure.
+      if (intent === "primary" && quickAdd) {
+        const pickResult = await quickAdd.pick(result.id);
+        if (!pickResult.ok) {
+          setError(`Added, but couldn’t Pick it: ${pickResult.error}`);
+          setPickFailed(true);
+          return;
+        }
+      }
+      setJustSaved(true);
+      window.setTimeout(onSaved, 700);
     });
   }
 
@@ -211,6 +281,8 @@ export function OptionForm({
       onKeyDown={escapeToCancel(onCancel, pending || justSaved)}
       className="expand-in flex flex-col gap-3 pb-[80px]"
     >
+      {quickAdd && <KindSwitch kind={formKind} onChange={setFormKind} />}
+
       {isRestaurant && placesEnabled && (
         <PlacesSearchBox
           onAutofill={applyAutofill}
@@ -359,6 +431,18 @@ export function OptionForm({
         </p>
       )}
 
+      {archivedMatch && (
+        <p className="text-chip text-muted">
+          <Link
+            href={`/catalog/${archivedMatch.id}`}
+            className={inlineLinkClass}
+          >
+            {archivedMatch.name}
+          </Link>
+          {" is archived"}
+        </p>
+      )}
+
       {/* A fixed footer bar, not a `sticky` one — `sticky` only ever bleeds
           to the edges of `.column`'s own padding, and on desktop `.column`
           is a 900px box centered with leftover margin on either side (see
@@ -379,10 +463,13 @@ export function OptionForm({
           z-10 border-t border-divider bg-surface desktop:bottom-0
           desktop:left-[var(--rail-width)]"
       >
-        <div className="column flex items-center gap-2 py-3">
+        <div className="column flex flex-wrap items-center gap-2 py-3">
           <button
             type="submit"
-            disabled={pending || justSaved}
+            onClick={() => {
+              submitIntentRef.current = "primary";
+            }}
+            disabled={pending || justSaved || pickFailed}
             className={`min-h-11 rounded-control px-4 text-body font-emphasis
               disabled:opacity-60 ${pressFeedback} ${focusRing} ${
                 justSaved
@@ -390,8 +477,30 @@ export function OptionForm({
                   : "bg-action text-action-ink hover:bg-action-hover"
               }`}
           >
-            {justSaved ? "Saved ✓" : initial ? "Save" : "Add"}
+            {justSaved
+              ? "Saved ✓"
+              : quickAdd?.pickLabel ?? (initial ? "Save" : "Add")}
           </button>
+          {quickAdd && (
+            <button
+              type="submit"
+              onClick={() => {
+                submitIntentRef.current = "secondary";
+              }}
+              disabled={pending || justSaved || pickFailed}
+              // The app's one secondary-outlined style (DESIGN.md "Button
+              // hierarchy"; see `PickButton` for the canonical
+              // implementation): `surface` fill, `line` border, `ink`
+              // label, `raised` on hover — not `text-action`, which reads
+              // as an accent-colored link rather than a plain button.
+              className={`min-h-11 rounded-control border border-line
+                bg-surface px-4 text-body font-emphasis text-ink
+                transition-colors duration-short hover:bg-raised
+                disabled:opacity-60 ${focusRing}`}
+            >
+              Add
+            </button>
+          )}
           <button
             type="button"
             onClick={onCancel}
@@ -399,7 +508,8 @@ export function OptionForm({
             className={`min-h-11 rounded-control px-3 text-body text-muted
               disabled:opacity-60 ${focusRing}`}
           >
-            Cancel
+            {/* The Option exists now — there is nothing left to cancel. */}
+            {pickFailed ? "Close" : "Cancel"}
           </button>
           {/* A sibling live region, not `aria-live` on the button itself —
               the button is usually still focused when its label flips
@@ -410,6 +520,42 @@ export function OptionForm({
         </div>
       </div>
     </form>
+  );
+}
+
+/**
+ * The Home meal / Restaurant switch shown inside the form only for
+ * `quickAdd` (Tonight's quick-add, issue 03) — Catalog decides
+ * the kind by which of its two add buttons was clicked, so it never renders
+ * this. Filled like Tonight's kind filter chips (`kindChipFillClass`).
+ */
+function KindSwitch({
+  kind,
+  onChange,
+}: {
+  kind: OptionKind;
+  onChange: (kind: OptionKind) => void;
+}) {
+  return (
+    <div role="group" aria-label="Kind" className="flex gap-2">
+      {(["home", "restaurant"] as const).map((value) => {
+        const selected = kind === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(value)}
+            className={`min-h-11 flex-1 rounded-control border
+              border-transparent px-3 text-body font-emphasis
+              transition-colors duration-short ${focusRing}
+              ${kindChipFillClass(value, selected)}`}
+          >
+            {value === "home" ? "Home meal" : "Restaurant"}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
