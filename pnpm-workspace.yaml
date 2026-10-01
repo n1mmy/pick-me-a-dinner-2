@@ -6,4 +6,3 @@ onlyBuiltDependencies:
   - esbuild
   - sharp
   - unrs-resolver
-enableGlobalVirtualStore: true
