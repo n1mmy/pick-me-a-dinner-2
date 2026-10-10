@@ -2,21 +2,28 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The mock factories below are hoisted above these declarations, so the spies
 // they close over must be created with `vi.hoisted` to exist in time.
-const { getTonightData, getFullLogForSnapshot, getRejections, search } =
-  vi.hoisted(() => ({
-    getTonightData: vi.fn(),
-    getFullLogForSnapshot: vi.fn(),
-    getRejections: vi.fn(),
-    search: vi.fn(),
-  }));
+const {
+  getTonightData,
+  getFullLogForSnapshot,
+  getRejections,
+  getDayNotes,
+  search,
+} = vi.hoisted(() => ({
+  getTonightData: vi.fn(),
+  getFullLogForSnapshot: vi.fn(),
+  getRejections: vi.fn(),
+  getDayNotes: vi.fn(),
+  search: vi.fn(),
+}));
 
-// `getTonightData`, `getFullLogForSnapshot`, and `getRejections` are the DB
-// reads the route makes — stub them so the test never touches a database,
+// `getTonightData`, `getFullLogForSnapshot`, `getRejections`, and
+// `getDayNotes` are the DB reads the route makes — stub them so the test never touches a database,
 // and so the snapshot wiring can be asserted.
 vi.mock("../../../db/queries", () => ({
   getTonightData,
   getFullLogForSnapshot,
   getRejections,
+  getDayNotes,
 }));
 
 // The Anthropic client is replaced so no live call is made; `search` is the
@@ -67,10 +74,12 @@ beforeEach(() => {
   getTonightData.mockReset();
   getFullLogForSnapshot.mockReset();
   getRejections.mockReset();
+  getDayNotes.mockReset();
   search.mockReset();
   getTonightData.mockResolvedValue(TONIGHT_DATA);
   getFullLogForSnapshot.mockResolvedValue(FULL_LOG);
   getRejections.mockResolvedValue([]);
+  getDayNotes.mockResolvedValue([]);
   delete process.env.ANTHROPIC_API_KEY;
 });
 
@@ -164,6 +173,28 @@ describe("POST /api/ai-search", () => {
     expect(snapshot.log.map((e: { date: string }) => e.date)).toContain(
       "2099-01-01 (Thursday)",
     );
+  });
+
+  it("feeds every Day note to the snapshot, the Selected day's as current context", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    getDayNotes.mockResolvedValue([
+      { notedOn: "2026-05-22", note: "Jen won't be around" },
+      { notedOn: "2026-05-12", note: "Guests over" },
+    ]);
+    search.mockResolvedValue({ ok: true, results: [] });
+
+    await post({ query: "", selectedDay: "2026-05-22" });
+
+    const [snapshot] = search.mock.calls[0];
+    expect(snapshot.todayDayNote).toBe(
+      "<household-text>Jen won't be around</household-text>",
+    );
+    expect(snapshot.dayNotes).toEqual([
+      {
+        date: "2026-05-12 (Tuesday)",
+        note: "<household-text>Guests over</household-text>",
+      },
+    ]);
   });
 
   it("passes closedDays through and drops a Restaurant closed today from the candidate set", async () => {

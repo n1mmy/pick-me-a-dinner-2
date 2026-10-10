@@ -277,7 +277,9 @@ also reads the household's eating history for habits and rhythms — how often
 something recurs, day-of-week tendencies, what tends to follow what — and lets
 those shape the ranking, surfacing patterns — day-of-week rhythms, what follows
 what — the deterministic Score's recency-and-frequency cannot; with an empty
-query, finding those patterns is the whole job.
+query, finding those patterns is the whole job. It also reads every **Day
+note**, past and future, as dated history, and treats the **Selected day**'s
+own Day note as current context for the search.
 Always a deliberate action; it never replaces the deterministic ranking as the
 default Tonight view. The model decides how many Options to return, so a
 narrowing query yields a subset of the Catalog, not the whole list.

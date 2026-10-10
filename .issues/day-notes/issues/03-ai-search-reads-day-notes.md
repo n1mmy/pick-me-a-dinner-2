@@ -1,6 +1,6 @@
 # 03 — AI search reads Day notes
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -30,11 +30,18 @@ the user has to approve it first (CLAUDE.md).
 
 ## Acceptance criteria
 
-- [ ] `buildSnapshot` tests: past and future Day notes appear dated and newest
+- [x] `buildSnapshot` tests: past and future Day notes appear dated and newest
       first; the anchor day's note is surfaced separately, and is null when
       absent; the candidate set and numbering are the same with or without Day
       notes
-- [ ] `buildSystemPrompt` test covers the Day note instruction
-- [ ] Route test covers Day notes reaching the snapshot
-- [ ] `CONTEXT.md` **AI search** entry updated
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] `buildSystemPrompt` test covers the Day note instruction
+- [x] Route test covers Day notes reaching the snapshot
+- [x] `CONTEXT.md` **AI search** entry updated
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+
+## Comments
+
+- Done. Snapshot gains `dayNotes` (dated, newest first, anchor day excluded)
+  and `todayDayNote` (delimited, or null). The DB read lives in
+  `lib/snapshot-source.ts`, which the route, the eval script, and show-prompt
+  share. `scripts/ai-search-eval.ts` was not run (billed; needs approval).

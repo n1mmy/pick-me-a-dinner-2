@@ -201,6 +201,26 @@ export type ModelSnapshot = {
    * standing and what was one-off; this snapshot pre-digests nothing.
    */
   rejections: RejectionsBlock;
+  /**
+   * The Household's **Day notes** — facts about an evening, not about any
+   * Option (PRD: Day notes) — as dated history, newest first like `log`, past
+   * and future alike. The anchor day's own note is not repeated here; it is
+   * `todayDayNote`.
+   */
+  dayNotes: SnapshotModelDayNote[];
+  /**
+   * The anchor day's Day note — current context for this search — or `null`
+   * when it has none. Delimited: Household-authored.
+   */
+  todayDayNote: string | null;
+};
+
+/** One Day note in the model snapshot. */
+export type SnapshotModelDayNote = {
+  /** The evening it is about, with weekday — e.g. `"2026-05-22 (Friday)"`. */
+  date: string;
+  /** Household-authored and delimited. */
+  note: string;
 };
 
 /** What `buildSnapshot` produces: the model-input snapshot and the id map. */
@@ -277,6 +297,11 @@ export type BuiltSnapshot = {
  *   not-anchor-day ones — the latter carrying past *and* future-dated (Planned)
  *   Rejections; the model judges from the reasons and dates what is standing
  *   and what was one-off.
+ * - **Day notes** (PRD: Day notes) ride along as dated history — past and
+ *   future, newest first, uncapped like the Log — with the anchor day's own
+ *   note lifted out into `todayDayNote` as current context. They are facts
+ *   about an evening, not an Option, so they never touch the candidate set or
+ *   the numbering.
  * - The Restaurant **Places fields** (`address`, `phone`, `lat`, `lng`,
  *   `googlePlaceId`, `mapsUrl`) never enter — `SnapshotOption` has no slot for
  *   them, so they are excluded by construction.
@@ -289,6 +314,11 @@ export function buildSnapshot(input: {
   logEntries: SnapshotLogEntry[];
   rejections: RejectionRow[];
   /**
+   * Every Day note, any date (PRD: Day notes). Optional — omitted, the
+   * snapshot simply carries none. Never touches the candidate set or numbering.
+   */
+  dayNotes?: { notedOn: string; note: string }[];
+  /**
    * The anchor day — the Tonight screen's **Selected day** (ADR-0009). Drives
    * the snapshot's `today` field from the model's frame, the candidate-drop
    * rule (Options Picked, Rejected, or Closed on this day), and the Rejections
@@ -298,7 +328,8 @@ export function buildSnapshot(input: {
   asOf: string;
   query: string;
 }): BuiltSnapshot {
-  const { options, logEntries, rejections, asOf, query } = input;
+  const { options, logEntries, rejections, dayNotes = [], asOf, query } =
+    input;
 
   // Every Option is numbered by its 1-based position in the Catalog ordered
   // alphabetically by name — the number is what the model sees instead of the
@@ -380,6 +411,16 @@ export function buildSnapshot(input: {
       options: modelOptions,
       log,
       rejections: block,
+      dayNotes: [...dayNotes]
+        .filter((dayNote) => dayNote.notedOn !== asOf)
+        .sort((a, b) => b.notedOn.localeCompare(a.notedOn))
+        .map((dayNote) => ({
+          date: formatDateWithWeekday(dayNote.notedOn),
+          note: delimit(dayNote.note),
+        })),
+      todayDayNote: delimitNullable(
+        dayNotes.find((dayNote) => dayNote.notedOn === asOf)?.note ?? null,
+      ),
     },
     idByIndex,
   };
@@ -952,6 +993,16 @@ export function buildSystemPrompt(mode: TailMode): string {
       "three days a week naturally has fewer chances to appear in the Log " +
       "than an always-open one, so a thinner history there is explained by " +
       "its trading week — do not read that gap as Drift, a cooling interest.",
+    "",
+    "The snapshot also carries Day notes: a dayNotes list of dated notes, " +
+      "newest first, past and upcoming, and a todayDayNote field. A Day note " +
+      "is a fact about the household's evening on that date — \"Jen won't be " +
+      "around\", \"guests over\", \"late back from the airport\" — not about " +
+      "any Option. Never read it as feedback on a dish or a restaurant. The " +
+      "todayDayNote, when present, is current context for this search: let " +
+      "it shape what fits tonight. Past Day notes are history to read " +
+      "alongside the Log — what kind of evening tended to bring what kind of " +
+      "dinner — and upcoming ones are plans, like a future-dated Log row.",
     "",
     "If there is a query, weigh it together with the patterns you found. If " +
       "the query is empty, finding and applying those patterns is the entire " +

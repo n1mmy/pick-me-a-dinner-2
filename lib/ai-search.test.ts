@@ -592,6 +592,85 @@ describe("buildSnapshot — Selected day (ADR-0009)", () => {
   );
 });
 
+describe("buildSnapshot — Day notes", () => {
+  const options = [option("a1", "Apple Crumble"), option("b1", "Banana Bread")];
+
+  it("carries past and future Day notes dated with weekday, newest first", () => {
+    const { snapshot } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [],
+      dayNotes: [
+        { notedOn: "2026-05-12", note: "Guests over" },
+        { notedOn: "2026-05-22", note: "Jen won't be around" },
+      ],
+      asOf: TODAY,
+      query: "",
+    });
+    expect(snapshot.dayNotes).toEqual([
+      {
+        date: "2026-05-22 (Friday)",
+        note: "<household-text>Jen won't be around</household-text>",
+      },
+      {
+        date: "2026-05-12 (Tuesday)",
+        note: "<household-text>Guests over</household-text>",
+      },
+    ]);
+  });
+
+  it("surfaces the anchor day's Day note on its own, not in the dated list", () => {
+    const { snapshot } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [],
+      dayNotes: [
+        { notedOn: TODAY, note: "Jen won't be around" },
+        { notedOn: "2026-05-12", note: "Guests over" },
+      ],
+      asOf: TODAY,
+      query: "",
+    });
+    expect(snapshot.todayDayNote).toBe(
+      "<household-text>Jen won't be around</household-text>",
+    );
+    expect(snapshot.dayNotes.map((d) => d.date)).toEqual(["2026-05-12 (Tuesday)"]);
+  });
+
+  it("carries a null anchor-day Day note when that day has none", () => {
+    const { snapshot } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [],
+      dayNotes: [{ notedOn: "2026-05-12", note: "Guests over" }],
+      asOf: TODAY,
+      query: "",
+    });
+    expect(snapshot.todayDayNote).toBeNull();
+  });
+
+  it("leaves the candidate set and numbering unchanged", () => {
+    const base = {
+      options,
+      logEntries: [{ optionId: "b1", eatenOn: "2026-05-12", note: null }],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    };
+    const without = buildSnapshot(base);
+    const withNotes = buildSnapshot({
+      ...base,
+      dayNotes: [
+        { notedOn: TODAY, note: "Jen won't be around" },
+        { notedOn: "2026-05-12", note: "Guests over" },
+      ],
+    });
+    expect(withNotes.snapshot.options).toEqual(without.snapshot.options);
+    expect(withNotes.snapshot.log).toEqual(without.snapshot.log);
+    expect([...withNotes.idByIndex]).toEqual([...without.idByIndex]);
+  });
+});
+
 describe("parseRankingText", () => {
   const idByIndex = new Map<number, string>([
     [1, "a1"],
@@ -763,6 +842,14 @@ describe("buildSystemPrompt", () => {
     expect(buildSystemPrompt("pithy")).toContain("Every candidate must appear exactly once");
     expect(buildSystemPrompt("full")).toContain("Every candidate must appear exactly once");
     expect(buildSystemPrompt("drop")).not.toContain("Every candidate must appear");
+  });
+
+  it("explains Day notes as facts about the evening, with today's as current context", () => {
+    const prompt = buildSystemPrompt("pithy");
+    expect(prompt).toContain("dayNotes");
+    expect(prompt).toContain("todayDayNote");
+    expect(prompt).toContain("not about any Option");
+    expect(prompt).toContain("current context for this search");
   });
 
   it("tells the model today's Log rows are tonight's chosen dinner, not candidates", () => {
