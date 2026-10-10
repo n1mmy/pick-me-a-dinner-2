@@ -122,6 +122,13 @@ export function DayNoteForm({
         className={inputClass}
         value={value}
         onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (pending) return;
+          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+            event.preventDefault();
+            event.currentTarget.form?.requestSubmit();
+          }
+        }}
         autoFocus
         aria-invalid={error !== null}
         aria-describedby={error ? `${fieldId}-error` : undefined}

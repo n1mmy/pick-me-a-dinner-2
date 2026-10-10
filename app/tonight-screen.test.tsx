@@ -1950,6 +1950,31 @@ describe("TonightScreen — Day note", () => {
     });
   });
 
+  it.each([
+    ["Ctrl+Enter", { ctrlKey: true }],
+    ["Cmd+Enter", { metaKey: true }],
+  ])("saves the Day note on %s, like every other text field", async (_, mods) => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-16"
+        todaySql="2026-10-10"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+        dayNote={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Note for Friday" }));
+    const field = screen.getByLabelText("Note for Friday");
+    fireEvent.change(field, { target: { value: "Guests over" } });
+    fireEvent.keyDown(field, { key: "Enter", ...mods });
+
+    await waitFor(() => {
+      expect(mockedSetDayNote).toHaveBeenCalledWith("2026-10-16", "Guests over");
+    });
+  });
+
   it("cancels an edit on Escape without saving", () => {
     render(
       <TonightScreen
