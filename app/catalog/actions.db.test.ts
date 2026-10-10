@@ -59,8 +59,8 @@ describe("createOption", () => {
       notes: "weeknight staple",
     });
 
-    expect(result).toEqual({ ok: true });
     const rows = await db.select().from(options);
+    expect(result).toEqual({ ok: true, id: rows[0].id });
     expect(rows).toHaveLength(1);
     expect(rows[0].name).toBe("Pasta");
     expect(rows[0].kind).toBe("home");
@@ -76,8 +76,8 @@ describe("createOption", () => {
       phone: "555-1234",
     });
 
-    expect(result).toEqual({ ok: true });
     const [row] = await db.select().from(options);
+    expect(result).toEqual({ ok: true, id: row.id });
     expect(row.kind).toBe("restaurant");
     expect(row.address).toBe("123 Main St");
     expect(row.phone).toBe("555-1234");
@@ -92,8 +92,8 @@ describe("createOption", () => {
       googlePlaceId: "ChIJabc123",
     });
 
-    expect(result).toEqual({ ok: true });
     const [row] = await db.select().from(options);
+    expect(result).toEqual({ ok: true, id: row.id });
     expect(row.lat).toBe(37.7749);
     expect(row.lng).toBe(-122.4194);
     expect(row.googlePlaceId).toBe("ChIJabc123");

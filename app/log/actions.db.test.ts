@@ -368,11 +368,12 @@ describe("a Pick supersedes that date's Rejection", () => {
     const pizza = await makeOption("Pizza");
     await makeRejection(pizza, "2026-01-10");
 
-    const result = await withFailingRejectionDelete(() =>
-      logForDate(pizza, "2026-01-10"),
-    );
+    // Unlike `pickTonight`, `logForDate` maps only expected Postgres errors
+    // inline (`pgErrorMessage`); an unforeseen one rethrows as a 500.
+    await expect(
+      withFailingRejectionDelete(() => logForDate(pizza, "2026-01-10")),
+    ).rejects.toThrow("injected Rejection delete failure");
 
-    expect(result.ok).toBe(false);
     expect(await db.select().from(dinnerLog)).toHaveLength(0);
     expect(await db.select().from(rejections)).toHaveLength(1);
   });
