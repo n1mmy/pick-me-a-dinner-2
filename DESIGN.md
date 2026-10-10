@@ -258,6 +258,15 @@ Log directly under its date group's header, above the rows — context for the
 whole evening, so it is never inside a row or the decided block. One
 component (`DayNoteLine`) on both screens.
 
+- **On Tonight it is the H1's subtitle**, not its own section: it rides in
+  the heading block with no gap, so it never pays the 22px section gap. Its
+  resting 44px tap area bleeds 22px down into the section gap below
+  (`-mb-5.5` — exactly the gap, never into the content) so the line costs
+  ~22px, not 66px. It cannot bleed up: the H1 is itself a button. The add
+  button also bleeds 12px left into the column padding so its text lines up
+  with the H1. The open editor stays in normal flow, 8px under the header.
+  On the Log the line sits directly above interactive rows, so it keeps
+  plain flow there.
 - **With a note:** `muted` body text, upright — it is today's context, not
   reported speech, so it does not borrow the Last note's italic. The text
   itself is the tap target (44px floor) that opens the editor; no separate

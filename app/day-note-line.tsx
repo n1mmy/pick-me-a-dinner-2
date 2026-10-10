@@ -24,29 +24,42 @@ const addButtonClass =
  * the add button when there is none. Saving goes through `setDayNote`, which
  * revalidates both screens, so a save simply closes the editor and the new
  * note arrives with the refreshed props. Saving empty text clears the note.
+ *
+ * `placement="header"` is Tonight's: the line reads as a subtitle under the
+ * H1. Its resting 44px tap area keeps the floor but bleeds 22px down into the
+ * section gap below (`-mb-5.5`, exactly that gap, so it never reaches the
+ * content) and 12px left into the column padding (`-ml-3`, so the text lines
+ * up with the H1). It cannot bleed up — the H1 is itself a button. The open
+ * editor stays in normal flow. On the Log the line sits directly above
+ * interactive rows, so it keeps the plain `"group"` placement.
  */
 export function DayNoteLine({
   notedOn,
   note,
   label,
   addLabel,
+  placement = "group",
 }: {
   /** The SQL date the note is about. */
   notedOn: string;
   note: string | null;
   label: string;
   addLabel: string;
+  placement?: "header" | "group";
 }) {
+  const bleed = placement === "header" ? "-mb-5.5" : "";
   const [editing, setEditing] = useState(false);
 
   if (editing) {
     return (
-      <DayNoteForm
-        notedOn={notedOn}
-        note={note}
-        label={label}
-        onClose={() => setEditing(false)}
-      />
+      <div className={placement === "header" ? "mt-2" : ""}>
+        <DayNoteForm
+          notedOn={notedOn}
+          note={note}
+          label={label}
+          onClose={() => setEditing(false)}
+        />
+      </div>
     );
   }
   if (note === null) {
@@ -54,7 +67,7 @@ export function DayNoteLine({
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className={addButtonClass}
+        className={`${addButtonClass} ${placement === "header" ? "-ml-3" : ""} ${bleed}`}
       >
         {addLabel}
       </button>
@@ -65,7 +78,7 @@ export function DayNoteLine({
       type="button"
       onClick={() => setEditing(true)}
       className={`min-h-11 self-start rounded-control text-left text-body
-        text-muted transition-colors duration-short hover:text-ink ${focusRing}`}
+        text-muted transition-colors duration-short hover:text-ink ${focusRing} ${bleed}`}
     >
       {note}
     </button>

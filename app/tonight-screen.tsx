@@ -363,18 +363,24 @@ export function TonightScreen({
           held it, which needed `justify-start` on desktop to keep the three
           together instead of spread edge-to-edge; with only two items left,
           the stepper stays right at every width.) */}
-      <div className="flex w-full items-center justify-between gap-2">
-        <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
-          <DayNameReset heading={heading} />
-        </h1>
-        <DayStepper selectedDay={selectedDay} todaySql={todaySql} />
+      {/* The Day note line rides in the heading block, gap-free, as a
+          subtitle under the H1 — not as its own section paying the 22px
+          section gap (DESIGN.md, "Day note line"). */}
+      <div className="flex flex-col">
+        <div className="flex w-full items-center justify-between gap-2">
+          <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
+            <DayNameReset heading={heading} />
+          </h1>
+          <DayStepper selectedDay={selectedDay} todaySql={todaySql} />
+        </div>
+        <DayNoteLine
+          notedOn={selectedDay}
+          note={dayNote}
+          label={`Note for ${dayLabel}`}
+          addLabel={`+ Note for ${dayLabel}`}
+          placement="header"
+        />
       </div>
-      <DayNoteLine
-        notedOn={selectedDay}
-        note={dayNote}
-        label={`Note for ${dayLabel}`}
-        addLabel={`+ Note for ${dayLabel}`}
-      />
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}
       </p>
