@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "../db";
-import { getTodayRejections, getTonightData } from "../db/queries";
+import {
+  getDayNotes,
+  getTodayRejections,
+  getTonightData,
+} from "../db/queries";
 import { dayNotes, dinnerLog, options, rejections } from "../db/schema";
 import { truncateAll } from "../db/test-support";
 import { setDayNote } from "./day-note-actions";
@@ -98,5 +102,17 @@ describe("setDayNote", () => {
 describe("getTonightData — Day note", () => {
   it("returns null for a date with no Day note", async () => {
     expect(await dayNoteOn(FRIDAY)).toBeNull();
+  });
+});
+
+describe("getDayNotes", () => {
+  it("returns every Day note, past and future, as { notedOn, note }", async () => {
+    await setDayNote("2026-01-03", "Pizza night");
+    await setDayNote(FRIDAY, "Jen won't be around");
+
+    expect(await getDayNotes()).toEqual([
+      { notedOn: FRIDAY, note: "Jen won't be around" },
+      { notedOn: "2026-01-03", note: "Pizza night" },
+    ]);
   });
 });

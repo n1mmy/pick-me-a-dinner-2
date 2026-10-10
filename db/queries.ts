@@ -486,6 +486,25 @@ export async function getOptionRejections(
     .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
 }
 
+/** A **Day note** as the Log and AI search read it (PRD: Day notes). */
+export type DayNoteRow = {
+  /** `noted_on` as a SQL `date` string (`"YYYY-MM-DD"`); may be past or future. */
+  notedOn: string;
+  note: string;
+};
+
+/**
+ * Every Day note — past, today, and future — ordered newest `noted_on` first,
+ * the same order as `getLog`. The Log screen folds these into its date
+ * groups; AI search reads them as dated history.
+ */
+export async function getDayNotes(): Promise<DayNoteRow[]> {
+  return db
+    .select({ notedOn: dayNotes.notedOn, note: dayNotes.note })
+    .from(dayNotes)
+    .orderBy(desc(dayNotes.notedOn));
+}
+
 /** An Option reduced to a choice for the Log edit form's Option picker. */
 export type OptionChoice = { id: string; name: string; kind: "home" | "restaurant" };
 

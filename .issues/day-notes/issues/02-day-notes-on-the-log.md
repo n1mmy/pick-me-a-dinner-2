@@ -1,6 +1,6 @@
 # 02 — Day notes on the Log
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -29,11 +29,19 @@ Show and edit Day notes on the Log screen. Depends on 01, which adds the
 
 ## Acceptance criteria
 
-- [ ] `groupByDay` tests: a note-only date forms a record; a Day note attaches
+- [x] `groupByDay` tests: a note-only date forms a record; a Day note attaches
       to a date that has entries or Rejections; notes on past, today, and future
       dates land in History or Upcoming correctly
-- [ ] The Log query returns all Day notes (DB test)
-- [ ] The Log shows a Day note under its date header and edits it in place
-- [ ] "+ Add a note" appears only on groups without a Day note
-- [ ] A Log holding only Day notes doesn't show "No dinners logged yet"
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] The Log query returns all Day notes (DB test)
+- [x] The Log shows a Day note under its date header and edits it in place
+- [x] "+ Add a note" appears only on groups without a Day note
+- [x] A Log holding only Day notes doesn't show "No dinners logged yet"
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+
+## Comments
+
+- Done. The per-group add control reads "+ Note", not "+ Add a note": the
+  sibling buttons were renamed "+ Dinner" / "+ Rejection" after this spec was
+  written, so it matches them. Query is `getDayNotes` (newest first). The Log UI
+  criteria were checked with a throwaway jsdom render, not a committed test,
+  per the PRD's "no Log render test".

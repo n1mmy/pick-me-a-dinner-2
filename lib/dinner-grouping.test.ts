@@ -102,3 +102,59 @@ describe("groupByDay — interleaved Log entries and Rejections", () => {
     expect(groupByDay([], [], today)).toEqual({ upcoming: [], history: [] });
   });
 });
+
+/** A Day-note-shaped fixture — `{ notedOn, note }`, as the Log query returns. */
+function dayNote(notedOn: string, note: string) {
+  return { notedOn, note };
+}
+
+describe("groupByDay — Day notes", () => {
+  const today = "2026-05-17";
+
+  it("forms a record for a date with only a Day note", () => {
+    const { history } = groupByDay([], [], today, [
+      dayNote("2026-05-15", "Guests over"),
+    ]);
+    expect(history).toHaveLength(1);
+    expect(history[0].date).toBe("2026-05-15");
+    expect(history[0].entries).toEqual([]);
+    expect(history[0].rejections).toEqual([]);
+    expect(history[0].dayNote).toBe("Guests over");
+  });
+
+  it("attaches a Day note to a date that has Log entries and Rejections", () => {
+    const { history } = groupByDay(
+      [entry("e1", "2026-05-16")],
+      [rejection("r1", "2026-05-16")],
+      today,
+      [dayNote("2026-05-16", "Jen won't be around")],
+    );
+    expect(history).toHaveLength(1);
+    expect(history[0].entries.map((e) => e.id)).toEqual(["e1"]);
+    expect(history[0].rejections.map((r) => r.id)).toEqual(["r1"]);
+    expect(history[0].dayNote).toBe("Jen won't be around");
+  });
+
+  it("places past and today's Day notes in History and future ones in Upcoming", () => {
+    const { upcoming, history } = groupByDay([], [], today, [
+      dayNote("2026-05-22", "Guests over"),
+      dayNote("2026-05-17", "Late back"),
+      dayNote("2026-05-10", "Pizza night"),
+    ]);
+    expect(upcoming.map((r) => [r.date, r.dayNote])).toEqual([
+      ["2026-05-22", "Guests over"],
+    ]);
+    expect(history.map((r) => [r.date, r.dayNote])).toEqual([
+      ["2026-05-17", "Late back"],
+      ["2026-05-10", "Pizza night"],
+    ]);
+  });
+
+  it("leaves dayNote unset on a date without one", () => {
+    const { history } = groupByDay([entry("e1", "2026-05-16")], [], today, [
+      dayNote("2026-05-15", "Guests over"),
+    ]);
+    expect(history.find((r) => r.date === "2026-05-16")?.dayNote).toBeUndefined();
+  });
+});
+

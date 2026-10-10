@@ -89,7 +89,8 @@ The optional single-line free-text note the Household attaches to a calendar
 date — a fact about that evening, not about any Option ("Jen won't be around",
 "guests over", "late back from the airport"). It needs no Log entry, Rejection,
 or Pick, so it can be written ahead for a future night. It is shown and edited
-under Tonight's heading for the **Selected day**. It never changes a **Score** or
+under Tonight's heading for the **Selected day**, and under its date on the
+**Log** — a date with only a Day note still gets its own date group. It never changes a **Score** or
 a suppression, never decides Tonight, and is never a **Last note**. Clearing its
 text deletes it. UI copy says "Note for Friday"; code and docs say Day note.
 _Avoid_: **Note** (a Log entry's, about that night's eating of one Option) and

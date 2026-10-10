@@ -75,9 +75,10 @@ export function DayNoteLine({
 /**
  * The Day note's inline editor — the decided row's note-editor pattern
  * (`NoteForm`), on a single-line field because a Day note is one line.
- * Escape cancels like the Cancel button; a failed save shows inline.
+ * Escape cancels like the Cancel button; a failed save shows inline. Exported
+ * for the Log, which opens it from its own per-date "+ Note" button.
  */
-function DayNoteForm({
+export function DayNoteForm({
   notedOn,
   note,
   label,
