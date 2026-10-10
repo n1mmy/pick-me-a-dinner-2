@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type FormEvent, useId, useState, useTransition } from "react";
 import type {
+  DayNoteRow,
   LogEntryRow,
   LogRejectionRow,
   OptionChoice,
@@ -12,6 +13,7 @@ import {
   formatDinnerDate,
   groupByDay,
 } from "../../lib/dinner-grouping";
+import { DayNoteForm, DayNoteLine } from "../day-note-line";
 import { escapeToCancel } from "../escape-to-cancel";
 import { focusRing } from "../focus-ring";
 import { OptionCombobox } from "../option-combobox";
@@ -41,22 +43,31 @@ const UPCOMING_CAP = 5;
 export function LogScreen({
   entries,
   rejections,
+  dayNotes,
   optionChoices,
   today,
 }: {
   entries: LogEntryRow[];
   rejections: LogRejectionRow[];
+  /** Every Day note (PRD: Day notes) — shown under its date group's header. */
+  dayNotes: DayNoteRow[];
   optionChoices: OptionChoice[];
   today: string;
 }) {
   // `entries` and `rejections` both arrive newest-date first; `groupByDay`
   // interleaves them into per-date records, Upcoming soonest-first and History
   // newest-first.
-  const { upcoming, history } = groupByDay(entries, rejections, today);
+  const { upcoming, history } = groupByDay(
+    entries,
+    rejections,
+    today,
+    dayNotes,
+  );
   const shownUpcoming = upcoming.slice(0, UPCOMING_CAP);
   const hiddenUpcoming = upcoming.length - shownUpcoming.length;
 
-  const isEmpty = entries.length === 0 && rejections.length === 0;
+  const isEmpty =
+    entries.length === 0 && rejections.length === 0 && dayNotes.length === 0;
 
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
@@ -191,10 +202,15 @@ function TopAddControls({
 
 /**
  * One date-group: a date header above that date's interleaved Log entry rows
- * and Rejection rows, plus per-group "Add a dinner" / "Add a rejection"
- * controls with the date pre-filled to this group's date (PRD: Dated
- * Rejections — per-date-group add controls). Log entries render first, then
- * Rejections; a Rejection-only group shows just its Rejections.
+ * and Rejection rows, plus per-group "+ Dinner" / "+ Rejection" controls with
+ * the date pre-filled to this group's date (PRD: Dated Rejections —
+ * per-date-group add controls). Log entries render first, then Rejections; a
+ * Rejection-only group shows just its Rejections.
+ *
+ * The date's Day note (PRD: Day notes) sits directly under the header, above
+ * the rows, as context for the whole evening — the same `DayNoteLine` Tonight
+ * uses, editable in place. A group without one offers a third "+ Note"
+ * control beside the other two, opening the same editor.
  */
 function DayGroup({
   record,
@@ -207,7 +223,9 @@ function DayGroup({
   today: string;
   isFirst: boolean;
 }) {
-  const [open, setOpen] = useState<"none" | "dinner" | "rejection">("none");
+  const [open, setOpen] = useState<"none" | "dinner" | "rejection" | "note">(
+    "none",
+  );
 
   return (
     <div
@@ -220,6 +238,14 @@ function DayGroup({
       <h3 className="text-chip font-emphasis text-muted">
         {formatDinnerDate(record.date, today)}
       </h3>
+      {record.dayNote !== undefined && (
+        <DayNoteLine
+          notedOn={record.date}
+          note={record.dayNote}
+          label="Note"
+          addLabel="+ Note"
+        />
+      )}
       {/* gap-[2px] (off-scale, like the 3px kind bar — a rule weight, not a
           layout step) separates rows with a sliver of `bg` instead of a
           divider: every entry/rejection row already carries a kind- or
@@ -257,6 +283,15 @@ function DayGroup({
               onSaved={() => setOpen("none")}
             />
           </div>
+        ) : open === "note" ? (
+          <div className="py-2">
+            <DayNoteForm
+              notedOn={record.date}
+              note={null}
+              label="Note"
+              onClose={() => setOpen("none")}
+            />
+          </div>
         ) : (
           <div className="flex flex-wrap gap-2">
             <button
@@ -273,6 +308,15 @@ function DayGroup({
             >
               + Rejection
             </button>
+            {record.dayNote === undefined && (
+              <button
+                type="button"
+                onClick={() => setOpen("note")}
+                className={groupButtonClass}
+              >
+                + Note
+              </button>
+            )}
           </div>
         ))}
     </div>

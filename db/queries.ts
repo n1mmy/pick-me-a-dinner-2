@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, lte } from "drizzle-orm";
 import { db } from "./index";
 import {
+  dayNotes,
   dinnerLog,
   optionTags,
   options,
@@ -191,11 +192,15 @@ export type NotedTonightLogRow = TonightLogRow & { createdAt: Date };
  * Tonight — decided mode): `created_at` gives the pick order, `id` is the
  * handle the decided row's "Remove" deletes, and `note` is what the row's
  * inline note editor shows and edits.
+ *
+ * `dayNote` is the date's **Day note** text, or `null` when it has none (PRD:
+ * Day notes) — context for the evening that touches no ranking input.
  */
 export async function getTonightData(todaySqlDate: string): Promise<{
   options: TonightOption[];
   logEntries: NotedTonightLogRow[];
   todayEntries: TodayLogEntry[];
+  dayNote: string | null;
 }> {
   const active = await db
     .select()
@@ -233,6 +238,11 @@ export async function getTonightData(todaySqlDate: string): Promise<{
     .from(dinnerLog)
     .where(eq(dinnerLog.eatenOn, todaySqlDate));
 
+  const [dayNote] = await db
+    .select({ note: dayNotes.note })
+    .from(dayNotes)
+    .where(eq(dayNotes.notedOn, todaySqlDate));
+
   return {
     options: active.map((option) => ({
       id: option.id,
@@ -246,6 +256,7 @@ export async function getTonightData(todaySqlDate: string): Promise<{
     })),
     logEntries,
     todayEntries,
+    dayNote: dayNote?.note ?? null,
   };
 }
 
@@ -473,6 +484,25 @@ export async function getOptionRejections(
     .innerJoin(options, eq(rejections.optionId, options.id))
     .where(eq(rejections.optionId, optionId))
     .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
+}
+
+/** A **Day note** as the Log and AI search read it (PRD: Day notes). */
+export type DayNoteRow = {
+  /** `noted_on` as a SQL `date` string (`"YYYY-MM-DD"`); may be past or future. */
+  notedOn: string;
+  note: string;
+};
+
+/**
+ * Every Day note — past, today, and future — ordered newest `noted_on` first,
+ * the same order as `getLog`. The Log screen folds these into its date
+ * groups; AI search reads them as dated history.
+ */
+export async function getDayNotes(): Promise<DayNoteRow[]> {
+  return db
+    .select({ notedOn: dayNotes.notedOn, note: dayNotes.note })
+    .from(dayNotes)
+    .orderBy(desc(dayNotes.notedOn));
 }
 
 /** An Option reduced to a choice for the Log edit form's Option picker. */

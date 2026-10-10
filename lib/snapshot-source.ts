@@ -1,5 +1,5 @@
 /**
- * The AI snapshot's read-and-map adapter (ADR-0008) — the one place the three
+ * The AI snapshot's read-and-map adapter (ADR-0008) — the one place the four
  * DB reads that feed `buildSnapshot` (`lib/ai-search.ts`) are made and mapped
  * into its input shape.
  *
@@ -18,6 +18,7 @@
  * eval run) passes it explicitly rather than this module defaulting to one.
  */
 import {
+  getDayNotes,
   getFullLogForSnapshot,
   getRejections,
   getTonightData,
@@ -37,9 +38,10 @@ export type SnapshotSource = BuiltSnapshot & {
 
 /**
  * Build the AI snapshot for `asOf` — the anchor day (ADR-0009) — and `query`.
- * Owns the three reads `buildSnapshot` needs (the active Catalog and its
+ * Owns the four reads `buildSnapshot` needs (the active Catalog and its
  * non-future Log via `getTonightData`, the full Log via
- * `getFullLogForSnapshot`, and `getRejections`), the `SnapshotOption` /
+ * `getFullLogForSnapshot`, `getRejections`, and every Day note via
+ * `getDayNotes`), the `SnapshotOption` /
  * `SnapshotLogEntry` mapping, and the `buildSnapshot` call itself.
  *
  * The Log passed to `buildSnapshot` is the **full** Log
@@ -54,10 +56,11 @@ export async function snapshotForDay({
   asOf: string;
   query: string;
 }): Promise<SnapshotSource> {
-  const [{ options }, logEntries, rejections] = await Promise.all([
+  const [{ options }, logEntries, rejections, dayNotes] = await Promise.all([
     getTonightData(asOf),
     getFullLogForSnapshot(),
     getRejections(),
+    getDayNotes(),
   ]);
 
   const { snapshot, idByIndex } = buildSnapshot({
@@ -75,6 +78,7 @@ export async function snapshotForDay({
       note: entry.note,
     })),
     rejections,
+    dayNotes,
     asOf,
     query,
   });

@@ -25,6 +25,7 @@ import {
   type TagFilters,
 } from "../lib/picker-view";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
+import { DayNoteLine } from "./day-note-line";
 import { DayNameReset, DayStepper } from "./day-stepper";
 import type { SuppressedRows, TonightChoice } from "../lib/picker-view";
 import { OptionForm } from "./catalog/option-form";
@@ -113,6 +114,7 @@ export function TonightScreen({
   rejectedRows = [],
   selectedDay,
   todaySql,
+  dayNote = null,
   quickAddSources = NO_QUICK_ADD_SOURCES,
 }: {
   /** The Picked Options, in pick order — non-empty puts Tonight in decided mode. */
@@ -170,6 +172,12 @@ export function TonightScreen({
   selectedDay: string;
   /** Today's SQL date in the Household's `APP_TZ`. */
   todaySql: string;
+  /**
+   * The Selected day's **Day note** (PRD: Day notes), or `null` when it has
+   * none. Shown under the heading in every mode; it never touches the ranking,
+   * the suppressions, or decided mode.
+   */
+  dayNote?: string | null;
   quickAddSources?: QuickAddSources;
 }) {
   const isToday = selectedDay === todaySql;
@@ -355,11 +363,23 @@ export function TonightScreen({
           held it, which needed `justify-start` on desktop to keep the three
           together instead of spread edge-to-edge; with only two items left,
           the stepper stays right at every width.) */}
-      <div className="flex w-full items-center justify-between gap-2">
-        <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
-          <DayNameReset heading={heading} />
-        </h1>
-        <DayStepper selectedDay={selectedDay} todaySql={todaySql} />
+      {/* The Day note line rides in the heading block, gap-free, as a
+          subtitle under the H1 — not as its own section paying the 22px
+          section gap (DESIGN.md, "Day note line"). */}
+      <div className="flex flex-col">
+        <div className="flex w-full items-center justify-between gap-2">
+          <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
+            <DayNameReset heading={heading} />
+          </h1>
+          <DayStepper selectedDay={selectedDay} todaySql={todaySql} />
+        </div>
+        <DayNoteLine
+          notedOn={selectedDay}
+          note={dayNote}
+          label={`Note for ${dayLabel}`}
+          addLabel={`+ Note for ${dayLabel}`}
+          placement="header"
+        />
       </div>
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}

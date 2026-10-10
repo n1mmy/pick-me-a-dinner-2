@@ -38,7 +38,7 @@ export default async function TonightPage({
   // works with a validated SQL date — past / malformed / missing → today.
   const selectedDay = parseSelectedDay(rawDay, todaySql);
   const [
-    { options, logEntries, todayEntries },
+    { options, logEntries, todayEntries, dayNote },
     anchorRejections,
     allTags,
     archivedOptions,
@@ -75,6 +75,7 @@ export default async function TonightPage({
       searchEnabled={aiSearchEnabled()}
       selectedDay={selectedDay}
       todaySql={todaySql}
+      dayNote={dayNote}
       quickAddSources={{
         allTags,
         placesEnabled: placesEnabled(),

@@ -49,6 +49,11 @@ vi.mock("./catalog/actions", () => ({
   createOption: vi.fn(async () => ({ ok: true, id: "new-id" })),
   updateOption: vi.fn(async () => ({ ok: true })),
 }));
+// The Day note line's one write (PRD: Day notes) — stubbed so the screen
+// never pulls in the database client, and so a save can be asserted on it.
+vi.mock("./day-note-actions", () => ({
+  setDayNote: vi.fn(async () => ({ ok: true })),
+}));
 // Both day-navigation controls use Next.js router hooks (`useRouter`,
 // `useSearchParams`, `usePathname`) that aren't wired up in this jsdom render.
 // Each has its own (intentionally tiny) surface and no behaviour these
@@ -63,12 +68,14 @@ import type { AiSearchResult } from "../lib/ai-search";
 import { aiSearchAction } from "./tonight-search-client";
 import { deleteLogEntry, pickTonight } from "./log/actions";
 import { createOption } from "./catalog/actions";
+import { setDayNote } from "./day-note-actions";
 import { TonightScreen } from "./tonight-screen";
 
 const mockedAiSearch = vi.mocked(aiSearchAction);
 const mockedDelete = vi.mocked(deleteLogEntry);
 const mockedPick = vi.mocked(pickTonight);
 const mockedCreate = vi.mocked(createOption);
+const mockedSetDayNote = vi.mocked(setDayNote);
 
 /**
  * A deterministic Tonight row. `tags` are the Option's Tags, which drive the
@@ -1838,3 +1845,158 @@ describe("TonightScreen — empty-picker copy", () => {
     ).toBeNull();
   });
 });
+
+describe("TonightScreen — Day note", () => {
+  // Every Tonight mode: picker, decided, and every Option unavailable.
+  const MODES: [
+    string,
+    {
+      tonightsDinner: TonightsDinnerEntry[];
+      pickerRows: TonightRow[];
+      allFiltered?: boolean;
+    },
+  ][] = [
+    ["picker mode", { tonightsDinner: [], pickerRows: ROWS }],
+    ["decided mode", { tonightsDinner: DINNER, pickerRows: ROWS }],
+    [
+      "the all-filtered state",
+      { tonightsDinner: [], pickerRows: [], allFiltered: true },
+    ],
+  ];
+
+  it.each(MODES)("shows the Selected day's Day note in %s", (_, mode) => {
+    render(
+      <TonightScreen
+        selectedDay="2026-05-20"
+        todaySql="2026-05-20"
+        searchEnabled={false}
+        dayNote="Jen won't be around"
+        {...mode}
+      />,
+    );
+    expect(screen.getByText("Jen won't be around")).toBeTruthy();
+  });
+
+  it.each([
+    ["today", "2026-10-10", "+ Note for tonight"],
+    ["another day", "2026-10-16", "+ Note for Friday"],
+  ])(
+    "offers a day-aware add button when %s has no Day note",
+    (_, selectedDay, label) => {
+      render(
+        <TonightScreen
+          selectedDay={selectedDay}
+          todaySql="2026-10-10"
+          tonightsDinner={[]}
+          pickerRows={ROWS}
+          searchEnabled={false}
+          dayNote={null}
+        />,
+      );
+      expect(screen.getByRole("button", { name: label })).toBeTruthy();
+    },
+  );
+
+  it("edits the Day note in place and saves it for the Selected day", async () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-16"
+        todaySql="2026-10-10"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+        dayNote="Jen won't be around"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Jen won't be around" }));
+    const field = screen.getByLabelText("Note for Friday") as HTMLInputElement;
+    expect(field.value).toBe("Jen won't be around");
+    fireEvent.change(field, { target: { value: "Guests over" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(mockedSetDayNote).toHaveBeenCalledWith("2026-10-16", "Guests over");
+    });
+    // A successful save closes the editor; revalidation brings the new note.
+    await waitFor(() => {
+      expect(screen.queryByLabelText("Note for Friday")).toBeNull();
+    });
+  });
+
+  it("adds a Day note for tonight from the absent-state button", async () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-10"
+        todaySql="2026-10-10"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+        dayNote={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Note for tonight" }));
+    fireEvent.change(screen.getByLabelText("Note for tonight"), {
+      target: { value: "Late back from the airport" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(mockedSetDayNote).toHaveBeenCalledWith(
+        "2026-10-10",
+        "Late back from the airport",
+      );
+    });
+  });
+
+  it.each([
+    ["Ctrl+Enter", { ctrlKey: true }],
+    ["Cmd+Enter", { metaKey: true }],
+  ])("saves the Day note on %s, like every other text field", async (_, mods) => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-16"
+        todaySql="2026-10-10"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+        dayNote={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Note for Friday" }));
+    const field = screen.getByLabelText("Note for Friday");
+    fireEvent.change(field, { target: { value: "Guests over" } });
+    fireEvent.keyDown(field, { key: "Enter", ...mods });
+
+    await waitFor(() => {
+      expect(mockedSetDayNote).toHaveBeenCalledWith("2026-10-16", "Guests over");
+    });
+  });
+
+  it("cancels an edit on Escape without saving", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-16"
+        todaySql="2026-10-10"
+        tonightsDinner={[]}
+        pickerRows={ROWS}
+        searchEnabled={false}
+        dayNote="Jen won't be around"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Jen won't be around" }));
+    const field = screen.getByLabelText("Note for Friday");
+    fireEvent.change(field, { target: { value: "Guests over" } });
+    fireEvent.keyDown(field, { key: "Escape" });
+
+    expect(screen.queryByLabelText("Note for Friday")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Jen won't be around" }),
+    ).toBeTruthy();
+    expect(mockedSetDayNote).not.toHaveBeenCalled();
+  });
+});
+

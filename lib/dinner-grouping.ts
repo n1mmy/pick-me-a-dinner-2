@@ -42,9 +42,9 @@ export function formatDinnerDate(sqlDate: string, today: string): string {
 
 /**
  * A DayRecord: one calendar date carrying that date's Dinner — its Log entries
- * — and that date's Rejections. A date with only Rejections (no Dinner) still
- * forms a record, so a Rejection-only night is never invisible (PRD: Dated
- * Rejections on the Log).
+ * — that date's Rejections, and its Day note. A date with only Rejections (no
+ * Dinner), or only a Day note, still forms a record, so such a night is never
+ * invisible (PRD: Dated Rejections on the Log; PRD: Day notes).
  */
 export type DayRecord<E extends { eatenOn: string }, R extends { rejectedOn: string }> = {
   /** The SQL date (`"YYYY-MM-DD"`) shared by every entry and Rejection here. */
@@ -53,13 +53,16 @@ export type DayRecord<E extends { eatenOn: string }, R extends { rejectedOn: str
   entries: E[];
   /** The date's Rejections, in the caller's input order. */
   rejections: R[];
+  /** The date's **Day note** text, when it has one (PRD: Day notes). */
+  dayNote?: string;
 };
 
 /**
  * Group a newest-first Log and the Rejection list into per-date DayRecords,
  * split into Upcoming (`date > today`) and History (`date <= today`). Log
  * entries and Rejections sharing a date land in one record; a date with only
- * Rejections still forms a record. The split is exact at the today boundary —
+ * Rejections, or only a Day note, still forms a record. `dayNotes` is
+ * optional — the Option detail page groups without them. The split is exact at the today boundary —
  * a record dated today is History, a record dated tomorrow is Upcoming.
  * Upcoming is returned soonest-first so the nearest plan reads at the top;
  * History stays newest-first.
@@ -74,6 +77,7 @@ export function groupByDay<
   entries: E[],
   rejections: R[],
   today: string,
+  dayNotes: { notedOn: string; note: string }[] = [],
 ): { upcoming: DayRecord<E, R>[]; history: DayRecord<E, R>[] } {
   const byDate = new Map<string, DayRecord<E, R>>();
 
@@ -92,6 +96,7 @@ export function groupByDay<
   for (const rejection of rejections) {
     record(rejection.rejectedOn).rejections.push(rejection);
   }
+  for (const dayNote of dayNotes) record(dayNote.notedOn).dayNote = dayNote.note;
 
   const all = [...byDate.values()];
   return {

@@ -250,6 +250,37 @@ the chip row: age then text (`18d · got the katsu curry`).
   The one place a mono numeral slants.
 - AI search rows omit it — the rationale line is already the row's aside.
 
+### Day note line
+
+A date's Day note sits directly under Tonight's H1/stepper row, before the
+main content, in every mode (picker, decided, nothing available), and on the
+Log directly under its date group's header, above the rows — context for the
+whole evening, so it is never inside a row or the decided block. One
+component (`DayNoteLine`) on both screens.
+
+- **On Tonight it is the H1's subtitle**, not its own section: it rides in
+  the heading block with no gap, so it never pays the 22px section gap. Its
+  resting 44px tap area bleeds 22px down into the section gap below
+  (`-mb-5.5` — exactly the gap, never into the content) so the line costs
+  ~22px, not 66px. It cannot bleed up: the H1 is itself a button. The add
+  button also bleeds 12px left into the column padding so its text lines up
+  with the H1. The open editor stays in normal flow, 8px under the header.
+  On the Log the line sits directly above interactive rows, so it keeps
+  plain flow there.
+- **With a note:** `muted` body text, upright — it is today's context, not
+  reported speech, so it does not borrow the Last note's italic. The text
+  itself is the tap target (44px floor) that opens the editor; no separate
+  edit button.
+- **Without one:** a borderless, unfilled `chip`-size button, the Log's
+  per-day add style. On Tonight it takes the note's place — "+ Note for
+  tonight" / "+ Note for Friday", the same day-aware wording as the Rejected
+  and Closed disclosures. On the Log it is a third "+ Note" beside "+ Dinner"
+  and "+ Rejection" (the group header already names the day), and opens its
+  editor where those open theirs.
+- **Editing** follows the decided row's note editor — labelled field, Save /
+  Cancel, Escape cancels, `.expand-in` — but on a single-line `input`, since
+  a Day note is one line. Saving it empty deletes the note.
+
 ### Tonight filter zone
 
 Tonight's sticky filter zone holds every filter on one `flex-wrap` line:

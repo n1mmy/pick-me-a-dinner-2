@@ -1,4 +1,5 @@
 import {
+  getDayNotes,
   getLog,
   getLogRejections,
   getOptionChoices,
@@ -14,15 +15,17 @@ export const dynamic = "force-dynamic";
 
 export default async function LogPage() {
   const todaySql = today();
-  const [entries, rejections, optionChoices] = await Promise.all([
+  const [entries, rejections, dayNotes, optionChoices] = await Promise.all([
     getLog(),
     getLogRejections(),
+    getDayNotes(),
     getOptionChoices(),
   ]);
   return (
     <LogScreen
       entries={entries}
       rejections={rejections}
+      dayNotes={dayNotes}
       optionChoices={optionChoices}
       today={todaySql}
     />
