@@ -1,6 +1,6 @@
 # Spec: Day notes
 
-Status: ready-for-agent
+Status: done
 
 Vocabulary: [`CONTEXT.md`](../../CONTEXT.md) — **Day note** (new, added by this
 spec), **Note**, **Option notes**, **Last note**, **Dinner**, **Log entry**,
