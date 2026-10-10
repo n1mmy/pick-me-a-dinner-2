@@ -25,6 +25,7 @@ import {
   type TagFilters,
 } from "../lib/picker-view";
 import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
+import { DayNoteLine } from "./day-note-line";
 import { DayNameReset, DayStepper } from "./day-stepper";
 import type { SuppressedRows, TonightChoice } from "../lib/picker-view";
 import { OptionForm } from "./catalog/option-form";
@@ -113,6 +114,7 @@ export function TonightScreen({
   rejectedRows = [],
   selectedDay,
   todaySql,
+  dayNote = null,
   quickAddSources = NO_QUICK_ADD_SOURCES,
 }: {
   /** The Picked Options, in pick order — non-empty puts Tonight in decided mode. */
@@ -170,6 +172,12 @@ export function TonightScreen({
   selectedDay: string;
   /** Today's SQL date in the Household's `APP_TZ`. */
   todaySql: string;
+  /**
+   * The Selected day's **Day note** (PRD: Day notes), or `null` when it has
+   * none. Shown under the heading in every mode; it never touches the ranking,
+   * the suppressions, or decided mode.
+   */
+  dayNote?: string | null;
   quickAddSources?: QuickAddSources;
 }) {
   const isToday = selectedDay === todaySql;
@@ -361,6 +369,12 @@ export function TonightScreen({
         </h1>
         <DayStepper selectedDay={selectedDay} todaySql={todaySql} />
       </div>
+      <DayNoteLine
+        notedOn={selectedDay}
+        note={dayNote}
+        label={`Note for ${dayLabel}`}
+        addLabel={`+ Note for ${dayLabel}`}
+      />
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}
       </p>

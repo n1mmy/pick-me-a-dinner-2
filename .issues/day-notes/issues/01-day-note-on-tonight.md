@@ -1,6 +1,6 @@
 # 01 — A Day note on Tonight
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -42,16 +42,22 @@ A Day note never affects ranking, suppressions, decided mode, or Last notes.
 
 ## Acceptance criteria
 
-- [ ] Migration adds `day_notes` with the unique `noted_on`
-- [ ] DB tests: insert; overwrite on the same date; empty clears; whitespace-only
+- [x] Migration adds `day_notes` with the unique `noted_on`
+- [x] DB tests: insert; overwrite on the same date; empty clears; whitespace-only
       clears; clearing an absent note does nothing; one row per date; that
       date's Log entries and Rejections are untouched
-- [ ] `getTonightData` returns the Selected day's Day note, or null when absent
+- [x] `getTonightData` returns the Selected day's Day note, or null when absent
       (DB test)
-- [ ] Tonight screen tests: the note renders in picker mode, decided mode, and
+- [x] Tonight screen tests: the note renders in picker mode, decided mode, and
       the all-filtered state; the absent state shows "+ Note for tonight" or
       "+ Note for Friday"; saving calls `setDayNote` with the Selected day and
       text; Escape cancels
-- [ ] Existing ranking and Last note tests pass unchanged
-- [ ] `DESIGN.md` and `CONTEXT.md` updated in the same commit
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] Existing ranking and Last note tests pass unchanged
+- [x] `DESIGN.md` and `CONTEXT.md` updated in the same commit
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+
+## Comments
+
+- Done. `setDayNote` lives in `app/day-note-actions.ts`; the reusable line is
+  `DayNoteLine` in `app/day-note-line.tsx` (props `notedOn`, `note`, `label`,
+  `addLabel` — issue 02 passes "+ Add a note" as `addLabel`).

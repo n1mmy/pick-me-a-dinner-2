@@ -159,3 +159,21 @@ export const rejections = pgTable(
 
 /** A Rejection row as stored. */
 export type Rejection = typeof rejections.$inferSelect;
+
+/**
+ * Day notes (PRD: Day notes). A **Day note** is one optional, single-line note
+ * about the Household's evening on a calendar date — "Jen won't be around",
+ * "guests over" — independent of any Log entry, Rejection, or Pick. The unique
+ * `noted_on` enforces "a date carries zero or one Day note"; an absent Day note
+ * is an absent row, never an empty string. It never feeds the Score, a
+ * suppression, or a Last note.
+ */
+export const dayNotes = pgTable("day_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /** The Household's calendar day in `APP_TZ` the note is about. */
+  notedOn: date("noted_on").notNull().unique(),
+  note: text("note").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
