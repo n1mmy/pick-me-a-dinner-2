@@ -1,6 +1,6 @@
 # 01 — Store and prepare a Prepared note
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -55,21 +55,24 @@ model for one. Nothing calls it yet; issue 02 adds the sweep and the loop.
 
 ## Acceptance criteria
 
-- [ ] Migration `0006` adds `prepared_notes` with the unique `prepared_for`
-- [ ] `preparedNotesEnabled()` is false when either required var is unset or
+- [x] Migration `0006` adds `prepared_notes` with the unique `prepared_for`
+- [x] `preparedNotesEnabled()` is false when either required var is unset or
       empty, true when both are set (unit test)
-- [ ] `parsePreparedReply` tests: a good reply yields the trimmed brief and rows
+- [x] `parsePreparedReply` tests: a good reply yields the trimmed brief and rows
       in order; missing marker, empty brief, no parseable rows, and a `NONE`
       body each yield unavailable
-- [ ] Client tests with a stubbed `fetch` (prior art: `lib/places.test.ts`):
+- [x] Client tests with a stubbed `fetch` (prior art: `lib/places.test.ts`):
       success; non-2xx; network error; timeout; missing `content`;
       unparseable reply — each failure returns `{ ok: false }`; the request
       carries the model, both messages, `max_tokens`, and the bearer key when
       set; one log line is written per call
-- [ ] The built prompt contains the marker instruction, the rhythm-claim rule,
+- [x] The built prompt contains the marker instruction, the rhythm-claim rule,
       and no Claude token-economy instruction (unit test)
-- [ ] No test calls Strata; existing ranking and AI search tests pass unchanged
-- [ ] `.env.example` documents the three vars; `lib/check-env.ts` unchanged
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
+- [x] No test calls Strata; existing ranking and AI search tests pass unchanged
+- [x] `.env.example` documents the three vars; `lib/check-env.ts` unchanged
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
 ## Comments
+
+- Done. `day_notes` has no `updated_at`, so the table carries `id` and `created_at` like it; `prepared_at` marks the last write, and every column except `prepared_for` is nullable so `claimDay` can insert a lease-only row.
+- Open for issue 03: `parseRankingText` cuts each rationale at ~200 characters, which will clip the two-or-three-sentence strong picks. A length option on it (Claude path keeps its default) is the likely fix.
