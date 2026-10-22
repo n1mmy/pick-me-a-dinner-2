@@ -1,6 +1,6 @@
 # 02 — The background sweep and loop
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -44,20 +44,20 @@ No queue, retry backoff, CronJob, leader election, or version history.
 
 ## Acceptance criteria
 
-- [ ] `eligibleDays` tests: seven dates from today in `APP_TZ`, today first;
+- [x] `eligibleDays` tests: seven dates from today in `APP_TZ`, today first;
       decided dates removed; a timezone-edge "today" handled
-- [ ] `inputHash` tests: changes with the snapshot, the model, or the prompt
+- [x] `inputHash` tests: changes with the snapshot, the model, or the prompt
       version; stable otherwise
-- [ ] DB tests (`*.db.test.ts`): two simultaneous `claimDay` calls produce one
+- [x] DB tests (`*.db.test.ts`): two simultaneous `claimDay` calls produce one
       winner; a live claim blocks; an expired claim can be retaken;
       `storeNote` writes and clears the claim; `releaseClaim` keeps the
       previous note
-- [ ] `runSweep` test with a stubbed client: unchanged days are skipped, changed
+- [x] `runSweep` test with a stubbed client: unchanged days are skipped, changed
       days are stored, a failed `prepare` releases and keeps the prior note,
       decided days are never prepared
-- [ ] The loop starts only in production with the feature enabled, and ticks
+- [x] The loop starts only in production with the feature enabled, and ticks
       never overlap
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
       (`test:db` isn't in the Ralph gate — note in Comments whether it was run)
 
 ## Blocked by
@@ -65,3 +65,7 @@ No queue, retry backoff, CronJob, leader election, or version history.
 - Issue 01 (table, client, prompt version)
 
 ## Comments
+
+- Done. `test:db` was run and passes (116 tests, 13 new in `lib/prepared-notes-job.db.test.ts`). `getPreparedNote(date)` landed in `db/queries.ts` here, ahead of issue 05, so the DB tests read notes back through it.
+- Any input change regenerates all seven dates, not just one: every date's snapshot carries the full Log and every Day note. The loop also catches a thrown sweep so it never surfaces as an unhandled rejection.
+- Not yet run: a real sweep against Strata with the loop forced on (plan's Slice 1 verify step).
