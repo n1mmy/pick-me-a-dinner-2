@@ -228,8 +228,9 @@ list; an AI view lets rationales run to full length (see AI layers).
   step the rail takes ~200px and the column is briefly narrower than its
   mobile cap — going denser at that same point squeezes the row twice.
 - **AI rows** — a Claude AI search result or a Prepared ranking — carry the
-  model's rationale line (`chip` size, `muted`, on a `raised` surface) in
-  place of the Last note.
+  model's rationale line (`chip` size, `muted`, on a `raised` surface). A
+  Claude row shows it in place of the Last note; a Prepared row keeps its
+  Last note line too (see Last note line).
 
 ### Last note line
 
@@ -250,7 +251,11 @@ the chip row: age then text (`18d · got the katsu curry`).
 - **Italic**, age and text alike, wherever Tonight shows it: reported speech
   from another night, marked as an aside without another size or color step.
   The one place a mono numeral slants.
-- AI rows omit it — the rationale line is already the row's aside.
+- **Claude AI search rows omit it** — the rationale line is already the
+  row's aside, and the search is a deliberate, one-off look.
+- **Prepared ranking rows keep it**, in its usual place under the chip row,
+  with the rationale below. The Prepared ranking is what Tonight loads with,
+  so dropping the line there would hide every prior night's note by default.
 
 ### Day note line
 

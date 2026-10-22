@@ -1051,12 +1051,11 @@ function Picker({
                   key={row.option.id}
                   row={row}
                   rank={rankOf.get(row.option.id) ?? 0}
-                  // A Prepared row is an AI row: its rationale stands in for
-                  // the Last note (DESIGN.md, "Last note line").
+                  // A Prepared row keeps its Last note above the rationale:
+                  // this is the default view, so dropping it would hide
+                  // every prior night's note on load (DESIGN.md, "Last note line").
                   aiReason={prepared?.reasons.get(row.option.id)}
-                  lastNote={
-                    prepared === null ? lastNotes.get(row.option.id) : undefined
-                  }
+                  lastNote={lastNotes.get(row.option.id)}
                   selectedDay={isToday ? undefined : selectedDay}
                   onRejected={(name) =>
                     setRejectNotice(`Rejected ${name}, removed from the list.`)

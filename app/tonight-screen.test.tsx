@@ -2043,6 +2043,34 @@ describe("TonightScreen — Prepared note", () => {
     expect(screen.getByRole("button", { name: "Show ranked list" })).toBeTruthy();
   });
 
+  it("keeps each row's Last note on the Prepared ranking, above its rationale", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        lastNotes={new Map([["o2", { text: "too dry last time", daysAgo: 9 }]])}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    // The Prepared ranking is the default view, so dropping the Last note
+    // there would hide every prior night's note on load.
+    const bananaRow = screen.getByText("Banana Bread").closest("li") as HTMLElement;
+    const note = within(bananaRow).getByRole("button", {
+      name: "Last note, 9d ago: too dry last time",
+    });
+    const reason = within(bananaRow).getByText(
+      "Quick, and nobody has had it this week.",
+    );
+    expect(
+      note.compareDocumentPosition(reason) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^Last note,/ })).toHaveLength(1);
+  });
+
   it("steps back to the deterministic list on Show ranked list", () => {
     render(
       <TonightScreen
