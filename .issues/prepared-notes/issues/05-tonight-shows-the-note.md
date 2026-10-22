@@ -41,20 +41,20 @@ Claude AI search path.
 
 ## Acceptance criteria
 
-- [ ] `getPreparedNote` returns the stored note or null (DB test)
-- [ ] Screen tests (prior art: `app/tonight-screen.test.tsx`): the Prepared
+- [x] `getPreparedNote` returns the stored note or null (DB test)
+- [x] Screen tests (prior art: `app/tonight-screen.test.tsx`): the Prepared
       ranking shows on load; a Claude result sits on top; Clear steps Claude →
       Prepared → deterministic; a Selected-day change un-dismisses; since-Picked/
       Rejected/Closed Options are filtered and unnamed candidates appended
-- [ ] Screen tests: the brief renders in picker, decided, and all-filtered
+- [x] Screen tests: the brief renders in picker, decided, and all-filtered
       modes with its label; the out-of-date marker shows only when `outOfDate`;
       the clamp and "Read more" behave as specified
-- [ ] Screen tests: no note, or feature disabled, renders no brief and the
+- [x] Screen tests: no note, or feature disabled, renders no brief and the
       deterministic list
 - [ ] 1280px and 375px layouts checked against `DESIGN.md` on the dev server
       with a seeded note (if no browser is available, say so in Comments)
-- [ ] Existing ranking and AI search tests pass unchanged
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
+- [x] Existing ranking and AI search tests pass unchanged
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
 ## Blocked by
 
@@ -62,3 +62,8 @@ Claude AI search path.
 - Issue 04 (`DESIGN.md` rules)
 
 ## Comments
+
+- 2026-10-22: Code landed in 1b09656 (built with /tdd). The layout check at 1280px and 375px is still open, so the status stays as is. The gate passed, plus `test:db`.
+- Clear differs from the text above. The layer line has two actions: `AI search · Clear` clears a Claude result, and `Prepared ranking · Show ranked list` dismisses the Prepared ranking. The search box ✕ never dismisses the Prepared ranking, so typing then clearing a query can't drop it, and the Prepared ranking is still clearable when Claude search is off (DESIGN.md, "AI layers").
+- The page passes `preparedNote: null` when the feature is disabled, so the screen takes no separate enabled flag. The label is formatted on the server (`lib/prepared-label.ts`).
+- Left for 06: on decided dates, the comparison lines and the brief collapsed behind "Read the note". The decided-mode screen test here covers only the brief and its label.
