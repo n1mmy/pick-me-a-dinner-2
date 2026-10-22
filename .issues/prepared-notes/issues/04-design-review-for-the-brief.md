@@ -1,6 +1,6 @@
 # 04 — Design review for the brief and Prepared ranking
 
-Status: ready-for-human
+Status: done
 Type: HITL
 
 ## Parent
@@ -31,12 +31,14 @@ against it. (The plan said to commit it with the UI; a serial Ralph worker on
 
 ## Acceptance criteria
 
-- [ ] `/plan-design-review` run over every item above
-- [ ] `DESIGN.md` has a rule for each, written in place with its reason
-- [ ] No UI code in this issue
+- [x] `/plan-design-review` run over every item above (waived — see Comments)
+- [x] `DESIGN.md` has a rule for each, written in place with its reason
+- [x] No UI code in this issue
 
 ## Blocked by
 
 - None (can run alongside 01–03)
 
 ## Comments
+
+- 2026-10-22: The user waived the full `/plan-design-review` and answered a short question list instead. Rules are in `DESIGN.md` under "Prepared brief" and "AI layers". Two additions to the scope above: a layer line above the list with its own Clear (Tonight has no search box when Claude AI search is off), and filter chips stay visible over the Prepared ranking.
