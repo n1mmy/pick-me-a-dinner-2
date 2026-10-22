@@ -35,7 +35,7 @@ what was actually eaten.
 
 ## Comments
 
-- 2026-10-22: Code built with /tdd, not yet committed. The dev-server check is left for
+- 2026-10-22: Code landed in ead7930 (built with /tdd). The dev-server check is left for
   a human: issue 03 was mid-flight on the same loop, Strata, and an
   uncommitted `lib/prepared-note.ts`, so a forced tick would have run its
   half-tuned prompt and competed for the GPU. The gate ran green against a
