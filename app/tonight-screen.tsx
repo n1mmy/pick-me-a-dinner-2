@@ -41,6 +41,7 @@ import { fieldFocusRing, focusRing } from "./focus-ring";
 import { inlineLinkClass } from "./inline-link";
 import { kindChipFillClass } from "./kind-bar";
 import { pickTonight } from "./log/actions";
+import { PreparedBrief } from "./prepared-brief";
 import { pressFeedback } from "./press-feedback";
 import { deleteRejection } from "./rejection-actions";
 import { aiSearchAction } from "./tonight-search-client";
@@ -69,6 +70,18 @@ const NO_QUICK_ADD_SOURCES: QuickAddSources = {
   allTags: [],
   placesEnabled: false,
   archivedOptions: [],
+};
+
+/**
+ * The Selected day's **Prepared note** (ADR-0011) as the screen shows it: the
+ * brief, the Prepared ranking, the server-formatted "Prepared 2:14pm" label,
+ * and whether the note's input has changed since it was written.
+ */
+export type PreparedNoteView = {
+  brief: string;
+  ranking: AiRankingRow[];
+  label: string;
+  outOfDate: boolean;
 };
 
 /** The no-Last-notes default — module-level so its identity stays stable. */
@@ -115,6 +128,7 @@ export function TonightScreen({
   selectedDay,
   todaySql,
   dayNote = null,
+  preparedNote = null,
   quickAddSources = NO_QUICK_ADD_SOURCES,
 }: {
   /** The Picked Options, in pick order — non-empty puts Tonight in decided mode. */
@@ -178,6 +192,11 @@ export function TonightScreen({
    * the suppressions, or decided mode.
    */
   dayNote?: string | null;
+  /**
+   * The Selected day's Prepared note, or `null` when it has none or the
+   * feature is off — in which case Tonight renders exactly as without it.
+   */
+  preparedNote?: PreparedNoteView | null;
   quickAddSources?: QuickAddSources;
 }) {
   const isToday = selectedDay === todaySql;
@@ -245,6 +264,20 @@ export function TonightScreen({
   // day was never a candidate, so it is missing from the result until the
   // search is cleared.
   const searchGenerationRef = useRef(0);
+
+  // The three AI layers (DESIGN.md, "AI layers"): a Claude result on top of
+  // the Prepared ranking, on top of the deterministic list. Dismissing the
+  // Prepared ranking holds only for the day it was dismissed on: a Selected-day
+  // change shows that day's note (reset in render, React's "adjust state on a
+  // prop change" pattern, so the dismissed state never paints for the new day).
+  const [preparedDismissed, setPreparedDismissed] = useState(false);
+  const [dismissedDay, setDismissedDay] = useState(selectedDay);
+  if (dismissedDay !== selectedDay) {
+    setDismissedDay(selectedDay);
+    setPreparedDismissed(false);
+  }
+  const preparedRanking =
+    preparedNote !== null && !preparedDismissed ? preparedNote.ranking : null;
 
   // An ordinary async function, deliberately not an async transition — see the
   // `startSearchTransition` comment above. The fetch itself is not a state
@@ -320,6 +353,24 @@ export function TonightScreen({
     ? `${capitalize(dayLabel)}'s dinner is decided.`
     : `Choosing ${dayLabel}'s dinner.`;
 
+  // Which list is on show, restated for assistive tech: a polite announcement
+  // of the pending search and of every layer swap — Claude result, Prepared
+  // ranking, deterministic list. The initial string is not announced — a live
+  // region only voices changes — so a fresh load stays silent. A failed search
+  // is announced separately by the inline error on the search box. The region
+  // exists whenever a layer can swap: with a search box, or with a note (whose
+  // "Show ranked list" works even when Claude AI search is off).
+  const listStatus =
+    searchStartedAt !== null
+      ? "Searching for dinner…"
+      : aiResults !== null
+        ? aiResults.length === 0
+          ? "AI search found no Options."
+          : "Showing AI search results."
+        : preparedRanking !== null
+          ? "Showing the prepared ranking."
+          : "Showing the ranked dinner list.";
+
   // Memoised so `Picker`'s `pickerView` memo isn't invalidated every render.
   const suppressedRows = useMemo<SuppressedRows>(
     () => ({
@@ -347,6 +398,8 @@ export function TonightScreen({
       onSubmitSearch={runSearch}
       onCancelSearch={cancelSearch}
       onClearSearch={clearSearch}
+      preparedRanking={preparedRanking}
+      onDismissPrepared={() => setPreparedDismissed(true)}
       selectedDay={selectedDay}
       isToday={isToday}
       quickAddSources={quickAddSources}
@@ -381,9 +434,17 @@ export function TonightScreen({
           placement="header"
         />
       </div>
+      {preparedNote !== null && (
+        <PreparedBrief key={selectedDay} note={preparedNote} />
+      )}
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}
       </p>
+      {(searchEnabled || preparedNote !== null) && (
+        <p className="sr-only" role="status" aria-live="polite">
+          {listStatus}
+        </p>
+      )}
 
       {catalogEmpty ? (
         <p className="text-body text-muted">
@@ -720,6 +781,8 @@ function Picker({
   onSubmitSearch,
   onCancelSearch,
   onClearSearch,
+  preparedRanking,
+  onDismissPrepared,
   selectedDay,
   isToday,
   quickAddSources,
@@ -743,6 +806,10 @@ function Picker({
   onSubmitSearch: () => void;
   onCancelSearch: () => void;
   onClearSearch: () => void;
+  /** The Prepared ranking on show under any Claude result; null when none is. */
+  preparedRanking: AiRankingRow[] | null;
+  /** Peels the Prepared ranking off, back to the deterministic list. */
+  onDismissPrepared: () => void;
   /** The Selected day — threaded into Pick/Reject writes and AI search. */
   selectedDay: string;
   /** True when the Selected day is today — drives copy and lets AI search skip the parameter. */
@@ -777,24 +844,32 @@ function Picker({
   // active Option, each tagged with its suppression so SearchBox can confirm
   // a Closed/Rejected pick and disable a Picked one (issue 02) — the chip
   // row's Tags, and the hint line.
+  //
+  // Under a Prepared ranking (and no Claude result) the same view runs over
+  // the rows in the note's order — the Options it names first, then every
+  // candidate it didn't, so none goes missing. An Option since Picked,
+  // Rejected, or Closed is absent from `rows`, so the note can never offer
+  // it; the filter chips stay live, and a filtered row keeps the note's rank.
+  const prepared = useMemo(() => {
+    if (preparedRanking === null) return null;
+    const byId = new Map(rows.map((row) => [row.option.id, row]));
+    const reasons = new Map<string, string>();
+    const ordered: TonightRow[] = [];
+    for (const { id, reason } of preparedRanking) {
+      const row = byId.get(id);
+      if (!row || reasons.has(id)) continue;
+      reasons.set(id, reason);
+      ordered.push(row);
+    }
+    for (const row of rows) {
+      if (!reasons.has(row.option.id)) ordered.push(row);
+    }
+    return { rows: ordered, reasons };
+  }, [preparedRanking, rows]);
   const { visible, rankOf, choices, tags, hint } = useMemo(
-    () => pickerView(rows, kind, tagFilters, suppressedRows),
-    [rows, kind, tagFilters, suppressedRows],
+    () => pickerView(prepared?.rows ?? rows, kind, tagFilters, suppressedRows),
+    [prepared, rows, kind, tagFilters, suppressedRows],
   );
-
-  // The AI search mode restated for assistive tech: a polite announcement of
-  // the pending state and of the swap between the deterministic list and the
-  // AI result. The initial string is not announced — a live region only voices
-  // changes — so a fresh load stays silent. A failed search is announced
-  // separately by the inline error on the search box.
-  const searchPending = searchStartedAt !== null;
-  const searchStatus = searchPending
-    ? "Searching for dinner…"
-    : aiResults === null
-      ? "Showing the ranked dinner list."
-      : aiResults.length === 0
-        ? "AI search found no Options."
-        : "Showing AI search results.";
 
   // The AI result resolved against the rows already on screen: every validated
   // id is in the active Catalog, so it has a row to render with name and Tags.
@@ -823,29 +898,24 @@ function Picker({
         {/* The search box appears only when AI search is configured; with
             no key Tonight is exactly v1 and the box is absent entirely. */}
         {searchEnabled && (
-          <>
-            <SearchBox
-              // Remount per Selected day, so a confirm or pick error armed
-              // for one day never carries over to — and acts on — another.
-              key={selectedDay}
-              query={query}
-              onQueryChange={onQueryChange}
-              onSubmit={onSubmitSearch}
-              onCancel={onCancelSearch}
-              onClear={onClearSearch}
-              startedAt={searchStartedAt}
-              doneSeconds={searchDoneSeconds}
-              error={aiError}
-              showClear={aiResults !== null || aiError}
-              choices={choices}
-              selectedDay={selectedDay}
-              isToday={isToday}
-              onSelectAdd={setAddQuery}
-            />
-            <p className="sr-only" role="status" aria-live="polite">
-              {searchStatus}
-            </p>
-          </>
+          <SearchBox
+            // Remount per Selected day, so a confirm or pick error armed
+            // for one day never carries over to — and acts on — another.
+            key={selectedDay}
+            query={query}
+            onQueryChange={onQueryChange}
+            onSubmit={onSubmitSearch}
+            onCancel={onCancelSearch}
+            onClear={onClearSearch}
+            startedAt={searchStartedAt}
+            doneSeconds={searchDoneSeconds}
+            error={aiError}
+            showClear={aiResults !== null || aiError}
+            choices={choices}
+            selectedDay={selectedDay}
+            isToday={isToday}
+            onSelectAdd={setAddQuery}
+          />
         )}
         {/* The filter zone — kind chips and Tag chips — is hidden while an
             AI result is shown, or the quick-add form is open, so the query
@@ -934,43 +1004,96 @@ function Picker({
           // a layout step) separates rows with a sliver of `bg` instead of a
           // divider: every row already carries a kind-tinted background, so a
           // divider between two tinted rows read as a redundant, heavy seam.
-          <ol className="flex flex-col gap-[2px]">
-            {aiRows.map(({ row, reason }, index) => (
-              <TonightRowItem
-                key={row.option.id}
-                row={row}
-                rank={index + 1}
-                aiReason={reason}
-                selectedDay={isToday ? undefined : selectedDay}
-                onRejected={(name) =>
-                  setRejectNotice(`Rejected ${name}, removed from the list.`)
-                }
-              />
-            ))}
-          </ol>
-        )
-      ) : visible.length === 0 ? (
-        <p className="text-body text-muted">
-          No Options match the current filter.
-        </p>
-      ) : (
-        // See the AI-rows list above for why `gap-[2px]` replaces a divider here.
-        <ol className="flex flex-col gap-[2px]">
-          {visible.map((row) => (
-            <TonightRowItem
-              key={row.option.id}
-              row={row}
-              rank={rankOf.get(row.option.id) ?? 0}
-              lastNote={lastNotes.get(row.option.id)}
-              selectedDay={isToday ? undefined : selectedDay}
-              onRejected={(name) =>
-                setRejectNotice(`Rejected ${name}, removed from the list.`)
-              }
+          <>
+            <LayerLine
+              label="AI search"
+              action="Clear"
+              onAction={onClearSearch}
             />
-          ))}
-        </ol>
+            <ol className="flex flex-col gap-[2px]">
+              {aiRows.map(({ row, reason }, index) => (
+                <TonightRowItem
+                  key={row.option.id}
+                  row={row}
+                  rank={index + 1}
+                  aiReason={reason}
+                  selectedDay={isToday ? undefined : selectedDay}
+                  onRejected={(name) =>
+                    setRejectNotice(`Rejected ${name}, removed from the list.`)
+                  }
+                />
+              ))}
+            </ol>
+          </>
+        )
+      ) : (
+        <>
+          {prepared !== null && (
+            <LayerLine
+              label="Prepared ranking"
+              action="Show ranked list"
+              onAction={onDismissPrepared}
+            />
+          )}
+          {visible.length === 0 ? (
+            <p className="text-body text-muted">
+              No Options match the current filter.
+            </p>
+          ) : (
+            // See the AI-rows list above for why `gap-[2px]` replaces a divider here.
+            <ol className="flex flex-col gap-[2px]">
+              {visible.map((row) => (
+                <TonightRowItem
+                  key={row.option.id}
+                  row={row}
+                  rank={rankOf.get(row.option.id) ?? 0}
+                  // A Prepared row is an AI row: its rationale stands in for
+                  // the Last note (DESIGN.md, "Last note line").
+                  aiReason={prepared?.reasons.get(row.option.id)}
+                  lastNote={
+                    prepared === null ? lastNotes.get(row.option.id) : undefined
+                  }
+                  selectedDay={isToday ? undefined : selectedDay}
+                  onRejected={(name) =>
+                    setRejectNotice(`Rejected ${name}, removed from the list.`)
+                  }
+                />
+              ))}
+            </ol>
+          )}
+        </>
       )}
     </>
+  );
+}
+
+/**
+ * The line above an AI layer naming what the Household is reading, with the
+ * one control that peels that layer off (DESIGN.md, "AI layers"). The 44px
+ * hit area overlaps the gap around the line rather than setting its height.
+ */
+function LayerLine({
+  label,
+  action,
+  onAction,
+}: {
+  label: string;
+  action: string;
+  onAction: () => void;
+}) {
+  return (
+    <p className="flex items-center gap-2 text-meta text-muted">
+      <span>{label}</span>
+      <span aria-hidden="true">·</span>
+      <button
+        type="button"
+        onClick={onAction}
+        className={`-my-3 min-h-11 text-meta font-emphasis text-action
+          transition-colors duration-short ${focusRing}`}
+      >
+        {action}
+      </button>
+    </p>
   );
 }
 

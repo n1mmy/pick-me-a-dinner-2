@@ -336,10 +336,12 @@ identical row for row; what tells them apart is one line above the list.
   the strong picks, tapering to a line. This is the one licensed break in
   the uniform ledger: an AI view is for reading why, not scanning, and a
   clamp would hide the reason the layer exists.
-- **Filter chips** stay visible over the Prepared ranking and filter it, rank
-  numerals renumbering over what's visible — it is the default view on
-  load, so hiding them would remove filtering from Tonight. Over a Claude
-  result they hide, so the query alone owns that space.
+- **Filter chips** stay visible over the Prepared ranking and filter it — it
+  is the default view on load, so hiding them would remove filtering from
+  Tonight. A filtered row keeps the note's rank, as a filtered
+  deterministic row keeps its own, so a numeral always means the same
+  place in the same ranking. Over a Claude result they hide, so the query
+  alone owns that space.
 - **Screen-reader status.** The polite status region says "Showing the
   prepared ranking." when that layer comes into view (Claude result cleared,
   Selected day changed), alongside the existing "Showing AI search
