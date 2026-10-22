@@ -43,3 +43,29 @@ and still needs approval.
 - Issues 01 and 02
 
 ## Comments
+
+**2026-10-22 — tuning in progress (commit 38f9d28).** Script, streaming client,
+checklist line, and prompt v4 are in. Open decisions for the human:
+
+- **Reasoning effort.** Strata's chat template takes
+  `chat_template_kwargs.reasoning_effort` (`xhigh` default, `medium`, `low`) or
+  `enable_thinking: false`; a top-level `reasoning_effort` is ignored. Same v4
+  request on today+3 (36 candidates), Strata otherwise idle:
+
+  | effort | out tokens | wall  | brief | ranked | rhythm-claim slips          |
+  | ------ | ---------- | ----- | ----- | ------ | --------------------------- |
+  | xhigh  | 13.4–16.9k | 7–10m | ~200w | 35/36  | none                        |
+  | medium | 13.8k      | ~6m   | 244w  | 36/36  | 2 (dates "10/15", "10/1")   |
+  | low    | 10.2k      | ~6m   | 228w  | 36/36  | 6 tail rows ("in March")    |
+  | off    | 1.6k       | 1.5m  | 218w  | 31/36  | many; bold markdown; names  |
+
+  Strata is shared: under another client's load decode falls from ~35 to
+  ~16 tok/s with speculative drafting off, and an xhigh note (16k+ tokens)
+  overran the 18-minute timeout. Two replicas sweeping at once load it the
+  same way.
+- **Coverage.** xhigh misses one candidate per run after the checklist fix;
+  Tonight appends unranked candidates (story 15), but the criteria say all.
+- **Forced-loop check.** The cluster DB (`.env.k8s`) has no `prepared_notes`
+  (0006 not applied). Alternative: restore the 2026-09-08 pgdump into a fresh
+  local DB, migrate, and `next start` (production mode starts the loop with no
+  code change) against it.
