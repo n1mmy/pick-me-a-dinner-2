@@ -61,7 +61,7 @@ export function inputHash(
 }
 
 /**
- * How long a claim holds a date. Longer than the client's 15-minute timeout,
+ * How long a claim holds a date. Longer than the client's 18-minute timeout,
  * so a replica that is still generating never loses the date to the other.
  */
 const CLAIM_LEASE = sql`now() + interval '20 minutes'`;

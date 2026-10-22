@@ -16,20 +16,65 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-/** An OpenAI-style chat completion whose answer is `content`. */
-function completion(content: unknown): unknown {
-  return {
-    choices: [
-      {
-        message: {
-          role: "assistant",
-          reasoning_content: "Thursday, Jen away… pho fits.",
-          content,
-        },
+/** One server-sent event carrying `chunk`. */
+const event = (chunk: unknown) => `data: ${JSON.stringify(chunk)}\n\n`;
+
+/** A streamed chunk whose delta is `delta`. */
+const deltaEvent = (delta: unknown) =>
+  event({ choices: [{ index: 0, delta, finish_reason: null }] });
+
+/**
+ * A streamed OpenAI-style chat completion whose answer is `content`, shaped
+ * like Strata's: a role chunk, a keep-alive comment, the reasoning, the answer
+ * a few characters at a time, a final chunk with the stop reason and usage,
+ * then `[DONE]`. `content: null` streams reasoning and no answer.
+ */
+function completion(
+  content: string | null,
+  { finishReason = "stop" }: { finishReason?: string } = {},
+): string[] {
+  const answer = content?.match(/[\s\S]{1,7}/g) ?? [];
+  return [
+    deltaEvent({ role: "assistant", content: "" }),
+    ": keep-alive\n\n",
+    deltaEvent({ reasoning_content: "Thursday, Jen away… " }),
+    deltaEvent({ reasoning_content: "pho fits." }),
+    ...answer.map((piece) => deltaEvent({ content: piece })),
+    event({
+      choices: [{ index: 0, delta: {}, finish_reason: finishReason }],
+      usage: { prompt_tokens: 9000, completion_tokens: 2500, total_tokens: 11500 },
+    }),
+    "data: [DONE]\n\n",
+  ];
+}
+
+/**
+ * An event-stream `Response` sending `events`. With `chunkBytes`, the bytes
+ * are re-cut into pieces of that size, so events (and multi-byte characters)
+ * straddle network chunks the way they can in a real stream.
+ */
+function streamResponse(
+  events: string[],
+  { chunkBytes }: { chunkBytes?: number } = {},
+): Response {
+  const encoder = new TextEncoder();
+  let chunks = events.map((text) => encoder.encode(text));
+  if (chunkBytes !== undefined) {
+    const all = encoder.encode(events.join(""));
+    chunks = [];
+    for (let at = 0; at < all.length; at += chunkBytes) {
+      chunks.push(all.slice(at, at + chunkBytes));
+    }
+  }
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(chunk);
+        controller.close();
       },
-    ],
-    usage: { prompt_tokens: 9000, completion_tokens: 2500, total_tokens: 11500 },
-  };
+    }),
+    { headers: { "Content-Type": "text/event-stream" } },
+  );
 }
 
 /** Stub the global `fetch`, returning the spy so a test can read the request. */
@@ -118,8 +163,39 @@ describe("parsePreparedReply", () => {
     });
   });
 
+  it("keeps a strong pick's two or three sentences whole", () => {
+    const reason =
+      "The standing Thursday choice: across the Log it lands on Thursdays " +
+      "more than any other night, and that rhythm has held through the " +
+      "autumn. The Day note says Jen is away, and a bowl of pho is easy to " +
+      "order for one and travels well. The last Log note praised the broth, " +
+      "so there is no recent disappointment to weigh against it either.";
+    expect(reason.length).toBeGreaterThan(300);
+
+    const note = parsePreparedReply(
+      `A quiet Thursday.\n${PREPARED_MARKER}\n3|${reason}`,
+      idByIndex,
+    );
+
+    expect(note?.ranking).toEqual([{ id: PHO, reason }]);
+  });
+
+  it("still caps a sprawling rationale, cutting at a word", () => {
+    const reason = "Broth ".repeat(150).trim();
+
+    const note = parsePreparedReply(
+      `A quiet Thursday.\n${PREPARED_MARKER}\n3|${reason}`,
+      idByIndex,
+    );
+
+    const kept = note?.ranking[0].reason ?? "";
+    expect(kept.endsWith("Broth…")).toBe(true);
+    expect(kept.length).toBeLessThanOrEqual(601);
+    expect(kept.length).toBeGreaterThan(550);
+  });
+
   it.each([
-    ["the marker is missing", "A quiet Thursday.\n3|Standing Thursday choice."],
+    ["the marker is missing","A quiet Thursday.\n3|Standing Thursday choice."],
     ["the brief is empty", `  \n${PREPARED_MARKER}\n3|Standing Thursday choice.`],
     [
       "no row parses",
@@ -166,25 +242,41 @@ describe("buildPreparedSystemPrompt", () => {
 describe("createPreparedNoteClient().prepare", () => {
   const goodReply = `A quiet Thursday.\n${PREPARED_MARKER}\n3|Standing Thursday choice.\n1|Long cook.`;
 
-  it("returns the note read from the model's answer", async () => {
+  const goodNote = {
+    ok: true,
+    note: {
+      brief: "A quiet Thursday.",
+      ranking: [
+        { id: PHO, reason: "Standing Thursday choice." },
+        { id: KATSU, reason: "Long cook." },
+      ],
+    },
+  };
+
+  it("returns the note read from the model's streamed answer", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
-    stubFetch(async () => jsonResponse(completion(goodReply)));
+    stubFetch(async () => streamResponse(completion(goodReply)));
+
+    expect(await client().prepare(snapshot, idByIndex)).toEqual(goodNote);
+  });
+
+  it("reads events and characters that straddle network chunks", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const reply = `Pho … then rest.\n${PREPARED_MARKER}\n3|Standing Thursday choice.`;
+    stubFetch(async () => streamResponse(completion(reply), { chunkBytes: 5 }));
 
     expect(await client().prepare(snapshot, idByIndex)).toEqual({
       ok: true,
       note: {
-        brief: "A quiet Thursday.",
-        ranking: [
-          { id: PHO, reason: "Standing Thursday choice." },
-          { id: KATSU, reason: "Long cook." },
-        ],
+        brief: "Pho … then rest.",
+        ranking: [{ id: PHO, reason: "Standing Thursday choice." }],
       },
     });
   });
 
-  it("posts the model, the prompt, the snapshot, and the token budget, with the bearer key", async () => {
+  it("posts the model, the prompt, the snapshot, and the token budget, streamed, with the bearer key", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
-    const fetchSpy = stubFetch(async () => jsonResponse(completion(goodReply)));
+    const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));
 
     await client().prepare(snapshot, idByIndex);
 
@@ -197,17 +289,31 @@ describe("createPreparedNoteClient().prepare", () => {
     );
     expect(JSON.parse(String(init?.body))).toEqual({
       model: "qwen3.8-flash",
-      max_tokens: 16000,
+      max_tokens: 20000,
+      stream: true,
+      stream_options: { include_usage: true },
       messages: [
         { role: "system", content: buildPreparedSystemPrompt() },
-        { role: "user", content: JSON.stringify(snapshot) },
+        { role: "user", content: expect.stringContaining(JSON.stringify(snapshot)) },
       ],
     });
   });
 
+  it("closes the user message with the candidate count and every number, as a checklist", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));
+
+    await client().prepare(snapshot, new Map([[1, KATSU], [2, MAZRA], [5, PHO]]));
+
+    const [, init] = fetchSpy.mock.calls[0];
+    const userMessage = JSON.parse(String(init?.body)).messages[1].content;
+    expect(userMessage.startsWith(JSON.stringify(snapshot))).toBe(true);
+    expect(userMessage.endsWith("Rank all 3 candidates: 1, 2, 5.")).toBe(true);
+  });
+
   it("sends no Authorization header when no key is set", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
-    const fetchSpy = stubFetch(async () => jsonResponse(completion(goodReply)));
+    const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));
 
     await createPreparedNoteClient({
       baseUrl: "http://strata.local/v1",
@@ -228,12 +334,29 @@ describe("createPreparedNoteClient().prepare", () => {
         throw new TypeError("fetch failed");
       },
     ],
-    ["the body isn't JSON", async () => new Response("<html>oops</html>")],
-    ["there are no choices", async () => jsonResponse({ choices: [] })],
-    ["the answer has no content", async () => jsonResponse(completion(null))],
+    ["the body isn't an event stream", async () => new Response("<html>oops</html>")],
+    [
+      "an event isn't JSON",
+      async () => streamResponse(["data: {not json\n\n", "data: [DONE]\n\n"]),
+    ],
+    [
+      "there are no choices",
+      async () =>
+        streamResponse([event({ choices: [] }), "data: [DONE]\n\n"]),
+    ],
+    ["the answer has no content", async () => streamResponse(completion(null))],
     [
       "the answer is unreadable",
-      async () => jsonResponse(completion("Pho, then Katsu.")),
+      async () => streamResponse(completion("Pho, then Katsu.")),
+    ],
+    [
+      "the stream drops before the model finished",
+      async () => streamResponse(completion(goodReply).slice(0, -2)),
+    ],
+    [
+      "the token budget ran out mid-answer",
+      async () =>
+        streamResponse(completion(goodReply, { finishReason: "length" })),
     ],
   ])("is unavailable when %s", async (_case, respond) => {
     vi.spyOn(console, "log").mockImplementation(() => {});
@@ -242,7 +365,7 @@ describe("createPreparedNoteClient().prepare", () => {
     expect(await client().prepare(snapshot, idByIndex)).toEqual({ ok: false });
   });
 
-  it("waits out a slow generation, then gives up at about fifteen minutes", async () => {
+  it("waits out a slow generation, then gives up at about eighteen minutes", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.useFakeTimers();
     // A fetch that never resolves — it only rejects when its signal aborts.
@@ -262,17 +385,64 @@ describe("createPreparedNoteClient().prepare", () => {
         settled = true;
       });
 
-    // A whole-Catalog generation runs 2–4 minutes; it must not be cut short.
-    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    // A whole-Catalog generation runs about eight minutes, and a full 20k-token
+    // budget at the slowest measured speed nearer fifteen; it must not be cut short.
+    await vi.advanceTimersByTimeAsync(16 * 60_000);
     expect(settled).toBe(false);
 
-    await vi.advanceTimersByTimeAsync(11 * 60_000);
+    await vi.advanceTimersByTimeAsync(3 * 60_000);
     expect(await pending).toEqual({ ok: false });
+  });
+
+  it("gives up on a stream that stalls mid-answer at about eighteen minutes", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.useFakeTimers();
+    // Headers and the first chunk arrive, then nothing — until the abort
+    // errors the body, as `fetch` does.
+    stubFetch(async (_url, init) => {
+      const [first] = completion(goodReply);
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(first));
+            init?.signal?.addEventListener("abort", () =>
+              controller.error(new DOMException("aborted", "AbortError")),
+            );
+          },
+        }),
+      );
+    });
+
+    const pending = client().prepare(snapshot, idByIndex);
+
+    await vi.advanceTimersByTimeAsync(19 * 60_000);
+    expect(await pending).toEqual({ ok: false });
+  });
+
+  it("hands the raw answer, reasoning, and stop reason to onReply, even when the answer is unreadable", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    stubFetch(async () =>
+      streamResponse(completion("Pho, the", { finishReason: "length" })),
+    );
+    const onReply = vi.fn();
+
+    const result = await createPreparedNoteClient({
+      baseUrl: "http://strata.local/v1",
+      model: "qwen3.8-flash",
+      onReply,
+    }).prepare(snapshot, idByIndex);
+
+    expect(result).toEqual({ ok: false });
+    expect(onReply).toHaveBeenCalledWith({
+      content: "Pho, the",
+      reasoning: "Thursday, Jen away… pho fits.",
+      finishReason: "length",
+    });
   });
 
   it("logs one JSON line for a successful call: date, model, latency, outcome, usage, rows", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    stubFetch(async () => jsonResponse(completion(goodReply)));
+    stubFetch(async () => streamResponse(completion(goodReply)));
 
     await client().prepare(snapshot, idByIndex);
 

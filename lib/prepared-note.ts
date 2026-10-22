@@ -48,7 +48,7 @@ export function preparedNotesEnabled(): boolean {
  * Bumped whenever the prompt's wording changes, so every stored note's input
  * hash goes stale and the sweep rewrites it under the new prompt.
  */
-export const PREPARED_PROMPT_VERSION = "1";
+export const PREPARED_PROMPT_VERSION = "4";
 
 /**
  * Build the Prepared note system prompt. The snapshot framing, the rhythm-claim
@@ -139,22 +139,32 @@ export function buildPreparedSystemPrompt(): string {
       "what this weekday tends to bring, what the last few days' eating " +
       "means for tonight. Name two or three standout Options and the reasons " +
       "behind each. Then say what to watch out for — a recent disappointment " +
-      "in the Log notes, a Rejection that still stands, a Restaurant closed " +
-      "around this evening. Plain paragraphs only: no headings, bullets, " +
-      "bold, or lists.",
+      "in the Log notes, a Rejection that still stands. Restaurants shut " +
+      "this evening are already left out, so closures need no mention. " +
+      "Write for the household, not about your method: no remarks on how " +
+      "you read the data. Plain paragraphs only: no headings, bullets, bold, " +
+      "or lists.",
     "",
     "Second, the ranking: every candidate Option, best fit for this evening " +
       "first. Every candidate must appear exactly once, including an Option " +
       "with no Log history at all — never having tried it can itself be a " +
-      "reason to rank it higher, for the novelty. Give each a rationale. For " +
-      "the strong picks near the top, write two or three sentences: the " +
-      "pattern behind the placement, what the notes say, how it fits the " +
-      "evening. Write less as you go down, tapering to a single short " +
-      "sentence for the weakest. Each rationale must be specific — name the " +
-      "actual pattern or reason, not a generic justification.",
+      "reason to rank it higher, for the novelty. The message ends with the " +
+      "count and the full list of candidate numbers: the ranking has exactly " +
+      "that many rows, one per number on the list. Tick each number off as " +
+      "you place it, so none is left out — Options with little or no history " +
+      "are the easiest to forget, and they matter as much as the top. An " +
+      "Option you mean to put last is still a row: write it.",
+    "Give each a rationale. The top five rows each get two or three full " +
+      "sentences: the pattern behind the placement, what the notes say, how " +
+      "it fits this evening. Write less as you go down, tapering to a single " +
+      "short sentence for the weakest. Each rationale must be specific — " +
+      "name the actual pattern or reason, not a generic justification.",
     "",
-    "Do NOT open a rationale with the Option's own name — the household reads " +
-      "it directly beside the name.",
+    "Do NOT open a rationale with the Option's own name, or a short form of " +
+      "it — the household reads it directly beside the name. This holds for " +
+      "every row, the short ones low in the ranking included: write \"Fits " +
+      "the fried-rice craving\", not \"Golden Wok fits the fried-rice " +
+      "craving\".",
     "NEVER state how long it has been since the household last ate " +
       "something. The screen already shows that as a number beside every " +
       "Option and each of its Tags, so prose restating it tells them nothing. " +
@@ -189,6 +199,13 @@ export function buildPreparedSystemPrompt(): string {
 }
 
 /**
+ * The Prepared rationale cap. A strong pick's two or three sentences run to
+ * 300–450 characters, past AI search's ~200 line cap, so this path passes its
+ * own; it is still a backstop so a runaway row can't sprawl.
+ */
+const MAX_PREPARED_RATIONALE_LENGTH = 600;
+
+/**
  * Read the model's reply into a Prepared note: everything above the marker
  * line is the brief, everything below it goes through `parseRankingText`.
  *
@@ -209,6 +226,7 @@ export function parsePreparedReply(
   const parsed = parseRankingText(
     lines.slice(markerAt + 1).join("\n"),
     idByIndex,
+    MAX_PREPARED_RATIONALE_LENGTH,
   );
   if (parsed === null || parsed.rows.length === 0) return null;
   return { brief, ranking: parsed.rows };
@@ -217,26 +235,85 @@ export function parsePreparedReply(
 /**
  * The completion budget. Strata is a reasoning model: `reasoning_content` is
  * written before `content` and both count against `max_tokens`, so this has to
- * cover the reasoning as well as the brief and a whole-Catalog ranking.
+ * cover the reasoning as well as the brief and a whole-Catalog ranking. Over
+ * ~37 candidates a note was measured at 13–14k tokens, about two thirds of it
+ * reasoning; 20k leaves room for an evening with more to weigh.
  */
-const MAX_TOKENS = 16_000;
+const MAX_TOKENS = 20_000;
 
 /**
- * One generation runs 2–4 minutes at Strata's ~25 tok/s, so the bound is
- * generous. The sweep's claim lease (20 minutes) must stay longer than this,
- * so a replica never takes over a date another is still generating.
+ * A whole-Catalog note was measured at six to eight minutes: 13–14k output
+ * tokens at ~25–35 tok/s, after up to ~70s reading the snapshot. The bound
+ * covers a full 20k-token budget at the slow end (~14 minutes) with room to
+ * spare. The sweep's claim lease (20 minutes) must stay longer than this, so
+ * a replica never takes over a date another is still generating.
  */
-const REQUEST_TIMEOUT_MS = 15 * 60_000;
+const REQUEST_TIMEOUT_MS = 18 * 60_000;
 
-/** The part of an OpenAI-style chat completion this client reads. */
-type ChatCompletion = {
-  choices?: { message?: { content?: unknown } }[];
-  usage?: {
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    total_tokens?: number;
-  };
+/** The token counts a completion reports. */
+type Usage = { prompt_tokens?: number; completion_tokens?: number };
+
+/** The part of a streamed OpenAI-style chat completion chunk this client reads. */
+type ChatCompletionChunk = {
+  choices?: {
+    delta?: { content?: unknown; reasoning_content?: unknown };
+    finish_reason?: unknown;
+  }[];
+  usage?: Usage;
 } | null;
+
+/**
+ * Read a streamed completion's server-sent events to the end, accumulating
+ * the answer and the reasoning and keeping the stop reason and usage, which
+ * arrive on the last chunk. The reply is streamed, not sent whole, because a
+ * generation outlasts `fetch`'s five-minute wait for response headers; a
+ * stream sends headers at once and a chunk every token. Comment lines (the
+ * server's keep-alives) are skipped. Throws on an event that isn't JSON.
+ */
+async function readStream(
+  body: ReadableStream<Uint8Array>,
+): Promise<RawPreparedReply & { usage?: Usage }> {
+  const reply: RawPreparedReply & { usage?: Usage } = {
+    content: null,
+    reasoning: null,
+    finishReason: null,
+  };
+  const readEvent = (line: string): boolean => {
+    if (!line.startsWith("data:")) return false;
+    const data = line.slice(5).trim();
+    if (data === "[DONE]") return true;
+    const chunk = JSON.parse(data) as ChatCompletionChunk;
+    if (chunk?.usage) reply.usage = chunk.usage;
+    const choice = chunk?.choices?.[0];
+    const { content, reasoning_content: reasoning } = choice?.delta ?? {};
+    if (typeof content === "string") reply.content = (reply.content ?? "") + content;
+    if (typeof reasoning === "string") {
+      reply.reasoning = (reply.reasoning ?? "") + reasoning;
+    }
+    if (typeof choice?.finish_reason === "string") {
+      reply.finishReason = choice.finish_reason;
+    }
+    return false;
+  };
+
+  const decoder = new TextDecoder();
+  const reader = body.getReader();
+  let buffered = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    buffered += decoder.decode(value, { stream: !done });
+    const lines = buffered.split("\n");
+    // The last piece may be half an event; keep it for the next chunk.
+    buffered = done ? "" : (lines.pop() ?? "");
+    for (const line of lines) {
+      if (readEvent(line)) {
+        await reader.cancel();
+        return reply;
+      }
+    }
+    if (done) return reply;
+  }
+}
 
 /**
  * Emit one structured log line per generation, on the ok and the fallback path
@@ -260,12 +337,37 @@ function logPrepareCall(fields: {
 }
 
 /**
+ * The line closing the user message: how many candidates there are and every
+ * number. Without it the model dropped four or five of ~37 Options from the
+ * ranking, mostly ones with little history; the system prompt is fixed, so it
+ * can't carry the day's count itself.
+ */
+function candidateChecklist(idByIndex: ReadonlyMap<number, string>): string {
+  const numbers = [...idByIndex.keys()].sort((a, b) => a - b);
+  return `Rank all ${numbers.length} candidates: ${numbers.join(", ")}.`;
+}
+
+/**
+ * The model's reply as it came back, before parsing — what the tuning script
+ * prints. `finishReason` `length` means the budget ran out, which an
+ * unreadable answer alone can't tell apart from a badly written one.
+ */
+export type RawPreparedReply = {
+  content: string | null;
+  reasoning: string | null;
+  finishReason: string | null;
+};
+
+/**
  * Build a `PreparedNoteClient` for an OpenAI-compatible server at `baseUrl`.
+ * `onReply`, when given, receives every reply whose stream could be read,
+ * usable or not (`scripts/prepared-note-eval.ts`).
  */
 export function createPreparedNoteClient(config: {
   baseUrl: string;
   apiKey?: string;
   model: string;
+  onReply?: (reply: RawPreparedReply) => void;
 }): PreparedNoteClient {
   const systemPrompt = buildPreparedSystemPrompt();
 
@@ -283,7 +385,7 @@ export function createPreparedNoteClient(config: {
       // until then the last good note stays. Every failure collapses to
       // `PREPARE_UNAVAILABLE`.
       let result: PrepareResult = PREPARE_UNAVAILABLE;
-      let usage: NonNullable<ChatCompletion>["usage"];
+      let usage: Usage | undefined;
       try {
         const response = await fetch(`${config.baseUrl}/chat/completions`, {
           method: "POST",
@@ -292,25 +394,32 @@ export function createPreparedNoteClient(config: {
           body: JSON.stringify({
             model: config.model,
             max_tokens: MAX_TOKENS,
+            stream: true,
+            stream_options: { include_usage: true },
             messages: [
               { role: "system", content: systemPrompt },
-              { role: "user", content: JSON.stringify(snapshot) },
+              {
+                role: "user",
+                content: `${JSON.stringify(snapshot)}\n\n${candidateChecklist(idByIndex)}`,
+              },
             ],
           }),
         });
-        if (response.ok) {
-          const body = (await response.json()) as ChatCompletion;
-          usage = body?.usage;
-          // Only the answer: `reasoning_content` is the model thinking aloud.
-          const content = body?.choices?.[0]?.message?.content;
+        if (response.ok && response.body) {
+          const { usage: reported, ...reply } = await readStream(response.body);
+          usage = reported;
+          config.onReply?.(reply);
+          // Only the answer: `reasoning` is the model thinking aloud. Only a
+          // natural `stop` is a whole answer: `length` (the budget ran out) or
+          // no stop reason at all (the stream dropped) can end in half a row.
           const note =
-            typeof content === "string"
-              ? parsePreparedReply(content, idByIndex)
+            reply.content !== null && reply.finishReason === "stop"
+              ? parsePreparedReply(reply.content, idByIndex)
               : null;
           if (note !== null) result = { ok: true, note };
         }
       } catch {
-        // A network error, the timeout's abort, or a body that isn't JSON.
+        // A network error, the timeout's abort, or an event that isn't JSON.
       } finally {
         clearTimeout(timer);
       }
