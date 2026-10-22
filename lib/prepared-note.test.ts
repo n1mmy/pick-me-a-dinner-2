@@ -365,7 +365,7 @@ describe("createPreparedNoteClient().prepare", () => {
     expect(await client().prepare(snapshot, idByIndex)).toEqual({ ok: false });
   });
 
-  it("waits out a slow generation, then gives up at about eighteen minutes", async () => {
+  it("waits out a slow generation, then gives up at about forty minutes", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.useFakeTimers();
     // A fetch that never resolves — it only rejects when its signal aborts.
@@ -385,16 +385,17 @@ describe("createPreparedNoteClient().prepare", () => {
         settled = true;
       });
 
-    // A whole-Catalog generation runs about eight minutes, and a full 20k-token
-    // budget at the slowest measured speed nearer fifteen; it must not be cut short.
-    await vi.advanceTimersByTimeAsync(16 * 60_000);
+    // A note takes six to ten minutes on an idle Strata, but a full 20k-token
+    // budget at the 10 tok/s measured under another client's load runs past
+    // half an hour; it must not be cut short.
+    await vi.advanceTimersByTimeAsync(38 * 60_000);
     expect(settled).toBe(false);
 
     await vi.advanceTimersByTimeAsync(3 * 60_000);
     expect(await pending).toEqual({ ok: false });
   });
 
-  it("gives up on a stream that stalls mid-answer at about eighteen minutes", async () => {
+  it("gives up on a stream that stalls mid-answer at about forty minutes", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.useFakeTimers();
     // Headers and the first chunk arrive, then nothing — until the abort
@@ -415,7 +416,7 @@ describe("createPreparedNoteClient().prepare", () => {
 
     const pending = client().prepare(snapshot, idByIndex);
 
-    await vi.advanceTimersByTimeAsync(19 * 60_000);
+    await vi.advanceTimersByTimeAsync(41 * 60_000);
     expect(await pending).toEqual({ ok: false });
   });
 

@@ -61,10 +61,10 @@ export function inputHash(
 }
 
 /**
- * How long a claim holds a date. Longer than the client's 18-minute timeout,
+ * How long a claim holds a date. Longer than the client's 40-minute timeout,
  * so a replica that is still generating never loses the date to the other.
  */
-const CLAIM_LEASE = sql`now() + interval '20 minutes'`;
+const CLAIM_LEASE = sql`now() + interval '45 minutes'`;
 
 /** A won claim, carrying the hash of the note already stored, if any. */
 export type Claim = { inputHash: string | null };

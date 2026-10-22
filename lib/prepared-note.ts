@@ -236,19 +236,21 @@ export function parsePreparedReply(
  * The completion budget. Strata is a reasoning model: `reasoning_content` is
  * written before `content` and both count against `max_tokens`, so this has to
  * cover the reasoning as well as the brief and a whole-Catalog ranking. Over
- * ~37 candidates a note was measured at 13–14k tokens, about two thirds of it
+ * ~37 candidates a note was measured at 13–17k tokens, nearly all of it
  * reasoning; 20k leaves room for an evening with more to weigh.
  */
 const MAX_TOKENS = 20_000;
 
 /**
- * A whole-Catalog note was measured at six to eight minutes: 13–14k output
- * tokens at ~25–35 tok/s, after up to ~70s reading the snapshot. The bound
- * covers a full 20k-token budget at the slow end (~14 minutes) with room to
- * spare. The sweep's claim lease (20 minutes) must stay longer than this, so
- * a replica never takes over a date another is still generating.
+ * A whole-Catalog note was measured at six to ten minutes on an idle Strata:
+ * 13–17k output tokens at ~35 tok/s, after up to ~70s reading the snapshot.
+ * Strata is shared, though, and under another client's load decoding fell to
+ * ~10 tok/s; two notes cut off at 18 minutes were 15–16k tokens in. The bound
+ * covers a full 20k-token budget at that speed (~35 minutes). The sweep's
+ * claim lease (45 minutes) must stay longer than this, so a replica never
+ * takes over a date another is still generating.
  */
-const REQUEST_TIMEOUT_MS = 18 * 60_000;
+const REQUEST_TIMEOUT_MS = 40 * 60_000;
 
 /** The token counts a completion reports. */
 type Usage = { prompt_tokens?: number; completion_tokens?: number };

@@ -74,8 +74,9 @@ the floor, one Clear away, and Claude AI search is untouched.
   persisted, which it never was under ADR-0004. Only the latest, or the frozen,
   version per date is kept.
 - A note can lag a change by up to one loop interval plus the generation time.
-  A history edit invalidates all seven dates, and a full sweep takes about 45–60
-  minutes (six to eight minutes a date, measured). That is accepted: the note is labelled out of date in the meantime,
+  A history edit invalidates all seven dates, and a full sweep takes about an hour
+  (six to ten minutes a date, measured), and well over that when Strata is
+  serving other clients, since a note can then take half an hour. That is accepted: the note is labelled out of date in the meantime,
   and live Claude search is always available.
 - Dev servers don't run the loop, so a dev environment never competes with
   production for the GPU.

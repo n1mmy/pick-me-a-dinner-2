@@ -21,7 +21,7 @@ export function startPreparedNotesLoop(
   if (process.env.NODE_ENV !== "production" || !preparedNotesEnabled()) {
     return null;
   }
-  // A full sweep (45–60 minutes) can outlast the interval; a tick that lands
+  // A full sweep (an hour or more) can outlast the interval; a tick that lands
   // mid-sweep is skipped rather than starting a second one.
   let running = false;
   const tick = async () => {
