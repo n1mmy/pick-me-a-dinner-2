@@ -37,7 +37,7 @@ import {
 import { snapshotForDay } from "../lib/snapshot-source";
 
 /** The brief's target length, from the spec. */
-const BRIEF_WORDS = { min: 150, max: 300 };
+const BRIEF_WORDS = { min: 40, max: 70 };
 
 /**
  * Phrases that usually break the rhythm-claim rule — a date, a day or week

@@ -48,7 +48,7 @@ export function preparedNotesEnabled(): boolean {
  * Bumped whenever the prompt's wording changes, so every stored note's input
  * hash goes stale and the sweep rewrites it under the new prompt.
  */
-export const PREPARED_PROMPT_VERSION = "4";
+export const PREPARED_PROMPT_VERSION = "5";
 
 /**
  * Build the Prepared note system prompt. The snapshot framing, the rhythm-claim
@@ -134,16 +134,17 @@ export function buildPreparedSystemPrompt(): string {
     "",
     "Write two things.",
     "",
-    "First, the brief: 150 to 300 words of plain prose for the household to " +
-      "read before they decide. Cover the evening's context — its Day note, " +
-      "what this weekday tends to bring, what the last few days' eating " +
-      "means for tonight. Name two or three standout Options and the reasons " +
-      "behind each. Then say what to watch out for — a recent disappointment " +
-      "in the Log notes, a Rejection that still stands. Restaurants shut " +
-      "this evening are already left out, so closures need no mention. " +
-      "Write for the household, not about your method: no remarks on how " +
-      "you read the data. Plain paragraphs only: no headings, bullets, bold, " +
-      "or lists.",
+    "First, the brief: two or three sentences of plain prose, 40 to 70 words " +
+      "in all, for the household to read at a glance before they decide. Say " +
+      "what kind of evening this is (its Day note, what this weekday or the " +
+      "last few days point to), name the one or two standout Options and why, " +
+      "and, only if there is one, the single thing to watch out for — a " +
+      "recent disappointment in the Log notes or a Rejection that still " +
+      "stands. The ranking below carries the detail, so the brief does not " +
+      "repeat it. Restaurants shut this evening are already left out, so " +
+      "closures need no mention. Write for the household, not about your " +
+      "method: no remarks on how you read the data. One plain paragraph: no " +
+      "headings, bullets, bold, or lists.",
     "",
     "Second, the ranking: every candidate Option, best fit for this evening " +
       "first. Every candidate must appear exactly once, including an Option " +

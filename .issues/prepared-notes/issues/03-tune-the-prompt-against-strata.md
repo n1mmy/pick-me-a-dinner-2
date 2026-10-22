@@ -44,6 +44,12 @@ and still needs approval.
 
 ## Comments
 
+**2026-10-22 — human decisions.** Keep the default `xhigh` effort (no
+`chat_template_kwargs`). One unranked candidate per run is accepted: Tonight
+appends it, as AI search does. The loop check runs against the dev DB with a
+copy of prod's data and 0006 applied there, not against prod. Following from
+`xhigh` on a shared Strata: request timeout 40 min, lease 45 min (447b3a1).
+
 **2026-10-22 — tuning in progress (commit 38f9d28).** Script, streaming client,
 checklist line, and prompt v4 are in. Open decisions for the human:
 

@@ -314,10 +314,10 @@ not a rationale).
 
 **Prepared note**:
 What a free local model writes ahead of time for one date, so it is ready when
-Tonight opens (ADR-0011). It has two parts. The **brief** is 150–300 words of
-prose about that evening: its context (the **Day note**, weekday habits, the
-last few days' eating), two or three standout suggestions, and what to watch
-out for. The **Prepared ranking** ranks every candidate Option with an **AI
+Tonight opens (ADR-0011). It has two parts. The **brief** is two or three
+sentences about that evening, read at a glance: what kind of evening it is
+(the **Day note**, weekday habits, the last few days' eating), the one or two
+standout suggestions, and the one thing to watch out for, if any. The **Prepared ranking** ranks every candidate Option with an **AI
 rationale**. It is written only for an undecided date from today through six
 days ahead, from the same snapshot AI search reads, and is rewritten in the
 background whenever that input changes. Once its date has a **Pick** it

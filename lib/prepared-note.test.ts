@@ -220,6 +220,11 @@ describe("buildPreparedSystemPrompt", () => {
     expect(prompt).toContain("Every candidate must appear exactly once");
   });
 
+  it("asks for a brief of two or three sentences, not a page", () => {
+    expect(prompt).toContain("the brief: two or three sentences");
+    expect(prompt).not.toContain("150 to 300 words");
+  });
+
   it("carries the rhythm-claim rule and the household-text and Day-note framing", () => {
     expect(prompt).toContain(
       "NEVER state how long it has been since the household last ate",
