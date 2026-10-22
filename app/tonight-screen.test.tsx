@@ -2175,7 +2175,6 @@ describe("TonightScreen — Prepared note", () => {
 
   it.each([
     ["picker", { tonightsDinner: [], pickerRows: THREE }],
-    ["decided", { tonightsDinner: DINNER, pickerRows: [row("o3", "Cherry Pie")] }],
     ["all-filtered", { tonightsDinner: [], pickerRows: [], allFiltered: true }],
   ])("shows the brief and its label in %s mode", (_mode, props) => {
     render(
@@ -2190,6 +2189,80 @@ describe("TonightScreen — Prepared note", () => {
 
     expect(screen.getByText(NOTE.brief)).toBeTruthy();
     expect(screen.getByText("Prepared 2:14pm")).toBeTruthy();
+  });
+
+  /** The Prepared note section's text lines, in screen order. */
+  function briefLines(): string[] {
+    return Array.from(
+      screen.getByRole("region", { name: "Prepared note" }).querySelectorAll("p"),
+    ).map((line) => line.textContent ?? "");
+  }
+
+  it("leads a decided date with where the frozen note ranked each Log entry", () => {
+    // The note put Apple Crumble second; it has since been Picked, so the
+    // list on show no longer carries it, but the comparison still finds it.
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={DINNER}
+        pickerRows={[row("o3", "Cherry Pie")]}
+        searchEnabled
+        preparedNote={{
+          ...NOTE,
+          ranking: [
+            { id: "o3", reason: "Pie night." },
+            { id: "o1", reason: "A fallback." },
+          ],
+        }}
+      />,
+    );
+
+    expect(briefLines().slice(0, 3)).toEqual([
+      "The note ranked Apple Crumble #2",
+      "The note didn't rank Banana Bread",
+      "Prepared 2:14pm",
+    ]);
+  });
+
+  it("keeps a decided date's frozen brief behind Read the note, at every width", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={DINNER}
+        pickerRows={[row("o3", "Cherry Pie")]}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    expect(screen.getByText("Prepared 2:14pm")).toBeTruthy();
+    expect(screen.queryByText(NOTE.brief)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Read more" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Read the note" }));
+
+    expect(screen.getByText(NOTE.brief)).toBeTruthy();
+    const hide = screen.getByRole("button", { name: "Hide the note" });
+    expect(hide.getAttribute("aria-expanded")).toBe("true");
+    expect(hide.className).not.toMatch(/desktop:hidden/);
+  });
+
+  it("never marks a decided date's frozen note out of date", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={DINNER}
+        pickerRows={[row("o3", "Cherry Pie")]}
+        searchEnabled
+        preparedNote={{ ...NOTE, outOfDate: true }}
+      />,
+    );
+
+    expect(screen.getByText("Prepared 2:14pm")).toBeTruthy();
+    expect(screen.queryByText(/out of date/)).toBeNull();
   });
 
   it("marks an out-of-date note on its label, and only then", () => {

@@ -435,7 +435,11 @@ export function TonightScreen({
         />
       </div>
       {preparedNote !== null && (
-        <PreparedBrief key={selectedDay} note={preparedNote} />
+        <PreparedBrief
+          key={selectedDay}
+          note={preparedNote}
+          eaten={tonightsDinner.map((entry) => entry.row.option)}
+        />
       )}
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}
