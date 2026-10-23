@@ -1,6 +1,6 @@
 # 03 — Day decisions: one module owns Pick and Rejection writes
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -36,15 +36,15 @@ the module exists.
 
 ## Acceptance criteria
 
-- [ ] DB test (red first): editing a Log entry onto an (Option, date) with a
+- [x] DB test (red first): editing a Log entry onto an (Option, date) with a
       Rejection removes the Rejection
-- [ ] DB tests (red first): creating, rejecting, and editing a Rejection onto a
+- [x] DB tests (red first): creating, rejecting, and editing a Rejection onto a
       Picked (Option, date) is refused with the message above, and writes
       nothing
-- [ ] Existing Pick-supersedes-Rejection DB tests pass, driven through the
+- [x] Existing Pick-supersedes-Rejection DB tests pass, driven through the
       module rather than repeated per server action
-- [ ] The rollback test drives the module directly — no `db.transaction` Proxy
-- [ ] No server action writes to `dinner_log` or `rejections` directly —
+- [x] The rollback test drives the module directly — no `db.transaction` Proxy
+- [x] No server action writes to `dinner_log` or `rejections` directly —
       `app/log/actions.ts` and `app/rejection-actions.ts` only call the module
       (`grep` for `insert(dinnerLog`, `delete(rejections`, etc. under `app/`).
       Exempt and left alone: `scripts/import-prior-data.ts` (one-off import)
@@ -52,10 +52,40 @@ the module exists.
 - [ ] `/browse` on the dev server: the refusal shows inline on the Option
       detail page and the Log screen (if no browser is available, say so in
       Comments)
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all green
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all green
 
 ## Blocked by
 
 - Nothing. Third in the plan's order only to keep the Prepared note work first.
 
 ## Comments
+
+- Red first: the `updateLogEntry` gap and the three refusals (`createRejection`,
+  `rejectOption`, `updateRejection`) were written as action-level DB tests
+  against the old actions and failed on their assertions (`{ ok: true }`
+  returned; two Rejections left behind). The refusal-message tests stay in
+  `app/rejection-actions.db.test.ts`; the rule tests now live in
+  `lib/day-decisions.db.test.ts` and drive the module.
+- `lib/day-decisions.ts`: `addPick` (`repeat: "ignore" | "refuse"` for the
+  one-tap and typed paths), `editLogEntry`, `removeLogEntry`, `addRejection`,
+  `editRejection` (both return `"saved" | "already-picked"`), and
+  `removeRejection`. Postgres errors still throw for the actions to translate
+  with `pgErrorMessage`.
+- Rollback: the `db.transaction` Proxy test is gone, not ported. No reachable
+  state makes a write fail *after* its Rejection delete (a duplicate, a stale
+  Option id, or a vanished entry each fails on the first statement), so the
+  module tests instead check that a refused write (a typed duplicate Pick, an
+  edit colliding with another entry, a refused Rejection) leaves both tables as
+  they were.
+- A stale `editLogEntry` / `editRejection` (the id is gone) stays a silent
+  no-op, as before; `editLogEntry` then removes no Rejection.
+- `/browse`: not run. Aside isn't available on Linux, and gstack's headless
+  fallback has no Chromium installed (`ms-playwright` cache missing); installing
+  it is a machine-wide download, so I left it. Dev mode also hit the container's
+  inotify limit (ENOSPC). Checked in code instead: the Option detail page
+  (`app/catalog/[id]/option-controls.tsx`) and the Log screen's Rejection form
+  (`app/log/rejection-row.tsx`) both render `result.error` inline, on the path
+  that already shows "Already rejected for that date". A human should confirm
+  it on screen: Pick an Option today, then Reject it from its detail page and
+  add a Rejection for it today on `/log`.
+- Gate: typecheck, lint, test (509), test:db (126), and build all green.
