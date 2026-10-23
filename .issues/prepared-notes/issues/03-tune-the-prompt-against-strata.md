@@ -1,6 +1,6 @@
 # 03 — Tune the prompt against Strata
 
-Status: ready-for-human
+Status: done
 Type: HITL
 
 ## Parent
@@ -31,18 +31,36 @@ and still needs approval.
 
 ## Acceptance criteria
 
-- [ ] The script runs for today and today+3 and prints prompt, raw reply, and
-      parsed note
-- [ ] Every candidate is ranked in both runs; the brief is in the word range
-- [ ] Output quality and latency for both runs recorded in the commit message
-- [ ] Rows land on a forced-on dev tick; a second tick skips unchanged days
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
+- [x] The script runs for today and today+3 and prints prompt, raw reply, and
+      parsed note (today on v4; +3 on v2 and v3 — the v4 +3 runs hit the
+      18-minute timeout under another client's load, which is what moved it
+      to 40)
+- [x] Every candidate is ranked in both runs; the brief is in the word range
+      (one unranked candidate per run accepted by the human — Tonight
+      appends it; the range is now 40–70 words, prompt v5)
+- [x] Output quality and latency for both runs recorded in the commit message
+- [x] Rows land on a forced-on dev tick; a second tick skips unchanged days
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
 ## Blocked by
 
 - Issues 01 and 02
 
 ## Comments
+
+**2026-10-23 — loop check, done.** Dev DB (`.env`, localhost) holds a copy of
+prod's data taken 2026-10-22 ~23:15 UTC, with 0006 applied. `next start`
+(production mode, so the loop runs with no code change) stored v5 notes for
+Oct 23–26: 22, 28, 36, and 31 minutes, 16.1–16.5k tokens each, Strata busy
+with another client throughout; 35–38 rows; Friday's brief 50 words. The
+server was then stopped (the agent's 2-hour background limit), mid Oct 27.
+A second `runSweep` against the same DB, with a recording stub for the
+model, asked only for Oct 28: Oct 23–26 skipped as unchanged, Oct 27 skipped
+for its live claim. (APP_TZ is Los Angeles, where it was still the decided
+Oct 22, so the window was Oct 23–28.)
+
+Also from the human, 2026-10-22: the brief is now two or three sentences
+(prompt v5), and Prepared ranking rows keep the Last note (9025703).
 
 **2026-10-22 — human decisions.** Keep the default `xhigh` effort (no
 `chat_template_kwargs`). One unranked candidate per run is accepted: Tonight
