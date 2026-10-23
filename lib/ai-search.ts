@@ -48,7 +48,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { BuiltSnapshot, ModelSnapshot } from "./snapshot";
 import { undelimit } from "./snapshot-format";
 
-/** One AI search result row: an Option id and its AI rationale, in rank order. */
+/**
+ * One row of an AI ranking — an AI search result or a Prepared ranking: an
+ * Option id and its AI rationale, in rank order.
+ */
 export type AiRankingRow = { id: string; reason: string };
 
 /** An AI search either succeeded with an ordered result, or is unavailable. */

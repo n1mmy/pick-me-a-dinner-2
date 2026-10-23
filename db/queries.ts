@@ -9,8 +9,8 @@ import {
   rejections,
   tags,
   type Option,
-  type PreparedRankingRow,
 } from "./schema";
+import type { AiRankingRow } from "../lib/ai-search";
 import type { RankOption } from "../lib/ranking";
 import type { RejectionRow } from "../lib/rejections";
 import type { TodayLogEntry } from "../lib/tonights-dinner";
@@ -526,7 +526,7 @@ export async function getDayNotes(): Promise<DayNoteRow[]> {
 /** A stored **Prepared note** (ADR-0011), as Tonight and the sweep read it. */
 export type StoredPreparedNote = {
   brief: string;
-  ranking: PreparedRankingRow[];
+  ranking: AiRankingRow[];
   /** What the note was built from — compared against the current input. */
   inputHash: string;
   model: string;

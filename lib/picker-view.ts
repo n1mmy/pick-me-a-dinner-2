@@ -11,6 +11,7 @@
  * "exclude" Tags.
  */
 import type { OptionChoice } from "../db/queries";
+import type { AiRankingRow } from "./ai-search";
 import type { Suppression } from "./day-suppressions";
 import type { TonightRow } from "./ranking";
 
@@ -180,4 +181,37 @@ export function pickerView(
     tags: distinctTags(rows),
     hint: filterHint(kind, tagFilters),
   };
+}
+
+/** A Tonight row, with the AI rationale of the ranking that named it. */
+export type RankedRow = { row: TonightRow; reason?: string };
+
+/**
+ * Resolve an id-ranked list — an AI search result or a Prepared ranking —
+ * against the rows on screen, in the ranking's order. An id with no row (an
+ * Option Picked, Rejected, or Closed since the ranking was made) is skipped,
+ * and a repeated id keeps its first place. With `appendUnnamed`, the rows the
+ * ranking didn't name follow in their existing order, with no rationale, so
+ * none goes missing.
+ */
+export function resolveRanking(
+  ranking: AiRankingRow[],
+  rows: TonightRow[],
+  { appendUnnamed }: { appendUnnamed: boolean },
+): RankedRow[] {
+  const byId = new Map(rows.map((row) => [row.option.id, row]));
+  const named = new Set<string>();
+  const ranked: RankedRow[] = [];
+  for (const { id, reason } of ranking) {
+    const row = byId.get(id);
+    if (!row || named.has(id)) continue;
+    named.add(id);
+    ranked.push({ row, reason });
+  }
+  if (appendUnnamed) {
+    for (const row of rows) {
+      if (!named.has(row.option.id)) ranked.push({ row });
+    }
+  }
+  return ranked;
 }

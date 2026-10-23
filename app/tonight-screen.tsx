@@ -19,6 +19,7 @@ import {
   chipStateLabel,
   cycleChipState,
   pickerView,
+  resolveRanking,
   showAddRow,
   type ChipState,
   type KindFilter,
@@ -856,19 +857,11 @@ function Picker({
   // it; the filter chips stay live, and a filtered row keeps the note's rank.
   const prepared = useMemo(() => {
     if (preparedRanking === null) return null;
-    const byId = new Map(rows.map((row) => [row.option.id, row]));
-    const reasons = new Map<string, string>();
-    const ordered: TonightRow[] = [];
-    for (const { id, reason } of preparedRanking) {
-      const row = byId.get(id);
-      if (!row || reasons.has(id)) continue;
-      reasons.set(id, reason);
-      ordered.push(row);
-    }
-    for (const row of rows) {
-      if (!reasons.has(row.option.id)) ordered.push(row);
-    }
-    return { rows: ordered, reasons };
+    const ranked = resolveRanking(preparedRanking, rows, { appendUnnamed: true });
+    return {
+      rows: ranked.map(({ row }) => row),
+      reasons: new Map(ranked.map(({ row, reason }) => [row.option.id, reason])),
+    };
   }, [preparedRanking, rows]);
   const { visible, rankOf, choices, tags, hint } = useMemo(
     () => pickerView(prepared?.rows ?? rows, kind, tagFilters, suppressedRows),
@@ -880,14 +873,13 @@ function Picker({
   // A Pick (in picker mode → decided mode) drops the Picked Option from
   // `rows`, so its entry naturally falls out of `aiRows` while the rest of the
   // AI-ranked list stays put.
-  const aiRows = useMemo(() => {
-    if (aiResults === null) return null;
-    const byId = new Map(rows.map((row) => [row.option.id, row]));
-    return aiResults.flatMap((result) => {
-      const row = byId.get(result.id);
-      return row ? [{ row, reason: result.reason }] : [];
-    });
-  }, [aiResults, rows]);
+  const aiRows = useMemo(
+    () =>
+      aiResults === null
+        ? null
+        : resolveRanking(aiResults, rows, { appendUnnamed: false }),
+    [aiResults, rows],
+  );
 
   function cycleTag(tag: string) {
     setTagFilters((prev) => ({

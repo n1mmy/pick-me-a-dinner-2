@@ -4,6 +4,7 @@ import {
   chipStateLabel,
   cycleChipState,
   pickerView,
+  resolveRanking,
   showAddRow,
   type TonightChoice,
 } from "./picker-view";
@@ -251,5 +252,59 @@ describe("showAddRow (issue 03)", () => {
 
   it("ignores surrounding whitespace on the query", () => {
     expect(showAddRow(CHOICES, "  Thai Orchid  ")).toBe(false);
+  });
+});
+
+describe("resolveRanking", () => {
+  const resolved = (ranked: { row: TonightRow; reason?: string }[]) =>
+    ranked.map(({ row, reason }) => [row.option.id, reason]);
+
+  it("keeps the ranking's order, each row with its AI rationale", () => {
+    const ranking = [
+      { id: "plain-rest", reason: "Nothing to cook." },
+      { id: "fish-home", reason: "Fish is overdue." },
+    ];
+
+    expect(
+      resolved(resolveRanking(ranking, ROWS, { appendUnnamed: false })),
+    ).toEqual([
+      ["plain-rest", "Nothing to cook."],
+      ["fish-home", "Fish is overdue."],
+    ]);
+  });
+
+  it("skips an id with no row — an Option Picked, Rejected, or Closed since", () => {
+    const ranking = [
+      { id: "gone", reason: "Picked since." },
+      { id: "fish-home", reason: "Fish is overdue." },
+    ];
+
+    expect(
+      resolved(resolveRanking(ranking, ROWS, { appendUnnamed: false })),
+    ).toEqual([["fish-home", "Fish is overdue."]]);
+  });
+
+  it("keeps only the first of a repeated id", () => {
+    const ranking = [
+      { id: "fish-home", reason: "First." },
+      { id: "fish-home", reason: "Again." },
+    ];
+
+    expect(
+      resolved(resolveRanking(ranking, ROWS, { appendUnnamed: false })),
+    ).toEqual([["fish-home", "First."]]);
+  });
+
+  it("appends the rows the ranking didn't name, in their order, when asked", () => {
+    const ranking = [{ id: "pasta-rest", reason: "Pasta night." }];
+
+    expect(
+      resolved(resolveRanking(ranking, ROWS, { appendUnnamed: true })),
+    ).toEqual([
+      ["pasta-rest", "Pasta night."],
+      ["pasta-home", undefined],
+      ["fish-home", undefined],
+      ["plain-rest", undefined],
+    ]);
   });
 });

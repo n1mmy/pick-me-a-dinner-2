@@ -1,6 +1,6 @@
 # 04 — Ranking resolution: one pure match of a ranking against Tonight's rows
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -26,16 +26,30 @@ result match (`:883-890`). Neither can be tested without rendering Tonight.
 
 ## Acceptance criteria
 
-- [ ] Unit tests in `lib/picker-view.test.ts`: order kept; ids with no row
+- [x] Unit tests in `lib/picker-view.test.ts`: order kept; ids with no row
       skipped (Picked, Rejected, Closed since); duplicates dropped; unnamed rows
       appended in order when asked, and not when not
-- [ ] The two `useMemo`s in `app/tonight-screen.tsx` call the function and hold
+- [x] The two `useMemo`s in `app/tonight-screen.tsx` call the function and hold
       no matching logic of their own
-- [ ] Existing screen tests pass unchanged
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
+- [x] Existing screen tests pass unchanged
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
 ## Blocked by
 
 - Nothing technically. Fourth in the plan's order so issue 05 can build on it.
 
 ## Comments
+
+- `resolveRanking(ranking, rows, { appendUnnamed })` in `lib/picker-view.ts`
+  returns `{ row, reason? }[]`; unnamed rows appended under a Prepared ranking
+  carry no rationale. The Prepared memo only projects that into the rows
+  `pickerView` takes and the id → rationale map the rows read; the AI memo
+  returns it as is.
+- One change in behaviour: the AI search match now also drops a repeated id.
+  The server's parse already deduplicates, so nothing on screen changes.
+- One row type: `PreparedRankingRow` is gone; `db/schema.ts`, `db/queries.ts`,
+  and `lib/prepared-notes.ts` use `AiRankingRow` from `lib/ai-search.ts`
+  (type-only imports, as `db/queries.ts` already does from `lib/`).
+- Refactor, not a bug: the four new tests went red only on the missing
+  function, then green. `app/tonight-screen.test.tsx` is unchanged and passes.
+- Gate: typecheck, lint, test (513), test:db (126), and build all green.

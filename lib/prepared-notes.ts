@@ -10,7 +10,8 @@ import { createHash } from "node:crypto";
 import { and, eq, notExists, sql } from "drizzle-orm";
 import { db } from "../db";
 import { getDecidedDates, getPreparedNote } from "../db/queries";
-import { dinnerLog, preparedNotes, type PreparedRankingRow } from "../db/schema";
+import { dinnerLog, preparedNotes } from "../db/schema";
+import type { AiRankingRow } from "./ai-search";
 import { shiftSqlDate, todaySqlDate } from "./local-day";
 import {
   localModel,
@@ -177,7 +178,7 @@ export type PreparedNoteStatus = "current" | "out-of-date" | "frozen";
 /** The Prepared note as Tonight shows it. */
 export type TonightPreparedNote = {
   brief: string;
-  ranking: PreparedRankingRow[];
+  ranking: AiRankingRow[];
   preparedAt: Date;
   status: PreparedNoteStatus;
 };
