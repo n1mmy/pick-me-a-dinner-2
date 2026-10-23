@@ -1,7 +1,7 @@
 # pick-me-a-dinner-2
 
-Helps decide what's for dinner. Early-stage — the repo currently holds only
-this file and a README; code, stack, and architecture are not yet decided.
+Helps decide what's for dinner: a small Next.js + Drizzle/Postgres app. What
+it's for: `PRODUCT.md`. Domain language: `CONTEXT.md`.
 
 This file is the single source of project instructions: it is self-contained
 and does not assume any global `~/.claude/CLAUDE.md` is present. Project
@@ -43,29 +43,33 @@ over-invoking is cheap, under-invoking ships unreviewed work.
 - Code review, "check my diff", pre-landing review → `/review`
 - Ship, deploy, push, create PR → `/ship`
 - Land and deploy after `/ship` → `/land-and-deploy`
-- Cross-model second opinion → `/codex`
+- Cross-model second opinion → Paseo (see *Agents in other models*)
 - Security audit, threat model → `/cso`
 
 Workflow skills (installed globally from `~/.agents/skills/`):
 
-- Stress-test / "grill me" on a plan → `/grill-me`; same but checked against
-  the domain model with docs updated inline → `/grill-with-docs`
-- Turn the conversation into a PRD → `/to-prd`; break a plan into
-  independently-grabbable tracker issues → `/to-issues`
-- Triage incoming bugs / feature requests → `/triage`
+- Stress-test / "grill me" on a plan → `/grilling`
 - Throwaway prototype to flesh out a design before committing → `/prototype`
 - Test-first feature work, red-green-refactor → `/tdd`
 - Hard bug or performance regression, disciplined root-cause loop →
-  `/diagnose` (gstack's `/investigate` is the equivalent — prefer whichever
-  the user names)
-- Improve architecture, find refactor / consolidation opportunities →
+  `/diagnosing-bugs` (gstack's `/investigate` is the equivalent — prefer
+  whichever the user names)
+- Module design, deepening, refactor / consolidation → `/codebase-design`
+- Writing a skill, `CLAUDE.md`, or another agent-facing doc →
+  `/writing-for-agents`
+
+These are user-only (`disable-model-invocation`): when the work matches,
+suggest the user run them.
+
+- Grill a plan with ADRs and glossary updated inline → `/grill-with-docs`
+- Turn the conversation into a spec → `/to-spec`; break a plan into tracker
+  tickets → `/to-tickets`
+- Triage incoming bugs / feature requests → `/triage`
+- Scan for architecture deepening opportunities →
   `/improve-codebase-architecture`
-- Unfamiliar code, "give me the bigger picture" → `/zoom-out`
 - Compact this conversation into a handoff doc for another agent →
   `/handoff`
-- Create a new skill → `/write-a-skill`; find or install a skill for a
-  capability → `/find-skills`
-- Ultra-compressed replies → `/caveman`
+- Find or install a skill for a capability → `/find-skills`
 
 `/ship` and `/land-and-deploy` are user-triggered and billed; only invoke
 them when explicitly asked. Other skills may be proactively suggested when
@@ -84,6 +88,23 @@ snapshot) is fine without asking; a full run is not.
 
 Use `/browse` for all web browsing. Never use `mcp__claude-in-chrome__*`
 tools.
+
+## Agents in other models
+
+Consider Paseo (`paseo`, on `$PATH`) whenever an agent in another model would
+help — an outside voice on a review or plan, a cross-model second opinion. For
+OpenAI models go through the omp harness, which holds the login — not the
+`codex` harness, which isn't logged in here:
+`paseo run --provider omp --model openai/<model> --mode write --title "<title>" "<prompt>"`
+(omp modes: `full`, `write`, `ask`). In `write` mode the agent stalls on
+approval prompts (shell commands included) that show only as `OMP select`
+with no detail: `paseo wait` returns while it's still `running`, so check
+`paseo permit ls` and answer with `paseo permit allow|deny <agent> <req>`.
+List omp's models with
+`omp models find <pattern>`; `paseo provider ls` lists the other providers.
+gstack's own `codex exec` can't start its sandbox in this container, so Paseo
+is also the route for a skill's Codex outside-voice step. A run against a
+metered provider falls under the billed-call rule above.
 
 ## Tool & permissions discipline
 
@@ -158,10 +179,11 @@ not Claude's.
 
 ## Stay in your worktree
 
-If running inside a worktree (path like `.../.claude/worktrees/<name>/`),
-that directory is the workspace. Do not edit, write to, or run commands that
-modify files outside it — the main checkout and sibling worktrees may hold
-uncommitted or in-progress work from parallel agents. Read-only git queries
+When the working directory is a git worktree (any location —
+`.claude/worktrees/`, `paseo-worktrees/`, …), that directory is the
+workspace. Do not edit, write to, or run commands that modify files outside
+it — the main checkout and sibling worktrees may hold uncommitted or
+in-progress work from parallel agents. Read-only git queries
 and reading shared config are fine; mutations are not. If a task genuinely
 needs changes outside the worktree, stop and ask first.
 
