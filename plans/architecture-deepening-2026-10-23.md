@@ -1,6 +1,7 @@
 # Architecture deepening (2026-10-23) — plan
 
-Status: **approved design, not started** (2026-10-23). The candidates came out
+Status: **implemented** (2026-10-23): issues 01, 02, 04, and 05 done; 03
+committed but `needs-info` on its rollback criterion. The candidates came out
 of an `/improve-codebase-architecture` review of the recent hot spots (Prepared
 notes, AI search, Tonight, the Log and Rejection write paths); the decisions
 below came out of the `/grilling` session that followed.

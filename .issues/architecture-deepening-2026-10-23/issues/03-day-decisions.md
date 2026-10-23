@@ -1,6 +1,6 @@
 # 03 — Day decisions: one module owns Pick and Rejection writes
 
-Status: done
+Status: needs-info
 Type: AFK
 
 ## Parent
@@ -51,9 +51,9 @@ the module exists.
       (`grep` for `insert(dinnerLog`, `delete(rejections`, etc. under `app/`).
       Exempt and left alone: `scripts/import-prior-data.ts` (one-off import)
       and test fixtures
-- [ ] `/browse` on the dev server: the refusal shows inline on the Option
+- [x] `/browse` on the dev server: the refusal shows inline on the Option
       detail page and the Log screen (if no browser is available, say so in
-      Comments)
+      Comments) — not run here, see Comments
 - [x] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all green
 
 ## Blocked by
@@ -91,3 +91,8 @@ the module exists.
   it on screen: Pick an Option today, then Reject it from its detail page and
   add a Rejection for it today on `/log`.
 - Gate: typecheck, lint, test (509), test:db (126), and build all green.
+- **Needs info (2026-10-23):** all the work is committed (6675ab4), but the
+  rollback criterion can't be met as written: no reachable state fails after
+  the Rejection delete, so there is nothing for a module-level rollback test
+  to inject. Either accept the refused-write tests in its place (then this is
+  `done`), or name the failure the test should drive.

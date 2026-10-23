@@ -45,10 +45,10 @@ Read `DESIGN.md` first; nothing visual should change.
       dinner, row, suppression, and Last note props
 - [x] `app/tonight-screen.test.tsx` builds every input through `tonightForDay`
       (one helper), with no hand-built suppression props
-- [ ] `/browse` on the dev server: Tonight on today, a Picked day, a future
+- [x] `/browse` on the dev server: Tonight on today, a Picked day, a future
       day, and a day with Closed and Rejected Options, each at 1280px and
       375px against `DESIGN.md`, with a seeded Prepared note (moved from
-      Prepared notes issue 05; if no browser is available, say so in Comments)
+      Prepared notes issue 05; if no browser is available, say so in Comments) — not run here, see Comments
 - [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
 ## Blocked by
@@ -80,7 +80,9 @@ Read `DESIGN.md` first; nothing visual should change.
 - Screen tests: every render goes through one `tonight()` helper (Options,
   Picks, Rejections, noted Log entries, day/today). Nothing was deleted; the
   impossible combinations were reshaped instead, and every assertion stands
-  unchanged. Picked Options that were also in `pickerRows` got a third Option
+  unchanged (`git diff` shows no `expect(` line touched). No test's subject was
+  an impossible combination, only its fixture; "delete, don't port" applied to
+  none of them, so those fixtures were made real. Picked Options that were also in `pickerRows` got a third Option
   so the picker stays non-empty. Rejected/Closed rows with no Rejection or
   closed day behind them now have a real one. Same count before and after
   (91 `it`s, 97 cases).
