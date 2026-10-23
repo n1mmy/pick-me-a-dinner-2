@@ -1,6 +1,6 @@
 # 05 — Selected-day view: Tonight takes one value
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -39,17 +39,17 @@ Read `DESIGN.md` first; nothing visual should change.
 
 ## Acceptance criteria
 
-- [ ] `lib/tonight-day.test.ts` covers the view: tagged rows, Rejection id and
+- [x] `lib/tonight-day.test.ts` covers the view: tagged rows, Rejection id and
       reason, day label and write date for today, past, and future
-- [ ] `TonightScreen` takes the view instead of the separate Selected-day,
+- [x] `TonightScreen` takes the view instead of the separate Selected-day,
       dinner, row, suppression, and Last note props
-- [ ] `app/tonight-screen.test.tsx` builds every input through `tonightForDay`
+- [x] `app/tonight-screen.test.tsx` builds every input through `tonightForDay`
       (one helper), with no hand-built suppression props
 - [ ] `/browse` on the dev server: Tonight on today, a Picked day, a future
       day, and a day with Closed and Rejected Options, each at 1280px and
       375px against `DESIGN.md`, with a seeded Prepared note (moved from
       Prepared notes issue 05; if no browser is available, say so in Comments)
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
 ## Blocked by
 
@@ -58,3 +58,35 @@ Read `DESIGN.md` first; nothing visual should change.
   relies on)
 
 ## Comments
+
+- The view (`TonightView` in `lib/tonight-day.ts`): `day` (`date`, `today`,
+  `isToday`, `heading`, `label`, `writeDate`), `dayNote`, `tonightsDinner`,
+  `picker`, `suppressed` (a tagged union; a rejected row carries its
+  Rejection's `id` and `reason`), `lastNotes`, and `allFiltered`.
+  `tonightForDay` now takes the day's Rejection rows, `today`, and `dayNote`
+  in place of `rejectedOptionIds`, and stays pure.
+- `TonightScreen` takes four props: `view`, `searchEnabled`, `preparedNote`,
+  `quickAddSources`. Gone: the `SuppressedRows` type and memo, the
+  `rejectedTonight` / `rejectedRows` / `closedTonight` props, the
+  `isToday ? undefined : selectedDay` repeats (now `day.writeDate`), the three
+  `dayLabel` computations, and the dinner block's `"tonight"` compare (it takes
+  `heading`). One `weekdayName(` stays in the search box: the standing
+  "closed Mondays" note names the date's weekday even today, which is not a
+  day label.
+- Rejected disclosure order: unchanged on screen. It was `getTodayRejections`'
+  newest-first order, so the view keeps rejected rows in the Rejections' order
+  and the old "lists rejected rows alphabetically" test now says that (the
+  typeahead sorts by name anyway). Closed rows stay alphabetical.
+- Screen tests: every render goes through one `tonight()` helper (Options,
+  Picks, Rejections, noted Log entries, day/today). Nothing was deleted; the
+  impossible combinations were reshaped instead, and every assertion stands
+  unchanged. Picked Options that were also in `pickerRows` got a third Option
+  so the picker stays non-empty. Rejected/Closed rows with no Rejection or
+  closed day behind them now have a real one. Same count before and after
+  (91 `it`s, 97 cases).
+- `/browse`: not run. As in issue 03, Aside isn't available on Linux and the
+  headless fallback has no Chromium installed; installing it is a machine-wide
+  download. A human should check Tonight on today, a Picked day, a future day,
+  and a day with Closed and Rejected Options, at 1280px and 375px against
+  `DESIGN.md`, with a seeded Prepared note. Nothing visual was meant to change.
+- Gate: typecheck, lint, test (519), test:db (126), and build all green.

@@ -163,11 +163,15 @@ describe("pickerView — choices", () => {
   });
 
   it("widens past `rows` to the Closed, Rejected, and Picked candidates, each carrying its suppression", () => {
-    const { choices } = pickerView([row("open-home", "home")], "all", {}, {
-      closed: [row("closed-rest", "restaurant")],
-      rejected: [row("rejected-home", "home")],
-      picked: [row("picked-rest", "restaurant")],
-    });
+    const { choices } = pickerView([row("open-home", "home")], "all", {}, [
+      { suppression: "closed", row: row("closed-rest", "restaurant") },
+      {
+        suppression: "rejected",
+        row: row("rejected-home", "home"),
+        rejection: { id: "r1", reason: null },
+      },
+      { suppression: "picked", row: row("picked-rest", "restaurant") },
+    ]);
     expect(choices).toEqual([
       { id: "closed-rest", name: "closed-rest", kind: "restaurant", suppression: "closed" },
       { id: "open-home", name: "open-home", kind: "home", suppression: "none" },

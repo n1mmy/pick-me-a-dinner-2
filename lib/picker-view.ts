@@ -14,6 +14,7 @@ import type { OptionChoice } from "../db/queries";
 import type { AiRankingRow } from "./ai-search";
 import type { Suppression } from "./day-suppressions";
 import type { TonightRow } from "./ranking";
+import type { SuppressedRow } from "./tonight-day";
 
 /**
  * One typeahead candidate: an `OptionChoice` plus why it is off Tonight's
@@ -138,13 +139,6 @@ function filterHint(kind: KindFilter, tagFilters: TagFilters): string {
     : `Showing ${noun}`;
 }
 
-/** The rows Closed, Rejected, and already Picked for the Selected day. */
-export type SuppressedRows = {
-  closed: TonightRow[];
-  rejected: TonightRow[];
-  picked: TonightRow[];
-};
-
 /**
  * The Picker's view model: everything the Picker renders, derived from the
  * ranked (unfiltered) rows and the active filter state.
@@ -161,7 +155,7 @@ export function pickerView(
   rows: TonightRow[],
   kind: KindFilter,
   tagFilters: TagFilters,
-  suppressed: SuppressedRows = { closed: [], rejected: [], picked: [] },
+  suppressed: SuppressedRow[] = [],
 ): {
   visible: TonightRow[];
   rankOf: Map<string, number>;
@@ -174,9 +168,7 @@ export function pickerView(
     rankOf: new Map(rows.map((row, index) => [row.option.id, index + 1])),
     choices: [
       ...rows.map((row) => toChoice(row, "none")),
-      ...suppressed.closed.map((row) => toChoice(row, "closed")),
-      ...suppressed.rejected.map((row) => toChoice(row, "rejected")),
-      ...suppressed.picked.map((row) => toChoice(row, "picked")),
+      ...suppressed.map(({ row, suppression }) => toChoice(row, suppression)),
     ].sort((a, b) => a.name.localeCompare(b.name)),
     tags: distinctTags(rows),
     hint: filterHint(kind, tagFilters),
