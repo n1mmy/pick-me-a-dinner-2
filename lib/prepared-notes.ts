@@ -1,17 +1,20 @@
 /**
- * The Prepared notes sweep (ADR-0011): keeps each eligible date's Prepared
- * note current by regenerating it whenever its input changes, coordinating
+ * **Prepared notes** (ADR-0011): the one module that knows whether a date's
+ * note is current, out of date, or frozen. Two entry points — the sweep, which
+ * keeps each eligible date's note current by regenerating it whenever its
+ * input changes, and Tonight's read of a date's note. The sweep coordinates
  * with the other replica only through the per-date claim on its row.
  */
 
 import { createHash } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, notExists, sql } from "drizzle-orm";
 import { db } from "../db";
-import { getFullLogForSnapshot, getPreparedNote } from "../db/queries";
-import { preparedNotes } from "../db/schema";
+import { getDecidedDates, getPreparedNote } from "../db/queries";
+import { dinnerLog, preparedNotes, type PreparedRankingRow } from "../db/schema";
 import type { ModelSnapshot } from "./ai-search";
 import { shiftSqlDate, todaySqlDate } from "./local-day";
 import {
+  localModel,
   PREPARED_PROMPT_VERSION,
   type PreparedNote,
   type PreparedNoteClient,
@@ -23,23 +26,17 @@ const DAYS_AHEAD = 6;
 
 /**
  * The dates the sweep writes notes for, today first: today through six days
- * ahead in `timeZone`, minus every date with a Log entry. Skipping a decided
- * date is what freezes its note; removing the Pick makes it eligible again.
- * Past dates never appear.
+ * ahead in `timeZone`, minus every decided date. A date's note **freezes**
+ * once it is decided or has passed — skipping it is all freezing takes, and
+ * removing the Pick makes it eligible again. Past dates never appear.
  */
-export function eligibleDays(
-  now: Date,
-  timeZone: string,
-  decidedDates: readonly string[],
-): string[] {
+async function eligibleDays(now: Date, timeZone: string): Promise<string[]> {
   const today = todaySqlDate(now, timeZone);
-  const decided = new Set(decidedDates);
-  const days: string[] = [];
-  for (let offset = 0; offset <= DAYS_AHEAD; offset++) {
-    const day = shiftSqlDate(today, offset);
-    if (!decided.has(day)) days.push(day);
-  }
-  return days;
+  const window = Array.from({ length: DAYS_AHEAD + 1 }, (_, offset) =>
+    shiftSqlDate(today, offset),
+  );
+  const decided = new Set(await getDecidedDates(today, window[DAYS_AHEAD]));
+  return window.filter((day) => !decided.has(day));
 }
 
 /**
@@ -47,16 +44,11 @@ export function eligibleDays(
  * the model, and the prompt version. A stored note whose hash differs is
  * stale. Any Pick, Rejection, Day note, Note, or Catalog edit reaches the
  * snapshot, so this one comparison is the only change detection there is.
- * `promptVersion` is overridable only so a test can vary it.
  */
-export function inputHash(
-  snapshot: ModelSnapshot,
-  model: string,
-  promptVersion: string = PREPARED_PROMPT_VERSION,
-): string {
+function inputHash(snapshot: ModelSnapshot, model: string): string {
   // One JSON array, so no two different inputs can concatenate to the same text.
   return createHash("sha256")
-    .update(JSON.stringify([promptVersion, model, snapshot]))
+    .update(JSON.stringify([PREPARED_PROMPT_VERSION, model, snapshot]))
     .digest("hex");
 }
 
@@ -72,7 +64,8 @@ export type Claim = { inputHash: string | null };
 /**
  * Take the per-date claim in one statement: insert the row with a lease, or
  * renew an existing row's lease only if it has none or it has run out. `null`
- * means another replica holds the date — skip it.
+ * means another replica holds the date — skip it. Exported for the tests that
+ * stand in for the other replica; the sweep is its only production caller.
  */
 export async function claimDay(date: string): Promise<Claim | null> {
   const [row] = await db
@@ -89,9 +82,11 @@ export async function claimDay(date: string): Promise<Claim | null> {
 
 /**
  * Write a freshly generated note over the date's previous one and clear the
- * claim. Only the latest version is kept.
+ * claim — but only while the date is still undecided: a Pick that landed
+ * during the generation has frozen the note already stored, and the claim is
+ * released either way. Only the latest version is kept.
  */
-export async function storeNote(
+async function storeNote(
   date: string,
   {
     note,
@@ -99,7 +94,7 @@ export async function storeNote(
     model,
   }: { note: PreparedNote; inputHash: string; model: string },
 ): Promise<void> {
-  await db
+  const stored = await db
     .update(preparedNotes)
     .set({
       brief: note.brief,
@@ -109,14 +104,26 @@ export async function storeNote(
       preparedAt: sql`now()`,
       claimedUntil: null,
     })
-    .where(eq(preparedNotes.preparedFor, date));
+    .where(
+      and(
+        eq(preparedNotes.preparedFor, date),
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(dinnerLog)
+            .where(eq(dinnerLog.eatenOn, date)),
+        ),
+      ),
+    )
+    .returning({ preparedFor: preparedNotes.preparedFor });
+  if (stored.length === 0) await releaseClaim(date);
 }
 
 /**
  * Clear the date's claim and nothing else, after a failed or skipped
  * generation: the last good note stays.
  */
-export async function releaseClaim(date: string): Promise<void> {
+async function releaseClaim(date: string): Promise<void> {
   await db
     .update(preparedNotes)
     .set({ claimedUntil: null })
@@ -131,17 +138,13 @@ export async function runSweep({
   now,
   timeZone,
   client,
-  model,
 }: {
   now: Date;
   timeZone: string;
   client: PreparedNoteClient;
-  model: string;
 }): Promise<void> {
-  const decidedDates = (await getFullLogForSnapshot()).map(
-    (entry) => entry.eatenOn,
-  );
-  for (const day of eligibleDays(now, timeZone, decidedDates)) {
+  const model = localModel();
+  for (const day of await eligibleDays(now, timeZone)) {
     const { snapshot, idByIndex } = await snapshotForDay({ asOf: day, query: "" });
     const hash = inputHash(snapshot, model);
     if ((await getPreparedNote(day))?.inputHash === hash) continue;
@@ -163,4 +166,54 @@ export async function runSweep({
       await releaseClaim(day);
     }
   }
+}
+
+/**
+ * Where a stored note stands: `current` matches the date's input, `out-of-date`
+ * doesn't and the sweep will rewrite it, `frozen` is a record the sweep no
+ * longer touches.
+ */
+export type PreparedNoteStatus = "current" | "out-of-date" | "frozen";
+
+/** The Prepared note as Tonight shows it. */
+export type TonightPreparedNote = {
+  brief: string;
+  ranking: PreparedRankingRow[];
+  preparedAt: Date;
+  status: PreparedNoteStatus;
+};
+
+/**
+ * Tonight's read of `day`'s note, or `null` when none has been written.
+ * `today` is the Household's calendar day. Out of date is the sweep's own
+ * staleness test — the date's current snapshot hashed against the hash the
+ * note was built from — so the marker shows exactly while the sweep would
+ * rewrite the note. A frozen note is a record rather than advice: never out of
+ * date, and its snapshot (one full-Log read) is never built.
+ */
+export async function preparedNoteFor({
+  day,
+  today,
+}: {
+  day: string;
+  today: string;
+}): Promise<TonightPreparedNote | null> {
+  const stored = await getPreparedNote(day);
+  if (stored === null) return null;
+  const note = {
+    brief: stored.brief,
+    ranking: stored.ranking,
+    preparedAt: stored.preparedAt,
+  };
+  if (day < today || (await getDecidedDates(day, day)).length > 0) {
+    return { ...note, status: "frozen" };
+  }
+  const { snapshot } = await snapshotForDay({ asOf: day, query: "" });
+  return {
+    ...note,
+    status:
+      inputHash(snapshot, localModel()) === stored.inputHash
+        ? "current"
+        : "out-of-date",
+  };
 }

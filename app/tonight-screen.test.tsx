@@ -2277,22 +2277,6 @@ describe("TonightScreen — Prepared note", () => {
     expect(hide.className).not.toMatch(/desktop:hidden/);
   });
 
-  it("never marks a decided date's frozen note out of date", () => {
-    render(
-      <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={DINNER}
-        pickerRows={[row("o3", "Cherry Pie")]}
-        searchEnabled
-        preparedNote={{ ...NOTE, outOfDate: true }}
-      />,
-    );
-
-    expect(screen.getByText("Prepared 2:14pm")).toBeTruthy();
-    expect(screen.queryByText(/out of date/)).toBeNull();
-  });
-
   it("marks an out-of-date note on its label, and only then", () => {
     const { rerender } = render(
       <TonightScreen

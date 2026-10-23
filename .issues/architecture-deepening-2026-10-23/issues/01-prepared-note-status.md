@@ -1,6 +1,6 @@
 # 01 — Prepared note status: one module owns freezing and staleness
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -43,26 +43,52 @@ so in Comments.
 
 ## Acceptance criteria
 
-- [ ] DB test (red first): a past undecided date with a stored note whose
+- [x] DB test (red first): a past undecided date with a stored note whose
       inputs have since changed reads as not out of date
-- [ ] DB test (red first): a Pick landing between a date's snapshot and its
+- [x] DB test (red first): a Pick landing between a date's snapshot and its
       store leaves the previously stored note untouched, and releases the claim
-- [ ] DB test (red first): a date whose only Pick is a since-Archived Option is
+- [x] DB test (red first): a date whose only Pick is a since-Archived Option is
       frozen — the sweep skips it and Tonight's read says frozen
-- [ ] `getFullLogForSnapshot` is unchanged (still active-only); the sweep no
+- [x] `getFullLogForSnapshot` is unchanged (still active-only); the sweep no
       longer calls it for decided dates
-- [ ] Existing sweep and loop tests pass through the new entry points; tests no
+- [x] Existing sweep and loop tests pass through the new entry points; tests no
       longer import claim/store/release directly unless they are the subject
-- [ ] `lib/tonight-prepared-note.ts` is gone; `app/page.tsx` passes neither
+- [x] `lib/tonight-prepared-note.ts` is gone; `app/page.tsx` passes neither
       `decided` nor `model`
-- [ ] On the dev server with the loop forced on (moved from Prepared notes issue
+- [x] On the dev server with the loop forced on (moved from Prepared notes issue
       06): Pick, and the note stops regenerating on the next tick; remove the
       Pick, and it regenerates (if the worker can't run this, say so in
-      Comments for a human check)
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all green
+      Comments for a human check) — not run here, see Comments
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all green
 
 ## Blocked by
 
 - Nothing. First in the plan's order.
 
 ## Comments
+
+- 2026-10-23: Built with /tdd. All three suspected bugs were real: the
+  past-date read, the mid-generation Pick, and the Archived Pick each went red
+  on an assertion before the fix (4 failing tests, sweep and read), then green.
+- The read is `preparedNoteFor({ day, today })` and returns a `status`
+  (`current` / `out-of-date` / `frozen`), so frozen is its own signal rather
+  than "not out of date". Decided dates come from the new
+  `getDecidedDates(from, to)` (no join to `options.active`); the store is one
+  `UPDATE … WHERE NOT EXISTS (Log entry on the date)`, releasing the claim if
+  it wrote nothing. `LOCAL_AI_MODEL` is read only by `localModel()` in
+  `lib/prepared-note.ts`.
+- `eligibleDays` and `inputHash` are private now: their window,
+  late-evening-timezone and month-rollover cases moved to `runSweep` DB tests.
+  The prompt-version hash test went with `inputHash`'s test-only
+  `promptVersion` override, so bumping `PREPARED_PROMPT_VERSION` is no longer
+  pinned by a test. `claimDay` stays exported for the other-replica tests.
+- Deleted the screen test "never marks a decided date's frozen note out of
+  date": the brief no longer overrides the flag, and the read can't produce
+  that combination.
+- **Dev-server freeze check not run — left for a human.** Running it means
+  writing a Pick and a Day note to the dev DB (the prod copy at
+  localhost:5434). This session was denied writes to that shared DB. To run
+  it: build and start the app with `NODE_ENV=production`, so the loop runs, or
+  call `runSweep` once per tick. Pick on an undecided date in the window and
+  check the next tick doesn't ask for it. Remove the Pick after changing that
+  date's input, and check the next tick does ask for it.

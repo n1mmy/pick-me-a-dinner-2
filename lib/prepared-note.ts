@@ -41,7 +41,15 @@ export const PREPARED_MARKER = "=== RANKING ===";
  * broken, as with `aiSearchEnabled()`.
  */
 export function preparedNotesEnabled(): boolean {
-  return Boolean(process.env.LOCAL_AI_BASE_URL && process.env.LOCAL_AI_MODEL);
+  return Boolean(process.env.LOCAL_AI_BASE_URL && localModel());
+}
+
+/**
+ * The local model's id, `LOCAL_AI_MODEL` — the one place it is read. A note's
+ * input hash includes it, so the sweep and Tonight's read must agree on it.
+ */
+export function localModel(): string {
+  return process.env.LOCAL_AI_MODEL ?? "";
 }
 
 /**

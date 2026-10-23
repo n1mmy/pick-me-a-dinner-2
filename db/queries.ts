@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import { db } from "./index";
 import {
   dayNotes,
@@ -283,6 +283,22 @@ export async function getFullLogForSnapshot(): Promise<TonightLogRow[]> {
     .from(dinnerLog)
     .innerJoin(options, eq(dinnerLog.optionId, options.id))
     .where(eq(options.active, true));
+}
+
+/**
+ * The **decided** dates between `from` and `to`, inclusive: every date with a
+ * Log entry (`CONTEXT.md`: **Day decision**). Not joined to `options.active` —
+ * a Pick of an Option since Archived still decides its date.
+ */
+export async function getDecidedDates(
+  from: string,
+  to: string,
+): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ eatenOn: dinnerLog.eatenOn })
+    .from(dinnerLog)
+    .where(and(gte(dinnerLog.eatenOn, from), lte(dinnerLog.eatenOn, to)));
+  return rows.map((row) => row.eatenOn);
 }
 
 /** A Log entry joined to its Option, narrowed to what the Log screen renders. */

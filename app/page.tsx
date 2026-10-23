@@ -9,8 +9,8 @@ import { parseSelectedDay, today } from "../lib/local-day";
 import { placesEnabled } from "../lib/places";
 import { preparedLabel } from "../lib/prepared-label";
 import { preparedNotesEnabled } from "../lib/prepared-note";
+import { preparedNoteFor } from "../lib/prepared-notes";
 import { tonightForDay } from "../lib/tonight-day";
-import { tonightPreparedNote } from "../lib/tonight-prepared-note";
 import { TonightScreen } from "./tonight-screen";
 
 /**
@@ -65,20 +65,15 @@ export default async function TonightPage({
     });
 
   // The Selected day's Prepared note (ADR-0011), read only when the local model
-  // is configured; without it, or with no note yet, Tonight is as before. A
-  // date with a Pick is decided, so its frozen note is never out of date.
+  // is configured; without it, or with no note yet, Tonight is as before.
   const stored = preparedNotesEnabled()
-    ? await tonightPreparedNote({
-        day: selectedDay,
-        decided: todayEntries.length > 0,
-        model: process.env.LOCAL_AI_MODEL ?? "",
-      })
+    ? await preparedNoteFor({ day: selectedDay, today: todaySql })
     : null;
   const preparedNote = stored && {
     brief: stored.brief,
     ranking: stored.ranking,
     label: preparedLabel(stored.preparedAt, todaySql, process.env.APP_TZ ?? "UTC"),
-    outOfDate: stored.outOfDate,
+    outOfDate: stored.status === "out-of-date",
   };
 
   // AI search appears only when `ANTHROPIC_API_KEY` is configured; without it
