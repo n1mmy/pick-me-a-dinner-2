@@ -8,7 +8,7 @@ deterministic recency list untouched. A typed query has an LLM rank the active
 Catalog against that intent, with a one-line reason on each strong match.
 
 This reverses v1's §10 non-goal "No AI / LLM suggestion" (the v1 plan is the
-archived historical record at [plans/old/v1-plan.md](old/v1-plan.md); the
+archived historical record at [plans/old/v1-plan.md](v1-plan.md); the
 non-goal there is superseded, the archive is not edited). The architecture
 decision is recorded in `docs/adr/0004-ai-search.md` — see §10.
 
@@ -18,7 +18,7 @@ decision is recorded in `docs/adr/0004-ai-search.md` — see §10.
 - A free-text search box on Tonight.
 - A query-driven LLM re-rank of the active Catalog via an `authedAction`-wrapped
   server action.
-- The deterministic engine ([lib/ranking.ts](../lib/ranking.ts)) is untouched —
+- The deterministic engine ([lib/ranking.ts](../../lib/ranking.ts)) is untouched —
   it stays the zero-query default, the candidate source, and the failure fallback.
 
 **Not in scope** (declined during review):
