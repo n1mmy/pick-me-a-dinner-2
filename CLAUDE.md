@@ -17,8 +17,7 @@ are the skill's own skip predicates — phrases inside the skill body like
 unavailable, continue". Anything else is the model inventing efficiency.
 
 If a step genuinely seems wasteful, ask in one sentence before skipping
-("I'd skip step X because Y — confirm?") and then wait for a reply. Never
-auto-decide.
+("I'd skip step X because Y — confirm?") and then wait for a reply.
 
 **Stop means stop the tool calls, not stop and narrate.** When a skill says
 STOP, the next message must contain no tool calls that advance the workflow.
@@ -76,13 +75,17 @@ them when explicitly asked. Other skills may be proactively suggested when
 the work matches. If the user types `/<name>` you don't recognize, ask which
 skill they mean — don't guess.
 
+## Billed-call rule
+
 The billed-call rule extends past skills: anything that spends money against
 an external service is user-triggered too. The standing example is
 `scripts/ai-search-eval.ts` — one run sends the full dinner snapshot to the
 metered model API and can burn the whole 90s timeout. State the cost shape
 (one call vs a sweep, rough size) and wait for approval before running. A
 tiny placeholder-body probe (a 64-token curl that never touches the real
-snapshot) is fine without asking; a full run is not.
+snapshot) is fine without asking; a full run is not. Strata, the local model
+behind `LOCAL_AI_*` and `scripts/prepared-note-eval.ts`, is free: the rule
+doesn't apply to it.
 
 ## Browser tooling
 
@@ -110,37 +113,9 @@ metered provider falls under the billed-call rule above.
 
 Prompt the user as little as possible — every avoidable permission prompt is
 friction. Bash calls go through a permission matcher; when there is more than
-one way to run something, choose the shape it already clears. How the matcher
-actually behaves (empirically catalogued; it is built-in, undocumented, and can
-drift across Claude Code versions, so re-verify if a result surprises you):
-
-- **Compounds are decomposed, not rejected wholesale.** `&&`, `||`, `;`, `|`,
-  and `&` are split into their stages, and the compound clears iff *every* stage
-  independently clears (against the allowlist or a safe list below). A compound
-  does **not** prompt merely for being compound — only when some stage isn't
-  itself allowed. So `git add <paths> && git commit -m x` is fine when both
-  halves are allowed. **But** command substitution `$(…)` / backticks are
-  rejected as a distinct shape, and an unescaped `*`, or any literal `$` byte
-  (even backslash-escaped as `\$`), in an argument is rejected outright — keep
-  those out of Bash args.
-- **Two built-in safe lists clear with no allow rule.** Read-only Bash commands
-  — `cat`, `head`, `tail`, `wc`, `grep`, `find`, `ls`, `stat`, `echo`, `printf`,
-  `which`, `type`, `realpath`, `dirname`, `basename`, `test` — and read-only git
-  subcommands — `log`, `diff`, `show`, `status`, `blame`, `rev-parse`,
-  `ls-files`, `for-each-ref`, `worktree list` — run without prompting.
-  `sed`/`awk` (verified — both prompt), `env`/`printenv`, `rm`/`mkdir`/`rmdir`,
-  and `git config`/`push`/`fetch` are **not** on the lists — treat them as
-  prompting; use `Read`/`Edit` or a safe-listed reader instead.
-- **Path-locality gate.** For the path-taking readers (`cat`/`head`/`tail`/
-  `wc`/`grep`/`find`/`ls`/`stat`/`rmdir`), an argument that is an absolute path
-  **outside the working directory** is rejected even though the command is
-  safe-listed — so `cat /etc/passwd` and `find /` are blocked, while in-worktree
-  paths clear. (git's read subcommands bypass this gate.)
-- **First-token shape.** A first token containing `/` — a full path like
-  `/usr/bin/git` or a `./relative` form — misses the lookup and is rejected even
-  for an otherwise-allowed command.
-
-The actionable rules that follow from this:
+one way to run something, choose the shape it already clears. When a Bash
+shape prompts unexpectedly, or when briefing a subagent, read
+`docs/agents/permissions.md` — the empirical catalogue these rules come from.
 
 - **Prefer dedicated tools over `Bash`.** `Read` for file contents (ranged
   `offset`/`limit`, images, PDFs), `Edit`/`Write` for changes. For search use
@@ -151,28 +126,29 @@ The actionable rules that follow from this:
   files, but `Read` is still better — ranged reads, images, no path-locality
   limit. Reach for `Bash` when shell semantics are genuinely required (git,
   package manager, docker, curl).
-- **Run commands bare from the working directory.** No full path
-  (`/opt/homebrew/bin/pnpm`), no `./x` first token, and no `git -C <path>` for
-  your own checkout — the cwd is already the repo/worktree root, so
-  `git status`, `git add <paths>`, and `git commit` resolve with no `-C`. Each
-  `/`-bearing first token misses the lookup. Use a full path or `-C` only when
-  genuinely targeting something off `$PATH` or a different checkout.
-- **No `cd <path> && …`.** Commands already resolve from the repo root and `cd`
-  isn't allowlisted, so the compound fails on the `cd` stage.
-- **No bare `rm`, no `mkdir`** (neither is safe-listed). Use `git rm <path>`,
-  `Write` to overwrite, and `Write` to a path inside a missing directory to
-  auto-create the parent.
-- **Keep `$(…)`, unescaped `*`, and `$VAR` out of Bash args** — the matcher
-  rejects all three regardless of quoting. Let a dedicated tool or a literal
-  path stand in.
+- **Run commands bare from the working directory.** The cwd is already the
+  repo/worktree root, so `git status`, `git add <paths>`, and `git commit`
+  resolve as written — a full path (`/opt/homebrew/bin/pnpm`), a `./x` first
+  token, `git -C <path>`, or a `cd <path> && …` prefix each make the matcher
+  prompt. Use a full path or `-C` only when genuinely targeting something off
+  `$PATH` or a different checkout.
+- **Chain freely when every stage is allowed.** A compound (`&&`, `|`, `;`)
+  clears stage by stage, so it prompts only if one of its stages would.
+- **Read with the safe-listed readers on in-worktree paths.** `cat`, `grep`,
+  `find`, `ls` and the read-only git subcommands clear on their own; `sed`,
+  `awk`, `env`, and `git config`/`push`/`fetch` prompt.
+- **Delete with `git rm <path>`; create a directory by `Write`-ing a file
+  into it.** `Write` also overwrites. `rm` and `mkdir` prompt.
+- **Keep Bash args literal.** `$(…)`, backticks, an unescaped `*`, and any `$`
+  are rejected regardless of quoting or escaping; let a dedicated tool or a
+  literal path stand in.
 - **Brief subagents with this discipline — they don't inherit it.** An
   `Explore` / `general-purpose` subagent reaches for `sed`/`awk`, full paths,
   outside-cwd reads, and `$(…)` by reflex. For read-only exploration, tell the
   agent to use `Read` (ranged `offset`/`limit`) plus the search rule above. On
-  an npm build
-  with `Glob`/`Grep` you can forbid the `Bash` tool outright; on a native build
-  it needs `Bash` for search, so pass it the bare-shape / in-worktree-path /
-  no-`$(…)` rules.
+  an npm build with `Glob`/`Grep` you can forbid the `Bash` tool outright; on
+  a native build it needs `Bash` for search, so pass it the bare-shape /
+  in-worktree-path / literal-args rules.
 
 Widening the allowlist in `.claude/settings.local.json` is the user's call,
 not Claude's.
@@ -207,19 +183,24 @@ you find yourself reaching for that kind of complexity, stop and ask first.
 
 ### Issue tracker
 
-Issues are tracked as local markdown files under `.issues/<feature>/`. See `docs/agents/issue-tracker.md`.
+Filing, updating, or closing an issue or PRD: they are local markdown files
+under `.issues/<feature>/`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-The five canonical triage roles use their default strings. See `docs/agents/triage-labels.md`.
+Setting an issue's `Status:` triage role: the five canonical roles use their
+default strings. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Exploring an area, naming a domain concept, or writing an ADR: single-context,
+one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
 ### Ralph loop
 
-Loop config and worker permissions. See `docs/agents/ralph.md`.
+Running or changing the Ralph loop, or checking the verification gate every
+change must pass: loop config and worker permissions. See
+`docs/agents/ralph.md`.
 
 ### Dev server
 
