@@ -68,7 +68,7 @@ function stubClient({
 } = {}) {
   const asked: string[] = [];
   const client: PreparedNoteClient = {
-    async prepare(snapshot, idByIndex) {
+    async prepare({ snapshot, idByIndex }) {
       const date = snapshot.today.slice(0, 10);
       asked.push(date);
       await during(date);

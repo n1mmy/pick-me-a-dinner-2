@@ -1,6 +1,6 @@
 # 02 — Snapshot module: one built value, canonical order
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -32,21 +32,37 @@ Claude client module. Give the snapshot its own module.
 
 ## Acceptance criteria
 
-- [ ] DB test for the snapshot (none exists today): candidates drop Picked,
+- [x] DB test for the snapshot (none exists today): candidates drop Picked,
       Rejected, and Closed Options for the date; Day notes and Rejections appear
       as dated history
-- [ ] Test (red first): two Log entries on the same date produce the same
+- [x] Test (red first): two Log entries on the same date produce the same
       snapshot whichever order they are read in
-- [ ] `app/api/ai-search/route.test.ts` no longer partially mocks
+- [x] `app/api/ai-search/route.test.ts` no longer partially mocks
       `lib/ai-search`, and its re-tests of candidate drops are deleted in
       favour of the snapshot test
-- [ ] `lib/prepared-note.ts` imports nothing snapshot-shaped from
+- [x] `lib/prepared-note.ts` imports nothing snapshot-shaped from
       `lib/ai-search.ts`
-- [ ] Existing AI search and Prepared note tests pass
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all green
+- [x] Existing AI search and Prepared note tests pass
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all green
 
 ## Blocked by
 
 - Issue 01 (it calls `snapshotForDay`, which moves here)
 
 ## Comments
+
+- 2026-10-23: Built with /tdd. The order bug was real: two same-date Log
+  entries built different snapshots depending on input order (red), and now
+  tie-break on Option id (green). That test is in-process (`buildSnapshot`
+  fed both orders), as agreed with the user, rather than relying on Postgres
+  row order.
+- `BuiltSnapshot` now carries `nameById` too, built by `buildSnapshot`, so
+  `snapshotForDay` returns it as is. Both clients take it whole:
+  `search(built)`, `prepare(built)`.
+- The route test now mocks `lib/snapshot` and `lib/ai-search` whole, and
+  checks only the wiring (key check, Selected day, query, result
+  forwarded). Its candidate-drop, Day note, Planned dinner and Closed-day
+  cases are deleted; `lib/snapshot.db.test.ts` covers them against the DB,
+  and `lib/snapshot.test.ts` (the `buildSnapshot` suite, moved from
+  `lib/ai-search.test.ts`) in detail.
+- Neither eval script was run.

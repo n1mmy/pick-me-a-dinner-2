@@ -5,11 +5,8 @@
  * Option (ADR-0011).
  */
 
-import {
-  type AiRankingRow,
-  type ModelSnapshot,
-  parseRankingText,
-} from "./ai-search";
+import { type AiRankingRow, parseRankingText } from "./ai-search";
+import type { BuiltSnapshot } from "./snapshot";
 
 /** A readable Prepared note: the brief, then every ranked candidate. */
 export type PreparedNote = { brief: string; ranking: AiRankingRow[] };
@@ -22,10 +19,7 @@ export const PREPARE_UNAVAILABLE: PrepareResult = { ok: false };
 
 /** The small interface the sweep depends on. */
 export interface PreparedNoteClient {
-  prepare(
-    snapshot: ModelSnapshot,
-    idByIndex: ReadonlyMap<number, string>,
-  ): Promise<PrepareResult>;
+  prepare(built: BuiltSnapshot): Promise<PrepareResult>;
 }
 
 /**
@@ -383,7 +377,7 @@ export function createPreparedNoteClient(config: {
   const systemPrompt = buildPreparedSystemPrompt();
 
   return {
-    async prepare(snapshot, idByIndex) {
+    async prepare({ snapshot, idByIndex }) {
       const startedAt = Date.now();
       const headers: Record<string, string> = {
         "Content-Type": "application/json",

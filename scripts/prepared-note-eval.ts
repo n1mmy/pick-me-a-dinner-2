@@ -34,7 +34,7 @@ import {
   type PrepareResult,
   type RawPreparedReply,
 } from "../lib/prepared-note";
-import { snapshotForDay } from "../lib/snapshot-source";
+import { snapshotForDay } from "../lib/snapshot";
 
 /** The brief's target length, from the spec. */
 const BRIEF_WORDS = { min: 40, max: 70 };
@@ -100,10 +100,8 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const { snapshot, idByIndex, nameById } = await snapshotForDay({
-    asOf: day,
-    query: "",
-  });
+  const built = await snapshotForDay({ asOf: day, query: "" });
+  const { snapshot, idByIndex, nameById } = built;
 
   console.log(`day: ${snapshot.today}`);
   console.log(`model: ${model}   prompt version: ${PREPARED_PROMPT_VERSION}`);
@@ -134,7 +132,7 @@ async function main(): Promise<void> {
         onReply: (raw) => {
           reply = raw;
         },
-      }).prepare(snapshot, idByIndex),
+      }).prepare(built),
   );
 
   const cell = (value: unknown) => (value === undefined ? "—" : String(value));

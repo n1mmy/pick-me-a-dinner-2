@@ -15,9 +15,9 @@
  *   - **Closed** on the Selected day —
  *
  * all three decided by `suppressionsOn` (`./day-suppressions`), the one
- * statement of the per-day rules. AI search (`lib/ai-search.ts`) calls it too,
- * so the AI candidate set and the picker can never disagree about which
- * Options are off for the day.
+ * statement of the per-day rules. The AI snapshot (`lib/snapshot.ts`) calls
+ * it too, so the AI candidate set and the picker can never disagree about
+ * which Options are off for the day.
  *
  * The precedence is load-bearing and lives in `suppressionsOn` alone: Picked,
  * then Rejected, then Closed, each Option carrying only its first. So an

@@ -1,5 +1,5 @@
 /**
- * Snapshot formatting shared by the AI search snapshot (`lib/ai-search`) and
+ * Snapshot formatting shared by the AI snapshot (`lib/snapshot`) and
  * the Rejections block (`lib/rejections`). Both turn Household-authored data
  * into the model-input JSON, so both wrap free text in the prompt-injection
  * delimiters and format dates with their weekday (ADR-0005). The two helpers

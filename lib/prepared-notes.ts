@@ -11,7 +11,6 @@ import { and, eq, notExists, sql } from "drizzle-orm";
 import { db } from "../db";
 import { getDecidedDates, getPreparedNote } from "../db/queries";
 import { dinnerLog, preparedNotes, type PreparedRankingRow } from "../db/schema";
-import type { ModelSnapshot } from "./ai-search";
 import { shiftSqlDate, todaySqlDate } from "./local-day";
 import {
   localModel,
@@ -19,7 +18,7 @@ import {
   type PreparedNote,
   type PreparedNoteClient,
 } from "./prepared-note";
-import { snapshotForDay } from "./snapshot-source";
+import { type ModelSnapshot, snapshotForDay } from "./snapshot";
 
 /** How far ahead notes are written: today through today+6. */
 const DAYS_AHEAD = 6;
@@ -145,8 +144,8 @@ export async function runSweep({
 }): Promise<void> {
   const model = localModel();
   for (const day of await eligibleDays(now, timeZone)) {
-    const { snapshot, idByIndex } = await snapshotForDay({ asOf: day, query: "" });
-    const hash = inputHash(snapshot, model);
+    const built = await snapshotForDay({ asOf: day, query: "" });
+    const hash = inputHash(built.snapshot, model);
     if ((await getPreparedNote(day))?.inputHash === hash) continue;
 
     const claim = await claimDay(day);
@@ -158,7 +157,7 @@ export async function runSweep({
       continue;
     }
 
-    const result = await client.prepare(snapshot, idByIndex);
+    const result = await client.prepare(built);
     if (result.ok) {
       await storeNote(day, { note: result.note, inputHash: hash, model });
     } else {

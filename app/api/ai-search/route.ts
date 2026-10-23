@@ -3,7 +3,7 @@ import {
   createAiSearchClient,
 } from "../../../lib/ai-search";
 import { parseSelectedDay, today } from "../../../lib/local-day";
-import { snapshotForDay } from "../../../lib/snapshot-source";
+import { snapshotForDay } from "../../../lib/snapshot";
 
 /**
  * Run an AI search over Tonight for the **Selected day** (ADR-0009): build the
@@ -57,16 +57,10 @@ export async function POST(request: Request): Promise<Response> {
   // falls back to today (past or future Selected days are both honoured).
   const asOf = parseSelectedDay(selectedDay, today());
 
-  const { snapshot, idByIndex } = await snapshotForDay({ asOf, query });
-
-  // `buildSnapshot` has already dropped Selected-day-rejected Options from
-  // the snapshot's candidate `options`; `idByIndex` covers only those
-  // candidates, so a rejected Option cannot be resurfaced as a result either
-  // — it stays absent from AI search for the Selected day (PRD: Rejections
-  // on Tonight).
+  // The snapshot has already dropped the Options Picked, Rejected, or Closed
+  // for the Selected day, so none can be resurfaced as a result.
   const result = await createAiSearchClient(apiKey).search(
-    snapshot,
-    idByIndex,
+    await snapshotForDay({ asOf, query }),
   );
   return Response.json(result);
 }
