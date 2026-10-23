@@ -43,7 +43,9 @@ the module exists.
       nothing
 - [x] Existing Pick-supersedes-Rejection DB tests pass, driven through the
       module rather than repeated per server action
-- [x] The rollback test drives the module directly — no `db.transaction` Proxy
+- [ ] The rollback test drives the module directly — no `db.transaction` Proxy
+      (Proxy removed; replaced by refused-write tests, not a rollback test — see
+      Comments)
 - [x] No server action writes to `dinner_log` or `rejections` directly —
       `app/log/actions.ts` and `app/rejection-actions.ts` only call the module
       (`grep` for `insert(dinnerLog`, `delete(rejections`, etc. under `app/`).
