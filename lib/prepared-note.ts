@@ -67,7 +67,7 @@ export function localModelConfig(): {
  * Bumped whenever the prompt's wording changes, so every stored note's input
  * hash goes stale and the sweep rewrites it under the new prompt.
  */
-export const PREPARED_PROMPT_VERSION = "5";
+export const PREPARED_PROMPT_VERSION = "6";
 
 /**
  * Build the Prepared note system prompt. The snapshot framing, the rhythm-claim
@@ -122,7 +122,6 @@ export function buildPreparedSystemPrompt(): string {
       "meals, a heavy dish after a heavy one.",
     "- Rejections that have gone stale: a reason the household once gave that " +
       "plainly no longer applies is itself a reason to bring the Option back.",
-    "Think it through before you answer.",
     "",
     "The Rejections block is the household's record of Options they turned " +
       "down and why. Each Rejection carries an optional reason and a date, " +
@@ -154,13 +153,12 @@ export function buildPreparedSystemPrompt(): string {
     "Write two things.",
     "",
     "First, the brief: two or three sentences of plain prose, 40 to 70 words " +
-      "in all, for the household to read at a glance before they decide. Say " +
-      "what kind of evening this is (its Day note, what this weekday or the " +
-      "last few days point to), name the one or two standout Options and why, " +
-      "and, only if there is one, the single thing to watch out for — a " +
-      "recent disappointment in the Log notes or a Rejection that still " +
-      "stands. The ranking below carries the detail, so the brief does not " +
-      "repeat it. Restaurants shut this evening are already left out, so " +
+      "in all, for the household to read at a glance before they decide. Open " +
+      "on the evening's strongest signal — its Day note when there is one, " +
+      "otherwise the weekday habit or what the last few days point to — and " +
+      "name the one or two standout Options and why. The brief is about what to reach for: the ranking below carries " +
+      "the rest, the low placements included, so the brief leaves them to " +
+      "it. Restaurants shut this evening are already left out, so " +
       "closures need no mention. Write for the household, not about your " +
       "method: no remarks on how you read the data. One plain paragraph: no " +
       "headings, bullets, bold, or lists.",
@@ -192,8 +190,7 @@ export function buildPreparedSystemPrompt(): string {
       "\"last on 6/3\"), no day or week counts (\"9 days ago\", \"in over a " +
       "month\"), no seasons or months (\"since early summer\", \"quiet since " +
       "July\"), and no vague duration either (\"it has been a while\", \"a " +
-      "long gap\", \"gone quiet\", \"long out of rotation\"). This holds in the " +
-      "brief as much as in the ranking.",
+      "long gap\"). This holds in the brief as much as in the ranking.",
     "Say what the timing MEANS instead — the shape of the habit, which is " +
       "exactly what the household cannot read off those numbers: \"runs about " +
       "every two weeks and that stretch is up\", \"the standing Thursday " +

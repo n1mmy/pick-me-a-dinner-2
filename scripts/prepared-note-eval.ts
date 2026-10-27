@@ -47,7 +47,7 @@ const BRIEF_WORDS = { min: 40, max: 70 };
  * verdict: "every two weeks" is fine and still matches.
  */
 const RHYTHM_CLAIM_SUSPECTS =
-  /\b\d{1,2}\/\d{1,2}\b|\b\d+\s+(?:[Dd]ays?|[Ww]eeks?|[Mm]onths?)\b|\b(?:days?|weeks?|months?)\s+ago\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\b|\b(?:a while|long gap|gone quiet|out of rotation)\b/g;
+  /\b\d{1,2}\/\d{1,2}\b|\b\d+\s+(?:[Dd]ays?|[Ww]eeks?|[Mm]onths?)\b|\b(?:days?|weeks?|months?)\s+ago\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\b|\b(?:a while|long gap)\b/g;
 
 /** `--day=+N`, `--day=YYYY-MM-DD`, or today when absent. */
 function resolveDay(arg: string | undefined): string {
