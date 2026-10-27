@@ -25,11 +25,7 @@
  * day is "today" *to the model*, regardless of which calendar date the
  * Household stepped to. The system prompt reads those keys verbatim.
  */
-import {
-  delimit,
-  delimitNullable,
-  formatDateWithWeekday,
-} from "./snapshot-format";
+import { formatDateWithWeekday } from "./snapshot-format";
 
 /**
  * A Rejection row as this module consumes it: the Rejection itself plus the
@@ -57,16 +53,15 @@ export type SnapshotRejection = {
   date: string;
   /** The rejected Option, by its snapshot number — ties the Rejection to it. */
   optionId: number;
-  /** That Option's name — Household-authored and delimited. */
+  /** That Option's name — Household-authored. */
   name: string;
   kind: "home" | "restaurant";
-  /** That Option's Tags — each Household-authored and delimited. */
+  /** That Option's Tags — each Household-authored. */
   tags: string[];
   /**
-   * The Household's reason — Household-authored and delimited, or `null` when
-   * none was given. A null reason is carried as `null`, never an empty
-   * delimiter — an unexplained Rejection is honest weak data (PRD user story
-   * 22), not noise.
+   * The Household's reason — Household-authored — or `null` when none was
+   * given. A null reason is carried as `null`, never an empty string — an
+   * unexplained Rejection is honest weak data (PRD user story 22), not noise.
    */
   reason: string | null;
 };
@@ -101,7 +96,7 @@ export type PartitionedRejections = {
 };
 
 /**
- * Shape one Rejection row into a snapshot entry — delimited, weekday-dated, the
+ * Shape one Rejection row into a snapshot entry — weekday-dated, the
  * Option referred to by its snapshot number. Every Rejection is of an active
  * Option (`getRejections` joins `active = true`), and the snapshot numbers the
  * whole active Catalog, so the lookup always resolves.
@@ -113,10 +108,10 @@ function toSnapshotRejection(
   return {
     date: formatDateWithWeekday(row.rejectedOn),
     optionId: indexByOptionId.get(row.optionId)!,
-    name: delimit(row.optionName),
+    name: row.optionName,
     kind: row.kind,
-    tags: row.tags.map((tag) => delimit(tag)),
-    reason: delimitNullable(row.reason),
+    tags: row.tags,
+    reason: row.reason,
   };
 }
 
@@ -127,7 +122,7 @@ function toSnapshotRejection(
  * perspective), every other row — past-dated *or* future-dated (a Planned
  * rejection that is not today) — is *not-anchor-day*. Derives the per-anchor
  * suppression set — the Option ids rejected on the anchor day — and shapes
- * both groups for the snapshot: reasons delimited, dates carrying their
+ * both groups for the snapshot: dates carrying their
  * weekday, the Option referred to by its snapshot number (`indexByOptionId`,
  * keyed by UUID), each group newest first. The suppression set stays
  * `rejectedOn === asOf` only, so a Planned rejection's Option remains a

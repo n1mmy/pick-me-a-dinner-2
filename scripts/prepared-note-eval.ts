@@ -36,7 +36,7 @@ import {
   type PrepareResult,
   type RawPreparedReply,
 } from "../lib/prepared-note";
-import { snapshotForDay } from "../lib/snapshot";
+import { leanSnapshot, snapshotForDay } from "../lib/snapshot";
 
 /** The brief's target length, from the spec. */
 const BRIEF_WORDS = { min: 40, max: 70 };
@@ -119,7 +119,7 @@ async function main(): Promise<void> {
   }
   if (args.includes("--snapshot")) {
     console.log("--- snapshot sent to the model ---");
-    console.log(JSON.stringify(snapshot, null, 2));
+    console.log(JSON.stringify(leanSnapshot(snapshot), null, 2));
     console.log("--- end snapshot ---\n");
   }
 

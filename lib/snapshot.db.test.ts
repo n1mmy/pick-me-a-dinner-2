@@ -21,11 +21,9 @@ async function seed(
   return row.id;
 }
 
-/** The candidate names, undelimited, in snapshot order. */
+/** The candidate names, in snapshot order. */
 function candidateNames(snapshot: { options: { name: string }[] }): string[] {
-  return snapshot.options.map((option) =>
-    option.name.replace(/<\/?household-text>/g, ""),
-  );
+  return snapshot.options.map((option) => option.name);
 }
 
 describe("snapshotForDay", () => {
@@ -79,15 +77,15 @@ describe("snapshotForDay", () => {
     expect(snapshot.rejections.notTodayRejections).toMatchObject([
       {
         date: "2026-10-21 (Wednesday)",
-        reason: "<household-text>Too sweet</household-text>",
+        reason: "Too sweet",
       },
     ]);
     expect(snapshot.dayNotes).toEqual([
       {
         date: "2026-10-22 (Thursday)",
-        note: "<household-text>Guests over</household-text>",
+        note: "Guests over",
       },
     ]);
-    expect(snapshot.todayDayNote).toBe("<household-text>Out late</household-text>");
+    expect(snapshot.todayDayNote).toBe("Out late");
   });
 });

@@ -22,12 +22,9 @@ import {
   partitionRejections,
   type RejectionRow,
   type RejectionsBlock,
+  type SnapshotRejection,
 } from "./rejections";
-import {
-  delimit,
-  delimitNullable,
-  formatDateWithWeekday,
-} from "./snapshot-format";
+import { delimit, formatDateWithWeekday } from "./snapshot-format";
 
 /** An active Catalog Option as the snapshot builder consumes it. */
 export type SnapshotOption = {
@@ -69,12 +66,12 @@ export type SnapshotModelOption = {
    * than a UUID — in the snapshot and, above all, in every result row.
    */
   id: number;
-  /** Household-authored — wrapped in `<household-text>` delimiters. */
+  /** Household-authored. */
   name: string;
   kind: "home" | "restaurant";
-  /** Household-authored and delimited, or `null` when the Option has no notes. */
+  /** Household-authored, or `null` when the Option has no notes. */
   notes: string | null;
-  /** The Tag names on this Option — each Household-authored and delimited. */
+  /** The Tag names on this Option — each Household-authored. */
   tags: string[];
   /**
    * The Restaurant's Closed days, as weekday names (`"Sunday"`, `"Monday"`,
@@ -87,7 +84,7 @@ export type SnapshotModelOption = {
    * Drift (see `buildSystemPrompt`). **Omitted entirely** — not an empty
    * array — when the Restaurant has no Closed days, so an always-open
    * Restaurant and every Home meal cost nothing. App-derived structure, not
-   * Household-authored text — never `<household-text>`-wrapped.
+   * Household-authored text.
    */
   closedDays?: string[];
 };
@@ -102,12 +99,12 @@ export type SnapshotModelLogEntry = {
   date: string;
   /** The Option eaten, by its snapshot number — ties this dinner to a candidate. */
   optionId: number;
-  /** That Option's name — Household-authored and delimited; for readability. */
+  /** That Option's name — Household-authored. */
   name: string;
   kind: "home" | "restaurant";
-  /** That Option's Tags — each delimited; carried for readability. */
+  /** That Option's Tags — each Household-authored. */
   tags: string[];
-  /** Household-authored and delimited, or `null` when the entry has no note. */
+  /** Household-authored, or `null` when the entry has no note. */
   note: string | null;
 };
 
@@ -121,7 +118,11 @@ export type ModelSnapshot = {
    * calendar date the Household stepped to.
    */
   today: string;
-  /** The Household's query — Household-authored, so delimited. */
+  /**
+   * The Household's query, wrapped in `<household-text>` delimiters: the one
+   * Household text sent outside the JSON (AI search's trailing query line),
+   * where no string quotes mark where it ends.
+   */
   query: string;
   /**
    * The candidate set in alphabetical order by name — the active Catalog with
@@ -161,7 +162,7 @@ export type ModelSnapshot = {
 export type SnapshotModelDayNote = {
   /** The evening it is about, with weekday — e.g. `"2026-05-22 (Friday)"`. */
   date: string;
-  /** Household-authored and delimited. */
+  /** Household-authored. */
   note: string;
 };
 
@@ -211,7 +212,8 @@ export type BuiltSnapshot = {
  * - The Log is the **full Log — past entries and future-dated ones (Planned
  *   dinners)** — as a flat chronological list, newest dinner first, each entry
  *   carrying its real date + weekday and the eaten Option's name / kind / Tags
- *   inline, so the model reads eating history directly without joining numbers.
+ *   inline. The model never sees those copies: `leanSnapshot` cuts each
+ *   row to its number and lists a dropped Option's entry in `otherOptions`.
  *   The snapshot carries the anchor day as its `today`, so the model tells a
  *   plan from history itself (ADR-0008); when the Selected day is a future
  *   date the model sees it as "today" and reasons about the day-of-week and
@@ -257,9 +259,10 @@ export type BuiltSnapshot = {
  * - The Restaurant **Places fields** (`address`, `phone`, `lat`, `lng`,
  *   `googlePlaceId`, `mapsUrl`) never enter — `SnapshotOption` has no slot for
  *   them, so they are excluded by construction.
- * - All Household-authored text — names, Tags, Option notes, Log notes,
- *   Rejection reasons, and the query — is wrapped in `<household-text>`
- *   delimiters.
+ * - Household-authored text — names, Tags, notes, Rejection reasons, Day
+ *   notes — rides as plain JSON string values; each system prompt names those
+ *   fields as data, never instructions. Only the query is wrapped in
+ *   `<household-text>` delimiters, since it is sent outside the JSON.
  */
 export function buildSnapshot(input: {
   options: SnapshotOption[];
@@ -315,21 +318,21 @@ export function buildSnapshot(input: {
   const modelOptions = candidates.map(
     (option): SnapshotModelOption => ({
       id: indexByOptionId.get(option.id)!,
-      name: delimit(option.name),
+      name: option.name,
       kind: option.kind,
-      notes: delimitNullable(option.notes),
-      tags: option.tags.map((tag) => delimit(tag)),
+      notes: option.notes,
+      tags: option.tags,
       // Omitted entirely — not an empty array — when the Restaurant has no
       // Closed days, so an always-open Restaurant and every Home meal cost
-      // nothing. Not Household-authored text, so never delimited.
+      // nothing.
       ...(option.closedDays.length > 0
         ? { closedDays: option.closedDays.map((day) => WEEKDAY_NAMES[day]) }
         : {}),
     }),
   );
 
-  // Each Log entry is enriched with the eaten Option's name / kind / Tags so
-  // the model reads history without joining numbers back to the Catalog.
+  // Each Log entry is enriched with the eaten Option's name / kind / Tags —
+  // the source `leanSnapshot` draws a dropped Option's entry from.
   const optionById = new Map(options.map((option) => [option.id, option]));
   const log = [...logEntries]
     // Newest dinner first — the most recent history reads at the top. Same-
@@ -347,10 +350,10 @@ export function buildSnapshot(input: {
         {
           date: formatDateWithWeekday(entry.eatenOn),
           optionId: indexByOptionId.get(entry.optionId)!,
-          name: delimit(option.name),
+          name: option.name,
           kind: option.kind,
-          tags: option.tags.map((tag) => delimit(tag)),
-          note: delimitNullable(entry.note),
+          tags: option.tags,
+          note: entry.note,
         },
       ];
     });
@@ -374,11 +377,10 @@ export function buildSnapshot(input: {
         .sort((a, b) => b.notedOn.localeCompare(a.notedOn))
         .map((dayNote) => ({
           date: formatDateWithWeekday(dayNote.notedOn),
-          note: delimit(dayNote.note),
+          note: dayNote.note,
         })),
-      todayDayNote: delimitNullable(
+      todayDayNote:
         dayNotes.find((dayNote) => dayNote.notedOn === asOf)?.note ?? null,
-      ),
     },
     idByIndex,
     nameById: new Map(options.map((option) => [option.id, option.name])),
@@ -431,4 +433,61 @@ export async function snapshotForDay({
     asOf,
     query,
   });
+}
+
+/** An Option reached only through its history: not a candidate on the anchor day. */
+type OtherOption = Pick<SnapshotModelOption, "id" | "name" | "kind" | "tags">;
+
+/** A Rejection row cut to what changes from row to row — see `leanSnapshot`. */
+type LeanRejection = Pick<SnapshotRejection, "date" | "optionId" | "reason">;
+
+/** The snapshot with lean Log and Rejection rows — see `leanSnapshot`. */
+export type LeanSnapshot = Omit<ModelSnapshot, "log" | "rejections"> & {
+  otherOptions: OtherOption[];
+  log: Pick<SnapshotModelLogEntry, "date" | "optionId" | "note">[];
+  rejections: {
+    rejectedTonight: LeanRejection[];
+    notTodayRejections: LeanRejection[];
+  };
+};
+
+/**
+ * The snapshot as a model receives it — AI search and Prepared notes alike:
+ * each Log row cut to its date, number, and note, each Rejection row to its
+ * date, number, and reason. `buildSnapshot` copies the Option's name, kind,
+ * and Tags onto every history row; on a 215-dinner, 90-Rejection snapshot
+ * those copies were over half the tokens. Candidates already carry them in
+ * `options`; an Option dropped for the anchor day (Picked, Rejected, Closed)
+ * would leave its rows pointing nowhere, so its entry moves to `otherOptions`.
+ * A Prepared note's input hash stays on the full snapshot, which this is
+ * derived from.
+ */
+export function leanSnapshot(snapshot: ModelSnapshot): LeanSnapshot {
+  const { today, query, options, log, rejections, ...rest } = snapshot;
+  const { rejectedTonight, notTodayRejections } = rejections;
+  const candidates = new Set(options.map((option) => option.id));
+  const others = new Map<number, OtherOption>();
+  for (const { optionId: id, name, kind, tags } of [
+    ...log,
+    ...rejectedTonight,
+    ...notTodayRejections,
+  ]) {
+    if (!candidates.has(id) && !others.has(id)) {
+      others.set(id, { id, name, kind, tags });
+    }
+  }
+  const cut = (rows: SnapshotRejection[]): LeanRejection[] =>
+    rows.map(({ date, optionId, reason }) => ({ date, optionId, reason }));
+  return {
+    today,
+    query,
+    options,
+    otherOptions: [...others.values()].sort((a, b) => a.id - b.id),
+    log: log.map(({ date, optionId, note }) => ({ date, optionId, note })),
+    rejections: {
+      rejectedTonight: cut(rejectedTonight),
+      notTodayRejections: cut(notTodayRejections),
+    },
+    ...rest,
+  };
 }
