@@ -5,9 +5,11 @@ import {
   dinnerLog,
   optionTags,
   options,
+  preparedNotes,
   rejections,
   tags,
   type Option,
+  type PreparedRankingRow,
 } from "./schema";
 import type { RankOption } from "../lib/ranking";
 import type { RejectionRow } from "../lib/rejections";
@@ -503,6 +505,47 @@ export async function getDayNotes(): Promise<DayNoteRow[]> {
     .select({ notedOn: dayNotes.notedOn, note: dayNotes.note })
     .from(dayNotes)
     .orderBy(desc(dayNotes.notedOn));
+}
+
+/** A stored **Prepared note** (ADR-0011), as Tonight and the sweep read it. */
+export type StoredPreparedNote = {
+  brief: string;
+  ranking: PreparedRankingRow[];
+  /** What the note was built from — compared against the current input. */
+  inputHash: string;
+  model: string;
+  preparedAt: Date;
+};
+
+/**
+ * The Prepared note for `date`, or `null` when none has been written. A row
+ * that holds only a claim — the sweep is generating the date's first note —
+ * reads as no note.
+ */
+export async function getPreparedNote(
+  date: string,
+): Promise<StoredPreparedNote | null> {
+  const [row] = await db
+    .select()
+    .from(preparedNotes)
+    .where(eq(preparedNotes.preparedFor, date));
+  if (
+    !row ||
+    row.brief === null ||
+    row.ranking === null ||
+    row.inputHash === null ||
+    row.model === null ||
+    row.preparedAt === null
+  ) {
+    return null;
+  }
+  return {
+    brief: row.brief,
+    ranking: row.ranking,
+    inputHash: row.inputHash,
+    model: row.model,
+    preparedAt: row.preparedAt,
+  };
 }
 
 /** An Option reduced to a choice for the Log edit form's Option picker. */

@@ -2000,3 +2000,419 @@ describe("TonightScreen — Day note", () => {
   });
 });
 
+
+describe("TonightScreen — Prepared note", () => {
+  // Three Options so the note can reorder them and leave one unnamed.
+  const THREE: TonightRow[] = [
+    row("o1", "Apple Crumble", ["dessert"]),
+    row("o2", "Banana Bread", ["dessert"]),
+    row("o3", "Cherry Pie", ["pie"]),
+  ];
+  const NOTE = {
+    brief: "A quiet Thursday. Banana Bread fits the evening.",
+    ranking: [
+      { id: "o2", reason: "Quick, and nobody has had it this week." },
+      { id: "o1", reason: "A fallback." },
+    ],
+    label: "Prepared 2:14pm",
+    outOfDate: false,
+  };
+
+  /** Option names in the order the list shows them. */
+  function listedNames(): string[] {
+    return within(screen.getAllByRole("list").at(-1) as HTMLElement)
+      .getAllByRole("listitem")
+      .map((item) => item.querySelector(".font-display")?.textContent ?? "");
+  }
+
+  it("shows the Prepared ranking on load, with its rationales and layer line", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble", "Cherry Pie"]);
+    expect(screen.getByText("Quick, and nobody has had it this week.")).toBeTruthy();
+    expect(screen.getByText("Prepared ranking")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show ranked list" })).toBeTruthy();
+  });
+
+  it("keeps each row's Last note on the Prepared ranking, above its rationale", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        lastNotes={new Map([["o2", { text: "too dry last time", daysAgo: 9 }]])}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    // The Prepared ranking is the default view, so dropping the Last note
+    // there would hide every prior night's note on load.
+    const bananaRow = screen.getByText("Banana Bread").closest("li") as HTMLElement;
+    const note = within(bananaRow).getByRole("button", {
+      name: "Last note, 9d ago: too dry last time",
+    });
+    const reason = within(bananaRow).getByText(
+      "Quick, and nobody has had it this week.",
+    );
+    expect(
+      note.compareDocumentPosition(reason) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^Last note,/ })).toHaveLength(1);
+  });
+
+  it("steps back to the deterministic list on Show ranked list", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show ranked list" }));
+
+    expect(listedNames()).toEqual(["Apple Crumble", "Banana Bread", "Cherry Pie"]);
+    expect(screen.queryByText("Quick, and nobody has had it this week.")).toBeNull();
+    expect(screen.queryByText("Prepared ranking")).toBeNull();
+  });
+
+  it("lays a Claude result over the Prepared ranking, and Clear peels one layer at a time", async () => {
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o3", reason: "Pie night" }],
+    });
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    await submitSearchAndSettle();
+    expect(await screen.findByText("Pie night")).toBeTruthy();
+    expect(screen.getByText("AI search")).toBeTruthy();
+    expect(listedNames()).toEqual(["Cherry Pie"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    await waitFor(() => {
+      expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble", "Cherry Pie"]);
+    });
+    expect(screen.getByText("Prepared ranking")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show ranked list" }));
+    expect(listedNames()).toEqual(["Apple Crumble", "Banana Bread", "Cherry Pie"]);
+  });
+
+  it("shows the new day's Prepared ranking after a Selected-day change, even if the last was dismissed", () => {
+    const { rerender } = render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show ranked list" }));
+
+    rerender(
+      <TonightScreen
+        selectedDay="2026-10-23"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        searchEnabled
+        preparedNote={{
+          ...NOTE,
+          ranking: [{ id: "o3", reason: "Pie on a Friday." }],
+        }}
+      />,
+    );
+
+    expect(listedNames()).toEqual(["Cherry Pie", "Apple Crumble", "Banana Bread"]);
+    expect(screen.getByText("Pie on a Friday.")).toBeTruthy();
+  });
+
+  it("drops a ranked Option no longer on offer and appends the candidates the note didn't name", () => {
+    // The note ranked Durian Tart, since Closed; it never named Cherry Pie.
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        closedTonight={[row("o4", "Durian Tart")]}
+        searchEnabled
+        preparedNote={{
+          ...NOTE,
+          ranking: [
+            { id: "o4", reason: "Closed now." },
+            ...NOTE.ranking,
+          ],
+        }}
+      />,
+    );
+
+    expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble", "Cherry Pie"]);
+    expect(screen.queryByText("Closed now.")).toBeNull();
+  });
+
+  it("keeps the filter chips over the Prepared ranking; a filtered row keeps the note's rank", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "dessert, not filtered" }));
+
+    expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble"]);
+    fireEvent.click(screen.getByRole("button", { name: "dessert, included" }));
+    fireEvent.click(screen.getByRole("button", { name: "dessert, excluded" }));
+    expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble", "Cherry Pie"]);
+    fireEvent.click(screen.getByRole("button", { name: "pie, not filtered" }));
+    const [cherry] = within(screen.getAllByRole("list").at(-1) as HTMLElement)
+      .getAllByRole("listitem");
+    expect(within(cherry).getByText("Cherry Pie")).toBeTruthy();
+    expect(within(cherry).getByText("3")).toBeTruthy();
+  });
+
+  it.each([
+    ["picker", { tonightsDinner: [], pickerRows: THREE }],
+    ["all-filtered", { tonightsDinner: [], pickerRows: [], allFiltered: true }],
+  ])("shows the brief and its label in %s mode", (_mode, props) => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        searchEnabled
+        preparedNote={NOTE}
+        {...props}
+      />,
+    );
+
+    expect(screen.getByText(NOTE.brief)).toBeTruthy();
+    expect(screen.getByText("Prepared 2:14pm")).toBeTruthy();
+  });
+
+  /** The Prepared note section's text lines, in screen order. */
+  function briefLines(): string[] {
+    return Array.from(
+      screen.getByRole("region", { name: "Prepared note" }).querySelectorAll("p"),
+    ).map((line) => line.textContent ?? "");
+  }
+
+  it("leads a decided date with where the frozen note ranked each Log entry", () => {
+    // The note put Apple Crumble second; it has since been Picked, so the
+    // list on show no longer carries it, but the comparison still finds it.
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={DINNER}
+        pickerRows={[row("o3", "Cherry Pie")]}
+        searchEnabled
+        preparedNote={{
+          ...NOTE,
+          ranking: [
+            { id: "o3", reason: "Pie night." },
+            { id: "o1", reason: "A fallback." },
+          ],
+        }}
+      />,
+    );
+
+    expect(briefLines().slice(0, 3)).toEqual([
+      "The note ranked Apple Crumble #2",
+      "The note didn't rank Banana Bread",
+      "Prepared 2:14pm",
+    ]);
+  });
+
+  it("keeps a decided date's frozen brief behind Read the note, at every width", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={DINNER}
+        pickerRows={[row("o3", "Cherry Pie")]}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    expect(screen.getByText("Prepared 2:14pm")).toBeTruthy();
+    expect(screen.queryByText(NOTE.brief)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Read more" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Read the note" }));
+
+    expect(screen.getByText(NOTE.brief)).toBeTruthy();
+    const hide = screen.getByRole("button", { name: "Hide the note" });
+    expect(hide.getAttribute("aria-expanded")).toBe("true");
+    expect(hide.className).not.toMatch(/desktop:hidden/);
+  });
+
+  it("never marks a decided date's frozen note out of date", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={DINNER}
+        pickerRows={[row("o3", "Cherry Pie")]}
+        searchEnabled
+        preparedNote={{ ...NOTE, outOfDate: true }}
+      />,
+    );
+
+    expect(screen.getByText("Prepared 2:14pm")).toBeTruthy();
+    expect(screen.queryByText(/out of date/)).toBeNull();
+  });
+
+  it("marks an out-of-date note on its label, and only then", () => {
+    const { rerender } = render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+    expect(screen.queryByText(/out of date/)).toBeNull();
+
+    rerender(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        searchEnabled
+        preparedNote={{ ...NOTE, outOfDate: true }}
+      />,
+    );
+
+    expect(
+      screen.getByText("Prepared 2:14pm · out of date, updating"),
+    ).toBeTruthy();
+  });
+
+  it("expands the clamped brief on Read more, and collapses it again on a day change", () => {
+    // jsdom has no layout, so this drives the toggle; the clamp itself (two
+    // lines under 720px, full above) is checked by eye on the dev server.
+    const props = {
+      todaySql: "2026-10-22",
+      tonightsDinner: [],
+      pickerRows: THREE,
+      searchEnabled: true,
+      preparedNote: NOTE,
+    };
+    const { rerender } = render(<TonightScreen selectedDay="2026-10-22" {...props} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Read more" }));
+    expect(
+      screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded"),
+    ).toBe("true");
+
+    rerender(<TonightScreen selectedDay="2026-10-23" {...props} />);
+
+    expect(
+      screen.getByRole("button", { name: "Read more" }).getAttribute("aria-expanded"),
+    ).toBe("false");
+  });
+
+  /** The polite status region's text that names the list on show. */
+  function listStatus(): string | undefined {
+    return screen
+      .getAllByRole("status")
+      .map((status) => status.textContent ?? "")
+      .find((text) => /^Showing (the|AI)/.test(text));
+  }
+
+  it("announces the Prepared ranking when clearing a Claude result brings it back", async () => {
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o3", reason: "Pie night" }],
+    });
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+    await submitSearchAndSettle();
+    await screen.findByText("Pie night");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+    await waitFor(() => {
+      expect(listStatus()).toBe("Showing the prepared ranking.");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Show ranked list" }));
+    expect(listStatus()).toBe("Showing the ranked dinner list.");
+  });
+
+  it("announces the layer swap even when Claude AI search is off", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        searchEnabled={false}
+        preparedNote={NOTE}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show ranked list" }));
+
+    expect(listStatus()).toBe("Showing the ranked dinner list.");
+  });
+
+  it("renders Tonight as before with no note (none written, or the feature off)", () => {
+    render(
+      <TonightScreen
+        selectedDay="2026-10-22"
+        todaySql="2026-10-22"
+        tonightsDinner={[]}
+        pickerRows={THREE}
+        searchEnabled={false}
+        preparedNote={null}
+      />,
+    );
+
+    expect(screen.queryByRole("region", { name: "Prepared note" })).toBeNull();
+    expect(screen.queryByText("Prepared ranking")).toBeNull();
+    expect(listedNames()).toEqual(["Apple Crumble", "Banana Bread", "Cherry Pie"]);
+    expect(listStatus()).toBeUndefined();
+  });
+});

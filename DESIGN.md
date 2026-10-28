@@ -210,7 +210,8 @@ circular.
 ### Tonight row anatomy
 
 A flat, uniform ledger — every row the same height, no lead-item prominence,
-no collapsed long tail. This uniformity is locked.
+no collapsed long tail. This uniformity is locked for the deterministic
+list; an AI view lets rationales run to full length (see AI layers).
 
 - 3px kind bar flush left over the row's `kind-*-tint` background (a step
   below the decided block's wash, so the block still reads as the settled
@@ -226,8 +227,10 @@ no collapsed long tail. This uniformity is locked.
   left. The swap waits for 900px, not 720px, because right after the 720px
   step the rail takes ~200px and the column is briefly narrower than its
   mobile cap — going denser at that same point squeezes the row twice.
-- **AI search rows** carry the model's rationale line (`chip` size) on a
-  `raised` surface in place of the Last note.
+- **AI rows** — a Claude AI search result or a Prepared ranking — carry the
+  model's rationale line (`chip` size, `muted`, on a `raised` surface). A
+  Claude row shows it in place of the Last note; a Prepared row keeps its
+  Last note line too (see Last note line).
 
 ### Last note line
 
@@ -248,7 +251,11 @@ the chip row: age then text (`18d · got the katsu curry`).
 - **Italic**, age and text alike, wherever Tonight shows it: reported speech
   from another night, marked as an aside without another size or color step.
   The one place a mono numeral slants.
-- AI search rows omit it — the rationale line is already the row's aside.
+- **Claude AI search rows omit it** — the rationale line is already the
+  row's aside, and the search is a deliberate, one-off look.
+- **Prepared ranking rows keep it**, in its usual place under the chip row,
+  with the rationale below. The Prepared ranking is what Tonight loads with,
+  so dropping the line there would hide every prior night's note by default.
 
 ### Day note line
 
@@ -280,6 +287,71 @@ component (`DayNoteLine`) on both screens.
 - **Editing** follows the decided row's note editor — labelled field, Save /
   Cancel, Escape cancels, `.expand-in` — but on a single-line `input`, since
   a Day note is one line. Saving it empty deletes the note.
+
+### Prepared brief
+
+The Selected day's Prepared note brief is its own section directly after
+Tonight's heading block (H1, stepper, Day note line), before the main
+content, in every mode. Like the Day note it is context for the whole
+evening, so it is never inside a row or the decided block. With no note, or
+the feature off, nothing renders — not even an empty frame.
+
+- **Styled as the AI rationale line**, not a new treatment: `chip` size,
+  `muted`, on a `raised` surface with `rounded-badge` and the same padding.
+  It is model prose, so it borrows the one look the app already gives model
+  prose; a second AI-text style would be a new concern to keep in step.
+  Paragraph breaks in the brief are kept.
+- **Label line** above the surface, `meta` `muted`: `Prepared 2:14pm`, the
+  time in Geist Mono. A note not prepared today names the weekday —
+  `Prepared Mon 9:40pm` — because a bare time would read as today's.
+- **Out of date** (undecided dates only) appends `· out of date, updating` to
+  the label, same `meta` `muted`, no color. The loop rewrites the note on its
+  own; the marker tells the Household to read with care, not to act, so it
+  doesn't earn a warning color. A frozen note is never marked.
+- **Phones (<720px) clamp to two lines** (`line-clamp-2` — the brief is a
+  `<p>`, not a `<button>`, so the clamp holds) with a borderless `chip`-size
+  "Read more" button on its own line under the surface, which toggles to
+  "Show less". Expanded state resets on a Selected-day change. At ≥720px the
+  brief shows in full with no toggle — there the list starts on screen
+  anyway, and on a phone it would not.
+- **Decided dates** lead with the comparison: one line per Log entry on that
+  date, `meta` `ink`, above the label — `The note ranked Katsu curry #4` (the
+  `#4` in Geist Mono) or `The note didn't rank Katsu curry`. The frozen brief
+  then starts collapsed at every width behind the same borderless "Read the
+  note" button (toggling to "Hide the note"), because it is now a record of
+  what was said, not advice to act on.
+
+### AI layers
+
+Tonight's list shows one of three layers: a Claude AI search result on top
+of the Prepared ranking, on top of the deterministic list. Both AI layers
+render through the same AI-row path (see Tonight row anatomy) and look
+identical row for row; what tells them apart is one line above the list.
+
+- **Layer line.** Directly above the list whenever an AI layer is showing,
+  `meta` `muted`: `Prepared ranking · Show ranked list` or `AI search ·
+  Clear`, the action a borderless text button whose 44px hit area bleeds
+  into the surrounding gap, never onto a row (the negative-margin trick). It
+  names what the
+  Household is reading and is always the way to peel one layer off — the
+  search box's ✕ clears a Claude result too, but the box is absent when
+  Claude AI search isn't configured, and the Prepared ranking must still be
+  clearable then. The deterministic list has no layer line.
+- **Rationales run full length** in an AI layer — two or three sentences on
+  the strong picks, tapering to a line. This is the one licensed break in
+  the uniform ledger: an AI view is for reading why, not scanning, and a
+  clamp would hide the reason the layer exists.
+- **Filter chips** stay visible over the Prepared ranking and filter it — it
+  is the default view on load, so hiding them would remove filtering from
+  Tonight. A filtered row keeps the note's rank, as a filtered
+  deterministic row keeps its own, so a numeral always means the same
+  place in the same ranking. Over a Claude result they hide, so the query
+  alone owns that space.
+- **Screen-reader status.** The polite status region says "Showing the
+  prepared ranking." when that layer comes into view (Claude result cleared,
+  Selected day changed), alongside the existing "Showing AI search
+  results." and "Showing the ranked dinner list." A fresh load stays silent,
+  as before.
 
 ### Tonight filter zone
 

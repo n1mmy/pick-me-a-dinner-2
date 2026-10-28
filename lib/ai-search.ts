@@ -442,9 +442,9 @@ const MAX_RATIONALE_LENGTH = 200;
  * back to the last word boundary within the cap so the rationale never ends
  * mid-word; a single over-long word with no space is cut at the cap itself.
  */
-function truncateRationale(reason: string): string {
-  if (reason.length <= MAX_RATIONALE_LENGTH) return reason;
-  const cut = reason.slice(0, MAX_RATIONALE_LENGTH);
+function truncateRationale(reason: string, maxLength: number): string {
+  if (reason.length <= maxLength) return reason;
+  const cut = reason.slice(0, maxLength);
   const lastSpace = cut.lastIndexOf(" ");
   return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
 }
@@ -514,6 +514,8 @@ export type ParsedRanking = {
  * - A repeated Option is deduped, the **first** occurrence kept — a model that
  *   lists the same Option twice never produces a duplicate result row.
  * - An AI rationale over ~200 characters is truncated (see `truncateRationale`).
+ *   A caller asking for longer rationales passes its own `maxRationaleLength`
+ *   (the Prepared ranking, `lib/prepared-note.ts`).
  *   An empty rationale — a line ending right after the `|` — is kept as-is: in
  *   `pithy` mode the model deliberately writes one for an obviously bad pick.
  *
@@ -531,6 +533,7 @@ export type ParsedRanking = {
 export function parseRankingText(
   text: string,
   idByIndex: ReadonlyMap<number, string>,
+  maxRationaleLength: number = MAX_RATIONALE_LENGTH,
 ): ParsedRanking | null {
   const rows: AiRankingRow[] = [];
   const seen = new Set<string>();
@@ -559,7 +562,7 @@ export function parseRankingText(
     seen.add(optionId);
     rows.push({
       id: optionId,
-      reason: truncateRationale(line.slice(bar + 1).trim()),
+      reason: truncateRationale(line.slice(bar + 1).trim(), maxRationaleLength),
     });
   }
 

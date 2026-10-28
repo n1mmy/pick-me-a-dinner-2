@@ -30,3 +30,10 @@ on failure, search box hidden when no `ANTHROPIC_API_KEY` is set).
   enter the system. The feature is absent, not broken, when the key is unset.
 - AI search is non-deterministic and uncached by design — a search is a
   deliberate one-off act, so run-to-run variance is acceptable.
+
+*Amended 2026-10-22:* ADR-0011 makes a **Prepared note**'s ranking what loads
+on Tonight when one exists. It's written ahead by a free local model and
+stored, so no model call sits on the page load, which was the objection above
+to AI replacing the default. Everything else here stands. AI search itself is
+still triggered and ephemeral, and the deterministic ranking is still the floor
+every AI layer falls back to.

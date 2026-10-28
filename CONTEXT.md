@@ -187,7 +187,9 @@ The home screen. It ranks active Options by Score (descending) for a
 and once a Pick is made it surfaces the Dinner for that day — the screen has
 both jobs, deciding and showing what was decided. "Tonight" is the screen's
 name and its H1 label when the Selected day is today; on any other day the H1
-shows that day's name.
+shows that day's name. When the Selected day has a **Prepared note**, its brief
+sits under the heading and its Prepared ranking is what the list shows on load.
+The Score ranking is one Clear away.
 
 **Closed disclosure**:
 The collapsed list at the foot of **Tonight** holding the Restaurants dropped
@@ -280,17 +282,22 @@ what — the deterministic Score's recency-and-frequency cannot; with an empty
 query, finding those patterns is the whole job. It also reads every **Day
 note**, past and future, as dated history, and treats the **Selected day**'s
 own Day note as current context for the search.
-Always a deliberate action; it never replaces the deterministic ranking as the
-default Tonight view. The model decides how many Options to return, so a
-narrowing query yields a subset of the Catalog, not the whole list.
-_Avoid_: AI ranking (it is search — there is a query, even when empty).
+Always a deliberate action, and never what Tonight loads with: what loads is a
+**Prepared note**'s ranking if there is one, otherwise the deterministic list.
+A search result sits on top of either one until cleared. The model decides how
+many Options to return, so a narrowing query yields a subset of the Catalog,
+not the whole list.
+_Avoid_: AI ranking (it is search — there is a query, even when empty); AI
+search for a **Prepared note** (that is written ahead, not searched).
 
 **AI rationale**:
 The model-generated line of prose on each AI search result row explaining why
 that Option fits — naming the query intent, the habit the model found in the
 Log, or what the Household's own **Notes** say about the Option ("Light and
-fast — a soup, and the katsu was the good call last time"). Generative and
-query-aware, and unique to AI search — the deterministic Tonight list has no
+fast — a soup, and the katsu was the good call last time"). Generative, and
+query-aware on an AI search row. A **Prepared note**'s ranking rows carry one
+too, with no query and more room: two or three sentences for the strong picks,
+tapering to a short line for the tail. The deterministic Tonight list has no
 prose "why" line; it shows the Recency chip and Tag chips instead.
 
 A rationale states a **rhythm claim**, never an **elapsed-time claim**. A
@@ -304,6 +311,26 @@ well it is phrased; the Option's own *interval* is the timing fact the chips
 cannot carry.
 _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).
+
+**Prepared note**:
+What a free local model writes ahead of time for one date, so it is ready when
+Tonight opens (ADR-0011). It has two parts. The **brief** is two or three
+sentences about that evening, read at a glance: what kind of evening it is
+(the **Day note**, weekday habits, the last few days' eating), the one or two
+standout suggestions, and the one thing to watch out for, if any. The **Prepared ranking** ranks every candidate Option with an **AI
+rationale**. It is written only for an undecided date from today through six
+days ahead, from the same snapshot AI search reads, and is rewritten in the
+background whenever that input changes. Once its date has a **Pick** it
+**freezes**: it keeps the last version written before the Household decided, so
+it can be read against what was actually eaten ("The note ranked Katsu curry
+#4"). On Tonight its brief sits under the heading, and its Prepared ranking is
+what the list shows on load. An AI search result sits on top of it until
+cleared, and clearing the Prepared ranking shows the deterministic list. It
+never changes a **Score** or a suppression. An undecided date's note built from
+older inputs is labelled out of date. A date with no note shows nothing.
+_Avoid_: AI notes, AI brief (say Prepared note, or its brief); **Note** or
+**Day note** (both are the Household's own writing, a Prepared note is the
+model's); AI search (a Prepared note has no query and is never triggered).
 
 ### Lifecycle & access
 
@@ -348,6 +375,9 @@ single-household — no user accounts, no per-person identity.
 - A **Log entry** carries zero or one **Note**; an **Option** carries its own
   standing **Option notes**.
 - A date carries zero or one **Day note**.
+- A date carries zero or one **Prepared note**. It is written only while the
+  date is undecided and within six days of today, and freezes once the date has
+  a **Log entry**.
 - A **Tonight** row shows the Option's **Last note** — its newest **Note** dated
   before the **Selected day** — when it has one.
 - An **Option** is either **Active** or **Archived**.
@@ -391,6 +421,13 @@ single-household — no user accounts, no per-person identity.
 > Restaurant. The Closed disclosure still has a Pick button for that night, so
 > we're not blocked — but the fix belongs on the Restaurant, not in a nightly
 > override."
+>
+> **Dev:** "We Picked the katsu tonight. Should the Prepared note regenerate now
+> that it's out of date?"
+> **Domain expert:** "No, it freezes. The point of keeping it is to see what the
+> model said before we decided. It had the katsu at #4, and that's worth
+> knowing. If we Remove the Pick, the night is open again and the note can be
+> rewritten."
 
 ## Flagged ambiguities
 
@@ -419,3 +456,7 @@ single-household — no user accounts, no per-person identity.
   Tonight screen, and returning the **Selected day** to today while already on
   that screen. Resolved: the second is **resetting the Selected day to today**;
   "Tonight" unqualified always means the screen.
+- "AI notes" was the working name for the local model's written-ahead output,
+  which collides with **Note**, **Option notes**, and **Day note**, all of which
+  are the Household's own writing. Resolved: it is a **Prepared note** (a brief
+  plus a Prepared ranking). ADR-0011.

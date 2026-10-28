@@ -48,9 +48,10 @@ import { rejectOption } from "./rejection-actions";
  * model deliberately returns no rationale for an obviously bad pick — and an
  * empty `aiReason` renders no line at all, so that row reads like a
  * deterministic one. The Recency and Tag chips render the same on AI and
- * deterministic rows. `lastNote` is never passed on an AI row — the caller
- * omits it (DESIGN.md, "Last note line") — because the AI rationale already
- * carries a prose line and stacking a second one reads as too busy.
+ * deterministic rows. A Claude result row is given no `lastNote` — its
+ * rationale is the row's aside — but a Prepared ranking row is, since that is
+ * the default view; the Last note line then sits above the rationale
+ * (DESIGN.md, "Last note line").
  *
  * The rank+name line and `RowChips` below it stay stacked at every width —
  * unlike an earlier draft, they never merge onto one flex line, because
