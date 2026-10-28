@@ -2,11 +2,26 @@ import { describe, expect, it } from "vitest";
 import { buildSnapshot, type SnapshotOption } from "../lib/snapshot";
 import {
   type BacktestDay,
+  parseBacktestArgs,
   RHYTHM_CLAIM_SUSPECTS,
   sampleAcrossWeekdays,
   scoreDay,
   summarize,
 } from "./backtest";
+
+describe("parseBacktestArgs", () => {
+  it("reads a day list to exclude from the sample, empty by default", () => {
+    expect(parseBacktestArgs([], "x.json").exclude).toEqual([]);
+    expect(
+      parseBacktestArgs(["--exclude=2026-10-02, 2026-10-06", "--count=40"], "x.json"),
+    ).toMatchObject({ exclude: ["2026-10-02", "2026-10-06"], count: 40, days: undefined });
+  });
+
+  it("takes a custom --json path over the default", () => {
+    expect(parseBacktestArgs(["--json=out.json"], "x.json").jsonPath).toBe("out.json");
+    expect(parseBacktestArgs(["--json"], "x.json").jsonPath).toBe("x.json");
+  });
+});
 
 function option(id: string, name: string, tags: string[] = [], notes: string | null = null): SnapshotOption {
   return { id, name, kind: "restaurant", tags, notes, closedDays: [] };

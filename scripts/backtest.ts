@@ -22,6 +22,8 @@
  *   --days=D1,D2,…          a fixed day list, so runs compare like with like
  *   --count=N               days sampled across weekdays (default 20)
  *   --window=N              how far back to sample, in days (default 60)
+ *   --exclude=D1,D2,…       days left out of the sample — a second set of
+ *                           days that shares none with a saved run
  *   --json[=path]           write every day's record, rewritten as each lands
  *   --resume                with --json: keep the days already in the file
  *
@@ -427,6 +429,8 @@ export function summarize(records: DayRecord[]) {
 /** The backtest flags, parsed from argv. */
 export type BacktestArgs = {
   days?: string[];
+  /** Days the sample skips; ignored with `--days`. */
+  exclude: string[];
   count: number;
   windowDays: number;
   jsonPath?: string;
@@ -436,18 +440,22 @@ export type BacktestArgs = {
 export function parseBacktestArgs(args: string[], defaultJsonPath: string): BacktestArgs {
   const value = (name: string) =>
     args.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
-  const days = value("days")
-    ?.split(",")
-    .map((day) => day.trim())
-    .filter((day) => day !== "");
-  const invalid = days?.filter((day) => !isValidSqlDate(day)) ?? [];
-  if (invalid.length > 0) {
-    console.error(`--days must be YYYY-MM-DD, got ${invalid.join(", ")}`);
-    process.exit(1);
-  }
+  const dayList = (name: string) => {
+    const days = value(name)
+      ?.split(",")
+      .map((day) => day.trim())
+      .filter((day) => day !== "");
+    const invalid = days?.filter((day) => !isValidSqlDate(day)) ?? [];
+    if (invalid.length > 0) {
+      console.error(`--${name} must be YYYY-MM-DD, got ${invalid.join(", ")}`);
+      process.exit(1);
+    }
+    return days;
+  };
   const jsonArg = args.find((arg) => arg === "--json" || arg.startsWith("--json="));
   return {
-    days,
+    days: dayList("days"),
+    exclude: dayList("exclude") ?? [],
     count: Number(value("count") ?? DEFAULT_COUNT),
     windowDays: Number(value("window") ?? DEFAULT_WINDOW_DAYS),
     jsonPath: jsonArg ? (jsonArg.includes("=") ? jsonArg.slice(7) : defaultJsonPath) : undefined,
@@ -499,14 +507,20 @@ export async function runBacktest(opts: {
   const { args, meta, generate } = opts;
   const lastDay = shiftSqlDate(today(), -1);
   const firstDay = shiftSqlDate(today(), -args.windowDays);
+  const excluded = new Set(args.exclude);
   const days =
     args.days ??
-    sampleAcrossWeekdays(await getDecidedDates(firstDay, lastDay), args.count);
+    sampleAcrossWeekdays(
+      (await getDecidedDates(firstDay, lastDay)).filter((day) => !excluded.has(day)),
+      args.count,
+    );
   const truth = await loadTruth(days);
 
   const header = {
     ...meta,
-    window: args.days ? "fixed day list" : `${firstDay} – ${lastDay}`,
+    window: args.days
+      ? "fixed day list"
+      : `${firstDay} – ${lastDay}${excluded.size > 0 ? `, ${excluded.size} days excluded` : ""}`,
     catalog: "read as it is now: Options archived, added, or re-tagged since a day are off",
     days: days.join(","),
   };
