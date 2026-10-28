@@ -1,11 +1,17 @@
 # Timing facts in the snapshot, not a sort key
 
+_Amended 2026-10-28: the Interval is the median gap of the current run — the
+gaps since the longest break — not of every gap. The all-time median kept an
+Option "due" every six days for months after its habit had slowed to three
+weeks; the backtest (`.issues/ai-ranking-backtest/issues/02`) put it in the
+top 5 on more than half the days, uneaten._
+
 ADR-0005 withheld pre-computed recency from the model snapshot, so the model
 would reason about habits instead of re-sorting on a ready-made key, and
 ADR-0011 carried that over to Prepared notes. We now put **timing facts** in the
 snapshot shared by AI search and Prepared notes. Each candidate carries how many
 days it was eaten, days since its last eat, its **Interval** (the median gap
-between eats, from two eats up), and its eats per weekday. A `tags` block
+between eats in its current run, from two eats up), and its eats per weekday. A `tags` block
 carries the first three for every Tag. This amends ADR-0005's withheld-recency
 consequence and ADR-0011's inheritance of it. The rest of ADR-0005 stands: the
 model still reasons over the dated history, and nothing in the snapshot

@@ -101,7 +101,7 @@ const MAX_RATIONALE_LENGTH = 200;
  * back to the last word boundary within the cap so the rationale never ends
  * mid-word; a single over-long word with no space is cut at the cap itself.
  */
-function truncateRationale(reason: string, maxLength: number): string {
+export function truncateRationale(reason: string, maxLength: number): string {
   if (reason.length <= maxLength) return reason;
   const cut = reason.slice(0, maxLength);
   const lastSpace = cut.lastIndexOf(" ");
@@ -113,7 +113,7 @@ function truncateRationale(reason: string, maxLength: number): string {
  * count: anything else — a float, a bulleted `1.`, a word — yields `null`, and
  * the row is dropped.
  */
-function toIndex(id: string): number | null {
+export function toIndex(id: string): number | null {
   return /^\d+$/.test(id) ? Number(id) : null;
 }
 
@@ -511,46 +511,116 @@ export const TIMING_FACTS_DESCRIPTION =
   "Each candidate also carries its eating history summed up, counted up to " +
   "and including today: eaten (how many days they have had it), " +
   "daysSinceLast, intervalDays (its Interval: the usual number of days " +
-  "between eats, given once it has been eaten twice), and weekdays (how many " +
-  "of those dinners fell on each weekday). The tags block gives eaten, " +
-  "daysSinceLast, and intervalDays for each Tag, across every Option " +
-  "carrying it. These are facts to weigh, not a ranking: none of them says " +
-  "on its own what fits the evening.";
+  "between eats in its current run — the median gap since its longest break — " +
+  "given once it has been eaten twice), and weekdays (how many of those " +
+  "dinners fell on each weekday). The tags block gives eaten, daysSinceLast, " +
+  "and intervalDays for each Tag, across every Option carrying it. These are " +
+  "facts to weigh, not a ranking: none of them says on its own what fits the " +
+  "evening.";
 
-/** The Cadence rhythm bullet, shared by both prompts — it reads the timing facts. */
+/**
+ * The Cadence rhythm bullet, shared by both prompts — it reads the timing
+ * facts. The v9 wording ("has come round at 8-9 days") taught the models to
+ * wait until an Option was past its Interval; the backtest found the Pick
+ * under its Interval on 8 of 20 days, eaten at two-thirds to seven-eighths of
+ * it, and rejected as too soon at well under half.
+ */
 export const CADENCE_RHYTHM =
   "- Cadence: whether an Option's own Interval has come round: set its " +
-  "daysSinceLast against its intervalDays. Something with an Interval of " +
-  "about a week has come round at 8-9 days even though that is recent in raw " +
-  "terms; something with an Interval of about a month has not at 20 days. Do " +
-  "the same for its Tags: an Option they have not had in months is still a " +
-  "quick repeat when its cuisine was eaten days ago against an Interval of " +
-  "weeks. An Interval resting on two or three eats is a weaker guide than one " +
-  "resting on twenty.";
+  "daysSinceLast against its intervalDays. The Interval is a median, so half " +
+  "of this household's own gaps were shorter than it: an Option is in play " +
+  "from about two-thirds of its Interval, a quick repeat below about half, " +
+  "and between the two the evening decides. Something with an Interval of " +
+  "about a week is in play at five days even though that is recent in raw " +
+  "terms; something with an Interval of about a month is not at ten. The " +
+  "Option's own numbers come first; its Tags' say whether the cuisine has " +
+  "been covered by something else lately. eaten is how much they choose it: " +
+  "a staple with twenty eats and a short Interval, at two-thirds of that " +
+  "Interval, outranks a rarity with five eats in eight months whose Interval " +
+  "is up — being due is not being wanted. An Interval resting on two or three " +
+  "eats is a weaker guide than one resting on twenty.";
 
 /**
  * The day-of-week rhythm bullet, shared by both prompts. Without the counts'
  * reading, Strata gave Mazra a "Thursday habit" on 4 of 15 eats spread across
- * Wednesday to Saturday.
+ * Wednesday to Saturday; with the v9 wording every model still claimed one on
+ * 4 to 7 of every 10 top rows, and the real habits in the Log were few.
  */
 export const DAY_OF_WEEK_RHYTHM =
-  "- Day-of-week rhythm: foods that tend to land on particular weekdays. Read " +
-  "an Option's weekdays counts: a habit is one weekday that clearly stands " +
-  "out, not the commonest day of an even spread. Closed days thin out some " +
-  "weekdays on their own.";
+  "- Day-of-week rhythm: foods that land on particular weekdays. Read an " +
+  "Option's weekdays counts and apply a strict test: a weekday habit means " +
+  "one weekday holds most of the Option's dinners and more than a couple of " +
+  "them, or two adjacent weekdays hold nearly all. The commonest day of a " +
+  "spread across four or five weekdays is not a habit, and two dinners on " +
+  "the same weekday are not one either; say nothing about the weekday there. " +
+  "Expect to find few. Closed days thin out some weekdays on their own.";
+
+/**
+ * Standing reasons, stock, and triggers — shared by both prompts. The v9
+ * backtest had every ranker put Quiche first against the household's own
+ * "no quiche currently" and "minimum re-suggest 1.5 weeks", rank a box meal
+ * high after "no box this week", quote an old reason the Log had since
+ * contradicted, and rank Leftovers on a two-week cadence when four of its last
+ * five eats followed a restaurant night.
+ */
+export const STANDING_REASONS_AND_TRIGGERS =
+  "Some of the household's words are state, rules, or triggers, not " +
+  "preferences. A reason that states a condition — \"none left\", \"no box " +
+  "this week\", \"paused\", \"out of stock\" — holds from its date until a " +
+  "Log entry or a later note says otherwise: while it holds, rank the Option " +
+  "low and say the condition. A reason that states a rule — \"minimum a week " +
+  "and a half between\", \"less frequent\" — is a standing rule: apply it. " +
+  "When the Log since a reason contradicts it — the household has gone on " +
+  "choosing the Option as often as before — the Log wins and the reason is " +
+  "spent. Some Home meals have no rhythm of their own and follow a trigger: " +
+  "leftovers follow a restaurant night with a big order, a box meal follows " +
+  "a delivery, a dish follows its ingredients being bought. Rank those on " +
+  "the trigger, conditionally, never on a cadence.";
+
+/**
+ * The novelty rule, shared by both prompts. "Never having tried it can itself
+ * be a reason to rank it higher" lifted the untried Options into the top 5 on
+ * a third of the v9 days; the household ate none of them in the window.
+ */
+export const NOVELTY_RULE =
+  "Judge an Option with no Log history on its merits like any other. Novelty " +
+  "earns it a place in the visible middle of the ranking, never a place above " +
+  "a staple in its window: an Option that has sat untried through months of " +
+  "decisions is one the household keeps passing over.";
 
 /**
  * Shared by the whole-Catalog tail modes. Opus 5.5 reliably left out the one
  * candidate with no Log history, notes, or Rejections — nothing to say about it
  * read as nothing to rank. This line did not stop that (README finding 15:
  * still omitted in every run); `search` appending the omitted candidates is
- * what fixes it. The line stays for its second half — a never-tried Option can
- * rank high for the novelty, which a candidate that is merely appended cannot.
+ * what fixes it. The line stays for its second half, the novelty rule.
  */
 const EVERY_CANDIDATE_INSTRUCTION =
   " Every candidate must appear exactly once, including an Option with no " +
-  "Log history at all. Judge it on its merits like any other: never having " +
-  "tried it can itself be a reason to rank it higher, for the novelty.";
+  "Log history at all. " +
+  NOVELTY_RULE;
+
+/**
+ * How a rationale is built — `CONTEXT.md`'s **AI rationale** rule, shared by
+ * both prompts. The v9 prompt said "the Option's own interval is the useful
+ * fact" and led its examples with a cadence line; 40% of Opus's top-10 rows
+ * and 80% of Strata's were cadence talk, on Options whose Notes and standing
+ * reasons went unused.
+ */
+export const RATIONALE_LEAD =
+  "A strong pick's rationale leads with what the screen cannot show: a Note " +
+  "of theirs about how it went, a standing reason they once gave, how the " +
+  "Option fits the shape of this evening (who is home, what the last few " +
+  "nights were, what the Day note says), or a weekday habit the counts bear " +
+  "out. Timing earns at most a clause, after that (\"…and its stretch is " +
+  "up\"), never the whole line: the number on screen already says eighteen " +
+  "days, and only you can say what that means for this Option. Examples of " +
+  "the right lead: \"Jen's salmon plate is the reliable order, and its " +
+  "stretch is up\", \"their note says order one roti this time\", \"an easy " +
+  "night at home after three restaurants in a row\", \"the standing swim-night " +
+  "stop\". A row with nothing but timing to say belongs low in the ranking " +
+  "and says little. Write in the third person about the household throughout " +
+  "— never \"you\".";
 
 /** The empty/open-query result instruction, per tail mode (see `resolveTailMode`). */
 const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
@@ -572,16 +642,19 @@ const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
     "you judge a clearly weak pick, give only a terse few-word note instead " +
     '— e.g. "nobody is home to cook", "closed on Thursdays" — never a full ' +
     "sentence. For an Option you judge an " +
-    "obviously bad pick tonight (just eaten, plainly not a fit, a standing " +
-    "reason against it), give an empty string as the reason — no text at " +
-    "all. You decide which tier each Option falls in; the weaker the " +
-    "pick, the less needs to be said." +
+    "obviously bad pick tonight (eaten yesterday or the day before, plainly " +
+    "not a fit, a standing reason against it), give an empty string as the " +
+    "reason — no text at all. An Option short of its Interval but past half " +
+    "of it is not an obviously bad pick: it gets a note. You decide which " +
+    "tier each Option falls in; the weaker the pick, the less needs to be " +
+    "said." +
     EVERY_CANDIDATE_INSTRUCTION,
   drop:
     "- If the query is empty or does not narrow the Catalog, return only the " +
     "Options genuinely worth considering for tonight, ranked best first, and " +
-    "omit the Options you judge clearly bad picks (just eaten, plainly not " +
-    "due, a standing reason against them). Do not return the whole Catalog — " +
+    "omit the Options you judge clearly bad picks (eaten yesterday or the day " +
+    "before, nowhere near due, a standing reason against them). Do not return " +
+    "the whole Catalog — " +
     "a short, honest shortlist is the goal, and you decide where the cutoff " +
     "falls. Each rationale is one short line, roughly 140 characters at most.",
 };
@@ -616,6 +689,14 @@ const TEXT_FORMAT_INSTRUCTION = [
     "line break. If no Option fits at all, write the single word " +
     `${EMPTY_RESULT_SENTINEL} and nothing else.`,
 ].join("\n");
+
+/**
+ * Bumped whenever the ranking prompt's wording changes, so a backtest run's
+ * record says which prompt it measured (`scripts/ai-search-eval.ts`). The
+ * Prepared note prompt has its own (`PREPARED_PROMPT_VERSION`); the two move
+ * together when a shared bullet changes.
+ */
+export const AI_SEARCH_PROMPT_VERSION = "10";
 
 /**
  * Build the system prompt for a tail mode. The prompt is identical across
@@ -695,6 +776,8 @@ export function buildSystemPrompt(mode: TailMode): string {
       "or will be — passed over. A Rejection with no reason is a light " +
       "\"passed on this\" signal, nothing more.",
     "",
+    STANDING_REASONS_AND_TRIGGERS,
+    "",
     "Some Restaurant candidates carry a closedDays field — the weekdays that " +
       "Restaurant is shut, e.g. [\"Sunday\", \"Monday\"]. It is a standing fact " +
       "about the Restaurant's trading week, not something the household " +
@@ -754,18 +837,14 @@ export function buildSystemPrompt(mode: TailMode): string {
       '"long out of rotation"). daysSinceLast is there for you to weigh, ' +
       "never to quote.",
     "Say what the timing MEANS instead — the shape of the habit, which is " +
-      "exactly what the household cannot read off those numbers. The " +
-      "Option's own interval is the useful fact: \"runs about every two " +
-      'weeks and that stretch is up", "the standing Thursday choice", ' +
-      '"always follows a takeaway night", "they have never tried it". The ' +
-      "number on screen already says eighteen days; only you, reading its " +
-      "intervalDays, can say that this one normally comes round every " +
-      "fourteen.",
-    "If you cannot make a claim about the shape of a habit, and no note, " +
-      "standing fact, Tag, kind or stale rejection gives you anything to " +
-      "say, then you have no real reason for this Option — rank it " +
-      "accordingly and say as little as possible, rather than padding the " +
-      "line with how long it has been.",
+      "exactly what the household cannot read off those numbers: \"runs " +
+      "about every two weeks and that stretch is up\", never \"eighteen " +
+      "days\".",
+    RATIONALE_LEAD,
+    "If no note, standing reason, fit with the evening, habit, Tag, kind or " +
+      "stale rejection gives you anything to say, then you have no real " +
+      "reason for this Option — rank it accordingly and say as little as " +
+      "possible, rather than padding the line with how long it has been.",
     "Vary how you write. Across a single response the rationales must not " +
       "all read the same way: vary how they open and how they are built, " +
       "rather than settling into one construction and repeating it down the " +

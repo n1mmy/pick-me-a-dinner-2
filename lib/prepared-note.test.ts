@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type BuiltSnapshot, leanSnapshot, type ModelSnapshot } from "./snapshot";
 import {
+  BRIEF_ROW,
   PREPARED_MARKER,
   buildPreparedSystemPrompt,
   createPreparedNoteClient,
@@ -113,8 +114,14 @@ const idByIndex = new Map([
   [3, PHO],
 ]);
 
-/** The built value the client takes: the snapshot and its id map together. */
-const built: BuiltSnapshot = { snapshot, idByIndex, nameById: new Map() };
+const nameById = new Map([
+  [KATSU, "Katsu curry"],
+  [MAZRA, "Mazra"],
+  [PHO, "Pho Saigon"],
+]);
+
+/** The built value the client takes: the snapshot and its id maps together. */
+const built: BuiltSnapshot = { snapshot, idByIndex, nameById };
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -142,28 +149,102 @@ describe("preparedNotesEnabled", () => {
 });
 
 describe("parsePreparedReply", () => {
-  it("returns the trimmed brief and the ranking rows in written order", () => {
+  it("returns the ranking rows in written order and the brief from the last line", () => {
     const reply = [
       "",
-      "  A quiet Thursday with Jen away, so something easy for one.",
-      "",
-      "Pho is the standout: the standing Thursday choice.",
+      "3|Pho Saigon|The standing Thursday choice, and it travels well.",
+      "1|Katsu curry|Long cook for a weeknight on your own.",
+      "2|Mazra|Closed Thursdays in practice; skip it.",
+      "Brief|  A quiet Thursday with Jen away, so something easy for one. Pho is the standout: the standing Thursday choice. ",
       "  ",
-      PREPARED_MARKER,
-      "3|The standing Thursday choice, and it travels well.",
-      "1|Long cook for a weeknight on your own.",
-      "2|Closed Thursdays in practice; skip it.",
     ].join("\n");
 
-    expect(parsePreparedReply(reply, idByIndex)).toEqual({
+    expect(parsePreparedReply(reply, built)).toEqual({
       brief:
-        "A quiet Thursday with Jen away, so something easy for one.\n\n" +
+        "A quiet Thursday with Jen away, so something easy for one. " +
         "Pho is the standout: the standing Thursday choice.",
       ranking: [
         { id: PHO, reason: "The standing Thursday choice, and it travels well." },
         { id: KATSU, reason: "Long cook for a weeknight on your own." },
         { id: MAZRA, reason: "Closed Thursdays in practice; skip it." },
       ],
+      resolvedByName: 0,
+    });
+  });
+
+  it("resolves a row by its name when the number names another Option, or no candidate", () => {
+    // Strata wrote its rank position where the number belongs: row 1 is
+    // "1" but names Pho, and row 2 names Katsu under a number that is no
+    // candidate at all.
+    const reply = [
+      "1|Pho Saigon|The standing Thursday choice.",
+      "9|katsu curry|Long cook.",
+      "2|Mazra|Skip it.",
+      "brief|A quiet Thursday.",
+    ].join("\n");
+
+    expect(parsePreparedReply(reply, built)).toEqual({
+      brief: "A quiet Thursday.",
+      ranking: [
+        { id: PHO, reason: "The standing Thursday choice." },
+        { id: KATSU, reason: "Long cook." },
+        { id: MAZRA, reason: "Skip it." },
+      ],
+      resolvedByName: 2,
+    });
+  });
+
+  it("reads a row with no name column by its number, and keeps a | inside a rationale", () => {
+    const reply = [
+      "3|The standing Thursday choice.",
+      "1|Katsu curry|Long cook | fine at the weekend.",
+      "2|Not a name|Skip it.",
+      "brief|A quiet Thursday | nothing fancy.",
+    ].join("\n");
+
+    expect(parsePreparedReply(reply, built)?.ranking).toEqual([
+      { id: PHO, reason: "The standing Thursday choice." },
+      { id: KATSU, reason: "Long cook | fine at the weekend." },
+      { id: MAZRA, reason: "Not a name|Skip it." },
+    ]);
+  });
+
+  it("keeps the first row when a resolved Option repeats", () => {
+    const reply = [
+      "3|Pho Saigon|First.",
+      "1|Pho Saigon|Again, under Katsu's number.",
+      "1|Katsu curry|Long cook.",
+      "brief|A quiet Thursday.",
+    ].join("\n");
+
+    expect(parsePreparedReply(reply, built)?.ranking).toEqual([
+      { id: PHO, reason: "First." },
+      { id: KATSU, reason: "Long cook." },
+    ]);
+  });
+
+  it.each([
+    ["the v9 shape: brief, marker, rows", `A quiet Thursday.\n${PREPARED_MARKER}\n3|Pho Saigon|Standing Thursday choice.`],
+    ["rows, marker, prose brief", `3|Pho Saigon|Standing Thursday choice.\n${PREPARED_MARKER}\nA quiet Thursday.`],
+  ])("still reads %s", (_case, reply) => {
+    expect(parsePreparedReply(reply, built)).toEqual({
+      brief: "A quiet Thursday.",
+      ranking: [{ id: PHO, reason: "Standing Thursday choice." }],
+      resolvedByName: 0,
+    });
+  });
+
+  it("scores the rows without a brief only when asked to", () => {
+    const reply = "3|Pho Saigon|Standing Thursday choice.\n1|Katsu curry|Long cook.";
+
+    expect(parsePreparedReply(reply, built)).toBeNull();
+    expect(parsePreparedReply(reply, built, { requireBrief: false })).toEqual({
+      brief: "",
+      ranking: [
+        { id: PHO, reason: "Standing Thursday choice." },
+        { id: KATSU, reason: "Long cook." },
+      ],
+      resolvedByName: 0,
     });
   });
 
@@ -177,8 +258,8 @@ describe("parsePreparedReply", () => {
     expect(reason.length).toBeGreaterThan(300);
 
     const note = parsePreparedReply(
-      `A quiet Thursday.\n${PREPARED_MARKER}\n3|${reason}`,
-      idByIndex,
+      `3|Pho Saigon|${reason}\nbrief|A quiet Thursday.`,
+      built,
     );
 
     expect(note?.ranking).toEqual([{ id: PHO, reason }]);
@@ -188,8 +269,8 @@ describe("parsePreparedReply", () => {
     const reason = "Broth ".repeat(150).trim();
 
     const note = parsePreparedReply(
-      `A quiet Thursday.\n${PREPARED_MARKER}\n3|${reason}`,
-      idByIndex,
+      `3|Pho Saigon|${reason}\nbrief|A quiet Thursday.`,
+      built,
     );
 
     const kept = note?.ranking[0].reason ?? "";
@@ -199,32 +280,37 @@ describe("parsePreparedReply", () => {
   });
 
   it.each([
-    ["the marker is missing","A quiet Thursday.\n3|Standing Thursday choice."],
-    ["the brief is empty", `  \n${PREPARED_MARKER}\n3|Standing Thursday choice.`],
+    ["the brief line is missing", "3|Pho Saigon|Standing Thursday choice.\nA quiet Thursday."],
+    ["the brief line is empty", "3|Pho Saigon|Standing Thursday choice.\nbrief|  "],
+    ["the brief is empty prose below the marker", `3|Pho Saigon|Standing Thursday choice.\n${PREPARED_MARKER}\n  `],
+    ["no row parses", "Pho, then Katsu, then Mazra.\nbrief|A quiet Thursday."],
     [
-      "no row parses",
-      `A quiet Thursday.\n${PREPARED_MARKER}\nPho, then Katsu, then Mazra.`,
+      "the ranking is only rows for unknown numbers and names",
+      "9|Nowhere|Not a candidate.\nbrief|A quiet Thursday.",
+    ],
+    ["the ranking is NONE", "NONE\nbrief|A quiet Thursday."],
+    [
+      "the brief line runs past its bound",
+      `3|Pho Saigon|Standing Thursday choice.\nbrief|${"x".repeat(1201)}`,
     ],
     [
-      "the ranking is only rows for unknown numbers",
-      `A quiet Thursday.\n${PREPARED_MARKER}\n9|Not a candidate.`,
+      "the brief below the marker runs past its bound",
+      `3|Pho Saigon|Standing Thursday choice.\n${PREPARED_MARKER}\n${"x".repeat(1201)}`,
     ],
-    ["the ranking is NONE", `A quiet Thursday.\n${PREPARED_MARKER}\nNONE`],
     [
-      "the brief runs past its bound",
-      `${"x".repeat(1201)}\n${PREPARED_MARKER}\n3|Standing Thursday choice.`,
+      "the brief runs past its bound, in the old order",
+      `${"x".repeat(1201)}\n${PREPARED_MARKER}\n3|Pho Saigon|Standing Thursday choice.`,
     ],
   ])("is unavailable when %s", (_case, reply) => {
-    expect(parsePreparedReply(reply, idByIndex)).toBeNull();
+    expect(parsePreparedReply(reply, built)).toBeNull();
   });
 
-  it("still reads a brief right at its bound", () => {
+  it("still reads a brief right at its bound, in either order", () => {
     const brief = "x".repeat(1200);
+    const row = "3|Pho Saigon|Standing Thursday choice.";
 
-    expect(
-      parsePreparedReply(`${brief}\n${PREPARED_MARKER}\n3|Standing Thursday choice.`, idByIndex)
-        ?.brief,
-    ).toBe(brief);
+    expect(parsePreparedReply(`${row}\n${PREPARED_MARKER}\n${brief}`, built)?.brief).toBe(brief);
+    expect(parsePreparedReply(`${brief}\n${PREPARED_MARKER}\n${row}`, built)?.brief).toBe(brief);
   });
 });
 
@@ -236,10 +322,18 @@ describe("buildPreparedSystemPrompt", () => {
     expect(prompt).toContain("any other Option's in otherOptions");
   });
 
-  it("asks for the brief, then the marker line alone, then a row per candidate", () => {
-    expect(prompt).toContain(`write the line ${PREPARED_MARKER} alone`);
-    expect(prompt).toContain("<number>|<rationale>");
+  it("asks for a numbered and named row per candidate, then the brief as the last line", () => {
+    expect(prompt).toContain("the ranking first, then the brief");
+    expect(prompt).toContain("<number>|<name>|<rationale>");
+    expect(prompt).toContain(`The last line of the reply is the brief, in the same shape: ${BRIEF_ROW}`);
+    expect(prompt).not.toContain(PREPARED_MARKER);
     expect(prompt).toContain("Every candidate must appear exactly once");
+  });
+
+  it("keeps the snapshot's vocabulary and the weekday out of what the household reads", () => {
+    expect(prompt).toContain("never in the snapshot's");
+    expect(prompt).toContain("not on the weekday or any weekday habit");
+    expect(prompt).toContain("names only Options in your top three rows");
   });
 
   it("asks for a brief of two or three sentences, not a page", () => {
@@ -265,11 +359,7 @@ describe("buildPreparedSystemPrompt", () => {
 });
 
 describe("createPreparedNoteClient().prepare", () => {
-  const goodReply = `A quiet Thursday.
-${PREPARED_MARKER}
-3|Standing Thursday choice.
-1|Long cook.
-2|Skip it.`;
+  const goodReply = "3|Pho Saigon|Standing Thursday choice.\n1|Katsu curry|Long cook.\n2|Mazra|Skip it.\nbrief|A quiet Thursday.";
 
   const goodNote = {
     ok: true,
@@ -333,13 +423,17 @@ ${PREPARED_MARKER}
     await client().prepare({
       snapshot,
       idByIndex: new Map([[1, KATSU], [2, MAZRA], [5, PHO]]),
-      nameById: new Map(),
+      nameById,
     });
 
     const [, init] = fetchSpy.mock.calls[0];
     const userMessage = JSON.parse(String(init?.body)).messages[1].content;
     expect(userMessage.startsWith(JSON.stringify(leanSnapshot(snapshot)))).toBe(true);
-    expect(userMessage.endsWith("Rank all 3 candidates: 1, 2, 5.")).toBe(true);
+    expect(
+      userMessage.endsWith(
+        `Rank all 3 candidates: 1, 2, 5. Then line 4, the last: ${BRIEF_ROW}.`,
+      ),
+    ).toBe(true);
   });
 
   it("sends no Authorization header when no key is set", async () => {
@@ -487,6 +581,37 @@ ${PREPARED_MARKER}
     expect(await pending).toEqual({ ok: false });
   });
 
+  it("tells onReply how many rows a readable answer resolved by name", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    stubFetch(async () =>
+      streamResponse(
+        completion(
+          "1|Pho Saigon|Standing Thursday choice.\n2|Mazra|Skip it.\n1|Katsu curry|Long cook.\nbrief|A quiet Thursday.",
+        ),
+      ),
+    );
+    const onReply = vi.fn();
+
+    const result = await createPreparedNoteClient({
+      baseUrl: "http://strata.local/v1",
+      model: "qwen3.8-flash",
+      onReply,
+    }).prepare(built);
+
+    expect(result).toEqual({
+      ok: true,
+      note: {
+        brief: "A quiet Thursday.",
+        ranking: [
+          { id: PHO, reason: "Standing Thursday choice." },
+          { id: MAZRA, reason: "Skip it." },
+          { id: KATSU, reason: "Long cook." },
+        ],
+      },
+    });
+    expect(onReply).toHaveBeenCalledWith(expect.objectContaining({ resolvedByName: 1 }));
+  });
+
   it("hands the raw answer, reasoning, and stop reason to onReply, even when the answer is unreadable", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     stubFetch(async () =>
@@ -539,8 +664,8 @@ ${PREPARED_MARKER}
 
   /** A reply ranking candidates 1…`rows`. */
   const rankingOf = (rows: number) =>
-    ["A quiet Thursday.", PREPARED_MARKER]
-      .concat(Array.from({ length: rows }, (_, at) => `${at + 1}|Fits.`))
+    Array.from({ length: rows }, (_, at) => `${at + 1}|Option ${at + 1}|Fits.`)
+      .concat(PREPARED_MARKER, "A quiet Thursday.")
       .join("\n");
 
   it("refuses a ranking naming fewer than nine in ten candidates, logging how many it named", async () => {

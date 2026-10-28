@@ -74,8 +74,9 @@ export type SnapshotTiming = {
   /** Days from its last eat to the anchor day — omitted when never eaten. */
   daysSinceLast?: number;
   /**
-   * Its **Interval**: the median gap in days between consecutive eats —
-   * omitted under two eats, where there is no gap to take.
+   * Its **Interval**: the median gap in days between consecutive eats in its
+   * current run — the eats since its longest break (`intervalOf`) — omitted
+   * under two eats, where there is no gap to take.
    */
   intervalDays?: number;
 };
@@ -489,8 +490,26 @@ function timingOf(eatenDays: Set<string>, asOf: string): SnapshotTiming {
   return {
     eaten: days.length,
     daysSinceLast: epochDayFromSqlDate(asOf) - days[days.length - 1],
-    ...(gaps.length > 0 ? { intervalDays: median(gaps) } : {}),
+    ...(gaps.length > 0 ? { intervalDays: intervalOf(gaps) } : {}),
   };
+}
+
+/**
+ * The **Interval** of a history given as its gaps in days, oldest first: the
+ * median gap of the current run — the gaps after the longest one — or of every
+ * gap when the longest gap is the latest, so there is no run after it yet.
+ *
+ * The all-time median mis-stated an Option whose habit had changed: an Option
+ * eaten twice a week one spring and every three weeks since still carried an
+ * Interval of six days, and was ranked "due" every few days for months. The
+ * longest break is where the habit last reset; what comes after it is the
+ * habit as it stands. No tuning constant. With a tie for the longest gap, the
+ * earliest one starts the run, so the run keeps the most eats.
+ */
+export function intervalOf(gaps: number[]): number {
+  const longestAt = gaps.indexOf(Math.max(...gaps));
+  const run = gaps.slice(longestAt + 1);
+  return median(run.length > 0 ? run : gaps);
 }
 
 /** The middle value, or the rounded mean of the middle two. */

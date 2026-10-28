@@ -209,11 +209,26 @@ Harness, before the v10 run, so it measures right.
     floor: 20 billed calls, about 20k cache-write tokens each. Strata reruns
     are free.
 
-Expected effect, honestly: Opus's reachable ordering gain is about two days
-(the two Ninja nights) and one fewer too-soon day; the burger seven days
-after a burger, the two Leftovers nights and the Monday Mollie Stone's are
-the floor. The visible win is the top 5: roughly half of its slots today go
-to Options the Household did not eat once in four weeks.
+Expected effect, honestly (revised after the noise floor, below): under v9
+Opus lands on 14 or 16 at hit@5 depending on the draw, so a v10 run at 16
+proves nothing by itself. The reachable ordering gain is a floor, not a
+count: the two Ninja nights (10-18 at two-thirds of its Interval, 10-25 just
+past it) become hits in every run, and 10-11 moves into the top 5 once the
+Quiche rule holds. The burger seven days after a burger, the two Leftovers
+nights and the Monday Mollie Stone's stay misses. The visible win is the top
+5: roughly half of its slots today go to Options the Household did not eat
+once in four weeks, and that measure moved by one slot between two identical
+runs. The v10 acceptance test, one Opus run of 20 calls, reads the stable
+measures first:
+
+- top-5 slots on Options never eaten in the window: from 52–53 to below 35;
+- too-soon days: from 2 to 0 (Quiche off the 10-11 top 5, Aji off 10-19's);
+- Aji Ichi's top-5 days: from 11 to 3 or fewer;
+- no day whose Pick carries an empty reason (v9: 3–4 days);
+- hit@5 at least 16 with 10-18 and 10-25 both in the top 5; a gain under 3
+  days on hit@5 alone is not readable from one run;
+- elapsed-time flags compared only over the brief and top 10 (the harness now
+  counts them that way).
 
 ## Observations that did not become candidates
 
@@ -259,3 +274,27 @@ to Options the Household did not eat once in four weeks.
   on Opus a v10 gain of about two days is not readable from one run. The
   never-eaten top-5 slots (53 → 52) and the per-Option occupancy are
   stable, so that measure can carry the v10 read.
+- 2026-10-28: proposals 1–9 and 11–14 implemented as prompt v10 (both
+  prompts; `AI_SEARCH_PROMPT_VERSION` and `PREPARED_PROMPT_VERSION` are "10").
+  1: `intervalOf` in `lib/snapshot.ts`, ADR-0012 amended, `CONTEXT.md`
+  Interval rewritten; on the real data Aji 6→18, Ninja 6, Mazra 14, Atlas
+  14, Quiche 16, Taqueria 15, Thai 17, Big Mouth 18, Leftovers 14, Societea
+  28, Chicken and Rice 22, Hungryroot stays 7 (its longest gap is the latest
+  one — the state rule covers it). 2–6: `CADENCE_RHYTHM`,
+  `DAY_OF_WEEK_RHYTHM`, `STANDING_REASONS_AND_TRIGGERS`, `NOVELTY_RULE` and
+  `RATIONALE_LEAD` in `lib/ai-search.ts`, shared by both prompts; pithy and
+  drop modes say "eaten yesterday or the day before". 7: the vocabulary
+  paragraph in `buildPreparedSystemPrompt`. 8–9: Strata writes
+  `<number>|<name>|<rationale>`, then `=== BRIEF ===`, then the brief;
+  `parsePreparedReply` resolves a disagreeing row by name and reports the
+  count (`resolvedByName`), and still reads the v9 order and number-only
+  rows. 11–13: `scripts/backtest.ts` — brief names by any unique word of a
+  name, Day-note words from three letters, every flag over the brief and
+  top 10, and new fields: the Pick's since/Interval, empty top-10 reasons,
+  catalog-order days, rows resolved by name, never-eaten top-5 slots,
+  Pick-under-Interval days and how many were hit@5. 14:
+  `scripts/backtest-score.ts`, saved as `score-baseline.{json,log}`: 5/8/12
+  of 20, 63/100 never-eaten slots. `scripts/backtest-compare.ts` diffs two
+  runs. Under the new Interval the Pick was short of it on 11 of 20 days,
+  7 of those above two-thirds. 10 (the bucketed Strata variant) stays open
+  as a free A/B after the v10 Strata run.

@@ -258,12 +258,18 @@ entered by hand).
 
 **Interval**:
 The usual number of days between the Household's eats of an Option — or, for a
-Tag, of any active Option carrying it. It is the timing side of a habit: set
-against **Recency**, it says whether something is recent *for that Option*.
-Not a Score factor: **Readiness** measures time since on one scale for every
-Option, and **Affinity** measures how much an Option is wanted, not when it is
-due.
-_Avoid_: Cadence (the habit itself, not its number), usual gap.
+Tag, of any active Option carrying it — in its **current run**: the median gap
+since the longest break in its history, or of every gap when that break is the
+latest one. The longest break is where the habit last reset, so an Option eaten
+twice a week one spring and every three weeks since has an Interval of three
+weeks, not six days. It is the timing side of a habit: set against **Recency**,
+it says whether something is recent *for that Option*. A median, so half the
+Household's own gaps were shorter: an Option is in play from about two-thirds
+of its Interval, a quick repeat under about half. Not a Score factor:
+**Readiness** measures time since on one scale for every Option, and
+**Affinity** measures how much an Option is wanted, not when it is due.
+_Avoid_: Cadence (the habit itself, not its number), usual gap, overdue (the
+Tag chip threshold, not a relation to the Interval).
 
 **Recency chip**:
 The small chip on each Tonight row showing the Option's own **per-Option

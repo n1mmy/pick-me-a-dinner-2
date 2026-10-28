@@ -5,12 +5,18 @@
  * (`snapshotForDay`'s backtest mode), and score the ranking against what was
  * actually eaten that day.
  *
- * Per day and in aggregate: the rank of the Pick, hit@3/5/10, and any Option
- * Rejected that day as too soon that sat in the top 5. Prepared notes add the
- * brief's consistency: the Options it names sit in the top 3, and it mentions
- * the Day note when there is one. Flags are for a reader, not verdicts:
- * elapsed-time phrasing, weekday-habit claims printed next to that Option's
- * weekday counts, and top-10 rationales that say nothing but timing.
+ * Per day and in aggregate: the rank of the Pick, hit@3/5/10, the Pick's
+ * daysSinceLast over its Interval, any Option Rejected that day as too soon
+ * that sat in the top 5, top-5 slots spent on Options never eaten in the
+ * window, empty top-10 reasons, and a ranking written in snapshot-number
+ * order (rank positions where numbers belong). Prepared notes add the brief's
+ * consistency — the Options it names sit in the top 3, and it mentions the Day
+ * note when there is one — and rows the parser had to resolve by name. Flags
+ * are for a reader, not verdicts: elapsed-time phrasing, weekday-habit claims
+ * printed next to that Option's weekday counts, and top-10 rationales that
+ * say nothing but timing. Every flag counts over the brief and the top 10.
+ *
+ * Two runs' `--json` files are compared by `scripts/backtest-compare.ts`.
  *
  *   --backtest              run the backtest instead of a single day
  *   --days=D1,D2,…          a fixed day list, so runs compare like with like
@@ -75,6 +81,18 @@ function contentWords(text: string): Set<string> {
   );
 }
 
+/**
+ * The words of a Day note worth finding in the brief: three letters up, so
+ * "No Jen" is read by "jen" (`contentWords` starts at four and missed it).
+ */
+function noteWords(text: string): Set<string> {
+  return new Set(
+    (text.toLowerCase().match(/[a-z][a-z']{2,}/g) ?? []).filter(
+      (word) => !STOPWORDS.has(word),
+    ),
+  );
+}
+
 /** One decided day and its ground truth, read from the live tables. */
 export type BacktestDay = {
   day: string;
@@ -95,6 +113,8 @@ export type Generation = {
   outputTokens?: number;
   /** Strata's reasoning trace, saved beside the JSON when asked for. */
   reasoning?: string;
+  /** Prepared notes: rows the parser resolved by name over the number. */
+  resolvedByName?: number;
 };
 
 type Ranked = { rank: number; name: string };
@@ -115,8 +135,19 @@ export type DayRecord = {
   hit3: boolean;
   hit5: boolean;
   hit10: boolean;
+  /** Each candidate Pick's daysSinceLast over its Interval, from the snapshot. */
+  pickTiming: { name: string; daysSinceLast: number | null; intervalDays: number | null }[];
   /** Options Rejected that day as too soon, ranked in the top 5. */
   tooSoonMisses: (Ranked & { reason: string })[];
+  /** Top-10 rows with an empty reason. */
+  emptyTop10: number;
+  /**
+   * The whole ranking came out in snapshot-number order: the model wrote its
+   * rank positions where the numbers belong, and the "ranking" is the Catalog.
+   */
+  catalogOrder: boolean;
+  /** Prepared notes: rows the parser resolved by name over the number. */
+  resolvedByName?: number;
   brief?: string;
   /** Options the brief names — each should be in the top 3. */
   briefNamed?: Ranked[];
@@ -215,11 +246,24 @@ export function scoreDay(
   }));
   const top10 = generation.ranking.slice(0, 10);
 
+  const pickTiming = truth.picks
+    .filter((pick) => candidateIds.has(pick.optionId))
+    .map((pick) => ({
+      name: pick.name,
+      daysSinceLast: modelOption.get(pick.optionId)?.daysSinceLast ?? null,
+      intervalDays: modelOption.get(pick.optionId)?.intervalDays ?? null,
+    }));
+
+  const numberById = new Map([...idByIndex].map(([number, id]) => [id, number]));
+  const numbers = generation.ranking.map((row) => numberById.get(row.id) ?? 0);
+  const catalogOrder =
+    numbers.length >= 10 && numbers.every((n, i) => i === 0 || n > numbers[i - 1]);
+
   const elapsed = [
     ...(generation.brief !== undefined
       ? [{ where: "brief", text: generation.brief }]
       : []),
-    ...ranking.map((row) => ({ where: `#${row.rank}`, text: row.reason })),
+    ...ranking.slice(0, 10).map((row) => ({ where: `#${row.rank}`, text: row.reason })),
   ].flatMap(({ where, text }) =>
     (text.match(RHYTHM_CLAIM_SUSPECTS) ?? []).map((match) => ({ where, text: match })),
   );
@@ -265,12 +309,18 @@ export function scoreDay(
     hit3: scorable && within(3),
     hit5: scorable && within(5),
     hit10: scorable && within(10),
+    pickTiming,
     tooSoonMisses,
+    emptyTop10: top10.filter((row) => row.reason.trim() === "").length,
+    catalogOrder,
     flags: { elapsed, weekdayClaims, timingOnly },
     ranking,
     latencyMs: generation.latencyMs,
     outputTokens: generation.outputTokens,
   };
+  if (generation.resolvedByName !== undefined) {
+    record.resolvedByName = generation.resolvedByName;
+  }
 
   if (generation.brief !== undefined) {
     record.brief = generation.brief;
@@ -279,39 +329,46 @@ export function scoreDay(
       name: nameOf(id),
     }));
     if (truth.dayNote) {
-      const noteWords = contentWords(truth.dayNote);
-      record.briefMentionsDayNote = [...contentWords(generation.brief)].some(
-        (word) => noteWords.has(word),
+      const wanted = noteWords(truth.dayNote);
+      record.briefMentionsDayNote = [...noteWords(generation.brief)].some((word) =>
+        wanted.has(word),
       );
     }
   }
   return record;
 }
 
+/** The capitalised words of five letters or more in a name ("Societea", "Ninja", "Stone's"). */
+function nameWords(name: string): string[] {
+  return name.match(/[A-Z][\w'’.-]{4,}/g) ?? [];
+}
+
 /**
  * The candidates a brief names: by full name, case-insensitively, or by a
- * capitalised first word of five letters or more that no other candidate
- * shares ("Societea", "Ninja").
+ * capitalised word of five letters or more that appears in no other
+ * candidate's name. Any word of the name, not just the first, and unique
+ * across every name: the first-word rule matched "Chicken" in "bb.q Chicken
+ * San Bruno" to Chicken and Rice.
  */
 function namedInBrief(brief: string, built: BuiltSnapshot): string[] {
   const candidates = [...built.idByIndex.values()].map((id) => ({
     id,
     name: built.nameById.get(id) ?? "",
   }));
-  const firstWordCount = new Map<string, number>();
+  const namesWithWord = new Map<string, number>();
   for (const { name } of candidates) {
-    const first = name.split(/\s+/)[0];
-    firstWordCount.set(first, (firstWordCount.get(first) ?? 0) + 1);
+    for (const word of new Set(nameWords(name))) {
+      namesWithWord.set(word, (namesWithWord.get(word) ?? 0) + 1);
+    }
   }
   const lower = brief.toLowerCase();
   return candidates
     .filter(({ name }) => {
       if (name !== "" && lower.includes(name.toLowerCase())) return true;
-      const first = name.split(/\s+/)[0];
-      return (
-        first.length >= 5 &&
-        firstWordCount.get(first) === 1 &&
-        new RegExp(`\\b${first.replace(/[^\w]/g, "\\$&")}\\b`).test(brief)
+      return nameWords(name).some(
+        (word) =>
+          namesWithWord.get(word) === 1 &&
+          new RegExp(`\\b${word.replace(/[^\w]/g, "\\$&")}\\b`).test(brief),
       );
     })
     .map(({ id }) => id);
@@ -325,6 +382,14 @@ export function summarize(records: DayRecord[]) {
     .sort((a, b) => a - b);
   const count = (pick: (record: DayRecord) => boolean) =>
     records.filter(pick).length;
+  const sum = (of: (record: DayRecord) => number | undefined) =>
+    records.reduce((n, r) => n + (of(r) ?? 0), 0);
+  // Eaten in the window: Picked on any of the run's days.
+  const eaten = new Set(records.flatMap((r) => r.picks.map((p) => p.name)));
+  const underInterval = (r: DayRecord) =>
+    (r.pickTiming ?? []).some(
+      (p) => p.daysSinceLast !== null && p.intervalDays !== null && p.daysSinceLast < p.intervalDays,
+    );
   return {
     days: records.length,
     scored: scored.length,
@@ -338,13 +403,24 @@ export function summarize(records: DayRecord[]) {
     hit5: count((r) => r.hit5),
     hit10: count((r) => r.hit10),
     daysWithTooSoonMiss: count((r) => r.tooSoonMisses.length > 0),
+    /** Days the Pick was short of its Interval, and how many of those were hit@5. */
+    pickUnderIntervalDays: count((r) => r.scorable && underInterval(r)),
+    pickUnderIntervalHit5: count((r) => r.scorable && underInterval(r) && r.hit5),
+    neverEatenTop5Slots: sum(
+      (r) => r.ranking.slice(0, 5).filter((row) => !eaten.has(row.name)).length,
+    ),
+    emptyTop10Rows: sum((r) => r.emptyTop10),
+    catalogOrderDays: count((r) => r.catalogOrder === true),
+    rowsResolvedByName: sum((r) => r.resolvedByName),
     briefNamedOutsideTop3: count(
       (r) => (r.briefNamed ?? []).some((named) => named.rank === 0 || named.rank > 3),
     ),
     briefMissingDayNote: count((r) => r.briefMentionsDayNote === false),
-    elapsedSuspects: records.reduce((n, r) => n + r.flags.elapsed.length, 0),
-    weekdayClaims: records.reduce((n, r) => n + r.flags.weekdayClaims.length, 0),
-    timingOnlyTopRows: records.reduce((n, r) => n + r.flags.timingOnly.length, 0),
+    /** Prepared notes scored on their rows alone: the model skipped the brief. */
+    briefSkippedDays: count((r) => r.brief === ""),
+    elapsedSuspects: sum((r) => r.flags.elapsed.length),
+    weekdayClaims: sum((r) => r.flags.weekdayClaims.length),
+    timingOnlyTopRows: sum((r) => r.flags.timingOnly.length),
   };
 }
 
@@ -492,18 +568,30 @@ function rankCell(rank: number | null): string {
   return rank === null ? "—" : `#${rank}`;
 }
 
+/** A Pick's timing as "4/6": daysSinceLast over its Interval, "—" where absent. */
+function timingCell(record: DayRecord): string {
+  return (record.pickTiming ?? [])
+    .map((p) => `${p.daysSinceLast ?? "new"}/${p.intervalDays ?? "—"}`)
+    .join(" ");
+}
+
 function printDay(record: DayRecord): void {
   const secs =
     record.latencyMs !== undefined ? `${(record.latencyMs / 1000).toFixed(0)}s` : "—";
   const picks = record.picks
     .map((p) => `${p.name} ${p.candidate ? rankCell(p.rank) : "(not a candidate)"}`)
     .join(", ");
+  const timing = timingCell(record);
   console.log(
-    `=== ${record.day} (${record.weekday}) — ${record.ok ? `ate ${picks}` : "UNAVAILABLE"} — ${secs}`,
+    `=== ${record.day} (${record.weekday}) — ${record.ok ? `ate ${picks}` : "UNAVAILABLE"}` +
+      `${timing ? ` — since/Interval ${timing}` : ""} — ${secs}`,
   );
   if (record.dayNote) console.log(`day note: ${record.dayNote}`);
+  if (record.catalogOrder) console.log("CATALOG ORDER: the ranking is the snapshot's numbering");
+  if (record.resolvedByName) console.log(`rows resolved by name: ${record.resolvedByName}`);
+  if (record.emptyTop10) console.log(`empty reasons in the top 10: ${record.emptyTop10}`);
   if (record.brief !== undefined) {
-    console.log(`brief: ${record.brief}`);
+    console.log(`brief: ${record.brief || "(SKIPPED by the model — rows scored anyway)"}`);
     const named = (record.briefNamed ?? [])
       .map((n) => `${n.name} ${n.rank ? `#${n.rank}` : "unranked"}`)
       .join(", ");
@@ -538,7 +626,9 @@ function printDay(record: DayRecord): void {
 
 function printTable(records: DayRecord[]): void {
   console.log("--- per day ---");
-  console.log("day         wkday  rank  @3 @5 @10  too-soon  wkday  timing  elapsed  pick");
+  console.log(
+    "day         wkday  rank  since/int  @3 @5 @10  too-soon  empty  wkday  timing  elapsed  pick",
+  );
   for (const r of records) {
     const mark = (hit: boolean) => (r.scorable ? (hit ? " ✓" : " ·") : "  ");
     console.log(
@@ -546,12 +636,14 @@ function printTable(records: DayRecord[]): void {
         r.day,
         r.weekday.slice(0, 3).padEnd(5),
         (r.scorable ? rankCell(r.bestRank) : "n/a").padStart(4),
+        timingCell(r).padStart(10),
         ` ${mark(r.hit3)} ${mark(r.hit5)} ${mark(r.hit10)} `,
         String(r.tooSoonMisses.length).padStart(8),
+        String(r.emptyTop10 ?? 0).padStart(6),
         String(r.flags.weekdayClaims.length).padStart(6),
         String(r.flags.timingOnly.length).padStart(7),
         String(r.flags.elapsed.length).padStart(8),
-        ` ${r.picks.map((p) => p.name).join(" + ")}`,
+        ` ${r.picks.map((p) => p.name).join(" + ")}${r.catalogOrder ? "  CATALOG ORDER" : ""}`,
       ].join(" "),
     );
   }
@@ -569,12 +661,23 @@ function printAggregate(summary: ReturnType<typeof summarize>): void {
   console.log(`hit@3 ${pct(summary.hit3)}   hit@5 ${pct(summary.hit5)}   hit@10 ${pct(summary.hit10)}`);
   console.log(`days with a too-soon Rejection in the top 5: ${summary.daysWithTooSoonMiss}`);
   console.log(
-    `brief names an Option outside the top 3: ${summary.briefNamedOutsideTop3} day(s)   ` +
-      `brief silent on the Day note: ${summary.briefMissingDayNote} day(s)`,
+    `Pick short of its Interval: ${summary.pickUnderIntervalDays} day(s), ` +
+      `${summary.pickUnderIntervalHit5} of them hit@5`,
   );
   console.log(
-    `flags — elapsed-time suspects ${summary.elapsedSuspects}   ` +
-      `weekday claims in the top 10 ${summary.weekdayClaims}   ` +
-      `timing-only top-10 rows ${summary.timingOnlyTopRows}`,
+    `top-5 slots on Options never eaten in the window: ${summary.neverEatenTop5Slots}/${summary.scored * 5}   ` +
+      `empty top-10 reasons: ${summary.emptyTop10Rows}   ` +
+      `catalog-order days: ${summary.catalogOrderDays}   ` +
+      `rows resolved by name: ${summary.rowsResolvedByName}`,
+  );
+  console.log(
+    `brief names an Option outside the top 3: ${summary.briefNamedOutsideTop3} day(s)   ` +
+      `brief silent on the Day note: ${summary.briefMissingDayNote} day(s)   ` +
+      `brief skipped (rows scored anyway): ${summary.briefSkippedDays} day(s)`,
+  );
+  console.log(
+    `flags over the brief and top 10 — elapsed-time suspects ${summary.elapsedSuspects}   ` +
+      `weekday claims ${summary.weekdayClaims}   ` +
+      `timing-only rows ${summary.timingOnlyTopRows}`,
   );
 }

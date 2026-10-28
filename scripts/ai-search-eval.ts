@@ -73,6 +73,7 @@ import "dotenv/config";
 import { config } from "dotenv";
 import { writeFileSync } from "node:fs";
 import {
+  AI_SEARCH_PROMPT_VERSION,
   createAiSearchClient,
   resolveModel,
   resolveTailMode,
@@ -543,13 +544,14 @@ async function main(): Promise<void> {
     await runBacktest({
       args: parseBacktestArgs(
         args,
-        `scripts/backtest-runs/ai-search-${resolveModel().replace("claude-", "")}-${resolveTailMode()}.json`,
+        `scripts/backtest-runs/ai-search-v${AI_SEARCH_PROMPT_VERSION}-${resolveModel().replace("claude-", "")}-${resolveTailMode()}.json`,
       ),
       meta: {
         ranker: "AI search",
         model: resolveModel(),
         effort: process.env.AI_EFFORT || "default",
         tailMode: resolveTailMode(),
+        promptVersion: AI_SEARCH_PROMPT_VERSION,
       },
       generate: async (built) => {
         const { value: result, modelCall } = await captureModelCall(() =>

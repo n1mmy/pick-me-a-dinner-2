@@ -41,6 +41,7 @@ import {
   buildPreparedSystemPrompt,
   createPreparedNoteClient,
   localModelConfig,
+  parsePreparedReply,
   PREPARED_PROMPT_VERSION,
   type PrepareResult,
   type RawPreparedReply,
@@ -127,13 +128,22 @@ async function main(): Promise<void> {
             },
           }).prepare(built),
         );
+        // A whole reply whose brief the model skipped is unavailable to the
+        // app, but its ranking still scores here, with the brief empty — the
+        // aggregate counts those days.
+        const lenient =
+          !result.ok && reply?.content && reply.finishReason === "stop"
+            ? parsePreparedReply(reply.content, built, { requireBrief: false })
+            : null;
+        const note = result.ok ? result.note : lenient;
         return {
-          ok: result.ok,
-          ranking: result.ok ? result.note.ranking : [],
-          brief: result.ok ? result.note.brief : undefined,
+          ok: note !== null,
+          ranking: note?.ranking ?? [],
+          brief: note?.brief,
           latencyMs: Number(logLine?.latencyMs) || undefined,
           outputTokens: Number(logLine?.outputTokens) || undefined,
           reasoning: reply?.reasoning ?? undefined,
+          resolvedByName: result.ok ? reply?.resolvedByName : lenient?.resolvedByName,
         };
       },
     });

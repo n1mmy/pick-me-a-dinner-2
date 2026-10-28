@@ -16,7 +16,7 @@
 import "./load-env";
 import { getDayNotes, getLog, getLogRejections, getTonightData } from "../db/queries";
 import { epochDayFromSqlDate, weekdayName } from "../lib/local-day";
-import { snapshotForDay } from "../lib/snapshot";
+import { intervalOf, snapshotForDay } from "../lib/snapshot";
 import { tonightForDay } from "../lib/tonight-day";
 
 const DAYS = [
@@ -93,7 +93,10 @@ async function main() {
     const recentHalf = gaps.slice(gaps.length - Math.ceil(gaps.length / 2));
     const since = epochs.length > 0 ? asOf - epochs[epochs.length - 1] : null;
     console.log(`\n${name}: eaten ${days.length}, daysSinceLast ${since}`);
-    console.log(`  interval all-time ${median(gaps)}  recent-half ${median(recentHalf)}  last gap ${gaps[gaps.length - 1] ?? "—"}`);
+    console.log(
+      `  interval all-time ${median(gaps)}  recent-half ${median(recentHalf)}  last gap ${gaps[gaps.length - 1] ?? "—"}` +
+        `  current run (intervalOf, the snapshot's) ${gaps.length > 0 ? intervalOf(gaps) : "—"}`,
+    );
     console.log(`  dates: ${days.slice(-14).join(" ")}`);
     console.log(`  gaps:  ${gaps.join(" ")}`);
   }

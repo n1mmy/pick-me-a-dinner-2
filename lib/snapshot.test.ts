@@ -3,6 +3,7 @@ import { parseRankingText } from "./ai-search";
 import type { RejectionRow } from "./rejections";
 import {
   buildSnapshot,
+  intervalOf,
   leanSnapshot,
   type SnapshotLogEntry,
   type SnapshotOption,
@@ -651,6 +652,24 @@ describe("buildSnapshot — Day notes", () => {
   });
 });
 
+describe("intervalOf — the Interval is the current run's median gap", () => {
+  it("takes the median of the gaps after the longest gap", () => {
+    // Twice a week one spring, then a long break, then every two to three weeks.
+    expect(intervalOf([4, 3, 7, 3, 9, 40, 14, 21, 21])).toBe(21);
+    expect(intervalOf([4, 3, 7, 3, 9, 40, 6, 14, 21, 21])).toBe(18); // 14 and 21
+  });
+
+  it("falls back to every gap when the longest gap is the latest one", () => {
+    expect(intervalOf([9, 12])).toBe(11);
+    expect(intervalOf([6, 6, 7, 30])).toBe(7);
+    expect(intervalOf([14])).toBe(14);
+  });
+
+  it("starts the run at the earliest of tied longest gaps", () => {
+    expect(intervalOf([20, 5, 20, 6, 8])).toBe(7); // the run 5, 20, 6, 8
+  });
+});
+
 describe("buildSnapshot — timing facts (ADR-0012)", () => {
   // TODAY = "2026-05-20", a Wednesday.
   const options = [
@@ -706,7 +725,8 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
 
   it("gives each Tag the timing of every active Option carrying it, a shared day once", () => {
     expect(snapshot.tags).toEqual({
-      mediterranean: { eaten: 4, daysSinceLast: 7, intervalDays: 12 }, // gaps 52, 9, 12
+      // gaps 52, 9, 12: the run after the 52-day break is 9 and 12
+      mediterranean: { eaten: 4, daysSinceLast: 7, intervalDays: 11 },
       rice: { eaten: 3, daysSinceLast: 7, intervalDays: 11 },
       single: { eaten: 1, daysSinceLast: 1 },
     });
