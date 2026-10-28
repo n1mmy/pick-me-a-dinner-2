@@ -97,3 +97,25 @@ actually got worse:
   needs fixing, prefer a definition without a tuning constant.
 - **Whether Strata should do a smaller job.** Nothing in the round says so;
   revisit only if the backtest says Strata's ranking is not worth loading.
+
+## After the backtest (2026-10-28)
+
+Issue 01 is done: all three rankers ran over the same 20 decided days
+(`scripts/backtest-runs/`), and issue 02 now holds the read and the prompt
+v10 proposals, status `needs-triage`. What the results say about the three
+open points above:
+
+- **Prompts, per model.** The misses are shared and structural — the Pick
+  was under its Interval on 8 of 20 days, half of every ranker's top-5 slots
+  went to Options never eaten in the window — so one v10 for both prompts,
+  plus Strata-only fixes (a name column with a verifying parser, ranking
+  before brief, plain vocabulary). Sonnet loses to Opus on every measure
+  and is not tuned for.
+- **The stale Interval.** Its size: Aji Ichi in the top 5 on 8 to 15 of 20
+  days across the rankers, eaten zero times, three "sushi too recent"
+  Rejections in the window. Issue 02 proposes a constant-free definition
+  (the median gap of the Option's current run, after its longest gap).
+- **Whether Strata should do a smaller job.** No: its hit rates sit between
+  the two Claude models (hit@3 11/20). Its one real defect is output
+  discipline — on 2 of 20 days it wrote rank positions where Option numbers
+  belong — which the name column addresses.

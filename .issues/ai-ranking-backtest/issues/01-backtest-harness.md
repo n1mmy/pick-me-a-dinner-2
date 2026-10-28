@@ -1,6 +1,6 @@
 # 01 — Backtest harness for the AI ranking
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -81,14 +81,40 @@ Flags to read, in the style of the existing `RHYTHM_CLAIM_SUSPECTS`
 
 ## Acceptance criteria
 
-- [ ] `snapshotForDay` has a backtest mode with the cuts above, covered by
+- [x] `snapshotForDay` has a backtest mode with the cuts above, covered by
       tests in `lib/snapshot.test.ts` (Log before D only; D's Pick a candidate;
       D's Rejections absent from suppressions; Day notes `<= D`).
-- [ ] Both eval scripts run a day list in backtest mode and print the scores
+- [x] Both eval scripts run a day list in backtest mode and print the scores
       and flags above; `--json` output diffs cleanly between runs.
-- [ ] The v9 Strata baseline over the default day set has been run and its
+- [x] The v9 Strata baseline over the default day set has been run and its
       output saved (path noted under Comments), with a short read of what it
       shows.
-- [ ] Claude baseline run only after the user approved the call count; its
+- [x] Claude baseline run only after the user approved the call count; its
       output saved likewise.
-- [ ] The four hand-picked checks are removed from the scripts and docs.
+- [x] The four hand-picked checks are removed from the scripts and docs.
+
+## Comments
+
+- 2026-10-28: v9 baseline run for all three rankers over the same 20 decided
+  days, saved under `scripts/backtest-runs/` (`ai-search-opus-5-5-pithy`,
+  `ai-search-sonnet-5-5-pithy`, `strata-v9` + reasoning traces; Strata ran
+  in two parts, `--resume` after the 2-hour background limit). Short read:
+  hit@3 Opus 13/20, Strata 11/20, Sonnet 7/20, the deterministic Score 5/20;
+  hit@5 14 / 12 / 11 / 8; Pick's median rank 3 / 2 / 4 / 8. The
+  misses are shared and structural — the Pick was under its Interval on 8 of
+  20 days, Aji Ichi's stale Interval puts it in the top 5 on more than half
+  the days unconsumed, and about half of every ranker's top-5 slots go to
+  Options never eaten in the window. Strata wrote rank positions where Option
+  numbers belong on 2 of 20 days (10-02, 10-14). Full read and the proposals
+  in issue 02.
+- 2026-10-28: the four hand-picked checks never lived in the scripts or docs —
+  they were run by hand and survive only as history in commit 96f14c7 and
+  ADR-0012's Consequences, which stay. Nothing to remove. All three runs read
+  the dev DB (the Claude ones with the key from `.env.k8s`); their candidate
+  counts match day for day. The cluster DB has two Options and a Log row
+  added since the dev copy, so the live app's snapshots now differ from the
+  backtest's — a rerun on the same `--days` list is comparable only against
+  the same DB.
+  Known checker limits: the brief name matcher reads "bb.q Chicken" as
+  Chicken and Rice, and the Day-note check ignores words under four letters
+  ("No Jen" read as silent).
