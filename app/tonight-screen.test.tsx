@@ -2224,6 +2224,26 @@ describe("TonightScreen — Prepared note", () => {
     expect(hide.className).not.toMatch(/desktop:hidden/);
   });
 
+  it("is decided on a date whose only Pick is of an Option since Archived", () => {
+    // "gone" is no longer in the active Catalog, so no decided row renders.
+    render(
+      <TonightScreen
+        view={tonight({
+          day: "2026-10-22",
+          today: "2026-10-22",
+          options: THREE,
+          picks: ["gone"],
+        })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    expect(screen.getByText("Tonight's dinner is decided.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Read the note" })).toBeTruthy();
+    expect(screen.queryByText(NOTE.brief)).toBeNull();
+  });
+
   it("marks an out-of-date note on its label, and only then", () => {
     const { rerender } = render(
       <TonightScreen

@@ -135,6 +135,12 @@ export type SelectedDayView = {
    * the server dates it to its own today; the Selected day otherwise.
    */
   writeDate: string | undefined;
+  /**
+   * Whether the day is decided — it has any Log entry, one of an Archived
+   * Option included (`CONTEXT.md`, **Day decision**). Read from the day's
+   * entries, not the rendered dinner, which drops Archived Options.
+   */
+  decided: boolean;
 };
 
 /**
@@ -269,6 +275,7 @@ export function tonightForDay({
       heading: name ?? "Tonight",
       label: name ?? "tonight",
       writeDate: isToday ? undefined : selectedDay,
+      decided: dayEntries.length > 0,
     },
     dayNote,
     tonightsDinner,

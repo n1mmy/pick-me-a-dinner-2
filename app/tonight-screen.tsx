@@ -165,7 +165,9 @@ export function TonightScreen({
   const closed = suppressed.flatMap((entry) =>
     entry.suppression === "closed" ? [entry.row] : [],
   );
-  const decided = tonightsDinner.length > 0;
+  // Decided is the day's own flag, not a non-empty dinner: a Pick of an
+  // Option since Archived decides the day but renders no dinner row.
+  const decided = day.decided;
   // Picker mode with nothing to rank at all — an empty Catalog, not "all Picked"
   // and not "all filtered out" (both of which are real states with their own
   // copy).
@@ -381,6 +383,7 @@ export function TonightScreen({
         <PreparedBrief
           key={day.date}
           note={preparedNote}
+          decided={decided}
           eaten={tonightsDinner.map((entry) => entry.row.option)}
         />
       )}

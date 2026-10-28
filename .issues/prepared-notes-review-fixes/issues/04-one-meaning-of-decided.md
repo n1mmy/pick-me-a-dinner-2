@@ -1,6 +1,6 @@
 # 04 — One meaning of "decided": a flag on the Selected-day view
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -38,14 +38,28 @@ Comments if it bites.
 
 ## Acceptance criteria
 
-- [ ] `lib/tonight-day.test.ts`: `decided` is true for a day whose only Log
+- [x] `lib/tonight-day.test.ts`: `decided` is true for a day whose only Log
       entry is of an Archived Option, false for a day with none
-- [ ] `app/tonight-screen.test.tsx`: on such a day the screen is in decided
+- [x] `app/tonight-screen.test.tsx`: on such a day the screen is in decided
       mode and the brief starts collapsed behind "Read the note"
-- [ ] No remaining `length > 0` test of the rendered dinner decides the
+- [x] No remaining `length > 0` test of the rendered dinner decides the
       mode or the brief; `grep -n "decided =" app/` finds only the view read
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
 ## Blocked by
 
 - Nothing. Fourth in the review's suggested order.
+
+## Comments
+
+- `SelectedDayView.decided` is `dayEntries.length > 0`, set in
+  `tonightForDay` before any Archived filter. `TonightScreen` reads
+  `day.decided`; `PreparedBrief` takes it as a `decided` prop and keeps
+  `eaten` for the comparison lines only. `grep -n "decided =" app/` finds
+  the one view read in `app/tonight-screen.tsx`; the remaining
+  `tonightsDinner.length` is `dinnerCount`, which drives scroll-on-Pick,
+  not the mode.
+- The gap the issue flagged: on such a day the decided block renders its
+  heading with no row, and the brief shows the label and "Read the note"
+  with no comparison line. Not changed here.
+- Gate: typecheck, lint, test (573), build all green.

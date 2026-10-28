@@ -21,17 +21,25 @@ import type { PreparedNoteView } from "./tonight-screen";
  */
 export function PreparedBrief({
   note,
+  decided,
   eaten,
 }: {
   note: PreparedNoteView;
-  /** The Selected day's Picked Options, in Log order; empty when undecided. */
+  /**
+   * Whether the Selected day is decided (`SelectedDayView.decided`): its note
+   * is then a frozen record of what was said beforehand, so the brief starts
+   * hidden.
+   */
+  decided: boolean;
+  /**
+   * The Selected day's Picked Options, in Log order, for the comparison
+   * lines. Empty when undecided — and on a decided date whose Picks are all
+   * of Archived Options, which leaves the label alone.
+   */
   eaten: { id: string; name: string }[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const briefId = useId();
-  // A date with a Pick is decided: its note is a frozen record of what was
-  // said beforehand, so the brief starts hidden.
-  const decided = eaten.length > 0;
 
   return (
     <section aria-label="Prepared note" className="flex flex-col gap-1">
