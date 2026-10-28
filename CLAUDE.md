@@ -109,49 +109,19 @@ gstack's own `codex exec` can't start its sandbox in this container, so Paseo
 is also the route for a skill's Codex outside-voice step. A run against a
 metered provider falls under the billed-call rule above.
 
-## Tool & permissions discipline
+## Bash shapes
 
-Prompt the user as little as possible — every avoidable permission prompt is
-friction. Bash calls go through a permission matcher; when there is more than
-one way to run something, choose the shape it already clears. When a Bash
-shape prompts unexpectedly, or when briefing a subagent, read
-`docs/agents/permissions.md` — the empirical catalogue these rules come from.
+Bash calls go through a permission matcher, and each prompt it raises is
+friction for the user. Run Bash in the shape it already clears:
 
-- **Prefer dedicated tools over `Bash`.** `Read` for file contents (ranged
-  `offset`/`limit`, images, PDFs), `Edit`/`Write` for changes. For search use
-  the `Glob`/`Grep` tools if your build exposes them, otherwise `Bash` —
-  `rg`/`grep` for content, `find` for paths, `git ls-files` for tracked files.
-  (Native macOS/Linux builds drop `Glob`/`Grep` and fold search into Bash;
-  npm-installed builds keep them.) `cat`/`head` don't prompt for in-worktree
-  files, but `Read` is still better — ranged reads, images, no path-locality
-  limit. Reach for `Bash` when shell semantics are genuinely required (git,
-  package manager, docker, curl).
-- **Run commands bare from the working directory.** The cwd is already the
-  repo/worktree root, so `git status`, `git add <paths>`, and `git commit`
-  resolve as written — a full path (`/opt/homebrew/bin/pnpm`), a `./x` first
-  token, `git -C <path>`, or a `cd <path> && …` prefix each make the matcher
-  prompt. Use a full path or `-C` only when genuinely targeting something off
-  `$PATH` or a different checkout.
-- **Chain freely when every stage is allowed.** A compound (`&&`, `|`, `;`)
-  clears stage by stage, so it prompts only if one of its stages would.
-- **Read with the safe-listed readers on in-worktree paths.** `cat`, `grep`,
-  `find`, `ls` and the read-only git subcommands clear on their own; `sed`,
-  `awk`, `env`, and `git config`/`push`/`fetch` prompt.
-- **Delete with `git rm <path>`; create a directory by `Write`-ing a file
-  into it.** `Write` also overwrites. `rm` and `mkdir` prompt.
-- **Keep Bash args literal.** `$(…)`, backticks, an unescaped `*`, and any `$`
-  are rejected regardless of quoting or escaping; let a dedicated tool or a
-  literal path stand in.
-- **Brief subagents with this discipline — they don't inherit it.** An
-  `Explore` / `general-purpose` subagent reaches for `sed`/`awk`, full paths,
-  outside-cwd reads, and `$(…)` by reflex. For read-only exploration, tell the
-  agent to use `Read` (ranged `offset`/`limit`) plus the search rule above. On
-  an npm build with `Glob`/`Grep` you can forbid the `Bash` tool outright; on
-  a native build it needs `Bash` for search, so pass it the bare-shape /
-  in-worktree-path / literal-args rules.
+- a bare first token from the cwd: `git status`, `pnpm test`
+- literal args, with no `$`, `$(…)`, backticks, or unescaped `*`
+- `cat`/`grep`/`find`/`ls` on in-worktree paths, or `Read`
+- `git rm` to delete; `Write` a file to create its directory
 
-Widening the allowlist in `.claude/settings.local.json` is the user's call,
-not Claude's.
+Chains clear when every stage does. When a shape prompts unexpectedly, read
+`docs/agents/permissions.md`. Widening the allowlist in
+`.claude/settings.local.json` is the user's call.
 
 ## Stay in your worktree
 

@@ -3,7 +3,7 @@
 How Claude Code's Bash permission matcher actually behaves. It is built-in and
 undocumented, so this is an empirical catalogue: it can drift across Claude
 Code versions, so re-verify if a result surprises you. The rules `CLAUDE.md`
-draws from it live there, under *Tool & permissions discipline*.
+draws from it live there, under *Bash shapes*.
 
 - **Compounds are decomposed, not rejected wholesale.** `&&`, `||`, `;`, `|`,
   and `&` are split into their stages, and the compound clears iff *every* stage
