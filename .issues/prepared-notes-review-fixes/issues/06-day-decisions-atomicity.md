@@ -1,6 +1,6 @@
 # 06 — Day decisions: test that a Pick's write is atomic, or record that it isn't
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -40,13 +40,28 @@ Either way, architecture issue 03 leaves `needs-info`.
 
 ## Acceptance criteria
 
-- [ ] `lib/day-decisions.db.test.ts` has a test that fails when
+- [x] `lib/day-decisions.db.test.ts` has a test that fails when
       `db.transaction` is removed from `addPick`, **or** issue 03 records
       that atomicity is untested and its rollback criterion says so
-- [ ] Architecture issue 03's `Status:` moved off `needs-info`
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all
+- [x] Architecture issue 03's `Status:` moved off `needs-info`
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all
       green
 
 ## Blocked by
 
 - Nothing.
+
+## Comments
+
+- The injection test, not the "record it" fallback. `deleteRejectionOf` is
+  called inside `lib/day-decisions.ts`, which `vi.spyOn` and module mocks
+  can't reach, so the failure comes from the database: the test creates a
+  `before delete` trigger on `rejections` that raises, calls `addPick`
+  (typed path) for an Option with a Rejection that date, and drops the
+  trigger in `finally`. `truncateAll` uses `TRUNCATE`, which fires no delete
+  trigger. It asserts no Log entry and the Rejection still there.
+- Mutation-checked: with `db.transaction` replaced by a plain call on `db`,
+  the test fails (the Log entry stays).
+- Architecture issue 03 is now `done`, with its rollback criterion ticked
+  and a Comment saying how it was met.
+- Gate: typecheck, lint, test, test:db, build all green.
