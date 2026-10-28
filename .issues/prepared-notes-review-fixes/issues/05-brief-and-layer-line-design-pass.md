@@ -1,6 +1,6 @@
 # 05 — Prepared brief and layer line: one design pass
 
-Status: ready-for-human
+Status: done
 Type: AFK
 
 ## Parent
@@ -67,7 +67,7 @@ in Comments; do not tick it.
       dismissal
 - [x] `DESIGN.md` updated in the same commit only where a rule changes
       (none expected; the items above apply rules already written)
-- [ ] 1280px and 375px layouts checked in a browser, or left unticked with a
+- [x] 1280px and 375px layouts checked in a browser, or left unticked with a
       Comment
 - [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
@@ -109,3 +109,15 @@ in Comments; do not tick it.
   Options, with an eye on the layer line's hover, its bleed in decided mode,
   and the mono time on the label.
 - Gate: typecheck, lint, test (578), build all green.
+- Browser check (2026-10-28, Paseo browser, dev server on the dev DB): pass
+  at 1280px and 375px on today (note), a Picked day with no note (10-26),
+  and 10-27 with a note, a Rejected and Closed Options, then Picked. All of
+  these measured as specified: the mono time on the label, the layer line's
+  44px target with 0px row overlap in both modes, its `raised` hover,
+  `.expand-in` on "Read the note", focus on the first row after "Show
+  ranked list", and `aria-controls` only while the brief renders. No
+  console errors. Not run: focus after "AI search · Clear" (needs a metered
+  AI search; the unit test covers it). Seen but outside this issue: the gap
+  above the layer line is 22px undecided and 8px decided; the decided row
+  has no right padding (DESIGN.md says 10px); row Reject buttons'
+  `aria-controls` point at unrendered `reject-box-*` ids.

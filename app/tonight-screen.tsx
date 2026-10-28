@@ -438,10 +438,12 @@ export function TonightScreen({
             // plain divider — no heading or explanatory copy, just the rule
             // (2026-09-24, direct user feedback: "don't need it explained to
             // me"). `aria-label` still names the region for assistive tech,
-            // which has no rule to read as a section break.
+            // which has no rule to read as a section break. `gap-5.5` is
+            // `main`'s own gap, so the Picker spaces its filter zone and list
+            // the same here as on an undecided day.
             <section
               aria-label="Add another option"
-              className="flex flex-col gap-2 border-t border-divider pt-5.5"
+              className="flex flex-col gap-5.5 border-t border-divider pt-5.5"
             >
               {picker}
             </section>
@@ -961,8 +963,8 @@ function Picker({
           //
           // The layer line and its list share one `gap-3` column in both
           // branches: the line's 44px target bleeds 12px past it each way, so
-          // the bleed fills that gap exactly, whatever gap the Picker itself
-          // sits in (22px on its own, 8px under the decided block).
+          // the bleed fills that gap exactly. Above the line the Picker sits
+          // in a 22px gap in both modes, so the bleed never reaches the chips.
           <div className="flex flex-col gap-3">
             <LayerLine
               label="AI search"

@@ -135,7 +135,7 @@ function DecidedRow({
   const [removeError, setRemoveError] = useState<string | null>(null);
   return (
     <li
-      className={`expand-in py-[10px] ${kindWashClass(row.option.kind)} ${kindBarClass(row.option.kind)}`}
+      className={`expand-in py-[10px] pr-[10px] ${kindWashClass(row.option.kind)} ${kindBarClass(row.option.kind)}`}
     >
       <div className="flex items-center justify-between gap-2">
         <Link
@@ -367,7 +367,8 @@ const removeButton =
  *
  * The armed group is the shared `ConfirmPair`; the row is `justify-between`,
  * so its last child lands at the same right edge the single rest-state
- * "Remove" occupied.
+ * "Remove" occupied. Both take back their `px-2` with `-mr-2`, so the word
+ * sits on the row's 10px padding line, as the rest of the row's text does.
  *
  * `deleteLogEntry` revalidates Tonight, so on a successful delete the server
  * drops this row from the block (and, if it was the last one, returns the
@@ -400,7 +401,7 @@ function RemoveControl({
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className={`${removeButton} shrink-0 text-danger`}
+        className={`${removeButton} -mr-2 shrink-0 text-danger`}
       >
         Remove
       </button>
@@ -408,7 +409,7 @@ function RemoveControl({
   }
 
   return (
-    <div className="expand-in flex shrink-0 items-center gap-1">
+    <div className="expand-in -mr-2 flex shrink-0 items-center gap-1">
       <ConfirmPair
         buttonClass={removeButton}
         label="Remove"

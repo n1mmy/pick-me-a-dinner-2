@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { noteAge, type LastNote } from "../lib/last-note";
 import { CAP } from "../lib/ranking.config";
 import type { TagRecency, TonightRow } from "../lib/ranking";
@@ -115,6 +115,7 @@ export function TonightRowItem({
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const boxId = `reject-box-${option.id}`;
+  const rejectRef = useRef<HTMLButtonElement>(null);
 
   function pick() {
     setActionError(null);
@@ -151,6 +152,9 @@ export function TonightRowItem({
     setRejecting(false);
     setReason("");
     setActionError(null);
+    // The box unmounts under the focused field or Cancel; hand focus back to
+    // the button that opened it, so it never drops to <body>.
+    rejectRef.current?.focus();
   }
 
   return (
@@ -217,10 +221,12 @@ export function TonightRowItem({
           </p>
           <button
             type="button"
+            ref={rejectRef}
             onClick={() => setRejecting((open) => !open)}
             disabled={pending}
             aria-expanded={rejecting}
-            aria-controls={boxId}
+            // Only while the box is rendered, so it never names a missing id.
+            aria-controls={rejecting ? boxId : undefined}
             className={`min-h-11 rounded-control px-3 text-meta text-muted
               transition-colors duration-short hover:text-ink
               disabled:opacity-60 ${focusRing}`}

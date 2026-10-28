@@ -1453,6 +1453,42 @@ describe("TonightScreen — decided-mode picker", () => {
   });
 });
 
+describe("TonightScreen — Reject box", () => {
+  it("sets aria-controls only while the reason box is rendered", () => {
+    render(
+      <TonightScreen view={tonight({ options: OPTIONS })} searchEnabled={false} />,
+    );
+    const reject = screen.getAllByRole("button", { name: "Reject" })[0];
+    expect(reject.hasAttribute("aria-controls")).toBe(false);
+
+    fireEvent.click(reject);
+    const boxId = reject.getAttribute("aria-controls");
+    expect(boxId).toMatch(/^reject-box-/);
+    expect(document.getElementById(boxId ?? "")?.tagName).toBe("FORM");
+  });
+
+  it("hands focus back to Reject when the box closes by Escape or Cancel", () => {
+    render(
+      <TonightScreen view={tonight({ options: OPTIONS })} searchEnabled={false} />,
+    );
+    const reject = screen.getAllByRole("button", { name: "Reject" })[0];
+
+    fireEvent.click(reject);
+    const field = document.querySelector<HTMLInputElement>(
+      `#${reject.getAttribute("aria-controls")} input`,
+    );
+    field?.focus();
+    fireEvent.keyDown(field!, { key: "Escape" });
+    expect(reject.hasAttribute("aria-controls")).toBe(false);
+    expect(document.activeElement).toBe(reject);
+
+    fireEvent.click(reject);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(reject.hasAttribute("aria-controls")).toBe(false);
+    expect(document.activeElement).toBe(reject);
+  });
+});
+
 describe("TonightScreen — Last note", () => {
   // Apple Crumble has a Last note; Banana Bread deliberately has none, so every
   // test here also asserts the no-note row stays bare.
