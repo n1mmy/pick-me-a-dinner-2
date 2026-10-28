@@ -74,11 +74,20 @@ export type SnapshotTiming = {
   /** Days from its last eat to the anchor day — omitted when never eaten. */
   daysSinceLast?: number;
   /**
-   * Its **Interval**: the median gap in days between consecutive eats in its
-   * current run — the eats since its longest break (`intervalOf`) — omitted
-   * under two eats, where there is no gap to take.
+   * Its **Interval**: the median gap in days between consecutive eats, over
+   * every gap (`intervalOf`) — omitted under two eats, where there is no gap
+   * to take.
    */
   intervalDays?: number;
+  /**
+   * The gaps in days between its last eats, newest first, up to three — the
+   * pace as it stands, where the Interval is the pace of the whole history.
+   * Set side by side they show a habit that has slowed or quickened, which
+   * no single median can: an Option eaten every ten days for a year and
+   * every three weeks since reads `intervalDays: 10, recentGaps: [21, 21,
+   * 14]`. Omitted under two eats, like the Interval.
+   */
+  recentGaps?: number[];
 };
 
 /**
@@ -274,8 +283,8 @@ export type BuiltSnapshot = {
  *   compounds in every result row the model writes back.
  * - **Timing facts, not a sort key** (ADR-0012, superseding that part of
  *   ADR-0005). Each candidate carries how often it was eaten, days since its
- *   last eat, its Interval, and its weekday counts; the `tags` block carries
- *   the first three per Tag. Left to work these out from the Log, the model
+ *   last eat, its Interval, its last three gaps, and its weekday counts; the
+ *   `tags` block carries all but the weekdays per Tag. Left to work these out from the Log, the model
  *   worked out a different subset each run and judged them inconsistently.
  *   Nothing here combines them — no overdue flag, no ratio, no habit label —
  *   so the judgment stays the model's.
@@ -546,26 +555,38 @@ function timingOf(eatenDays: Set<string>, asOf: string): SnapshotTiming {
   return {
     eaten: days.length,
     daysSinceLast: epochDayFromSqlDate(asOf) - days[days.length - 1],
-    ...(gaps.length > 0 ? { intervalDays: intervalOf(gaps) } : {}),
+    ...(gaps.length > 0
+      ? { intervalDays: intervalOf(gaps), recentGaps: recentGapsOf(gaps) }
+      : {}),
   };
 }
 
 /**
  * The **Interval** of a history given as its gaps in days, oldest first: the
- * median gap of the current run — the gaps after the longest one — or of every
- * gap when the longest gap is the latest, so there is no run after it yet.
+ * median of every gap.
  *
- * The all-time median mis-stated an Option whose habit had changed: an Option
- * eaten twice a week one spring and every three weeks since still carried an
- * Interval of six days, and was ranked "due" every few days for months. The
- * longest break is where the habit last reset; what comes after it is the
- * habit as it stands. No tuning constant. With a tie for the longest gap, the
- * earliest one starts the run, so the run keeps the most eats.
+ * It was for a while the median of the "current run" — the gaps after the
+ * longest break — to catch a habit that had changed. That caught an abrupt
+ * change and missed a gradual one: an Option whose gaps had drifted from ten
+ * days to three weeks with no single long break still read as due from day
+ * eleven, and led the ranking on a third of evenings. The pace as it stands
+ * is now a fact of its own (`recentGapsOf`), and the Interval is back to the
+ * one plain thing it can be: the habit over the whole history.
  */
 export function intervalOf(gaps: number[]): number {
-  const longestAt = gaps.indexOf(Math.max(...gaps));
-  const run = gaps.slice(longestAt + 1);
-  return median(run.length > 0 ? run : gaps);
+  return median(gaps);
+}
+
+/** How many of the latest gaps `recentGapsOf` keeps. */
+const RECENT_GAPS = 3;
+
+/**
+ * The last gaps of a history given as its gaps in days, oldest first —
+ * returned newest first, at most `RECENT_GAPS` of them. One gap is a single
+ * evening's circumstance; three show a pace.
+ */
+export function recentGapsOf(gaps: number[]): number[] {
+  return gaps.slice(-RECENT_GAPS).reverse();
 }
 
 /** The middle value, or the rounded mean of the middle two. */

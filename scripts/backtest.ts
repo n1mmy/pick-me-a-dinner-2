@@ -137,8 +137,13 @@ export type DayRecord = {
   hit3: boolean;
   hit5: boolean;
   hit10: boolean;
-  /** Each candidate Pick's daysSinceLast over its Interval, from the snapshot. */
-  pickTiming: { name: string; daysSinceLast: number | null; intervalDays: number | null }[];
+  /** Each candidate Pick's daysSinceLast over its Interval, and its recent gaps, from the snapshot. */
+  pickTiming: {
+    name: string;
+    daysSinceLast: number | null;
+    intervalDays: number | null;
+    recentGaps?: number[];
+  }[];
   /** Options Rejected that day as too soon, ranked in the top 5. */
   tooSoonMisses: (Ranked & { reason: string })[];
   /** Top-10 rows with an empty reason. */
@@ -254,6 +259,9 @@ export function scoreDay(
       name: pick.name,
       daysSinceLast: modelOption.get(pick.optionId)?.daysSinceLast ?? null,
       intervalDays: modelOption.get(pick.optionId)?.intervalDays ?? null,
+      ...(modelOption.get(pick.optionId)?.recentGaps
+        ? { recentGaps: modelOption.get(pick.optionId)!.recentGaps }
+        : {}),
     }));
 
   const numberById = new Map([...idByIndex].map(([number, id]) => [id, number]));
@@ -582,10 +590,17 @@ function rankCell(rank: number | null): string {
   return rank === null ? "—" : `#${rank}`;
 }
 
-/** A Pick's timing as "4/6": daysSinceLast over its Interval, "—" where absent. */
+/**
+ * A Pick's timing as "4/6 (gaps 7,5,6)": daysSinceLast over its Interval, "—"
+ * where absent, then its recent gaps newest first when it has any.
+ */
 function timingCell(record: DayRecord): string {
   return (record.pickTiming ?? [])
-    .map((p) => `${p.daysSinceLast ?? "new"}/${p.intervalDays ?? "—"}`)
+    .map(
+      (p) =>
+        `${p.daysSinceLast ?? "new"}/${p.intervalDays ?? "—"}` +
+        (p.recentGaps?.length ? ` (gaps ${p.recentGaps.join(",")})` : ""),
+    )
     .join(" ");
 }
 

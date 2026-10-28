@@ -165,11 +165,13 @@ const occ = (run: Run, n: number) => {
   for (const d of run.results) for (const name of topN(d, n)) m.set(name, (m.get(name) ?? 0) + 1);
   return m;
 };
-const occA = occ(A, 5), occB = occ(B, 5), occA3 = occ(A, 3), occB3 = occ(B, 3);
+const occA = occ(A, 5), occB = occ(B, 5), occA3 = occ(A, 3), occB3 = occ(B, 3), occA1 = occ(A, 1), occB1 = occ(B, 1);
 const names = [...new Set([...occA.keys(), ...occB.keys()])].sort((x, y) => (occB.get(y) ?? 0) + (occA.get(y) ?? 0) - (occB.get(x) ?? 0) - (occA.get(x) ?? 0));
-console.log("option                            top5 A  top5 B  top3 A  top3 B  eaten");
+// The #1 columns show who leads: an Option at #1 on a third of the days and
+// eaten on two of them is the clearest sign of a fact the model is over-reading.
+console.log("option                            top5 A  top5 B  top3 A  top3 B    #1 A    #1 B  eaten");
 for (const name of names) {
-  console.log(`${name.padEnd(33)} ${String(occA.get(name) ?? 0).padStart(6)}  ${String(occB.get(name) ?? 0).padStart(6)}  ${String(occA3.get(name) ?? 0).padStart(6)}  ${String(occB3.get(name) ?? 0).padStart(6)}  ${String(eaten.get(name) ?? 0).padStart(5)}`);
+  console.log(`${name.padEnd(33)} ${String(occA.get(name) ?? 0).padStart(6)}  ${String(occB.get(name) ?? 0).padStart(6)}  ${String(occA3.get(name) ?? 0).padStart(6)}  ${String(occB3.get(name) ?? 0).padStart(6)}  ${String(occA1.get(name) ?? 0).padStart(6)}  ${String(occB1.get(name) ?? 0).padStart(6)}  ${String(eaten.get(name) ?? 0).padStart(5)}`);
 }
 const neverSlots = (run: Run, n: number) => run.results.reduce((acc, d) => acc + topN(d, n).filter((x) => !eaten.has(x)).length, 0);
 console.log(`top-5 slots on never-eaten Options: A ${neverSlots(A, 5)}/${days.length * 5}  B ${neverSlots(B, 5)}/${days.length * 5} · top-3: A ${neverSlots(A, 3)}/${days.length * 3}  B ${neverSlots(B, 3)}/${days.length * 3}`);

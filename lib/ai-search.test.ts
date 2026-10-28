@@ -258,6 +258,11 @@ describe("buildSystemPrompt", () => {
     const prompt = buildSystemPrompt("pithy");
     expect(prompt).toContain("What each part of the snapshot is evidence of");
     expect(prompt).toContain("an Option short of its Interval is ordinary");
+    // The Interval is the whole history's median; recentGaps are the pace as
+    // it stands — two facts, no rule about how far apart they may sit.
+    expect(prompt).toContain("over its whole history");
+    expect(prompt).toContain("recentGaps are the days between its last eats, newest first");
+    expect(prompt).not.toContain("longest break");
     expect(prompt).toContain("lists the Rejections of every Option carrying it");
     expect(prompt).not.toMatch(/two-thirds|below about half|being due is not being wanted/);
     expect(prompt).not.toMatch(/Jen|roti|salmon|swim|leftovers|Mazra/i);

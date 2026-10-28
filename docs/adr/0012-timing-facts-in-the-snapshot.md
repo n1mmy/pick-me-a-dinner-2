@@ -1,18 +1,27 @@
 # Timing facts in the snapshot, not a sort key
 
-_Amended 2026-10-28: the Interval is the median gap of the current run — the
-gaps since the longest break — not of every gap. The all-time median kept an
-Option "due" every six days for months after its habit had slowed to three
-weeks; the backtest (`.issues/ai-ranking-backtest/issues/02`) put it in the
-top 5 on more than half the days, uneaten._
+_Amended 2026-10-28, twice. First the Interval became the median gap of the
+"current run" — the gaps since the longest break — because the all-time
+median kept an Option "due" every six days for months after its habit had
+slowed to three weeks (`.issues/ai-ranking-backtest/issues/02`). That caught
+an abrupt change and missed a gradual one: an Option whose gaps had drifted
+from ten days to three weeks with no single long break still read as due from
+day eleven and led the ranking on a third of the evenings of a 40-day run
+(`issues/03`). The second amendment, the same day, withdrew the current-run
+definition: the Interval is the plain median of every gap again, and each
+candidate and Tag also carries its **last three gaps, newest first**
+(`recentGaps`). Two facts, each simple: the habit over the whole history and
+the pace as it stands. Their difference is the Drift, and reading it is the
+model's job (`issues/04`)._
 
 ADR-0005 withheld pre-computed recency from the model snapshot, so the model
 would reason about habits instead of re-sorting on a ready-made key, and
 ADR-0011 carried that over to Prepared notes. We now put **timing facts** in the
 snapshot shared by AI search and Prepared notes. Each candidate carries how many
 days it was eaten, days since its last eat, its **Interval** (the median gap
-between eats in its current run, from two eats up), and its eats per weekday. A `tags` block
-carries the first three for every Tag. This amends ADR-0005's withheld-recency
+between eats, from two eats up), its last three gaps, and its eats per
+weekday. A `tags` block carries all but the weekdays for every Tag. This
+amends ADR-0005's withheld-recency
 consequence and ADR-0011's inheritance of it. The rest of ADR-0005 stands: the
 model still reasons over the dated history, and nothing in the snapshot
 combines the facts into a sort key.

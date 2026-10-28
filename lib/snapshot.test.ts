@@ -5,6 +5,7 @@ import {
   buildSnapshot,
   intervalOf,
   leanSnapshot,
+  recentGapsOf,
   type SnapshotLogEntry,
   type SnapshotOption,
 } from "./snapshot";
@@ -652,21 +653,25 @@ describe("buildSnapshot — Day notes", () => {
   });
 });
 
-describe("intervalOf — the Interval is the current run's median gap", () => {
-  it("takes the median of the gaps after the longest gap", () => {
-    // Twice a week one spring, then a long break, then every two to three weeks.
-    expect(intervalOf([4, 3, 7, 3, 9, 40, 14, 21, 21])).toBe(21);
-    expect(intervalOf([4, 3, 7, 3, 9, 40, 6, 14, 21, 21])).toBe(18); // 14 and 21
-  });
-
-  it("falls back to every gap when the longest gap is the latest one", () => {
+describe("intervalOf — the Interval is the median of every gap", () => {
+  it("takes the middle gap, or the rounded mean of the middle two", () => {
+    expect(intervalOf([14])).toBe(14);
     expect(intervalOf([9, 12])).toBe(11);
     expect(intervalOf([6, 6, 7, 30])).toBe(7);
-    expect(intervalOf([14])).toBe(14);
+    // Twice a week one spring, then every two to three weeks: the whole
+    // history's median, with the slowdown left to recentGapsOf to show.
+    expect(intervalOf([4, 3, 7, 3, 9, 40, 14, 21, 21])).toBe(9);
+  });
+});
+
+describe("recentGapsOf — the pace as it stands", () => {
+  it("keeps the last three gaps, newest first", () => {
+    expect(recentGapsOf([4, 3, 7, 3, 9, 40, 14, 21, 21])).toEqual([21, 21, 14]);
   });
 
-  it("starts the run at the earliest of tied longest gaps", () => {
-    expect(intervalOf([20, 5, 20, 6, 8])).toBe(7); // the run 5, 20, 6, 8
+  it("gives what there is under three", () => {
+    expect(recentGapsOf([9, 12])).toEqual([12, 9]);
+    expect(recentGapsOf([14])).toEqual([14]);
   });
 });
 
@@ -697,13 +702,28 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
   });
   const byName = (name: string) => snapshot.options.find((o) => o.name === name)!;
 
-  it("gives a candidate its eat count, days since, median Interval, and weekday counts", () => {
+  it("gives a candidate its eat count, days since, median Interval, recent gaps, and weekday counts", () => {
     expect(byName("Mazra")).toMatchObject({
       eaten: 3,
       daysSinceLast: 7,
       intervalDays: 11, // gaps 9 and 12: the rounded mean of the middle two
+      recentGaps: [12, 9],
       weekdays: { Wednesday: 2, Friday: 1 },
     });
+  });
+
+  it("keeps the last three gaps newest first, beside an Interval over all of them", () => {
+    const { snapshot: slowed } = buildSnapshot({
+      options: [option("s1", "Slowed")],
+      logEntries: [
+        "2026-01-01", "2026-01-11", "2026-01-21", "2026-01-31", "2026-02-10", "2026-03-03", "2026-03-24",
+      ].map((eatenOn) => ({ optionId: "s1", eatenOn, note: null })),
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    // Gaps 10, 10, 10, 10, 21, 21: the median says ten days; the last three say three weeks.
+    expect(slowed.options[0]).toMatchObject({ intervalDays: 10, recentGaps: [21, 21, 10] });
   });
 
   it("leaves out dinners after the anchor day, Planned or not", () => {
@@ -713,6 +733,7 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
   it("omits the Interval under two eats, and every fact but the count when never eaten", () => {
     expect(byName("Once")).toMatchObject({ eaten: 1, daysSinceLast: 1 });
     expect(byName("Once")).not.toHaveProperty("intervalDays");
+    expect(byName("Once")).not.toHaveProperty("recentGaps");
     const never = byName("Never Tried");
     expect(never.eaten).toBe(0);
     expect(never).not.toHaveProperty("daysSinceLast");
@@ -725,9 +746,9 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
 
   it("gives each Tag the timing of every active Option carrying it, a shared day once", () => {
     expect(snapshot.tags).toEqual({
-      // gaps 52, 9, 12: the run after the 52-day break is 9 and 12
-      mediterranean: { eaten: 4, daysSinceLast: 7, intervalDays: 11 },
-      rice: { eaten: 3, daysSinceLast: 7, intervalDays: 11 },
+      // gaps 52, 9, 12: the median is 12, and the three gaps are all there is
+      mediterranean: { eaten: 4, daysSinceLast: 7, intervalDays: 12, recentGaps: [12, 9, 52] },
+      rice: { eaten: 3, daysSinceLast: 7, intervalDays: 11, recentGaps: [12, 9] },
       single: { eaten: 1, daysSinceLast: 1 },
     });
   });

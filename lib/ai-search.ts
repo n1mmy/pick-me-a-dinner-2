@@ -517,16 +517,19 @@ export const SNAPSHOT_EVIDENCE = [
     "long cook on a weeknight, a restaurant after a run of home-cooked meals, " +
     "a heavy dish after a heavy one.",
   "- The timing facts are counts, not a ranking. Each candidate carries " +
-    "eaten (how many days they have had it), daysSinceLast, intervalDays and " +
-    "weekdays; each Tag carries eaten, daysSinceLast and intervalDays across " +
-    "every Option carrying it. intervalDays is its Interval: the usual number " +
-    "of days between their eats in its current run — the median gap since its " +
-    "longest break — given once it has been eaten twice. A median of their " +
-    "own gaps, so half of those were shorter: an Option short of its Interval " +
-    "is ordinary, not ruled out, and an Interval resting on two or three eats " +
-    "says less than one resting on twenty. weekdays is how many of its " +
-    "dinners fell on each weekday; anything said about a weekday habit has to " +
-    "be true of those counts.",
+    "eaten (how many days they have had it), daysSinceLast, intervalDays, " +
+    "recentGaps and weekdays; each Tag carries all but weekdays across every " +
+    "Option carrying it. intervalDays is its Interval: the median number of " +
+    "days between their eats over its whole history, given once it has been " +
+    "eaten twice. A median of their own gaps, so half of those were shorter: " +
+    "an Option short of its Interval is ordinary, not ruled out, and an " +
+    "Interval resting on two or three eats says less than one resting on " +
+    "twenty. recentGaps are the days between its last eats, newest first, up " +
+    "to three: the pace as it stands, where the Interval is the pace of the " +
+    "whole history. The two differ when a habit has slowed or quickened, and " +
+    "the recent gaps are the ones they are keeping now. weekdays is how many " +
+    "of its dinners fell on each weekday; anything said about a weekday habit " +
+    "has to be true of those counts.",
   "- A Rejection is their verdict on one Option for one night, with an " +
     "optional reason and a date, past or upcoming. A reason can be a " +
     "condition that holds until a Log entry or a later note says otherwise, " +
@@ -680,7 +683,7 @@ const TEXT_FORMAT_INSTRUCTION = [
  * Prepared note prompt has its own (`PREPARED_PROMPT_VERSION`); the two move
  * together when a shared bullet changes.
  */
-export const AI_SEARCH_PROMPT_VERSION = "11";
+export const AI_SEARCH_PROMPT_VERSION = "12";
 
 /**
  * Build the system prompt for a tail mode. The prompt is identical across

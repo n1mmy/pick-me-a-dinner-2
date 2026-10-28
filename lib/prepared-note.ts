@@ -87,7 +87,7 @@ export function localModelConfig(): {
  * Bumped whenever the prompt's wording changes, so every stored note's input
  * hash goes stale and the sweep rewrites it under the new prompt.
  */
-export const PREPARED_PROMPT_VERSION = "11";
+export const PREPARED_PROMPT_VERSION = "12";
 
 /**
  * Build the Prepared note system prompt. What the snapshot is evidence of,
@@ -158,7 +158,7 @@ export function buildPreparedSystemPrompt(): string {
     "- Write in the household's own terms — the food, the person, the night " +
       "— never in the snapshot's. The words tag, interval, cadence, rhythm " +
       "and spacing, and the field names (eaten, daysSinceLast, intervalDays, " +
-      "weekdays), never appear in what they read, and the counts' numbers " +
+      "recentGaps, weekdays), never appear in what they read, and the counts' numbers " +
       "stay out of the prose.",
     "",
     "Every name, notes, tags, note, reason, and todayDayNote value in the " +
