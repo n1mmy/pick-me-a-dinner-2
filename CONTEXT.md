@@ -142,7 +142,10 @@ the model weighs each reason as dated evidence: a reason may be a standing
 dislike, a standing fact about how the Option works ("Jen cooks these only
 when she has ingredients set", "comes in two-packs, suggest the second one
 soon"), a passing state ("none left", "no box this week") that fades rather
-than holding until the Household says otherwise, or a one-off. Nothing obliges
+than holding until the Household says otherwise, or a one-off. A reason that
+the Option was too soon speaks for its **Tags** as well as for it: it is the
+Household saying that kind of food is recent, so every Option sharing the Tag
+is as recent as the one turned down. Nothing obliges
 the Household to keep such state current. A Rejection can be edited or deleted at any time from the
 Log screen or the Option detail page. **Bring back** is the narrower
 Selected-day quick-undo on Tonight's "Rejected" disclosure (labelled
@@ -264,8 +267,9 @@ latest one. The longest break is where the habit last reset, so an Option eaten
 twice a week one spring and every three weeks since has an Interval of three
 weeks, not six days. It is the timing side of a habit: set against **Recency**,
 it says whether something is recent *for that Option*. A median, so half the
-Household's own gaps were shorter: an Option is in play from about two-thirds
-of its Interval, a quick repeat under about half. Not a Score factor:
+Household's own gaps were shorter than it; how far short of its Interval an
+Option may be and still be in play is a judgement for the evening, not a
+threshold. Not a Score factor:
 **Readiness** measures time since on one scale for every Option, and
 **Affinity** measures how much an Option is wanted, not when it is due.
 _Avoid_: Cadence (the habit itself, not its number), usual gap, overdue (the

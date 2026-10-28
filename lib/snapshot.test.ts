@@ -755,6 +755,78 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
   });
 });
 
+describe("buildSnapshot — Rejections per Tag (ADR-0006 amended)", () => {
+  // TODAY = "2026-05-20". Mazra and Lotus share a Tag; Never Tried is the
+  // only carrier of its own.
+  const options = [
+    option("m1", "Mazra", ["mediterranean", "rice"]),
+    option("l1", "Lotus Falafel", ["mediterranean"]),
+    option("n1", "Never Tried", ["noodles"]),
+  ];
+  const rejections = [
+    rejection("m1", "2026-05-12", "too recent"),
+    rejection("l1", "2026-05-15", "too heavy that night"),
+    rejection("m1", TODAY, null),
+  ];
+  const { snapshot } = buildSnapshot({
+    options,
+    logEntries: [],
+    rejections,
+    asOf: TODAY,
+    query: "",
+  });
+
+  it("lists under each Tag every Rejection of an Option carrying it, newest first", () => {
+    // Mazra is number 2 (Lotus 1, Never Tried 3). The Tag view carries the
+    // same rows as the Rejections block, so a repeat turned down for one
+    // Option reads as recent for every Option of its kind.
+    expect(snapshot.tags.mediterranean.rejections).toEqual([
+      { date: "2026-05-20 (Wednesday)", optionId: 2, reason: null },
+      { date: "2026-05-15 (Friday)", optionId: 1, reason: "too heavy that night" },
+      { date: "2026-05-12 (Tuesday)", optionId: 2, reason: "too recent" },
+    ]);
+    expect(snapshot.tags.rice.rejections).toEqual([
+      { date: "2026-05-20 (Wednesday)", optionId: 2, reason: null },
+      { date: "2026-05-12 (Tuesday)", optionId: 2, reason: "too recent" },
+    ]);
+  });
+
+  it("omits the key for a Tag with no Rejections", () => {
+    expect(snapshot.tags.noodles).toEqual({ eaten: 0 });
+    expect(snapshot.tags.noodles).not.toHaveProperty("rejections");
+  });
+
+  it("reads the Tags from the Catalog, not from the Rejection row", () => {
+    // The row's own `tags` copy is for the Rejections block; the Tag view is
+    // built from the Option's Tags as the Catalog has them now.
+    const { snapshot: retagged } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [{ ...rejection("m1", "2026-05-12", "too recent"), tags: ["stale"] }],
+      asOf: TODAY,
+      query: "",
+    });
+    expect(retagged.tags).not.toHaveProperty("stale");
+    expect(retagged.tags.rice.rejections).toHaveLength(1);
+  });
+
+  it("keeps the Tag view in the lean snapshot", () => {
+    expect(leanSnapshot(snapshot).tags.mediterranean.rejections).toHaveLength(3);
+  });
+
+  it("cuts the Tag view to Rejections before the anchor day in backtest mode", () => {
+    const { snapshot: back } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections,
+      asOf: TODAY,
+      query: "",
+      backtest: true,
+    });
+    expect(back.tags.rice.rejections?.map((r) => r.reason)).toEqual(["too recent"]);
+  });
+});
+
 describe("buildSnapshot — backtest mode", () => {
   // TODAY = "2026-05-20", a decided past day: Mazra was eaten on it.
   const options = [

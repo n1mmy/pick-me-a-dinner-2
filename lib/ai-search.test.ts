@@ -211,7 +211,7 @@ describe("buildSystemPrompt", () => {
   it("shares the rest of the prompt across modes", () => {
     // The habit-reasoning core (ADR-0005) is mode-independent.
     for (const mode of ["full", "pithy", "drop"] as const) {
-      expect(buildSystemPrompt(mode)).toContain("READ THEIR EATING HISTORY");
+      expect(buildSystemPrompt(mode)).toContain("reads recency through their habits");
     }
   });
 
@@ -249,7 +249,23 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("dayNotes");
     expect(prompt).toContain("todayDayNote");
     expect(prompt).toContain("not about any Option");
-    expect(prompt).toContain("current context for this search");
+    expect(prompt).toContain("the context for this evening");
+  });
+
+  it("says what the data is evidence of and leaves the weighing to the model", () => {
+    // ADR-0005 amended: no threshold for "due", no rule written for a named
+    // Option, no example drawn from the Household's Log.
+    const prompt = buildSystemPrompt("pithy");
+    expect(prompt).toContain("What each part of the snapshot is evidence of");
+    expect(prompt).toContain("an Option short of its Interval is ordinary");
+    expect(prompt).toContain("lists the Rejections of every Option carrying it");
+    expect(prompt).not.toMatch(/two-thirds|below about half|being due is not being wanted/);
+    expect(prompt).not.toMatch(/Jen|roti|salmon|swim|leftovers|Mazra/i);
+  });
+
+  it("never asks for an empty reason: every ranked row says one thing", () => {
+    expect(buildSystemPrompt("pithy")).toContain("never nothing");
+    expect(buildSystemPrompt("pithy")).not.toContain("empty string");
   });
 
   it("tells the model today's Log rows are tonight's chosen dinner, not candidates", () => {

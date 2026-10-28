@@ -82,6 +82,30 @@ export type SnapshotTiming = {
 };
 
 /**
+ * One Rejection as a Tag's entry lists it: the day, the Option by its number,
+ * the reason. The same row as the Rejections block carries, seen from the Tag.
+ */
+export type SnapshotTagRejection = {
+  /** The day rejected, with weekday. */
+  date: string;
+  /** The rejected Option, by its snapshot number. */
+  optionId: number;
+  /** The Household's reason, or `null` when none was given. */
+  reason: string | null;
+};
+
+/**
+ * A Tag's entry in the snapshot: its timing facts across every active Option
+ * carrying it, and — when there are any — the Rejections of those Options,
+ * newest first. A Rejection is the Household's verdict on one Option, but a
+ * reason like "too recent" is about the kind of food; listed under the Tag,
+ * it reaches every Option of that kind, which the model did not manage when
+ * the row sat under one Option alone (ADR-0006 amended). Omitted, not empty,
+ * for a Tag with none.
+ */
+export type SnapshotTag = SnapshotTiming & { rejections?: SnapshotTagRejection[] };
+
+/**
  * One Option in the model-input snapshot — a candidate to rank, with its
  * timing facts.
  */
@@ -167,9 +191,11 @@ export type ModelSnapshot = {
   /**
    * Every Tag on an active Option, by name in alphabetical order, with its
    * timing facts across every active Option carrying it — once here rather
-   * than on each Option that carries it.
+   * than on each Option that carries it — and the Rejections of those
+   * Options, so a reason about the kind of food is read against every
+   * Option of that kind.
    */
-  tags: Record<string, SnapshotTiming>;
+  tags: Record<string, SnapshotTag>;
   /**
    * The full Log as dated history, newest dinner first — past entries *and*
    * future-dated ones (Planned dinners), each carrying its real date so the
@@ -295,6 +321,11 @@ export type BuiltSnapshot = {
  *   not-anchor-day ones — the latter carrying past *and* future-dated (Planned)
  *   Rejections; the model judges from the reasons and dates what is standing
  *   and what was one-off.
+ * - The same Rejections are listed again **per Tag**, under each Tag of the
+ *   rejected Option (ADR-0006 amended). Under one Option alone, a "too
+ *   recent" was read as a fact about that Option, and the next Option of the
+ *   same kind was ranked first the following day. The Tags come from the
+ *   Catalog as it stands, not from the row's own copy.
  * - **Day notes** (PRD: Day notes) ride along as dated history — past and
  *   future, newest first, uncapped like the Log — with the anchor day's own
  *   note lifted out into `todayDayNote` as current context. They are facts
@@ -439,19 +470,44 @@ export function buildSnapshot(input: {
     candidates.map((option) => [indexByOptionId.get(option.id)!, option.id]),
   );
 
+  // Every Rejection of an active Option, newest first, with the Option's Tags
+  // as the Catalog has them — the rows each Tag's entry lists.
+  const rejectionsByDate = [...rejections]
+    .filter((row) => optionById.has(row.optionId))
+    .sort(
+      (a, b) =>
+        b.rejectedOn.localeCompare(a.rejectedOn) ||
+        indexByOptionId.get(a.optionId)! - indexByOptionId.get(b.optionId)!,
+    );
+
   // Each Tag's eat days are the union of its carriers' — a day two carriers
   // share counts once.
   const tagNames = [...new Set(options.flatMap((option) => option.tags))].sort(
     (a, b) => a.localeCompare(b),
   );
   const tags = Object.fromEntries(
-    tagNames.map((tag) => {
+    tagNames.map((tag): [string, SnapshotTag] => {
       const days = new Set(
         options
           .filter((option) => option.tags.includes(tag))
           .flatMap((option) => [...eatenDaysByOption.get(option.id)!]),
       );
-      return [tag, timingOf(days, asOf)];
+      const tagRejections = rejectionsByDate
+        .filter((row) => optionById.get(row.optionId)!.tags.includes(tag))
+        .map(
+          (row): SnapshotTagRejection => ({
+            date: formatDateWithWeekday(row.rejectedOn),
+            optionId: indexByOptionId.get(row.optionId)!,
+            reason: row.reason,
+          }),
+        );
+      return [
+        tag,
+        {
+          ...timingOf(days, asOf),
+          ...(tagRejections.length > 0 ? { rejections: tagRejections } : {}),
+        },
+      ];
     }),
   );
 

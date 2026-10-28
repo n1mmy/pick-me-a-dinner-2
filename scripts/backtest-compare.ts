@@ -1,8 +1,12 @@
 /**
  * Diff two backtest JSON files from scripts/backtest.ts (any ranker) over the
- * same day list: aggregates side by side, per-day rank of the Pick and top-N
- * overlap, hit flips, top-5 occupancy per Option, top-5 slots spent on Options
- * never eaten in the window, empty top-10 reasons, flag counts per day.
+ * same day list. The read comes first: each day's top 10 and brief from both
+ * runs, one under the other, with the Pick marked and the flags as markers on
+ * the row they belong to — a prompt change is judged by reading days, and the
+ * numbers are context (issue 02). Then the aggregates side by side, per-day
+ * rank of the Pick and top-N overlap, hit flips, top-5 occupancy per Option,
+ * top-5 slots spent on Options never eaten in the window, empty top-10
+ * reasons, flag counts per day.
  *
  *   npx tsx scripts/backtest-compare.ts <a.json> <b.json>
  */
@@ -19,11 +23,18 @@ type Day = {
   hit5: boolean;
   hit10: boolean;
   tooSoonMisses: Array<{ name?: string; optionName?: string; rank?: number; reason?: string }>;
-  flags: { elapsed?: unknown[]; weekday?: unknown[]; timingOnly?: unknown[]; [k: string]: unknown };
+  flags: {
+    elapsed?: Array<{ where: string; text: string }>;
+    weekdayClaims?: Array<{ rank: number; weekdays?: Record<string, number> }>;
+    timingOnly?: Array<{ rank: number }>;
+    [k: string]: unknown;
+  };
   candidates: number;
   latencyMs: number;
   outputTokens?: number;
   dayNote?: string | null;
+  brief?: string;
+  briefNamed?: Array<{ name: string; rank: number }>;
 };
 type Run = { meta: Record<string, string>; aggregate: Record<string, unknown>; results: Day[] };
 
@@ -54,8 +65,53 @@ if (mismatch.length) {
   console.log(`! candidate counts differ on ${mismatch.map((d) => d.day).join(", ")} — different DB or catalog`);
 }
 
-console.log(`A: ${aPath}  (${A.meta.model ?? A.meta.ranker}, effort ${A.meta.effort ?? "?"}, ${A.meta.tailMode ?? ""})`);
-console.log(`B: ${bPath}  (${B.meta.model ?? B.meta.ranker}, effort ${B.meta.effort ?? "?"}, ${B.meta.tailMode ?? ""})`);
+console.log(`A: ${aPath}  (${A.meta.model ?? A.meta.ranker}, effort ${A.meta.effort ?? "?"}, ${A.meta.tailMode ?? ""}, prompt v${A.meta.promptVersion ?? "?"})`);
+console.log(`B: ${bPath}  (${B.meta.model ?? B.meta.ranker}, effort ${B.meta.effort ?? "?"}, ${B.meta.tailMode ?? ""}, prompt v${B.meta.promptVersion ?? "?"})`);
+
+// The read: both runs' top 10 and brief per day. Markers on a row: ★ the
+// Pick; [too-soon] an Option rejected that day as too soon; [empty] no
+// reason; [wkday Mon 2 Fri 3] a weekday claim with the counts it has to be
+// true of; [timing] a row with nothing but timing to say; [elapsed "…"] an
+// elapsed-time phrase.
+console.log("\n=== the read: top 10 and brief per day, A then B ===");
+const markers = (d: Day, row: Row): string => {
+  const picks = new Set(d.picks.map(pickName));
+  const out: string[] = [];
+  if (picks.has(row.name)) out.push("★");
+  if (d.tooSoonMisses.some((m) => (m.name ?? m.optionName) === row.name)) out.push("[too-soon]");
+  if (!row.reason?.trim()) out.push("[empty]");
+  const claim = d.flags.weekdayClaims?.find((c) => c.rank === row.rank);
+  if (claim) {
+    const counts = Object.entries(claim.weekdays ?? {}).map(([w, n]) => `${w.slice(0, 3)} ${n}`).join(" ");
+    out.push(`[wkday ${counts || "never eaten"}]`);
+  }
+  if (d.flags.timingOnly?.some((t) => t.rank === row.rank)) out.push("[timing]");
+  for (const e of d.flags.elapsed ?? []) if (e.where === `#${row.rank}`) out.push(`[elapsed "${e.text}"]`);
+  return out.length ? ` ${out.join(" ")}` : "";
+};
+const printRun = (label: string, d: Day) => {
+  console.log(`  ${label}`);
+  if (d.brief !== undefined) {
+    const elapsed = (d.flags.elapsed ?? []).filter((e) => e.where === "brief").map((e) => `[elapsed "${e.text}"]`);
+    const outside = (d.briefNamed ?? []).filter((n) => n.rank === 0 || n.rank > 3).map((n) => `[names #${n.rank || "?"} ${n.name}]`);
+    console.log(`    brief: ${d.brief || "(SKIPPED)"}${[...elapsed, ...outside].map((m) => ` ${m}`).join("")}`);
+  }
+  for (const row of d.ranking.filter((r) => r.rank <= 10)) {
+    console.log(`    ${String(row.rank).padStart(2)}. ${row.name}${markers(d, row)}`);
+    console.log(`        ${row.reason || "(empty)"}`);
+  }
+  const pickRows = d.ranking.filter((r) => r.rank > 10 && d.picks.map(pickName).includes(r.name));
+  for (const row of pickRows) {
+    console.log(`    ${String(row.rank).padStart(2)}. ${row.name}${markers(d, row)}`);
+    console.log(`        ${row.reason || "(empty)"}`);
+  }
+};
+for (const b of days) {
+  const a = daysA.get(b.day)!;
+  console.log(`\n${b.day} (${b.weekday}) — ate ${b.picks.map(pickName).join(" + ")}${b.dayNote ? ` — day note: ${b.dayNote}` : ""}`);
+  printRun("A", a);
+  printRun("B", b);
+}
 
 console.log("\n=== aggregate ===");
 const aggKeys = ["hit3", "hit5", "hit10", "meanRank", "medianRank", "daysWithTooSoonMiss", "elapsedSuspects", "weekdayClaims", "timingOnlyTopRows", "briefNamedOutsideTop3", "briefMissingDayNote"];

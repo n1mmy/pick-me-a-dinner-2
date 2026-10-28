@@ -356,6 +356,12 @@ describe("buildPreparedSystemPrompt", () => {
     expect(prompt).not.toContain("Say it and stop");
     expect(prompt).not.toContain("give an empty string as the reason");
   });
+
+  it("shares the evidence and rationale text with AI search, free of Household examples", () => {
+    expect(prompt).toContain("What each part of the snapshot is evidence of");
+    expect(prompt).toContain("How to write each rationale");
+    expect(prompt).not.toMatch(/two-thirds|below about half|Golden Wok|fried|swim|Helen|Jen/i);
+  });
 });
 
 describe("createPreparedNoteClient().prepare", () => {

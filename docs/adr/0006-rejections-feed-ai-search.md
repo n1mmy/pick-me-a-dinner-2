@@ -3,7 +3,11 @@
 _Amended by ADR-0008: a Rejection can also be created, edited and deleted for
 any date from the Log and the Option detail page, and the snapshot carries
 future-dated rows. Amended by ADR-0010: a weekly closure is a Closed day on the
-Restaurant, not a standing Rejection for the model to infer._
+Restaurant, not a standing Rejection for the model to infer. Amended
+2026-10-28: the snapshot lists each Rejection a second time under every Tag of
+its Option, so a reason about the kind of food ("too recent") reaches every
+Option of that kind — the model still judges each reason; listed under one
+Option alone, the reason was read as being about that Option only._
 
 ADR-0004 and ADR-0005 had AI search read the Household's Log to find eating
 habits. But the Log records only what was *eaten* — it has no record of what was
