@@ -426,6 +426,17 @@ function candidateChecklist(idByIndex: ReadonlyMap<number, string>): string {
 }
 
 /**
+ * The user message: the lean snapshot, then the candidate checklist. Exported
+ * so the eval harness can send the same message to another model.
+ */
+export function buildPreparedUserMessage({
+  snapshot,
+  idByIndex,
+}: Pick<BuiltSnapshot, "snapshot" | "idByIndex">): string {
+  return `${JSON.stringify(leanSnapshot(snapshot))}\n\n${candidateChecklist(idByIndex)}`;
+}
+
+/**
  * The model's reply as it came back, before parsing — what the tuning script
  * prints. `finishReason` `length` means the budget ran out, which an
  * unreadable answer alone can't tell apart from a badly written one.
@@ -479,10 +490,7 @@ export function createPreparedNoteClient(config: {
             stream_options: { include_usage: true },
             messages: [
               { role: "system", content: systemPrompt },
-              {
-                role: "user",
-                content: `${JSON.stringify(leanSnapshot(snapshot))}\n\n${candidateChecklist(idByIndex)}`,
-              },
+              { role: "user", content: buildPreparedUserMessage({ snapshot, idByIndex }) },
             ],
           }),
         });

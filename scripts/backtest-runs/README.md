@@ -31,6 +31,12 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   with traces, over the first ten days only (`2026-10-02` … `2026-10-14`):
   7/8/8 and 5/6/10. Each stopped after its first half because the prompt
   moved on before the `--resume` half could run.
+- `prepared-v13-opus-5-5-low` — the Prepared note prompt v13 sent to Opus 5.5
+  instead of Strata (`--claude`, effort low): 10/11/17 against v13 AI
+  search Opus's 10/12/16, ~22s and ~2k output tokens a day. Its
+  `-reasoning/` files are thinking summaries, on the 11 days it thought. On
+  `2026-10-09` and `2026-10-16` it wrote rank positions in the number
+  column; every row was resolved by name.
 
 Fireworks models, through its Anthropic-compatible endpoint, on the same 20
 days: `ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference`, a Fireworks key
