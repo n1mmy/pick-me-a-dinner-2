@@ -88,6 +88,7 @@ const snapshot: ModelSnapshot = {
   today: "2026-10-22 (Thursday)",
   query: "",
   options: [],
+  tags: {},
   log: [],
   rejections: { rejectedTonight: [], notTodayRejections: [] },
   dayNotes: [],

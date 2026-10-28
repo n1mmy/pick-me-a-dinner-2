@@ -5,7 +5,14 @@
  * Option (ADR-0011).
  */
 
-import { type AiRankingRow, parseRankingText } from "./ai-search";
+import {
+  type AiRankingRow,
+  CADENCE_RHYTHM,
+  DAY_OF_WEEK_RHYTHM,
+  parseRankingText,
+  RECENCY_THROUGH_HABITS,
+  TIMING_FACTS_DESCRIPTION,
+} from "./ai-search";
 import { type BuiltSnapshot, leanSnapshot } from "./snapshot";
 
 /** A readable Prepared note: the brief, then every ranked candidate. */
@@ -67,7 +74,7 @@ export function localModelConfig(): {
  * Bumped whenever the prompt's wording changes, so every stored note's input
  * hash goes stale and the sweep rewrites it under the new prompt.
  */
-export const PREPARED_PROMPT_VERSION = "8";
+export const PREPARED_PROMPT_VERSION = "9";
 
 /**
  * Build the Prepared note system prompt. The snapshot framing, the rhythm-claim
@@ -99,21 +106,14 @@ export function buildPreparedSystemPrompt(): string {
       "The query field is empty: nobody asked anything, so you are " +
       "ranking the whole Catalog for that evening.",
     "",
-    "A separate deterministic ranking already orders the Catalog by plain " +
-      "recency. Yours weighs recency too, but reads it through the " +
-      "household's habits: is this recent *for this Option*, and does a habit " +
-      "outweigh it? READ THEIR EATING HISTORY, find the rhythms plain recency " +
-      "misses, and weigh the two together. A strong habit can lift an Option " +
-      "they ate not long ago; a repeat that comes too soon weighs against " +
-      "even a good fit for the evening.",
+    TIMING_FACTS_DESCRIPTION,
+    "",
+    RECENCY_THROUGH_HABITS,
     "",
     "Study the Log. Rhythms worth looking for include — but are not limited " +
       "to:",
-    "- Cadence: how often a food recurs, and whether this Option's own " +
-      "interval has come round. Something eaten roughly weekly has come round " +
-      "at 8-9 days even though that is recent in raw terms; something eaten " +
-      "roughly monthly has not at 20 days.",
-    "- Day-of-week rhythm: foods that tend to land on particular weekdays.",
+    CADENCE_RHYTHM,
+    DAY_OF_WEEK_RHYTHM,
     "- Sequencing: what tends to follow what, and streaks worth not repeating.",
     "- Drift: Options or Tags the household used to choose regularly and has " +
       "quietly stopped choosing.",
@@ -200,7 +200,8 @@ export function buildPreparedSystemPrompt(): string {
       "\"last on 6/3\"), no day or week counts (\"9 days ago\", \"in over a " +
       "month\"), no seasons or months (\"since early summer\", \"quiet since " +
       "July\"), and no vague duration either (\"it has been a while\", \"a " +
-      "long gap\"). This holds in the brief as much as in the ranking.",
+      "long gap\"). This holds in the brief as much as in the ranking. " +
+      "daysSinceLast is there for you to weigh, never to quote.",
     "Say what the timing MEANS instead — the shape of the habit, which is " +
       "exactly what the household cannot read off those numbers: \"runs about " +
       "every two weeks and that stretch is up\", \"the standing Thursday " +

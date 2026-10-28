@@ -82,9 +82,10 @@ describe("buildSnapshot", () => {
     expect(apple?.optionId).toBe(1);
   });
 
-  it("carries only candidate fields — no recency, no Places fields", () => {
+  it("carries candidate and timing fields — no Places fields", () => {
+    // Eaten once, so no Interval yet.
     expect(Object.keys(snapshot.options[0]).sort()).toEqual(
-      ["id", "kind", "name", "notes", "tags"].sort(),
+      ["id", "kind", "name", "notes", "tags", "eaten", "daysSinceLast", "weekdays"].sort(),
     );
   });
 
@@ -647,6 +648,90 @@ describe("buildSnapshot — Day notes", () => {
     expect(withNotes.snapshot.options).toEqual(without.snapshot.options);
     expect(withNotes.snapshot.log).toEqual(without.snapshot.log);
     expect([...withNotes.idByIndex]).toEqual([...without.idByIndex]);
+  });
+});
+
+describe("buildSnapshot — timing facts (ADR-0012)", () => {
+  // TODAY = "2026-05-20", a Wednesday.
+  const options = [
+    option("m1", "Mazra", ["mediterranean", "rice"]),
+    option("l1", "Lotus Falafel", ["mediterranean"]),
+    option("n1", "Never Tried", ["rice"]),
+    option("o1", "Once", ["single"]),
+  ];
+  const logEntries: SnapshotLogEntry[] = [
+    { optionId: "m1", eatenOn: "2026-04-22", note: null }, // Wednesday
+    { optionId: "m1", eatenOn: "2026-05-01", note: null }, // Friday: gap 9
+    { optionId: "m1", eatenOn: "2026-05-13", note: null }, // Wednesday: gap 12
+    { optionId: "m1", eatenOn: "2026-05-27", note: null }, // Planned after the anchor
+    { optionId: "l1", eatenOn: "2026-03-01", note: null },
+    { optionId: "l1", eatenOn: "2026-05-01", note: null }, // shares a day with Mazra
+    { optionId: "o1", eatenOn: "2026-05-19", note: null },
+    { optionId: "gone", eatenOn: "2026-05-18", note: null }, // an archived Option
+  ];
+  const { snapshot } = buildSnapshot({
+    options,
+    logEntries,
+    rejections: [],
+    asOf: TODAY,
+    query: "",
+  });
+  const byName = (name: string) => snapshot.options.find((o) => o.name === name)!;
+
+  it("gives a candidate its eat count, days since, median Interval, and weekday counts", () => {
+    expect(byName("Mazra")).toMatchObject({
+      eaten: 3,
+      daysSinceLast: 7,
+      intervalDays: 11, // gaps 9 and 12: the rounded mean of the middle two
+      weekdays: { Wednesday: 2, Friday: 1 },
+    });
+  });
+
+  it("leaves out dinners after the anchor day, Planned or not", () => {
+    expect(byName("Mazra").eaten).toBe(3);
+  });
+
+  it("omits the Interval under two eats, and every fact but the count when never eaten", () => {
+    expect(byName("Once")).toMatchObject({ eaten: 1, daysSinceLast: 1 });
+    expect(byName("Once")).not.toHaveProperty("intervalDays");
+    const never = byName("Never Tried");
+    expect(never.eaten).toBe(0);
+    expect(never).not.toHaveProperty("daysSinceLast");
+    expect(never).not.toHaveProperty("weekdays");
+  });
+
+  it("lists weekdays in week order from Sunday, leaving out ones with none", () => {
+    expect(Object.keys(byName("Mazra").weekdays!)).toEqual(["Wednesday", "Friday"]);
+  });
+
+  it("gives each Tag the timing of every active Option carrying it, a shared day once", () => {
+    expect(snapshot.tags).toEqual({
+      mediterranean: { eaten: 4, daysSinceLast: 7, intervalDays: 12 }, // gaps 52, 9, 12
+      rice: { eaten: 3, daysSinceLast: 7, intervalDays: 11 },
+      single: { eaten: 1, daysSinceLast: 1 },
+    });
+  });
+
+  it("counts a Pick on the anchor day toward its Tags, as Recency does", () => {
+    const { snapshot: picked } = buildSnapshot({
+      options,
+      logEntries: [...logEntries, { optionId: "m1", eatenOn: TODAY, note: null }],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    expect(picked.tags.mediterranean.daysSinceLast).toBe(0);
+    expect(picked.options.map((o) => o.name)).not.toContain("Mazra");
+  });
+
+  it("leaves the Tags block right after options in the lean snapshot", () => {
+    expect(Object.keys(leanSnapshot(snapshot)).slice(0, 5)).toEqual([
+      "today",
+      "query",
+      "options",
+      "tags",
+      "otherOptions",
+    ]);
   });
 });
 

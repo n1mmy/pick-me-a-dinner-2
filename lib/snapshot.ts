@@ -17,7 +17,11 @@ import {
   getTonightData,
 } from "../db/queries";
 import { suppressionsOn } from "./day-suppressions";
-import { WEEKDAY_NAMES } from "./local-day";
+import {
+  epochDayFromSqlDate,
+  WEEKDAY_NAMES,
+  weekdayFromSqlDate,
+} from "./local-day";
 import {
   partitionRejections,
   type RejectionRow,
@@ -57,8 +61,30 @@ export type SnapshotLogEntry = {
   note: string | null;
 };
 
-/** One Option in the model-input snapshot — a candidate to rank, no recency. */
-export type SnapshotModelOption = {
+/**
+ * An Option's or a Tag's eating history summed up as of the anchor day
+ * (ADR-0012), so every run reads the same timing facts instead of whichever
+ * ones the model works out. Counted like **Recency**: Log entries of active
+ * Options dated on or before the anchor day, Planned dinners before it
+ * included; a day counts once however many entries share it.
+ */
+export type SnapshotTiming = {
+  /** How many days it was eaten. */
+  eaten: number;
+  /** Days from its last eat to the anchor day — omitted when never eaten. */
+  daysSinceLast?: number;
+  /**
+   * Its **Interval**: the median gap in days between consecutive eats —
+   * omitted under two eats, where there is no gap to take.
+   */
+  intervalDays?: number;
+};
+
+/**
+ * One Option in the model-input snapshot — a candidate to rank, with its
+ * timing facts.
+ */
+export type SnapshotModelOption = SnapshotTiming & {
   /**
    * The Option's snapshot number — its 1-based position in the Catalog ordered
    * alphabetically by name. The model sees and returns this integer, never the
@@ -87,6 +113,13 @@ export type SnapshotModelOption = {
    * Household-authored text.
    */
   closedDays?: string[];
+  /**
+   * How many of its eats fell on each weekday, by weekday name, in week order
+   * from Sunday — omitted when never eaten, and a weekday with none is left
+   * out. Counts, not a "habit" label: the model judges whether one weekday
+   * stands out from an even spread.
+   */
+  weekdays?: Record<string, number>;
 };
 
 /**
@@ -130,6 +163,12 @@ export type ModelSnapshot = {
    * side of suppression).
    */
   options: SnapshotModelOption[];
+  /**
+   * Every Tag on an active Option, by name in alphabetical order, with its
+   * timing facts across every active Option carrying it — once here rather
+   * than on each Option that carries it.
+   */
+  tags: Record<string, SnapshotTiming>;
   /**
    * The full Log as dated history, newest dinner first — past entries *and*
    * future-dated ones (Planned dinners), each carrying its real date so the
@@ -206,9 +245,13 @@ export type BuiltSnapshot = {
  *   numbering covers the whole Catalog, so an Option dropped as a candidate
  *   (below) keeps a stable number for its history rows. An integer tokenizes far cheaper than a UUID, and the saving
  *   compounds in every result row the model writes back.
- * - **No pre-computed recency.** The snapshot carries plain dated history; the
- *   model re-derives recency itself and spends its reasoning on the patterns
- *   recency misses. Do not re-add recency integers — ADR-0005.
+ * - **Timing facts, not a sort key** (ADR-0012, superseding that part of
+ *   ADR-0005). Each candidate carries how often it was eaten, days since its
+ *   last eat, its Interval, and its weekday counts; the `tags` block carries
+ *   the first three per Tag. Left to work these out from the Log, the model
+ *   worked out a different subset each run and judged them inconsistently.
+ *   Nothing here combines them — no overdue flag, no ratio, no habit label —
+ *   so the judgment stays the model's.
  * - The Log is the **full Log — past entries and future-dated ones (Planned
  *   dinners)** — as a flat chronological list, newest dinner first, each entry
  *   carrying its real date + weekday and the eaten Option's name / kind / Tags
@@ -315,6 +358,18 @@ export function buildSnapshot(input: {
     day: asOf,
   });
   const candidates = byName.filter((o) => !suppressions.has(o.id));
+
+  // The days each active Option was eaten, on or before the anchor day — the
+  // source of every timing fact. An entry for an Option outside `options`
+  // (archived) never counts, as for Recency.
+  const eatenDaysByOption = new Map<string, Set<string>>(
+    options.map((option) => [option.id, new Set()]),
+  );
+  for (const entry of logEntries) {
+    if (entry.eatenOn > asOf) continue;
+    eatenDaysByOption.get(entry.optionId)?.add(entry.eatenOn);
+  }
+
   const modelOptions = candidates.map(
     (option): SnapshotModelOption => ({
       id: indexByOptionId.get(option.id)!,
@@ -322,6 +377,8 @@ export function buildSnapshot(input: {
       kind: option.kind,
       notes: option.notes,
       tags: option.tags,
+      ...timingOf(eatenDaysByOption.get(option.id)!, asOf),
+      ...weekdayCountsOf(eatenDaysByOption.get(option.id)!),
       // Omitted entirely — not an empty array — when the Restaurant has no
       // Closed days, so an always-open Restaurant and every Home meal cost
       // nothing.
@@ -365,11 +422,28 @@ export function buildSnapshot(input: {
     candidates.map((option) => [indexByOptionId.get(option.id)!, option.id]),
   );
 
+  // Each Tag's eat days are the union of its carriers' — a day two carriers
+  // share counts once.
+  const tagNames = [...new Set(options.flatMap((option) => option.tags))].sort(
+    (a, b) => a.localeCompare(b),
+  );
+  const tags = Object.fromEntries(
+    tagNames.map((tag) => {
+      const days = new Set(
+        options
+          .filter((option) => option.tags.includes(tag))
+          .flatMap((option) => [...eatenDaysByOption.get(option.id)!]),
+      );
+      return [tag, timingOf(days, asOf)];
+    }),
+  );
+
   return {
     snapshot: {
       today: formatDateWithWeekday(asOf),
       query: delimit(query),
       options: modelOptions,
+      tags,
       log,
       rejections: block,
       dayNotes: [...dayNotes]
@@ -384,6 +458,50 @@ export function buildSnapshot(input: {
     },
     idByIndex,
     nameById: new Map(options.map((option) => [option.id, option.name])),
+  };
+}
+
+/**
+ * The timing facts of a set of eat days, all on or before `asOf`. Keys with
+ * nothing to say are omitted rather than null, so a never-eaten Option costs
+ * one field.
+ */
+function timingOf(eatenDays: Set<string>, asOf: string): SnapshotTiming {
+  const days = [...eatenDays].map(epochDayFromSqlDate).sort((a, b) => a - b);
+  if (days.length === 0) return { eaten: 0 };
+  const gaps = days.slice(1).map((day, i) => day - days[i]);
+  return {
+    eaten: days.length,
+    daysSinceLast: epochDayFromSqlDate(asOf) - days[days.length - 1],
+    ...(gaps.length > 0 ? { intervalDays: median(gaps) } : {}),
+  };
+}
+
+/** The middle value, or the rounded mean of the middle two. */
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[mid]
+    : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+/**
+ * How many eat days fell on each weekday, in week order from Sunday, leaving
+ * out weekdays with none — and the whole key when there are no eats.
+ */
+function weekdayCountsOf(
+  eatenDays: Set<string>,
+): Pick<SnapshotModelOption, "weekdays"> {
+  if (eatenDays.size === 0) return {};
+  const counts = WEEKDAY_NAMES.map(() => 0);
+  for (const day of eatenDays) counts[weekdayFromSqlDate(day)] += 1;
+  return {
+    weekdays: Object.fromEntries(
+      WEEKDAY_NAMES.flatMap((name, weekday) =>
+        counts[weekday] > 0 ? [[name, counts[weekday]]] : [],
+      ),
+    ),
   };
 }
 
@@ -463,7 +581,7 @@ export type LeanSnapshot = Omit<ModelSnapshot, "log" | "rejections"> & {
  * derived from.
  */
 export function leanSnapshot(snapshot: ModelSnapshot): LeanSnapshot {
-  const { today, query, options, log, rejections, ...rest } = snapshot;
+  const { today, query, options, tags, log, rejections, ...rest } = snapshot;
   const { rejectedTonight, notTodayRejections } = rejections;
   const candidates = new Set(options.map((option) => option.id));
   const others = new Map<number, OtherOption>();
@@ -482,6 +600,7 @@ export function leanSnapshot(snapshot: ModelSnapshot): LeanSnapshot {
     today,
     query,
     options,
+    tags,
     otherOptions: [...others.values()].sort((a, b) => a.id - b.id),
     log: log.map(({ date, optionId, note }) => ({ date, optionId, note })),
     rejections: {

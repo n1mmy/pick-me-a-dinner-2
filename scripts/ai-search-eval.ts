@@ -9,6 +9,7 @@
  *
  *   npx tsx scripts/ai-search-eval.ts "something light"
  *   npx tsx scripts/ai-search-eval.ts                      # empty query
+ *   npx tsx scripts/ai-search-eval.ts --day=2026-10-30     # a Selected day, not today
  *   npx tsx scripts/ai-search-eval.ts --snapshot "guests"  # also dump the
  *                                                            JSON sent to the model
  *   npx tsx scripts/ai-search-eval.ts --mode=drop ""       # force a tail mode
@@ -68,7 +69,7 @@ import {
   type AiSearchResult,
   type ThinkingChoice,
 } from "../lib/ai-search";
-import { today } from "../lib/local-day";
+import { isValidSqlDate, today } from "../lib/local-day";
 import { type BuiltSnapshot, snapshotForDay } from "../lib/snapshot";
 
 /** Tail modes accepted by `--mode` — see `resolveTailMode` in `lib/ai-search`. */
@@ -197,11 +198,23 @@ async function captureModelCall<T>(
   }
 }
 
+/**
+ * The anchor day: `--day=YYYY-MM-DD` — the Selected day, as a stepped Tonight
+ * sends it — or today when absent.
+ */
+function anchorDay(): string {
+  const arg = process.argv.find((a) => a.startsWith("--day="))?.slice(6);
+  if (arg === undefined) return today();
+  if (isValidSqlDate(arg)) return arg;
+  console.error(`--day must be YYYY-MM-DD, got ${arg}`);
+  process.exit(1);
+}
+
 async function buildSnapshotFromDb(query: string): Promise<BuiltSnapshot> {
   // `snapshotForDay` owns the reads and the mapping — this now measures
   // exactly the snapshot `aiSearchAction` builds, full Log (Planned dinners)
   // included, rather than the deterministic ranking's non-future Log.
-  return snapshotForDay({ asOf: today(), query });
+  return snapshotForDay({ asOf: anchorDay(), query });
 }
 
 async function runComparison(
