@@ -74,6 +74,7 @@ import { config } from "dotenv";
 import { writeFileSync } from "node:fs";
 import {
   AI_SEARCH_PROMPT_VERSION,
+  canDisableThinking,
   createAiSearchClient,
   resolveModel,
   resolveTailMode,
@@ -170,7 +171,9 @@ const COMPARE_CELLS: ComparisonCell[] = [
     ),
   ),
   ...ADAPTIVE_MODELS.flatMap((model) =>
-    ADAPTIVE_EFFORTS.map(
+    ADAPTIVE_EFFORTS.filter(
+      (effort) => effort !== null || canDisableThinking(model),
+    ).map(
       (effort): ComparisonCell => ({
         label: `${model.replace("claude-", "")} · ${
           effort ? `effort ${effort}` : "thinking off"

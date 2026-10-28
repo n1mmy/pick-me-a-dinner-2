@@ -31,3 +31,26 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   with traces, over the first ten days only (`2026-10-02` … `2026-10-14`):
   7/8/8 and 5/6/10. Each stopped after its first half because the prompt
   moved on before the `--resume` half could run.
+
+Fireworks models, through its Anthropic-compatible endpoint, on the same 20
+days: `ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference`, a Fireworks key
+as `ANTHROPIC_API_KEY`, the model as `AI_MODEL`, and a long `AI_TIMEOUT_MS`.
+Thinking there is on or off and nothing between: `output_config.effort`,
+`budget_tokens` and `reasoning_effort` are accepted but did not shorten
+DeepSeek's or GLM's thinking. Hits are hit@3/5/10 out of 20.
+
+- `ai-search-v11-deepseek-v4p1-flash-pithy` — prompt v11, DeepSeek V4.1
+  Flash, thinking off: 7/9/14 against v11 Opus's 10/13/17. Taqueria Mi
+  Durango in its top 5 on all 20 days, eaten on one.
+- `ai-search-v11-deepseek-v4p1-flash-low-pithy` — the same with thinking on,
+  stopped after 2 days: ~17k tokens and ~2 minutes a day.
+- `ai-search-v12-kimi-k3-off-pithy` — prompt v12, Kimi K3, thinking off:
+  11/11/16 against v12 Opus's 13/13/17. On `2026-10-25` it spent the whole
+  10k `max_tokens` and wrote no ranking.
+- `ai-search-v12-kimi-k3-low-pithy` — Kimi K3, thinking on (`AI_EFFORT=low`,
+  32k `max_tokens`): 13/15/18, 32s a day (70s at most) against Opus's 13s.
+- `ai-search-v12-glm-5p3-low-pithy` — GLM 5.3, thinking-only (Fireworks
+  rejects `disabled`): 9/10/16, 19s a day. Left the Pick out of its ranking
+  on `2026-10-09`.
+- `.part1.log` / `.part2.log` — a run made in two halves, the second with
+  `--resume`.

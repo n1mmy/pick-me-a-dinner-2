@@ -615,6 +615,32 @@ describe("createAiSearchClient — failure model and fallback", () => {
     expect(params.output_config).toBeUndefined();
   });
 
+  it("sends thinking disabled, not absent, for thinking off", async () => {
+    // Fireworks lets a reasoning model think when `thinking` is left out, and
+    // the thinking eats the whole output cap before the ranking is written.
+    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+    await createAiSearchClient("k", {
+      model: "accounts/fireworks/models/kimi-k3",
+      thinking: { type: "off" },
+    }).search(built);
+
+    expect(messagesStream).not.toHaveBeenCalled();
+    const params = messagesCreate.mock.calls[0][0];
+    expect(params.thinking).toEqual({ type: "disabled" });
+    expect(params.output_config).toBeUndefined();
+  });
+
+  it("refuses thinking off for a model that cannot turn it off", () => {
+    // `disabled` is a 400 on Opus 5.5, so sending it would fall back on every
+    // search; the misconfiguration fails at client creation instead.
+    expect(() =>
+      createAiSearchClient("k", {
+        model: "claude-opus-5-5",
+        thinking: { type: "off" },
+      }),
+    ).toThrow(/cannot turn thinking off/);
+  });
+
   it("defaults to a model that takes the adaptive streaming path", async () => {
     // `MODEL_DEFAULT` and `usesAdaptiveThinking` have to agree: the default is
     // an Opus, so an unconfigured client must stream with `thinking:

@@ -351,6 +351,23 @@ function usesAdaptiveThinking(model: string): boolean {
 }
 
 /**
+ * The models whose thinking cannot be turned off — `thinking.type:
+ * "disabled"` is a 400, and leaving `thinking` out runs adaptive anyway.
+ * Matched by prefix, like `BUDGET_API_MODELS`.
+ */
+const THINKING_ALWAYS_ON_MODELS = [
+  "claude-opus-5-5",
+  "claude-sonnet-5-5",
+  "claude-fable-5",
+  "claude-mythos-5",
+];
+
+/** Whether `thinking off` is a valid choice for `model`. */
+export function canDisableThinking(model: string): boolean {
+  return !THINKING_ALWAYS_ON_MODELS.some((onModel) => model.startsWith(onModel));
+}
+
+/**
  * An explicit thinking choice, bypassing `AI_EFFORT` — for the eval harness
  * (`scripts/ai-search-eval.ts`) sweeping levels. A `budget` choice is valid
  * only for a budget-API model and an `effort` choice only for the adaptive
@@ -435,7 +452,14 @@ type ThinkingRequest = {
 /** Turn a thinking choice into its per-call request fields. */
 function planThinking(choice: ThinkingChoice): ThinkingRequest {
   if (choice.type === "off") {
-    return { maxTokens: MAX_TOKENS, stream: false, extra: {} };
+    // Said explicitly, not left out: Fireworks's Anthropic-compatible endpoint
+    // lets a reasoning model (Kimi K3, DeepSeek V4.1) think when `thinking` is
+    // absent, and the thinking spends the whole `MAX_TOKENS` before any text.
+    return {
+      maxTokens: MAX_TOKENS,
+      stream: false,
+      extra: { thinking: { type: "disabled" } },
+    };
   }
   if (choice.type === "budget") {
     return {
@@ -844,6 +868,14 @@ export function createAiSearchClient(
   const anthropic = new Anthropic({ apiKey });
   const model = overrides?.model || resolveModel();
   const choice = overrides?.thinking ?? envThinkingChoice(model);
+  // Sent, `disabled` would 400 every search into the fallback; fail loudly on
+  // the misconfiguration instead, as `envThinkingChoice` does for a budget.
+  if (choice.type === "off" && !canDisableThinking(model)) {
+    throw new Error(
+      `AI_EFFORT=off, but ${model} cannot turn thinking off — set AI_EFFORT ` +
+        `to low/medium/high.`,
+    );
+  }
   const plan = planThinking(choice);
   const tailMode = resolveTailMode();
   const systemPrompt = buildSystemPrompt(tailMode);
