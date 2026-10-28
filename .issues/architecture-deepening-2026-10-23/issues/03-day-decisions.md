@@ -1,6 +1,6 @@
 # 03 — Day decisions: one module owns Pick and Rejection writes
 
-Status: needs-info
+Status: done
 Type: AFK
 
 ## Parent
@@ -43,8 +43,8 @@ the module exists.
       nothing
 - [x] Existing Pick-supersedes-Rejection DB tests pass, driven through the
       module rather than repeated per server action
-- [ ] The rollback test drives the module directly — no `db.transaction` Proxy
-      (Proxy removed; replaced by refused-write tests, not a rollback test — see
+- [x] The rollback test drives the module directly — no `db.transaction` Proxy
+      (a trigger refuses the Rejection delete after the Log insert; see
       Comments)
 - [x] No server action writes to `dinner_log` or `rejections` directly —
       `app/log/actions.ts` and `app/rejection-actions.ts` only call the module
@@ -96,3 +96,12 @@ the module exists.
   the Rejection delete, so there is nothing for a module-level rollback test
   to inject. Either accept the refused-write tests in its place (then this is
   `done`), or name the failure the test should drive.
+- **Resolved (2026-10-28, review-fixes issue 06):** the case that matters is
+  the Rejection delete, the last statement, failing after the Log insert has
+  landed. `deleteRejectionOf` is called from inside the module, so `vi.spyOn`
+  and module mocks can't reach it; instead a test in
+  `lib/day-decisions.db.test.ts` installs a `before delete` trigger on
+  `rejections` that raises, calls `addPick` for an Option with a Rejection
+  that date, and checks no Log entry was written and the Rejection is still
+  there. It fails with `db.transaction` removed from `addPick`. `editLogEntry`
+  shares the helper and the shape.

@@ -14,6 +14,7 @@ import type { AiRankingRow } from "../lib/ai-search";
 import type { Suppression } from "../lib/day-suppressions";
 import type { LastNote } from "../lib/last-note";
 import { weekdayName } from "../lib/local-day";
+import type { PreparedLabel } from "../lib/prepared-label";
 import type { TonightRow } from "../lib/ranking";
 import {
   chipStateLabel,
@@ -78,14 +79,23 @@ const NO_QUICK_ADD_SOURCES: QuickAddSources = {
 };
 
 /**
+ * The rationale on a candidate the Prepared ranking didn't name, which the
+ * list appends unnumbered. Said outright, as AI search's
+ * `OMITTED_CANDIDATE_REASON` is, so a row the note forgot never reads as one
+ * it ranked low.
+ */
+const PREPARED_OMITTED_REASON = "The note left this one out";
+
+/**
  * The Selected day's **Prepared note** (ADR-0011) as the screen shows it: the
- * brief, the Prepared ranking, the server-formatted "Prepared 2:14pm" label,
- * and whether the note's input has changed since it was written.
+ * brief, the Prepared ranking, the server-formatted "Prepared 2:14pm" label
+ * (its words and its time apart), and whether the note's input has changed
+ * since it was written.
  */
 export type PreparedNoteView = {
   brief: string;
   ranking: AiRankingRow[];
-  label: string;
+  label: PreparedLabel;
   outOfDate: boolean;
 };
 
@@ -157,7 +167,9 @@ export function TonightScreen({
   const closed = suppressed.flatMap((entry) =>
     entry.suppression === "closed" ? [entry.row] : [],
   );
-  const decided = tonightsDinner.length > 0;
+  // Decided is the day's own flag, not a non-empty dinner: a Pick of an
+  // Option since Archived decides the day but renders no dinner row.
+  const decided = day.decided;
   // Picker mode with nothing to rank at all — an empty Catalog, not "all Picked"
   // and not "all filtered out" (both of which are real states with their own
   // copy).
@@ -303,18 +315,21 @@ export function TonightScreen({
   // ranking, deterministic list. The initial string is not announced — a live
   // region only voices changes — so a fresh load stays silent. A failed search
   // is announced separately by the inline error on the search box. The region
-  // exists whenever a layer can swap: with a search box, or with a note (whose
-  // "Show ranked list" works even when Claude AI search is off).
+  // is always mounted — one mounted already holding its text isn't voiced, so
+  // stepping onto a note day must find it there — and is empty when no list
+  // is shown (an empty Catalog, everything filtered, everything Picked).
   const listStatus =
-    searchStartedAt !== null
-      ? "Searching for dinner…"
-      : aiResults !== null
-        ? aiResults.length === 0
-          ? "AI search found no Options."
-          : "Showing AI search results."
-        : preparedRanking !== null
-          ? "Showing the prepared ranking."
-          : "Showing the ranked dinner list.";
+    pickerRows.length === 0
+      ? ""
+      : searchStartedAt !== null
+        ? "Searching for dinner…"
+        : aiResults !== null
+          ? aiResults.length === 0
+            ? "AI search found no Options."
+            : "Showing AI search results."
+          : preparedRanking !== null
+            ? "Showing the prepared ranking."
+            : "Showing the ranked dinner list.";
 
   // One element for both modes: under the decided block, or on its own.
   const picker = (
@@ -373,17 +388,16 @@ export function TonightScreen({
         <PreparedBrief
           key={day.date}
           note={preparedNote}
+          decided={decided}
           eaten={tonightsDinner.map((entry) => entry.row.option)}
         />
       )}
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}
       </p>
-      {(searchEnabled || preparedNote !== null) && (
-        <p className="sr-only" role="status" aria-live="polite">
-          {listStatus}
-        </p>
-      )}
+      <p className="sr-only" role="status" aria-live="polite">
+        {listStatus}
+      </p>
 
       {catalogEmpty ? (
         <p className="text-body text-muted">
@@ -424,10 +438,12 @@ export function TonightScreen({
             // plain divider — no heading or explanatory copy, just the rule
             // (2026-09-24, direct user feedback: "don't need it explained to
             // me"). `aria-label` still names the region for assistive tech,
-            // which has no rule to read as a section break.
+            // which has no rule to read as a section break. `gap-5.5` is
+            // `main`'s own gap, so the Picker spaces its filter zone and list
+            // the same here as on an undecided day.
             <section
               aria-label="Add another option"
-              className="flex flex-col gap-2 border-t border-divider pt-5.5"
+              className="flex flex-col gap-5.5 border-t border-divider pt-5.5"
             >
               {picker}
             </section>
@@ -745,6 +761,28 @@ function Picker({
     (state) => state !== "off",
   );
 
+  // The layer line's button unmounts with the layer it peels off, which would
+  // drop focus to <body>. Once the list under it renders, focus moves to its
+  // first row, or to the filter zone when no row matches (DESIGN.md, "Focus").
+  const listRef = useRef<HTMLOListElement>(null);
+  const filterZoneRef = useRef<HTMLDivElement>(null);
+  const focusAfterPeel = useRef(false);
+  useEffect(() => {
+    if (!focusAfterPeel.current) return;
+    const target =
+      listRef.current?.querySelector<HTMLElement>("a, button") ??
+      filterZoneRef.current?.querySelector<HTMLElement>("button");
+    if (!target) return;
+    focusAfterPeel.current = false;
+    target.focus();
+  });
+  function peel(action: () => void): () => void {
+    return () => {
+      focusAfterPeel.current = true;
+      action();
+    };
+  }
+
   // A submitted Rejection removes its row from the list on revalidation; this
   // live region — stable across that re-render, unlike the row itself —
   // announces the removal to assistive tech (PRD: Rejections, story 33).
@@ -761,17 +799,30 @@ function Picker({
   // the rows in the note's order — the Options it names first, then every
   // candidate it didn't, so none goes missing. An Option since Picked,
   // Rejected, or Closed is absent from `rows`, so the note can never offer
-  // it; the filter chips stay live, and a filtered row keeps the note's rank.
+  // it. A named row's number is its place in the stored ranking, so a
+  // Rejection doesn't renumber the rest and a filtered row keeps the note's
+  // rank; a row the note left out has no number (DESIGN.md, "AI layers").
   const prepared = useMemo(() => {
     if (preparedRanking === null) return null;
     const ranked = resolveRanking(preparedRanking, rows, { appendUnnamed: true });
     return {
       rows: ranked.map(({ row }) => row),
-      reasons: new Map(ranked.map(({ row, reason }) => [row.option.id, reason])),
+      reasons: new Map(
+        ranked.map(({ row, reason, rank }) => [
+          row.option.id,
+          rank === undefined ? PREPARED_OMITTED_REASON : reason,
+        ]),
+      ),
+      ranks: new Map(
+        ranked.flatMap(({ row, rank }) =>
+          rank === undefined ? [] : [[row.option.id, rank] as const],
+        ),
+      ),
     };
   }, [preparedRanking, rows]);
   const { visible, rankOf, choices, tags, hint } = useMemo(
-    () => pickerView(prepared?.rows ?? rows, kind, tagFilters, suppressed),
+    () =>
+      pickerView(prepared?.rows ?? rows, kind, tagFilters, suppressed, prepared?.ranks),
     [prepared, rows, kind, tagFilters, suppressed],
   );
 
@@ -831,7 +882,10 @@ function Picker({
                 carry the a11y grouping (`role="group"`) but `contents`
                 removes them from layout, so their chip children wrap exactly
                 as if they were direct children of the row. */}
-            <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+            <div
+              ref={filterZoneRef}
+              className="flex flex-wrap items-start gap-x-2 gap-y-1"
+            >
               <KindChips kind={kind} onChange={onKindChange} />
               {tags.length > 0 && (
                 <div role="group" aria-label="Filter by tag" className="contents">
@@ -906,11 +960,16 @@ function Picker({
           // a layout step) separates rows with a sliver of `bg` instead of a
           // divider: every row already carries a kind-tinted background, so a
           // divider between two tinted rows read as a redundant, heavy seam.
-          <>
+          //
+          // The layer line and its list share one `gap-3` column in both
+          // branches: the line's 44px target bleeds 12px past it each way, so
+          // the bleed fills that gap exactly. Above the line the Picker sits
+          // in a 22px gap in both modes, so the bleed never reaches the chips.
+          <div className="flex flex-col gap-3">
             <LayerLine
               label="AI search"
               action="Clear"
-              onAction={onClearSearch}
+              onAction={peel(onClearSearch)}
             />
             <ol className="flex flex-col gap-[2px]">
               {aiRows.map(({ row, reason }, index) => (
@@ -926,15 +985,15 @@ function Picker({
                 />
               ))}
             </ol>
-          </>
+          </div>
         )
       ) : (
-        <>
+        <div className="flex flex-col gap-3">
           {prepared !== null && (
             <LayerLine
               label="Prepared ranking"
               action="Show ranked list"
-              onAction={onDismissPrepared}
+              onAction={peel(onDismissPrepared)}
             />
           )}
           {visible.length === 0 ? (
@@ -943,12 +1002,12 @@ function Picker({
             </p>
           ) : (
             // See the AI-rows list above for why `gap-[2px]` replaces a divider here.
-            <ol className="flex flex-col gap-[2px]">
+            <ol ref={listRef} className="flex flex-col gap-[2px]">
               {visible.map((row) => (
                 <TonightRowItem
                   key={row.option.id}
                   row={row}
-                  rank={rankOf.get(row.option.id) ?? 0}
+                  rank={rankOf.get(row.option.id)}
                   // A Prepared row keeps its Last note above the rationale:
                   // this is the default view, so dropping it would hide
                   // every prior night's note on load (DESIGN.md, "Last note line").
@@ -962,7 +1021,7 @@ function Picker({
               ))}
             </ol>
           )}
-        </>
+        </div>
       )}
     </>
   );
@@ -971,7 +1030,9 @@ function Picker({
 /**
  * The line above an AI layer naming what the Household is reading, with the
  * one control that peels that layer off (DESIGN.md, "AI layers"). The 44px
- * hit area overlaps the gap around the line rather than setting its height.
+ * hit area overlaps the gap around the line rather than setting its height,
+ * and its `px-2` padding is taken back by `-mx-2`, as the brief's toggle does,
+ * so the word stays on the line's left edge.
  */
 function LayerLine({
   label,
@@ -989,8 +1050,9 @@ function LayerLine({
       <button
         type="button"
         onClick={onAction}
-        className={`-my-3 min-h-11 text-meta font-emphasis text-action
-          transition-colors duration-short ${focusRing}`}
+        className={`-mx-2 -my-3 min-h-11 rounded-control px-2 text-meta
+          font-emphasis text-action transition-colors duration-micro
+          hover:bg-raised ${focusRing}`}
       >
         {action}
       </button>

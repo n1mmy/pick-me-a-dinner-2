@@ -5,7 +5,7 @@ import { dinnerLog, options, rejections } from "../../db/schema";
 import { revalidatePath } from "next/cache";
 import { getLog, getTodayRejections, getTonightData } from "../../db/queries";
 import { truncateAll } from "../../db/test-support";
-import { todaySqlDate } from "../../lib/local-day";
+import { appTimeZone, todaySqlDate } from "../../lib/local-day";
 import {
   deleteLogEntry,
   logForDate,
@@ -24,7 +24,7 @@ vi.mock("../../lib/require-session", () => ({
 }));
 
 /** The Household's calendar day — `pickTonight` logs against exactly this. */
-const TODAY = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+const TODAY = todaySqlDate(new Date(), appTimeZone());
 
 /** Insert an Option directly — Catalog CRUD is covered by its own suite. */
 async function makeOption(
@@ -152,7 +152,7 @@ describe("pickTonight", () => {
  */
 function futureSqlDate(daysAhead: number): string {
   const ms = Date.now() + daysAhead * 86_400_000;
-  return todaySqlDate(new Date(ms), process.env.APP_TZ ?? "UTC");
+  return todaySqlDate(new Date(ms), appTimeZone());
 }
 
 describe("logForDate", () => {

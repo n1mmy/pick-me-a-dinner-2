@@ -84,6 +84,21 @@ function suppressedIds(
 }
 
 describe("tonightForDay", () => {
+  it("is decided when the day's only Log entry is of an Option since Archived", () => {
+    // "gone" is not in the active Catalog, so no decided-block row renders.
+    const result = view({
+      options: [option("a", "Alpha")],
+      dayEntries: [dayEntry("e1", "gone")],
+    });
+
+    expect(result.tonightsDinner).toEqual([]);
+    expect(result.day.decided).toBe(true);
+  });
+
+  it("is undecided on a day with no Log entry", () => {
+    expect(view({ options: [option("a", "Alpha")] }).day.decided).toBe(false);
+  });
+
   it("lists closed rows alphabetically, not in rank order", () => {
     const closedSundays = { closedDays: [0] };
     const result = view({
@@ -283,6 +298,7 @@ describe("tonightForDay", () => {
       heading: "Tonight",
       label: "tonight",
       writeDate: undefined,
+      decided: false,
     });
   });
 
@@ -294,6 +310,7 @@ describe("tonightForDay", () => {
       heading: "Sunday",
       label: "Sunday",
       writeDate: SUNDAY,
+      decided: false,
     });
   });
 

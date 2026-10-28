@@ -34,10 +34,12 @@ free tokens and spare time are exactly what writing ahead needs.
 A **Prepared note**: for each undecided date from today through today+6, the
 local model writes, in the background and ahead of time:
 
-- a **brief**: 150–300 words of plain prose about that evening, covering its
-  context (the Day note, weekday habits, the last few days' eating), two or
-  three standout suggestions with reasons, and what to watch out for (recent
-  disappointments, Rejections, Restaurants closed that day); and
+- a **brief**: two or three sentences, 40–70 words of plain prose, written
+  after the ranking: what kind of evening it is (the Day note, who is
+  around, the last few days' eating) and the one or two standouts from the
+  top of the ranking, with reasons. The ranking carries the rest; Restaurants
+  closed that day are already left out, and the Closed disclosure lists
+  them; and
 - a **Prepared ranking**: every candidate Option, each with an AI rationale,
   two or three sentences for the strong picks tapering to a short line for the
   tail.
@@ -60,9 +62,10 @@ decided ("The note ranked Katsu curry #4"). Claude AI search is unchanged.
    glance.
 3. As the Household, I want the brief to name two or three standouts with
    reasons, so that the decision often ends at the brief.
-4. As the Household, I want the brief to warn me about recent disappointments,
-   Rejections, and Restaurants closed that day, so that I don't Pick something
-   we've just gone off.
+4. As the Household, I want the note to weigh recent disappointments and
+   Rejections, so that I don't Pick something we've just gone off; the
+   Restaurants closed that day are left out of the note and listed in the
+   Closed disclosure instead.
 5. As the Household, I want the brief to take the Selected day's Day note into
    account, so that "Jen's away" shapes the suggestions.
 6. As the Household, I want every candidate Option ranked, not a shortlist, so
@@ -158,13 +161,13 @@ decided ("The note ranked Katsu curry #4"). Claude AI search is unchanged.
   - a client whose `prepare(snapshot, idByIndex)` makes one OpenAI-compatible
     `/chat/completions` POST with a generous `max_tokens` (Strata is a reasoning
     model, so the budget must cover reasoning plus answer; start at 16k), a
-    ~15-minute timeout, reads only `choices[0].message.content`, collapses every
+    40-minute timeout (`REQUEST_TIMEOUT_MS`), reads only `choices[0].message.content`, collapses every
     failure to `{ ok: false }`, and writes one JSON log line per call.
 - **Job module.** Pure `eligibleDays(today, decidedDates)`: today through +6 in
   the app timezone, minus dates with a Log entry, today first. Pure
   `inputHash(snapshot, model)`: SHA-256 over the serialized snapshot, the model
   id, and the prompt version. `claimDay(date)` is one atomic upsert that sets a
-  20-minute `claimed_until` lease only if none is live and returns the stored
+  45-minute `claimed_until` lease (the timeout plus five minutes) only if none is live and returns the stored
   hash; no row back means another replica holds it. `storeNote` writes the note
   and clears the claim; `releaseClaim` clears only the claim and keeps the
   previous note. `runSweep()` walks eligible days one at a time: build the

@@ -35,15 +35,32 @@ export const PREPARED_MARKER = "=== RANKING ===";
  * broken, as with `aiSearchEnabled()`.
  */
 export function preparedNotesEnabled(): boolean {
-  return Boolean(process.env.LOCAL_AI_BASE_URL && localModel());
+  const { baseUrl, model } = localModelConfig();
+  return Boolean(baseUrl && model);
 }
 
 /**
- * The local model's id, `LOCAL_AI_MODEL` — the one place it is read. A note's
- * input hash includes it, so the sweep and Tonight's read must agree on it.
+ * The local model's id, `LOCAL_AI_MODEL`. A note's input hash includes it, so
+ * the sweep and Tonight's read must agree on it.
  */
 export function localModel(): string {
-  return process.env.LOCAL_AI_MODEL ?? "";
+  return localModelConfig().model;
+}
+
+/**
+ * The local model's connection, from the `LOCAL_AI_*` variables — the one
+ * place they are read. Shaped to spread into `createPreparedNoteClient`.
+ */
+export function localModelConfig(): {
+  baseUrl: string;
+  apiKey: string | undefined;
+  model: string;
+} {
+  return {
+    baseUrl: process.env.LOCAL_AI_BASE_URL ?? "",
+    apiKey: process.env.LOCAL_AI_API_KEY,
+    model: process.env.LOCAL_AI_MODEL ?? "",
+  };
 }
 
 /**
@@ -209,13 +226,22 @@ export function buildPreparedSystemPrompt(): string {
 const MAX_PREPARED_RATIONALE_LENGTH = 600;
 
 /**
+ * The brief's bound. The prompt asks for 40–70 words, about 450 characters;
+ * a brief past this is something else above the marker — reasoning leaking
+ * into the answer, a second ranking, a changed server template. Such a reply
+ * is refused, not truncated: a cut brief would be stored as good and read as
+ * the model's whole answer.
+ */
+const MAX_PREPARED_BRIEF_LENGTH = 1_200;
+
+/**
  * Read the model's reply into a Prepared note: everything above the marker
  * line is the brief, everything below it goes through `parseRankingText`.
  *
  * Returns `null` — unavailable, so the last good note stays — for a missing
- * marker, an empty brief, or a ranking with no rows. `NONE` counts as no rows:
- * the prompt asks for every candidate, so an empty ranking is never a real
- * answer here.
+ * marker, an empty brief or one past `MAX_PREPARED_BRIEF_LENGTH`, or a ranking
+ * with no rows. `NONE` counts as no rows: the prompt asks for every candidate,
+ * so an empty ranking is never a real answer here.
  */
 export function parsePreparedReply(
   text: string,
@@ -225,7 +251,7 @@ export function parsePreparedReply(
   const markerAt = lines.findIndex((line) => line.trim() === PREPARED_MARKER);
   if (markerAt === -1) return null;
   const brief = lines.slice(0, markerAt).join("\n").trim();
-  if (brief === "") return null;
+  if (brief === "" || brief.length > MAX_PREPARED_BRIEF_LENGTH) return null;
   const parsed = parseRankingText(
     lines.slice(markerAt + 1).join("\n"),
     idByIndex,
@@ -250,10 +276,19 @@ const MAX_TOKENS = 20_000;
  * Strata is shared, though, and under another client's load decoding fell to
  * ~10 tok/s; two notes cut off at 18 minutes were 15–16k tokens in. The bound
  * covers a full 20k-token budget at that speed (~35 minutes). The sweep's
- * claim lease (45 minutes) must stay longer than this, so a replica never
- * takes over a date another is still generating.
+ * claim lease is derived from this, so it always outlasts it.
  */
-const REQUEST_TIMEOUT_MS = 40 * 60_000;
+export const REQUEST_TIMEOUT_MS = 40 * 60_000;
+
+/**
+ * The share of the candidates a ranking must name to be kept. A thinner one
+ * is refused, so the last good note stays rather than a partial ranking
+ * overwriting a full one. 90% is a default, not a measurement: it lets
+ * through the one-or-two-row omissions the backtest saw on ~37 candidates
+ * (the screen appends those rows unnumbered) and refuses a reply that
+ * stopped a handful of rows in.
+ */
+export const MIN_RANKED_SHARE = 0.9;
 
 /** The token counts a completion reports. */
 type Usage = { prompt_tokens?: number; completion_tokens?: number };
@@ -269,14 +304,16 @@ type ChatCompletionChunk = {
 
 /**
  * Read a streamed completion's server-sent events to the end, accumulating
- * the answer and the reasoning and keeping the stop reason and usage, which
- * arrive on the last chunk. The reply is streamed, not sent whole, because a
+ * the answer — and the reasoning, with `keepReasoning`, which only `onReply`
+ * reads — and keeping the stop reason and usage, which arrive on the last
+ * chunk. The reply is streamed, not sent whole, because a
  * generation outlasts `fetch`'s five-minute wait for response headers; a
  * stream sends headers at once and a chunk every token. Comment lines (the
  * server's keep-alives) are skipped. Throws on an event that isn't JSON.
  */
 async function readStream(
   body: ReadableStream<Uint8Array>,
+  { keepReasoning }: { keepReasoning: boolean },
 ): Promise<RawPreparedReply & { usage?: Usage }> {
   const reply: RawPreparedReply & { usage?: Usage } = {
     content: null,
@@ -292,7 +329,7 @@ async function readStream(
     const choice = chunk?.choices?.[0];
     const { content, reasoning_content: reasoning } = choice?.delta ?? {};
     if (typeof content === "string") reply.content = (reply.content ?? "") + content;
-    if (typeof reasoning === "string") {
+    if (keepReasoning && typeof reasoning === "string") {
       reply.reasoning = (reply.reasoning ?? "") + reasoning;
     }
     if (typeof choice?.finish_reason === "string") {
@@ -333,7 +370,10 @@ function logPrepareCall(fields: {
   latencyMs: number;
   /** `ok`, or `fallback` when the call yielded no usable note. */
   outcome: string;
-  /** Ranking rows in the note — `0` on the fallback path. */
+  /**
+   * Ranking rows read from the answer — on the fallback path, the rows of a
+   * ranking refused as too thin, else `0`.
+   */
   rowCount: number;
   inputTokens?: number;
   outputTokens?: number;
@@ -391,6 +431,7 @@ export function createPreparedNoteClient(config: {
       // `PREPARE_UNAVAILABLE`.
       let result: PrepareResult = PREPARE_UNAVAILABLE;
       let usage: Usage | undefined;
+      let rowCount = 0;
       try {
         const response = await fetch(`${config.baseUrl}/chat/completions`, {
           method: "POST",
@@ -411,7 +452,9 @@ export function createPreparedNoteClient(config: {
           }),
         });
         if (response.ok && response.body) {
-          const { usage: reported, ...reply } = await readStream(response.body);
+          const { usage: reported, ...reply } = await readStream(response.body, {
+            keepReasoning: config.onReply !== undefined,
+          });
           usage = reported;
           config.onReply?.(reply);
           // Only the answer: `reasoning` is the model thinking aloud. Only a
@@ -421,12 +464,21 @@ export function createPreparedNoteClient(config: {
             reply.content !== null && reply.finishReason === "stop"
               ? parsePreparedReply(reply.content, idByIndex)
               : null;
-          if (note !== null) result = { ok: true, note };
+          if (note !== null) {
+            rowCount = note.ranking.length;
+            if (rowCount / idByIndex.size >= MIN_RANKED_SHARE) {
+              result = { ok: true, note };
+            }
+          }
         }
       } catch {
         // A network error, the timeout's abort, or an event that isn't JSON.
       } finally {
         clearTimeout(timer);
+        // A non-ok answer, a missing body, or a bad event leaves the stream
+        // open, and the server would keep decoding for a reader that is gone.
+        // A no-op once the stream has been read to its end.
+        controller.abort();
       }
 
       logPrepareCall({
@@ -434,7 +486,7 @@ export function createPreparedNoteClient(config: {
         model: config.model,
         latencyMs: Date.now() - startedAt,
         outcome: result.ok ? "ok" : "fallback",
-        rowCount: result.ok ? result.note.ranking.length : 0,
+        rowCount,
         inputTokens: usage?.prompt_tokens,
         outputTokens: usage?.completion_tokens,
       });

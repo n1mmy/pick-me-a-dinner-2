@@ -18,6 +18,7 @@ import {
   PREPARED_PROMPT_VERSION,
   type PreparedNote,
   type PreparedNoteClient,
+  REQUEST_TIMEOUT_MS,
 } from "./prepared-note";
 import { type ModelSnapshot, snapshotForDay } from "./snapshot";
 
@@ -53,10 +54,13 @@ function inputHash(snapshot: ModelSnapshot, model: string): string {
 }
 
 /**
- * How long a claim holds a date. Longer than the client's 40-minute timeout,
- * so a replica that is still generating never loses the date to the other.
+ * How long a claim holds a date: the client's timeout plus five minutes, so a
+ * replica that is still generating never loses the date to the other.
  */
-const CLAIM_LEASE = sql`now() + interval '45 minutes'`;
+export const CLAIM_LEASE_MS = REQUEST_TIMEOUT_MS + 5 * 60_000;
+
+// A constant number, so the raw interval carries no outside text.
+const CLAIM_LEASE = sql.raw(`now() + interval '${CLAIM_LEASE_MS} milliseconds'`);
 
 /** A won claim, carrying the hash of the note already stored, if any. */
 export type Claim = { inputHash: string | null };
@@ -145,7 +149,15 @@ export async function runSweep({
 }): Promise<void> {
   const model = localModel();
   for (const day of await eligibleDays(now, timeZone)) {
+    // The eligible dates were read once, and a generation takes minutes: a
+    // Pick landing meanwhile has frozen this date, so don't generate a note
+    // the store would only refuse.
+    if ((await getDecidedDates(day, day)).length > 0) continue;
     const built = await snapshotForDay({ asOf: day, query: "" });
+    // Nothing to rank (an empty Catalog, or every Option Closed or Rejected):
+    // the model's empty ranking is always refused, so the date would be
+    // regenerated every sweep.
+    if (built.idByIndex.size === 0) continue;
     const hash = inputHash(built.snapshot, model);
     if ((await getPreparedNote(day))?.inputHash === hash) continue;
 

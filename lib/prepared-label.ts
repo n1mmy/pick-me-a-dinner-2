@@ -17,18 +17,21 @@ function clockTime(preparedAt: Date, timeZone: string): string {
   return `${part("hour")}:${part("minute")}${part("dayPeriod").toLowerCase()}`;
 }
 
+/** The label in two parts, so the time can be set in Geist Mono. */
+export type PreparedLabel = { prefix: string; time: string };
+
 /**
- * "Prepared 2:14pm" for a note written today, "Prepared Mon 9:40pm" for one
- * written earlier — a bare time would read as today's. The day is taken in
- * `timeZone`, the Household's, not the server's.
+ * "Prepared" and "2:14pm" for a note written today; "Prepared Mon" and
+ * "9:40pm" for one written earlier — a bare time would read as today's. The
+ * day is taken in `timeZone`, the Household's, not the server's.
  */
 export function preparedLabel(
   preparedAt: Date,
   todaySql: string,
   timeZone: string,
-): string {
+): PreparedLabel {
   const time = clockTime(preparedAt, timeZone);
   const preparedOn = todaySqlDate(preparedAt, timeZone);
-  if (preparedOn === todaySql) return `Prepared ${time}`;
-  return `Prepared ${weekdayName(preparedOn).slice(0, 3)} ${time}`;
+  if (preparedOn === todaySql) return { prefix: "Prepared", time };
+  return { prefix: `Prepared ${weekdayName(preparedOn).slice(0, 3)}`, time };
 }

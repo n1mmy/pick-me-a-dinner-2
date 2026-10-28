@@ -50,6 +50,7 @@ import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 import { db } from "../db";
 import { dinnerLog, optionTags, options, tags } from "../db/schema";
+import { appTimeZone } from "../lib/local-day";
 import { normalizeTag } from "../lib/normalize-tag";
 
 /** A row of the prior app's `Meal` table — a home-cooked meal. */
@@ -326,7 +327,7 @@ export async function loadPriorDataFromDb(
 }
 
 async function main(): Promise<void> {
-  const timeZone = process.env.APP_TZ ?? "UTC";
+  const timeZone = appTimeZone();
   const migrateFrom = process.env.MIGRATE_FROM;
   let prior: PriorData;
   let source: string;

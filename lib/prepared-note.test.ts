@@ -209,8 +209,21 @@ describe("parsePreparedReply", () => {
       `A quiet Thursday.\n${PREPARED_MARKER}\n9|Not a candidate.`,
     ],
     ["the ranking is NONE", `A quiet Thursday.\n${PREPARED_MARKER}\nNONE`],
+    [
+      "the brief runs past its bound",
+      `${"x".repeat(1201)}\n${PREPARED_MARKER}\n3|Standing Thursday choice.`,
+    ],
   ])("is unavailable when %s", (_case, reply) => {
     expect(parsePreparedReply(reply, idByIndex)).toBeNull();
+  });
+
+  it("still reads a brief right at its bound", () => {
+    const brief = "x".repeat(1200);
+
+    expect(
+      parsePreparedReply(`${brief}\n${PREPARED_MARKER}\n3|Standing Thursday choice.`, idByIndex)
+        ?.brief,
+    ).toBe(brief);
   });
 });
 
@@ -248,7 +261,11 @@ describe("buildPreparedSystemPrompt", () => {
 });
 
 describe("createPreparedNoteClient().prepare", () => {
-  const goodReply = `A quiet Thursday.\n${PREPARED_MARKER}\n3|Standing Thursday choice.\n1|Long cook.`;
+  const goodReply = `A quiet Thursday.
+${PREPARED_MARKER}
+3|Standing Thursday choice.
+1|Long cook.
+2|Skip it.`;
 
   const goodNote = {
     ok: true,
@@ -257,6 +274,7 @@ describe("createPreparedNoteClient().prepare", () => {
       ranking: [
         { id: PHO, reason: "Standing Thursday choice." },
         { id: KATSU, reason: "Long cook." },
+        { id: MAZRA, reason: "Skip it." },
       ],
     },
   };
@@ -270,15 +288,12 @@ describe("createPreparedNoteClient().prepare", () => {
 
   it("reads events and characters that straddle network chunks", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
-    const reply = `Pho … then rest.\n${PREPARED_MARKER}\n3|Standing Thursday choice.`;
+    const reply = goodReply.replace("A quiet Thursday.", "Pho … then rest.");
     stubFetch(async () => streamResponse(completion(reply), { chunkBytes: 5 }));
 
     expect(await client().prepare(built)).toEqual({
       ok: true,
-      note: {
-        brief: "Pho … then rest.",
-        ranking: [{ id: PHO, reason: "Standing Thursday choice." }],
-      },
+      note: { ...goodNote.note, brief: "Pho … then rest." },
     });
   });
 
@@ -377,6 +392,42 @@ describe("createPreparedNoteClient().prepare", () => {
     expect(await client().prepare(built)).toEqual({ ok: false });
   });
 
+  it.each<[string, () => Response]>([
+    ["an event isn't JSON", () => streamResponse(["data: not-json\n\n", "data: [DONE]\n\n"])],
+    ["the server answers non-ok", () => jsonResponse({ error: "busy" }, 503)],
+    ["an ok response has no body", () => new Response(null)],
+  ])("aborts the request when %s, so the server stops generating", async (_case, respond) => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchSpy = stubFetch(async () => respond());
+
+    expect(await client().prepare(built)).toEqual({ ok: false });
+
+    expect(fetchSpy.mock.calls[0][1]?.signal?.aborted).toBe(true);
+  });
+
+  it("aborts only once a good reply has been read whole", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    let abortedWhileReading = false;
+    stubFetch(async (_url, init) => {
+      const events = completion(goodReply);
+      const encoder = new TextEncoder();
+      return new Response(
+        new ReadableStream({
+          pull(controller) {
+            abortedWhileReading ||= init?.signal?.aborted ?? false;
+            const next = events.shift();
+            if (next === undefined) controller.close();
+            else controller.enqueue(encoder.encode(next));
+          },
+        }),
+        { headers: { "Content-Type": "text/event-stream" } },
+      );
+    });
+
+    expect(await client().prepare(built)).toEqual(goodNote);
+    expect(abortedWhileReading).toBe(false);
+  });
+
   it("waits out a slow generation, then gives up at about forty minutes", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.useFakeTimers();
@@ -466,10 +517,46 @@ describe("createPreparedNoteClient().prepare", () => {
       model: "qwen3.8-flash",
       latencyMs: expect.any(Number),
       outcome: "ok",
-      rowCount: 2,
+      rowCount: 3,
       inputTokens: 9000,
       outputTokens: 2500,
     });
+  });
+
+  /** A built snapshot of `count` candidates, numbered 1…count. */
+  function candidates(count: number): BuiltSnapshot {
+    const numbers = Array.from({ length: count }, (_, at) => at + 1);
+    return {
+      snapshot,
+      idByIndex: new Map(numbers.map((n) => [n, `option-${n}`])),
+      nameById: new Map(numbers.map((n) => [`option-${n}`, `Option ${n}`])),
+    };
+  }
+
+  /** A reply ranking candidates 1…`rows`. */
+  const rankingOf = (rows: number) =>
+    ["A quiet Thursday.", PREPARED_MARKER]
+      .concat(Array.from({ length: rows }, (_, at) => `${at + 1}|Fits.`))
+      .join("\n");
+
+  it("refuses a ranking naming fewer than nine in ten candidates, logging how many it named", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    stubFetch(async () => streamResponse(completion(rankingOf(8))));
+
+    expect(await client().prepare(candidates(10))).toEqual({ ok: false });
+    expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
+      outcome: "fallback",
+      rowCount: 8,
+    });
+  });
+
+  it("keeps a ranking naming nine in ten candidates", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    stubFetch(async () => streamResponse(completion(rankingOf(9))));
+
+    const result = await client().prepare(candidates(10));
+
+    expect(result.ok && result.note.ranking).toHaveLength(9);
   });
 
   it("logs one line for a failed call too, with no rows and no usage when there was no response", async () => {

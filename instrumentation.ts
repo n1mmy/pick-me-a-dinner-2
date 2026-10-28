@@ -23,18 +23,15 @@ export async function register(): Promise<void> {
       "./lib/prepared-notes-loop"
     );
     startPreparedNotesLoop(async () => {
-      const { createPreparedNoteClient, localModel } = await import(
+      const { createPreparedNoteClient, localModelConfig } = await import(
         "./lib/prepared-note"
       );
+      const { appTimeZone } = await import("./lib/local-day");
       const { runSweep } = await import("./lib/prepared-notes");
       await runSweep({
         now: new Date(),
-        timeZone: process.env.APP_TZ ?? "UTC",
-        client: createPreparedNoteClient({
-          baseUrl: process.env.LOCAL_AI_BASE_URL ?? "",
-          apiKey: process.env.LOCAL_AI_API_KEY,
-          model: localModel(),
-        }),
+        timeZone: appTimeZone(),
+        client: createPreparedNoteClient(localModelConfig()),
       });
     });
   }

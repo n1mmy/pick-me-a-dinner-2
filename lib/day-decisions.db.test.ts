@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../db";
 import { dinnerLog, options, rejections } from "../db/schema";
@@ -96,6 +97,30 @@ describe("addPick", () => {
     ).rejects.toThrow();
 
     expect(await picks()).toEqual([[pizza, FRIDAY]]);
+    expect(await rejected()).toEqual([[pizza, FRIDAY]]);
+  });
+
+  it("rolls the Log entry back when clearing the Rejection fails after it", async () => {
+    const pizza = await makeOption("Pizza");
+    await makeRejection(pizza, FRIDAY);
+    // The Rejection delete is the last statement, after the insert has
+    // landed. It is private to the module, so a trigger refuses it instead.
+    await db.execute(sql`
+      create function refuse_delete() returns trigger language plpgsql as
+        $$ begin raise exception 'delete refused'; end $$`);
+    await db.execute(sql`
+      create trigger refuse_rejection_delete before delete on rejections
+        for each row execute function refuse_delete()`);
+    try {
+      await expect(
+        addPick({ optionId: pizza, eatenOn: FRIDAY, repeat: "refuse" }),
+      ).rejects.toThrow();
+    } finally {
+      await db.execute(sql`drop trigger refuse_rejection_delete on rejections`);
+      await db.execute(sql`drop function refuse_delete()`);
+    }
+
+    expect(await picks()).toEqual([]);
     expect(await rejected()).toEqual([[pizza, FRIDAY]]);
   });
 });

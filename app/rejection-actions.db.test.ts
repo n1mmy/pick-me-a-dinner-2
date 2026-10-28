@@ -4,7 +4,7 @@ import { db } from "../db";
 import { dinnerLog, options, rejections } from "../db/schema";
 import { getLogRejections, getOptionRejections } from "../db/queries";
 import { truncateAll } from "../db/test-support";
-import { todaySqlDate } from "../lib/local-day";
+import { appTimeZone, todaySqlDate } from "../lib/local-day";
 import {
   createRejection,
   deleteRejection,
@@ -357,7 +357,7 @@ describe("rejectOption", () => {
  */
 function futureSqlDate(daysAhead: number): string {
   const ms = Date.now() + daysAhead * 86_400_000;
-  return todaySqlDate(new Date(ms), process.env.APP_TZ ?? "UTC");
+  return todaySqlDate(new Date(ms), appTimeZone());
 }
 
 describe("getLogRejections", () => {
