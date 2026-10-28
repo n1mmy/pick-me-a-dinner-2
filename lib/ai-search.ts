@@ -10,7 +10,7 @@
  * the household's eating *habits* — cadence, day-of-week rhythm, streaks, drift
  * — rather than re-sort recency. So the snapshot carries dated history plus
  * timing facts that combine into no sort key (ADR-0012: eat counts, days since,
- * Interval, weekday counts — no overdue flag or ratio), and the model is given
+ * the last few gaps, weekday counts — no median, overdue flag or ratio), and the model is given
  * room to think (extended thinking) and works the patterns out itself. A
  * pre-combined "how overdue" number would re-anchor the model on recency and
  * undo the feature — do not add one.
@@ -517,19 +517,15 @@ export const SNAPSHOT_EVIDENCE = [
     "long cook on a weeknight, a restaurant after a run of home-cooked meals, " +
     "a heavy dish after a heavy one.",
   "- The timing facts are counts, not a ranking. Each candidate carries " +
-    "eaten (how many days they have had it), daysSinceLast, intervalDays, " +
-    "recentGaps and weekdays; each Tag carries all but weekdays across every " +
-    "Option carrying it. intervalDays is its Interval: the median number of " +
-    "days between their eats over its whole history, given once it has been " +
-    "eaten twice. A median of their own gaps, so half of those were shorter: " +
-    "an Option short of its Interval is ordinary, not ruled out, and an " +
-    "Interval resting on two or three eats says less than one resting on " +
-    "twenty. recentGaps are the days between its last eats, newest first, up " +
-    "to three: the pace as it stands, where the Interval is the pace of the " +
-    "whole history. The two differ when a habit has slowed or quickened, and " +
-    "the recent gaps are the ones they are keeping now. weekdays is how many " +
-    "of its dinners fell on each weekday; anything said about a weekday habit " +
-    "has to be true of those counts.",
+    "eaten (how many days they have had it), daysSinceLast, recentGaps and " +
+    "weekdays; each Tag carries all but weekdays across every Option carrying " +
+    "it. recentGaps are the days between its last eats, newest first, up to " +
+    "four, given once it has been eaten twice: the pace they keep now, as " +
+    "they keep it. Their gaps vary, so daysSinceLast short of the last gap is " +
+    "ordinary, not ruled out, and a long gap among them is a break they took, " +
+    "not a pace to catch up on. weekdays is how many of its dinners fell on " +
+    "each weekday; anything said about a weekday habit has to be true of " +
+    "those counts.",
   "- A Rejection is their verdict on one Option for one night, with an " +
     "optional reason and a date, past or upcoming. A reason can be a " +
     "condition that holds until a Log entry or a later note says otherwise, " +
@@ -683,7 +679,7 @@ const TEXT_FORMAT_INSTRUCTION = [
  * Prepared note prompt has its own (`PREPARED_PROMPT_VERSION`); the two move
  * together when a shared bullet changes.
  */
-export const AI_SEARCH_PROMPT_VERSION = "12";
+export const AI_SEARCH_PROMPT_VERSION = "13";
 
 /**
  * Build the system prompt for a tail mode. The prompt is identical across

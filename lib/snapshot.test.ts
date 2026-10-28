@@ -3,7 +3,6 @@ import { parseRankingText } from "./ai-search";
 import type { RejectionRow } from "./rejections";
 import {
   buildSnapshot,
-  intervalOf,
   leanSnapshot,
   recentGapsOf,
   type SnapshotLogEntry,
@@ -85,7 +84,7 @@ describe("buildSnapshot", () => {
   });
 
   it("carries candidate and timing fields — no Places fields", () => {
-    // Eaten once, so no Interval yet.
+    // Eaten once, so no gaps yet.
     expect(Object.keys(snapshot.options[0]).sort()).toEqual(
       ["id", "kind", "name", "notes", "tags", "eaten", "daysSinceLast", "weekdays"].sort(),
     );
@@ -653,23 +652,14 @@ describe("buildSnapshot — Day notes", () => {
   });
 });
 
-describe("intervalOf — the Interval is the median of every gap", () => {
-  it("takes the middle gap, or the rounded mean of the middle two", () => {
-    expect(intervalOf([14])).toBe(14);
-    expect(intervalOf([9, 12])).toBe(11);
-    expect(intervalOf([6, 6, 7, 30])).toBe(7);
-    // Twice a week one spring, then every two to three weeks: the whole
-    // history's median, with the slowdown left to recentGapsOf to show.
-    expect(intervalOf([4, 3, 7, 3, 9, 40, 14, 21, 21])).toBe(9);
-  });
-});
-
-describe("recentGapsOf — the pace as it stands", () => {
-  it("keeps the last three gaps, newest first", () => {
-    expect(recentGapsOf([4, 3, 7, 3, 9, 40, 14, 21, 21])).toEqual([21, 21, 14]);
+describe("recentGapsOf — the pace as it stands, and the only timing summary", () => {
+  it("keeps the last four gaps, newest first", () => {
+    // Twice a week one spring, then a long break, then every two to three
+    // weeks: the break and the pace since both show; no median hides them.
+    expect(recentGapsOf([4, 3, 7, 3, 9, 40, 14, 21, 21])).toEqual([21, 21, 14, 40]);
   });
 
-  it("gives what there is under three", () => {
+  it("gives what there is under four", () => {
     expect(recentGapsOf([9, 12])).toEqual([12, 9]);
     expect(recentGapsOf([14])).toEqual([14]);
   });
@@ -702,17 +692,21 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
   });
   const byName = (name: string) => snapshot.options.find((o) => o.name === name)!;
 
-  it("gives a candidate its eat count, days since, median Interval, recent gaps, and weekday counts", () => {
-    expect(byName("Mazra")).toMatchObject({
+  it("gives a candidate its eat count, days since, recent gaps, and weekday counts", () => {
+    expect(byName("Mazra")).toEqual({
+      id: expect.any(Number),
+      name: "Mazra",
+      kind: "home",
+      notes: null,
+      tags: ["mediterranean", "rice"],
       eaten: 3,
       daysSinceLast: 7,
-      intervalDays: 11, // gaps 9 and 12: the rounded mean of the middle two
       recentGaps: [12, 9],
       weekdays: { Wednesday: 2, Friday: 1 },
     });
   });
 
-  it("keeps the last three gaps newest first, beside an Interval over all of them", () => {
+  it("keeps the last four gaps newest first, and no median over them", () => {
     const { snapshot: slowed } = buildSnapshot({
       options: [option("s1", "Slowed")],
       logEntries: [
@@ -722,17 +716,17 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
       asOf: TODAY,
       query: "",
     });
-    // Gaps 10, 10, 10, 10, 21, 21: the median says ten days; the last three say three weeks.
-    expect(slowed.options[0]).toMatchObject({ intervalDays: 10, recentGaps: [21, 21, 10] });
+    // Gaps 10, 10, 10, 10, 21, 21: the slowdown is on the row, and nothing says "ten days".
+    expect(slowed.options[0]).toMatchObject({ recentGaps: [21, 21, 10, 10] });
+    expect(slowed.options[0]).not.toHaveProperty("intervalDays");
   });
 
   it("leaves out dinners after the anchor day, Planned or not", () => {
     expect(byName("Mazra").eaten).toBe(3);
   });
 
-  it("omits the Interval under two eats, and every fact but the count when never eaten", () => {
+  it("omits the gaps under two eats, and every fact but the count when never eaten", () => {
     expect(byName("Once")).toMatchObject({ eaten: 1, daysSinceLast: 1 });
-    expect(byName("Once")).not.toHaveProperty("intervalDays");
     expect(byName("Once")).not.toHaveProperty("recentGaps");
     const never = byName("Never Tried");
     expect(never.eaten).toBe(0);
@@ -746,9 +740,9 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
 
   it("gives each Tag the timing of every active Option carrying it, a shared day once", () => {
     expect(snapshot.tags).toEqual({
-      // gaps 52, 9, 12: the median is 12, and the three gaps are all there is
-      mediterranean: { eaten: 4, daysSinceLast: 7, intervalDays: 12, recentGaps: [12, 9, 52] },
-      rice: { eaten: 3, daysSinceLast: 7, intervalDays: 11, recentGaps: [12, 9] },
+      // gaps 52, 9, 12 across both carriers, newest first
+      mediterranean: { eaten: 4, daysSinceLast: 7, recentGaps: [12, 9, 52] },
+      rice: { eaten: 3, daysSinceLast: 7, recentGaps: [12, 9] },
       single: { eaten: 1, daysSinceLast: 1 },
     });
   });

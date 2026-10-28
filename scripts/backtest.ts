@@ -6,7 +6,7 @@
  * actually eaten that day.
  *
  * Per day and in aggregate: the rank of the Pick, hit@3/5/10, the Pick's
- * daysSinceLast over its Interval, any Option Rejected that day as too soon
+ * daysSinceLast and recent gaps, any Option Rejected that day as too soon
  * that sat in the top 5, top-5 slots spent on Options never eaten in the
  * window, empty top-10 reasons, and a ranking written in snapshot-number
  * order (rank positions where numbers belong). Prepared notes add the brief's
@@ -137,11 +137,10 @@ export type DayRecord = {
   hit3: boolean;
   hit5: boolean;
   hit10: boolean;
-  /** Each candidate Pick's daysSinceLast over its Interval, and its recent gaps, from the snapshot. */
+  /** Each candidate Pick's daysSinceLast and its recent gaps, from the snapshot. */
   pickTiming: {
     name: string;
     daysSinceLast: number | null;
-    intervalDays: number | null;
     recentGaps?: number[];
   }[];
   /** Options Rejected that day as too soon, ranked in the top 5. */
@@ -258,7 +257,6 @@ export function scoreDay(
     .map((pick) => ({
       name: pick.name,
       daysSinceLast: modelOption.get(pick.optionId)?.daysSinceLast ?? null,
-      intervalDays: modelOption.get(pick.optionId)?.intervalDays ?? null,
       ...(modelOption.get(pick.optionId)?.recentGaps
         ? { recentGaps: modelOption.get(pick.optionId)!.recentGaps }
         : {}),
@@ -396,9 +394,16 @@ export function summarize(records: DayRecord[]) {
     records.reduce((n, r) => n + (of(r) ?? 0), 0);
   // Eaten in the window: Picked on any of the run's days.
   const eaten = new Set(records.flatMap((r) => r.picks.map((p) => p.name)));
+  // A Pick eaten sooner than any of its recent gaps: the Household went
+  // quicker than its own pace, and a ranking that reads the gaps as a floor
+  // would miss it.
   const underInterval = (r: DayRecord) =>
     (r.pickTiming ?? []).some(
-      (p) => p.daysSinceLast !== null && p.intervalDays !== null && p.daysSinceLast < p.intervalDays,
+      (p) =>
+        p.daysSinceLast !== null &&
+        p.recentGaps !== undefined &&
+        p.recentGaps.length > 0 &&
+        p.daysSinceLast < Math.min(...p.recentGaps),
     );
   return {
     days: records.length,
@@ -413,7 +418,7 @@ export function summarize(records: DayRecord[]) {
     hit5: count((r) => r.hit5),
     hit10: count((r) => r.hit10),
     daysWithTooSoonMiss: count((r) => r.tooSoonMisses.length > 0),
-    /** Days the Pick was short of its Interval, and how many of those were hit@5. */
+    /** Days the Pick came sooner than its shortest recent gap, and how many of those were hit@5. */
     pickUnderIntervalDays: count((r) => r.scorable && underInterval(r)),
     pickUnderIntervalHit5: count((r) => r.scorable && underInterval(r) && r.hit5),
     neverEatenTop5Slots: sum(
@@ -591,14 +596,14 @@ function rankCell(rank: number | null): string {
 }
 
 /**
- * A Pick's timing as "4/6 (gaps 7,5,6)": daysSinceLast over its Interval, "—"
- * where absent, then its recent gaps newest first when it has any.
+ * A Pick's timing as "4 (gaps 7,5,6,8)": daysSinceLast, "new" when never
+ * eaten, then its recent gaps newest first when it has any.
  */
 function timingCell(record: DayRecord): string {
   return (record.pickTiming ?? [])
     .map(
       (p) =>
-        `${p.daysSinceLast ?? "new"}/${p.intervalDays ?? "—"}` +
+        `${p.daysSinceLast ?? "new"}` +
         (p.recentGaps?.length ? ` (gaps ${p.recentGaps.join(",")})` : ""),
     )
     .join(" ");
@@ -613,7 +618,7 @@ function printDay(record: DayRecord): void {
   const timing = timingCell(record);
   console.log(
     `=== ${record.day} (${record.weekday}) — ${record.ok ? `ate ${picks}` : "UNAVAILABLE"}` +
-      `${timing ? ` — since/Interval ${timing}` : ""} — ${secs}`,
+      `${timing ? ` — since ${timing}` : ""} — ${secs}`,
   );
   if (record.dayNote) console.log(`day note: ${record.dayNote}`);
   if (record.catalogOrder) console.log("CATALOG ORDER: the ranking is the snapshot's numbering");
@@ -690,7 +695,7 @@ function printAggregate(summary: ReturnType<typeof summarize>): void {
   console.log(`hit@3 ${pct(summary.hit3)}   hit@5 ${pct(summary.hit5)}   hit@10 ${pct(summary.hit10)}`);
   console.log(`days with a too-soon Rejection in the top 5: ${summary.daysWithTooSoonMiss}`);
   console.log(
-    `Pick short of its Interval: ${summary.pickUnderIntervalDays} day(s), ` +
+    `Pick sooner than its shortest recent gap: ${summary.pickUnderIntervalDays} day(s), ` +
       `${summary.pickUnderIntervalHit5} of them hit@5`,
   );
   console.log(

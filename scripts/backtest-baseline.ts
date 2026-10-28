@@ -5,8 +5,8 @@
  *    on the same fixed day list, the Log cut to before each day, Closed
  *    Restaurants removed, Rejections on the day ignored (they are ground
  *    truth). A free baseline the model runs can be read against.
- * 2. For each day's Pick, the snapshot's own timing facts — how "due" the
- *    thing they actually ate was by daysSinceLast against intervalDays.
+ * 2. For each day's Pick, the snapshot's own timing facts — daysSinceLast
+ *    against its recent gaps for the thing they actually ate.
  * 3. Eat dates, gaps, and three Interval definitions (all-time median, median
  *    of the most recent half of the gaps, the last gap) for the Options the
  *    backtest keeps ranking high or low, as of the last backtest day.
@@ -16,7 +16,7 @@
 import "./load-env";
 import { getDayNotes, getLog, getLogRejections, getTonightData } from "../db/queries";
 import { epochDayFromSqlDate, weekdayName } from "../lib/local-day";
-import { intervalOf, snapshotForDay } from "../lib/snapshot";
+import { snapshotForDay } from "../lib/snapshot";
 import { tonightForDay } from "../lib/tonight-day";
 
 const DAYS = [
@@ -69,7 +69,7 @@ async function main() {
     const due = picks.map((pick) => {
       const option = built.snapshot.options.find((o) => o.name === pick.optionName);
       return option
-        ? `${pick.optionName} ${option.daysSinceLast ?? "never"}/${option.intervalDays ?? "—"}/${option.eaten}`
+        ? `${pick.optionName} ${option.daysSinceLast ?? "never"} (gaps ${option.recentGaps?.join(",") ?? "—"}) /${option.eaten}`
         : `${pick.optionName} (not a candidate)`;
     });
     console.log(
@@ -95,7 +95,7 @@ async function main() {
     console.log(`\n${name}: eaten ${days.length}, daysSinceLast ${since}`);
     console.log(
       `  interval all-time ${median(gaps)}  recent-half ${median(recentHalf)}  last gap ${gaps[gaps.length - 1] ?? "—"}` +
-        `  current run (intervalOf, the snapshot's) ${gaps.length > 0 ? intervalOf(gaps) : "—"}`,
+        `  (the snapshot now carries the last four gaps and no median)`,
     );
     console.log(`  dates: ${days.slice(-14).join(" ")}`);
     console.log(`  gaps:  ${gaps.join(" ")}`);

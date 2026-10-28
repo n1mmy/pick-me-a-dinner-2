@@ -259,22 +259,24 @@ day-scoped.
 _Avoid_: Rating, preference score (it is inferred from eat-frequency, never
 entered by hand).
 
-**Interval**:
-The usual number of days between the Household's eats of an Option — or, for a
-Tag, of any active Option carrying it — over its whole history: the median of
-every gap. It is the timing side of a habit: set against **Recency**, it says
-whether something is recent *for that Option*. A median, so half the
-Household's own gaps were shorter than it; how far short of its Interval an
-Option may be and still be in play is a judgement for the evening, not a
-threshold. The Interval is the habit over the whole history, so the AI
-snapshot sets it beside the Option's **last few gaps** (its three newest): an
-Option eaten every ten days for a year and every three weeks since carries an
-Interval of ten and recent gaps of three weeks, and the two together say the
-habit has slowed, which no single number could. Not a Score factor:
-**Readiness** measures time since on one scale for every Option, and
-**Affinity** measures how much an Option is wanted, not when it is due.
-_Avoid_: Cadence (the habit itself, not its number), usual gap, overdue (the
-Tag chip threshold, not a relation to the Interval).
+**Recent gaps**:
+The days between an Option's last eats — or, for a Tag, the last eats of any
+active Option carrying it — newest first, four at most. The pace the Household
+keeps now, as they keep it: an Option eaten every ten days for a year and every
+three weeks since reads 21, 21, 10, 10, and the slowdown is on the row. It is
+the timing side of a habit, set against **Recency**: whether something is
+recent *for that Option*. The gaps vary, so a Recency short of the last gap is
+ordinary, and a long gap among them is a break the Household took, not a pace
+to catch up on; what that means for the evening is a judgement, not a
+threshold. There is deliberately no summary number over the gaps. One existed,
+the **Interval**, a median of them: in three forms (the median of every gap,
+of the gaps since the longest break, and the plain median beside the recent
+gaps) the AI ranked on it and called an Option due against a pace the Household
+had left behind, even with the real gaps on the same row (ADR-0012). Not a
+Score factor: **Readiness** measures time since on one scale for every Option,
+and **Affinity** measures how much an Option is wanted, not when it is due.
+_Avoid_: Interval, usual gap, cadence (the habit itself, not its numbers),
+overdue (the Tag chip threshold, not a relation to the gaps).
 
 **Recency chip**:
 The small chip on each Tonight row showing the Option's own **per-Option
@@ -347,8 +349,9 @@ night". An elapsed-time claim restates how long it has been, at any precision �
 "9 days ago", "since early summer", "long out of rotation", "it's been a
 while". The Recency chip and Tag chips already show elapsed time as numbers on
 the same row, so an elapsed-time claim is redundant by construction however
-well it is phrased; the Option's own **Interval** is the one timing fact the
-chips cannot carry, and it qualifies a reason rather than being one.
+well it is phrased; the Option's own pace (its **Recent gaps**) is the one
+timing fact the chips cannot carry, and it qualifies a reason rather than being
+one.
 
 On a strong pick the rationale leads with what the chips cannot show at all —
 a Note, a weekday habit the Log bears out, a standing reason the Household once
