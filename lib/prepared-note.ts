@@ -209,13 +209,22 @@ export function buildPreparedSystemPrompt(): string {
 const MAX_PREPARED_RATIONALE_LENGTH = 600;
 
 /**
+ * The brief's bound. The prompt asks for 40–70 words, about 450 characters;
+ * a brief past this is something else above the marker — reasoning leaking
+ * into the answer, a second ranking, a changed server template. Such a reply
+ * is refused, not truncated: a cut brief would be stored as good and read as
+ * the model's whole answer.
+ */
+const MAX_PREPARED_BRIEF_LENGTH = 1_200;
+
+/**
  * Read the model's reply into a Prepared note: everything above the marker
  * line is the brief, everything below it goes through `parseRankingText`.
  *
  * Returns `null` — unavailable, so the last good note stays — for a missing
- * marker, an empty brief, or a ranking with no rows. `NONE` counts as no rows:
- * the prompt asks for every candidate, so an empty ranking is never a real
- * answer here.
+ * marker, an empty brief or one past `MAX_PREPARED_BRIEF_LENGTH`, or a ranking
+ * with no rows. `NONE` counts as no rows: the prompt asks for every candidate,
+ * so an empty ranking is never a real answer here.
  */
 export function parsePreparedReply(
   text: string,
@@ -225,7 +234,7 @@ export function parsePreparedReply(
   const markerAt = lines.findIndex((line) => line.trim() === PREPARED_MARKER);
   if (markerAt === -1) return null;
   const brief = lines.slice(0, markerAt).join("\n").trim();
-  if (brief === "") return null;
+  if (brief === "" || brief.length > MAX_PREPARED_BRIEF_LENGTH) return null;
   const parsed = parseRankingText(
     lines.slice(markerAt + 1).join("\n"),
     idByIndex,
@@ -427,6 +436,10 @@ export function createPreparedNoteClient(config: {
         // A network error, the timeout's abort, or an event that isn't JSON.
       } finally {
         clearTimeout(timer);
+        // A non-ok answer, a missing body, or a bad event leaves the stream
+        // open, and the server would keep decoding for a reader that is gone.
+        // A no-op once the stream has been read to its end.
+        controller.abort();
       }
 
       logPrepareCall({

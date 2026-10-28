@@ -1,6 +1,6 @@
 # 01 — Model reply hardening: bound the brief, abort on every failure path
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -35,20 +35,36 @@ Both fixes are in `lib/prepared-note.ts`.
 
 ## Acceptance criteria
 
-- [ ] `lib/prepared-note.test.ts`: a case in the `is unavailable when` table
+- [x] `lib/prepared-note.test.ts`: a case in the `is unavailable when` table
       for a brief over the bound, in both marker orders; a brief at the
       bound still parses
-- [ ] `lib/prepared-note.test.ts`: a stub stream with a `data: not-json`
+- [x] `lib/prepared-note.test.ts`: a stub stream with a `data: not-json`
       event, a non-ok response, and an ok response with no body each leave
       the `fetch` call's `signal.aborted` true once `prepare` returns; a
       good reply still parses (the abort lands only after `readStream` has
       returned)
-- [ ] `scripts/prepared-note-eval.ts` and `scripts/backtest.ts` still run:
+- [x] `scripts/prepared-note-eval.ts` and `scripts/backtest.ts` still run:
       `--reasoning` traces are unaffected (the abort happens after
       `readStream` returns on the success path)
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
 ## Blocked by
 
 - Nothing. First in the review's suggested order; lands before Prepared notes
   issue 07 (deploy).
+
+## Comments
+
+- `MAX_PREPARED_BRIEF_LENGTH = 1_200` beside the rationale cap; the bound is
+  checked after whichever side of the marker turned out to hold the brief, so
+  the v9-order fallback gets it too. `controller.abort()` runs in `finally`.
+- Abort tests: the three failure paths each leave the `fetch` signal aborted;
+  a separate test streams a good reply through `pull` and checks the signal
+  was never aborted while the stream was being read.
+- Scripts: one `prepared-note-eval.ts --reasoning` run was started against
+  Strata, but Strata was busy with another session's evals and the run was
+  still generating after 30 minutes, so it was stopped on the user's say-so
+  ("assume it works"). The case for it: `onReply` is called inside `try`,
+  before `finally` aborts, and the existing "hands the raw answer, reasoning,
+  and stop reason to onReply" test still passes; `tsc` covers both scripts.
+- Gate: typecheck, lint, test (563), build all green.

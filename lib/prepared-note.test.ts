@@ -209,8 +209,21 @@ describe("parsePreparedReply", () => {
       `A quiet Thursday.\n${PREPARED_MARKER}\n9|Not a candidate.`,
     ],
     ["the ranking is NONE", `A quiet Thursday.\n${PREPARED_MARKER}\nNONE`],
+    [
+      "the brief runs past its bound",
+      `${"x".repeat(1201)}\n${PREPARED_MARKER}\n3|Standing Thursday choice.`,
+    ],
   ])("is unavailable when %s", (_case, reply) => {
     expect(parsePreparedReply(reply, idByIndex)).toBeNull();
+  });
+
+  it("still reads a brief right at its bound", () => {
+    const brief = "x".repeat(1200);
+
+    expect(
+      parsePreparedReply(`${brief}\n${PREPARED_MARKER}\n3|Standing Thursday choice.`, idByIndex)
+        ?.brief,
+    ).toBe(brief);
   });
 });
 
@@ -375,6 +388,42 @@ describe("createPreparedNoteClient().prepare", () => {
     stubFetch(respond);
 
     expect(await client().prepare(built)).toEqual({ ok: false });
+  });
+
+  it.each<[string, () => Response]>([
+    ["an event isn't JSON", () => streamResponse(["data: not-json\n\n", "data: [DONE]\n\n"])],
+    ["the server answers non-ok", () => jsonResponse({ error: "busy" }, 503)],
+    ["an ok response has no body", () => new Response(null)],
+  ])("aborts the request when %s, so the server stops generating", async (_case, respond) => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchSpy = stubFetch(async () => respond());
+
+    expect(await client().prepare(built)).toEqual({ ok: false });
+
+    expect(fetchSpy.mock.calls[0][1]?.signal?.aborted).toBe(true);
+  });
+
+  it("aborts only once a good reply has been read whole", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    let abortedWhileReading = false;
+    stubFetch(async (_url, init) => {
+      const events = completion(goodReply);
+      const encoder = new TextEncoder();
+      return new Response(
+        new ReadableStream({
+          pull(controller) {
+            abortedWhileReading ||= init?.signal?.aborted ?? false;
+            const next = events.shift();
+            if (next === undefined) controller.close();
+            else controller.enqueue(encoder.encode(next));
+          },
+        }),
+        { headers: { "Content-Type": "text/event-stream" } },
+      );
+    });
+
+    expect(await client().prepare(built)).toEqual(goodNote);
+    expect(abortedWhileReading).toBe(false);
   });
 
   it("waits out a slow generation, then gives up at about forty minutes", async () => {
