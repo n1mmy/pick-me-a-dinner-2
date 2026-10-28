@@ -298,3 +298,124 @@ measures first:
   runs. Under the new Interval the Pick was short of it on 11 of 20 days,
   7 of those above two-thirds. 10 (the bucketed Strata variant) stays open
   as a free A/B after the v10 Strata run.
+- 2026-10-28: v10 Opus run: **fails the acceptance test.** One Opus 5.5
+  pithy run with prompt v10 on the same 20 days and the same dev DB (every
+  day's candidate count matches the v9 runs), saved as
+  `scripts/backtest-runs/ai-search-v10-opus-5-5-pithy.{json,log}`.
+
+  | Opus 5.5 pithy | v9 run 1 | v9 run 2 | v10 | target |
+  | --- | --- | --- | --- | --- |
+  | top-5 slots on Options never eaten in the window | 53/100 | 52/100 | 46/100 | below 35 ✗ |
+  | too-soon days | 2 (10-11, 10-19) | 2 (same) | 1 (10-15) | 0 ✗ |
+  | Aji Ichi top-5 days (top-3) | 11 (9) | 11 (7) | 13 (10) | 3 or fewer ✗ |
+  | days whose Pick has an empty reason | 4 | 3 | 4 | 0 ✗ |
+  | hit@3 / hit@5 / hit@10 | 13 / 14 / 15 | 14 / 16 / 17 | 11 / 13 / 15 | hit@5 ≥ 16 ✗ |
+  | 10-18 and 10-25 in the top 5 | no / no | yes / yes | yes (#2) / yes (#2) | both ✓ |
+  | mean / median rank | 8.4 / 3 | 6.7 / 2 | 8.2 / 2 | |
+  | elapsed / weekday / timing-only flags | 51 / 79 / 9 | 44 / 82 / 11 | 10 / 74 / 8 | |
+  | empty top-10 reasons | 1 | 0 | 0 | |
+
+  What worked. Both named too-soon targets cleared: Quiche is off the 10-11
+  top 5 and Aji is off 10-19's. Both Ninja nights are hits (10-18 #2 at
+  4 of 6, "its quick cycle has come round"; 10-25 #2), though under v9 those
+  were the noise days. The novelty cap holds: bb.q goes from 6 top-5 days
+  to 0, and BJ's and Sofra stay out. Elapsed-time talk drops from 44–51
+  flags to 10. More reasons lead with something the chips can't show
+  ("the note says get Sonia chips, not nachos", "Helen's burger, no tomato
+  or onion"). Leftovers now gets its trigger: 10-17 #4, "depends on a big
+  restaurant order, and none came this week".
+
+  What didn't. Three days that were stable hits in both v9 runs became
+  misses, which is outside the noise floor:
+  - **10-07 Ninja, #2 and #2 → #34 with an empty reason**, at exactly
+    its Interval (6 of 6). In pithy mode that means the model treated the
+    staple as an "obviously bad pick", and the row doesn't say why. Its
+    #2 reason for Aji says "the sushi slot after Ninja is open again".
+  - **10-10 Mollie Stone's, #3 and #2 → #7, and 10-16 West Coast Cafe,
+    #3 and #3 → #16** ("Italian; Thursday spot"). Both were rarities well
+    past their Interval (63 of 34, 141 of 49), so proposal 2's "being due
+    is not being wanted" cost two real eats. Chicken and Rice, the rarity
+    the rule was aimed at, holds 14 top-5 days and climbs from 5 to 9 top-3
+    days, each time on an evening-shaped reason ("an easy sous-vide night
+    at home after a run of restaurants"). Proposal 6's lead gives a home
+    meal a reason that the cadence used to supply.
+
+  So hit@5 is 13: two gains on noise days, three losses on stable days, a
+  net of −1 against run 1 and −3 against run 2. 10-11 didn't come into the
+  top 5 either (Atlas #10, "the household's own rule says less often").
+  Proposal 3 now counts Sonia's 08-26 "less frequent" as a standing rule,
+  even though the Log since contradicts it.
+
+  **Aji Ichi got worse.** Its Interval of 18 is in the snapshot and gets
+  quoted ("Aji Ichi's run of about 18 days is up"), but the model now ranks
+  it as Ninja's substitute: "with Ninja just had, Aji Ichi is the sushi
+  pick" (10-10 #1), "its usual stretch … is up, though Ninja was last night"
+  (10-15 #1), and "Rejected yesterday only because sushi was too fresh"
+  (10-16 #1). The Household's three "sushi too recent" Rejections are about
+  sushi, not Ninja. Aji is #1 on five days (10-10, 10-12, 10-15, 10-16,
+  10-17). Never-eaten slots fell 6, which is real against a 1-slot noise
+  floor but far short of the target: bb.q (6 → 0) and Spiral (2 → 0) drop
+  out and Hungryroot and Minari fall, while Aji (+2), Pasta (4 → 7) and
+  Frozen food take their slots.
+
+  The new too-soon day is 10-15: Mazra #3 at 6 of 14, "it sits at half its
+  usual stretch". That's below the "quick repeat below about half" line
+  from proposal 2, so the model ranked it against the rule it was given.
+  The weekday test barely registered: 74 claims against 79–82, including
+  Aji "Saturday is its second-strongest day" (Sat 6 of 25).
+
+  Against the deterministic Score (`score-baseline`), v10 Opus still wins
+  clearly: 11/13/15 against 5/8/12, and 46 never-eaten slots against 63.
+  Next, for the user to decide: a category-level sushi rule (a "sushi too
+  recent" Rejection covers every sushi Option; Aji is not Ninja's
+  substitute), and whether "due is not wanted" should spare a rarity that's
+  well past its Interval and was eaten in the window. Score the Strata v10
+  run against this before changing the prompt again.
+- 2026-10-28: v10 Opus run 2: **still fails the acceptance test, and
+  run 1 overread two days as v10 effects.** Same model, mode, days and DB
+  as run 1. Saved as
+  `scripts/backtest-runs/ai-search-v10-opus-5-5-pithy-run2.{json,log}`.
+
+  | Opus 5.5 pithy | v9 run 1 | v9 run 2 | v10 run 1 | v10 run 2 | target |
+  | --- | --- | --- | --- | --- | --- |
+  | top-5 slots on Options never eaten in the window | 53/100 | 52/100 | 46/100 | 45/100 | below 35 ✗ |
+  | too-soon days | 2 (10-11, 10-19) | 2 (same) | 1 (10-15) | 3 (10-15, 10-19, 10-20) | 0 ✗ |
+  | Aji Ichi top-5 days (top-3) | 11 (9) | 11 (7) | 13 (10) | 13 (11) | 3 or fewer ✗ |
+  | days whose Pick has an empty reason | 4 | 3 | 4 | 1 (10-21) | 0 ✗ |
+  | hit@3 / hit@5 / hit@10 | 13 / 14 / 15 | 14 / 16 / 17 | 11 / 13 / 15 | 14 / 14 / 17 | hit@5 ≥ 16 ✗ |
+  | 10-18 and 10-25 in the top 5 | no / no | yes / yes | yes / yes | yes (#2) / yes (#1) | both ✓ |
+  | mean / median rank | 8.4 / 3 | 6.7 / 2 | 8.2 / 2 | 6.5 / 2 | |
+  | elapsed / weekday / timing-only flags | 51 / 79 / 9 | 44 / 82 / 11 | 10 / 74 / 8 | 15 / 79 / 11 | |
+
+  Run 1 against run 2: same #1 on 17 of 20 days. Top-5 overlap averages
+  3.9 (minimum 3), against 3.8 between the v9 runs. Every flip is in run
+  2's favour: hit@3 +3 (10-07, 10-08, 10-17), hit@5 +1 (10-07), hit@10 +2
+  (10-07, 10-26). That's slightly wider than the v9 noise floor (1 / 2).
+
+  What this changes in the run 1 read:
+  - **10-07 was noise, not "due is not wanted".** Ninja is #2 again ("the
+    sushi staple with a roughly weekly beat, now right on cadence"). The
+    #34 with an empty reason was a one-off.
+  - **10-10 and 10-16 are real losses.** Mollie Stone's is #7 / #9 and
+    West Coast Cafe #16 / #18 in both v10 runs, against #3/#2 and #3/#3
+    under v9. Proposal 2 costs rarities that are well past their Interval.
+  - **The 10-19 fix was noise.** Aji is #1 on 10-19 again, the day the
+    Household rejected it as "sushi too recent". Its reason: "the
+    standing Monday sushi stop … Sunday's Ninja sits close, but Monday is
+    Aji Ichi's night". Only the 10-11 Quiche fix held, in both runs.
+  - **New too-soon day 10-20:** Thai Nakorn #3, and the reason states the
+    problem itself: "they had it last swim Tuesday". 10-15 Mazra #5 ("lands
+    a little early in its usual cycle") repeats run 1's miss.
+  - **Aji as Ninja's substitute is stable,** and now explicit: "the go-to
+    sushi spot whenever Ninja isn't the pick" (10-15 #1), "the sushi staple
+    when Ninja is too soon" (10-16 #1). Aji is #1 on six days (10-10, 10-12,
+    10-15, 10-16, 10-17, 10-19). Chicken and Rice rises to 17 top-5 days
+    from 14 but drops to 5 top-3 days from 9; Local Kitchens goes 3 → 8.
+  - Never-eaten slots, 46 then 45, are the most stable measure across the
+    two runs. The v9 → v10 drop of about 7 is real, and far short of 35.
+
+  Pooled v10 hit@5 is 13.5 against v9's 15. The net cost is the two
+  rarity days. The Ninja gains fall within v9's own noise. The two open
+  questions from run 1 stand, and run 2 makes the sushi rule the larger of
+  the two: a "sushi too recent" Rejection covers every sushi Option, and
+  Aji isn't Ninja's substitute.

@@ -24,4 +24,6 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   identical runs: the noise floor is 1 day at hit@3 and 2 at hit@5.
 - `ai-search-sonnet-5-5-pithy` — prompt v9, Sonnet 5.5.
 - `strata-v9` — Prepared note prompt v9, with traces.
+- `ai-search-v10-opus-5-5-pithy` and `-run2` — prompt v10, Opus 5.5, pithy.
+  Two identical runs: they differ by 3 days at hit@3 and 1 at hit@5.
 - Prompt v10 runs are named `ai-search-v10-…` and `strata-v10` by default.
