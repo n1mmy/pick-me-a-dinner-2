@@ -40,6 +40,7 @@ export function PreparedBrief({
 }) {
   const [expanded, setExpanded] = useState(false);
   const briefId = useId();
+  const briefShown = expanded || !decided;
 
   return (
     <section aria-label="Prepared note" className="flex flex-col gap-1">
@@ -58,16 +59,19 @@ export function PreparedBrief({
       {/* Out of date is told, not alarmed: the sweep rewrites the note on
           its own, so the marker asks for care, not action — no color step. */}
       <p className="text-meta text-muted">
-        {note.outOfDate ? `${note.label} · out of date, updating` : note.label}
+        {note.label.prefix}{" "}
+        <span className="font-mono tabular-nums">{note.label.time}</span>
+        {note.outOfDate && " · out of date, updating"}
       </p>
       {/* A frozen brief is a record of what was said, not advice to act on,
-          so on a decided date it starts hidden at every width. */}
-      {(expanded || !decided) && (
+          so on a decided date it starts hidden at every width, and arrives
+          as a disclosure body does. */}
+      {briefShown && (
         <p
           id={briefId}
           className={`whitespace-pre-line rounded-badge bg-raised px-2 py-1
             text-chip text-muted desktop:line-clamp-none
-            ${expanded ? "" : "line-clamp-2"}`}
+            ${expanded ? "" : "line-clamp-2"} ${decided ? "expand-in" : ""}`}
         >
           {note.brief}
         </p>
@@ -78,7 +82,7 @@ export function PreparedBrief({
       <button
         type="button"
         aria-expanded={expanded}
-        aria-controls={briefId}
+        aria-controls={briefShown ? briefId : undefined}
         onClick={() => setExpanded((open) => !open)}
         className={`-mb-3 -ml-3 min-h-11 self-start rounded-control px-3
           text-chip font-emphasis text-muted transition-colors duration-micro

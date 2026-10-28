@@ -1,6 +1,6 @@
 # 05 — Prepared brief and layer line: one design pass
 
-Status: ready-for-agent
+Status: ready-for-human
 Type: AFK
 
 ## Parent
@@ -61,17 +61,51 @@ in Comments; do not tick it.
 
 ## Acceptance criteria
 
-- [ ] `lib/prepared-label.test.ts` and `app/tonight-screen.test.tsx` cover
+- [x] `lib/prepared-label.test.ts` and `app/tonight-screen.test.tsx` cover
       the split label, the `expand-in` class on a decided-date brief, the
       unconditional live region, and focus landing on the list after
       dismissal
-- [ ] `DESIGN.md` updated in the same commit only where a rule changes
+- [x] `DESIGN.md` updated in the same commit only where a rule changes
       (none expected; the items above apply rules already written)
 - [ ] 1280px and 375px layouts checked in a browser, or left unticked with a
       Comment
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
 ## Blocked by
 
 - Issue 04 (the brief's `decided` input changes shape there). Fifth in the
   review's suggested order.
+
+## Comments
+
+- D2: `preparedLabel` returns `{ prefix, time }` (`PreparedLabel`); the brief
+  renders the time in `font-mono tabular-nums`, with the out-of-date suffix
+  after it. `PreparedNoteView.label` takes the new type.
+- D5: the brief gets `.expand-in` on a decided date (it mounts fresh behind
+  "Read the note"); an undecided brief is on screen from the first paint
+  and doesn't.
+- D4: in both branches the layer line and its list share one
+  `flex flex-col gap-3` column, so the 12px bleed above and below the 20px
+  line box fills that gap exactly in either mode.
+- D6: the LayerLine button gets `-mx-2 px-2 rounded-control duration-micro
+  hover:bg-raised`.
+- D1: either LayerLine action sets a flag. Once the list under the peeled
+  layer renders, focus moves to its first row's first control (the name
+  link), or to the filter zone's first chip when no row matches.
+- D3 (item 6): the list's status region is always mounted, and empty when
+  `pickerRows` is empty (no list is shown then). The no-note test's "no
+  region" assertion became "region holds the ranked-list text", since a
+  fresh load is silent either way.
+- D7: skipped. None of the 20 stored v9 backtest briefs
+  (`scripts/backtest-runs/strata-v9.json`) and none of the v10 smoke-run
+  briefs has a digit; prompt v10 keeps counts, dates, and durations out of
+  the prose, so there are no numerals for `MonoNumerals` to set.
+- M4: `aria-controls` is set only while the brief is rendered.
+- Not ticked: the 1280px / 375px browser check. No browser is available in
+  this container (no `ms-playwright` Chromium, no system Chrome), as
+  architecture issue 03 also found. Status is `ready-for-human` for that
+  check alone: on the dev server, look at Tonight at 1280px and 375px on
+  today, a Picked day, and a day with a note plus Closed and Rejected
+  Options, with an eye on the layer line's hover, its bleed in decided mode,
+  and the mono time on the label.
+- Gate: typecheck, lint, test (578), build all green.

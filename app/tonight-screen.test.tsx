@@ -1929,7 +1929,7 @@ describe("TonightScreen — Prepared note", () => {
       { id: "o2", reason: "Quick, and nobody has had it this week." },
       { id: "o1", reason: "A fallback." },
     ],
-    label: "Prepared 2:14pm",
+    label: { prefix: "Prepared", time: "2:14pm" },
     outOfDate: false,
   };
 
@@ -1998,6 +1998,48 @@ describe("TonightScreen — Prepared note", () => {
     expect(listedNames()).toEqual(["Apple Crumble", "Banana Bread", "Cherry Pie"]);
     expect(screen.queryByText("Quick, and nobody has had it this week.")).toBeNull();
     expect(screen.queryByText("Prepared ranking")).toBeNull();
+  });
+
+  it("moves focus to the list's first row on Show ranked list, not to the page", () => {
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+    const show = screen.getByRole("button", { name: "Show ranked list" });
+    show.focus();
+
+    fireEvent.click(show);
+
+    expect(document.activeElement).toBe(screen.getByRole("link", { name: "Apple Crumble" }));
+  });
+
+  it("moves focus to the list's first row when the layer line clears a Claude result", async () => {
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o3", reason: "Pie night" }],
+    });
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={null}
+      />,
+    );
+    await submitSearchAndSettle();
+    await screen.findByText("Pie night");
+    const clear = screen.getByRole("button", { name: "Clear" });
+    clear.focus();
+
+    fireEvent.click(clear);
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        screen.getByRole("link", { name: "Apple Crumble" }),
+      );
+    });
   });
 
   it("lays a Claude result over the Prepared ranking, and Clear peels one layer at a time", async () => {
@@ -2169,7 +2211,22 @@ describe("TonightScreen — Prepared note", () => {
     );
 
     expect(screen.getByText(NOTE.brief)).toBeTruthy();
-    expect(screen.getByText("Prepared 2:14pm")).toBeTruthy();
+    expect(briefLines()).toContain("Prepared 2:14pm");
+  });
+
+  it("sets the label's time in Geist Mono, apart from its words", () => {
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={{ ...NOTE, label: { prefix: "Prepared Mon", time: "9:40pm" } }}
+      />,
+    );
+
+    expect(briefLines()).toContain("Prepared Mon 9:40pm");
+    const time = screen.getByText("9:40pm");
+    expect(time.className).toMatch(/font-mono/);
+    expect(time.className).toMatch(/tabular-nums/);
   });
 
   /** The Prepared note section's text lines, in screen order. */
@@ -2212,15 +2269,22 @@ describe("TonightScreen — Prepared note", () => {
       />,
     );
 
-    expect(screen.getByText("Prepared 2:14pm")).toBeTruthy();
+    expect(briefLines()).toContain("Prepared 2:14pm");
     expect(screen.queryByText(NOTE.brief)).toBeNull();
     expect(screen.queryByRole("button", { name: "Read more" })).toBeNull();
+    // Nothing to point at while the brief isn't rendered.
+    const read = screen.getByRole("button", { name: "Read the note" });
+    expect(read.hasAttribute("aria-controls")).toBe(false);
 
-    fireEvent.click(screen.getByRole("button", { name: "Read the note" }));
+    fireEvent.click(read);
 
-    expect(screen.getByText(NOTE.brief)).toBeTruthy();
+    // A disclosure body arriving fresh in the DOM gets the inline-expand motion.
+    expect(screen.getByText(NOTE.brief).className).toMatch(/\bexpand-in\b/);
     const hide = screen.getByRole("button", { name: "Hide the note" });
     expect(hide.getAttribute("aria-expanded")).toBe("true");
+    expect(document.getElementById(hide.getAttribute("aria-controls") ?? "")?.textContent).toBe(
+      NOTE.brief,
+    );
     expect(hide.className).not.toMatch(/desktop:hidden/);
   });
 
@@ -2262,9 +2326,7 @@ describe("TonightScreen — Prepared note", () => {
       />,
     );
 
-    expect(
-      screen.getByText("Prepared 2:14pm · out of date, updating"),
-    ).toBeTruthy();
+    expect(briefLines()).toContain("Prepared 2:14pm · out of date, updating");
   });
 
   it("expands the clamped brief on Read more, and collapses it again on a day change", () => {
@@ -2336,6 +2398,41 @@ describe("TonightScreen — Prepared note", () => {
     expect(listStatus()).toBe("Showing the ranked dinner list.");
   });
 
+  it("keeps the list's status region mounted across a step onto a note day, so the swap is voiced", () => {
+    const onDay = (day: string) => tonight({ day, today: "2026-10-22", options: THREE });
+    const { rerender } = render(
+      <TonightScreen view={onDay("2026-10-22")} searchEnabled={false} preparedNote={null} />,
+    );
+    const before = screen.getAllByRole("status");
+
+    rerender(
+      <TonightScreen view={onDay("2026-10-23")} searchEnabled={false} preparedNote={NOTE} />,
+    );
+
+    const region = screen
+      .getAllByRole("status")
+      .find((status) => status.textContent === "Showing the prepared ranking.");
+    // A region mounted already holding its text is not announced.
+    expect(before).toContain(region);
+  });
+
+  it("leaves the list's status region empty when no list is shown", () => {
+    render(
+      <TonightScreen
+        view={tonight({
+          day: "2026-10-22",
+          today: "2026-10-22",
+          options: THREE,
+          rejections: [{ optionId: "o1" }, { optionId: "o2" }, { optionId: "o3" }],
+        })}
+        searchEnabled={false}
+        preparedNote={NOTE}
+      />,
+    );
+
+    expect(listStatus()).toBeUndefined();
+  });
+
   it("renders Tonight as before with no note (none written, or the feature off)", () => {
     render(
       <TonightScreen
@@ -2348,6 +2445,7 @@ describe("TonightScreen — Prepared note", () => {
     expect(screen.queryByRole("region", { name: "Prepared note" })).toBeNull();
     expect(screen.queryByText("Prepared ranking")).toBeNull();
     expect(listedNames()).toEqual(["Apple Crumble", "Banana Bread", "Cherry Pie"]);
-    expect(listStatus()).toBeUndefined();
+    // The list's status region is always mounted; a fresh load stays silent.
+    expect(listStatus()).toBe("Showing the ranked dinner list.");
   });
 });
