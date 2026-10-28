@@ -252,6 +252,15 @@ day-scoped.
 _Avoid_: Rating, preference score (it is inferred from eat-frequency, never
 entered by hand).
 
+**Interval**:
+The usual number of days between the Household's eats of an Option — or, for a
+Tag, of any active Option carrying it. It is the timing side of a habit: set
+against **Recency**, it says whether something is recent *for that Option*.
+Not a Score factor: **Readiness** measures time since on one scale for every
+Option, and **Affinity** measures how much an Option is wanted, not when it is
+due.
+_Avoid_: Cadence (the habit itself, not its number), usual gap.
+
 **Recency chip**:
 The small chip on each Tonight row showing the Option's own **per-Option
 recency** — how long since the Household last had that exact Option ("18d",
@@ -323,7 +332,7 @@ night". An elapsed-time claim restates how long it has been, at any precision �
 "9 days ago", "since early summer", "long out of rotation", "it's been a
 while". The Recency chip and Tag chips already show elapsed time as numbers on
 the same row, so an elapsed-time claim is redundant by construction however
-well it is phrased; the Option's own *interval* is the timing fact the chips
+well it is phrased; the Option's own **Interval** is the timing fact the chips
 cannot carry.
 _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).

@@ -15,6 +15,7 @@
  *   npx tsx scripts/prepared-note-eval.ts --day=2026-10-25
  *   npx tsx scripts/prepared-note-eval.ts --snapshot    # also dump the JSON sent
  *   npx tsx scripts/prepared-note-eval.ts --no-prompt   # skip the system prompt
+ *   npx tsx scripts/prepared-note-eval.ts --reasoning   # also print the model's reasoning
  *
  * Strata is free to call, so the billed-call rule in `CLAUDE.md` does not
  * apply here (it still applies to `scripts/ai-search-eval.ts`). One run is one
@@ -143,6 +144,12 @@ async function main(): Promise<void> {
       `finish: ${reply?.finishReason ?? "—"}   ` +
       `reasoning: ${reply?.reasoning ? wordCount(reply.reasoning) : 0} words\n`,
   );
+
+  if (args.includes("--reasoning")) {
+    console.log("--- reasoning ---");
+    console.log(reply?.reasoning ?? "(no reasoning)");
+    console.log("--- end reasoning ---\n");
+  }
 
   console.log("--- raw reply (content) ---");
   console.log(reply?.content ?? "(no content)");

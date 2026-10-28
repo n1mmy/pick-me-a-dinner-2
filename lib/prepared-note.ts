@@ -67,7 +67,7 @@ export function localModelConfig(): {
  * Bumped whenever the prompt's wording changes, so every stored note's input
  * hash goes stale and the sweep rewrites it under the new prompt.
  */
-export const PREPARED_PROMPT_VERSION = "7";
+export const PREPARED_PROMPT_VERSION = "8";
 
 /**
  * Build the Prepared note system prompt. The snapshot framing, the rhythm-claim
@@ -99,11 +99,13 @@ export function buildPreparedSystemPrompt(): string {
       "The query field is empty: nobody asked anything, so you are " +
       "ranking the whole Catalog for that evening.",
     "",
-    "Your job is NOT to re-sort the Catalog by how long ago each Option was " +
-      "eaten. A separate deterministic ranking already does plain recency. " +
-      "Your job is to READ THEIR EATING HISTORY, find the habits and rhythms " +
-      "in it that plain recency misses, and let what you find shape what you " +
-      "write.",
+    "A separate deterministic ranking already orders the Catalog by plain " +
+      "recency. Yours weighs recency too, but reads it through the " +
+      "household's habits: is this recent *for this Option*, and does a habit " +
+      "outweigh it? READ THEIR EATING HISTORY, find the rhythms plain recency " +
+      "misses, and weigh the two together. A strong habit can lift an Option " +
+      "they ate not long ago; a repeat that comes too soon weighs against " +
+      "even a good fit for the evening.",
     "",
     "Study the Log. Rhythms worth looking for include — but are not limited " +
       "to:",
@@ -137,7 +139,8 @@ export function buildPreparedSystemPrompt(): string {
       "\"Rejected tonight\" Options have been left out of the candidates and " +
       "must NOT be ranked. \"Other rejections\" are still candidates. A " +
       "Rejection with no reason is a light \"passed on this\" signal, nothing " +
-      "more.",
+      "more. A reason like \"too recent\" tells you how soon this household " +
+      "tolerates a repeat.",
     "",
     "Some Restaurant candidates carry a closedDays field — the weekdays that " +
       "Restaurant is shut. Every candidate is already open on the evening you " +
@@ -161,9 +164,11 @@ export function buildPreparedSystemPrompt(): string {
       "in all, for the household to read at a glance before they decide. Open " +
       "on the evening's strongest signal — its Day note when there is one, " +
       "otherwise the weekday habit or what the last few days point to — and " +
-      "name the one or two standout Options and why. The brief is about what to reach for: the ranking below carries " +
-      "the rest, the low placements included, so the brief leaves them to " +
-      "it. Restaurants shut this evening are already left out, so " +
+      "name the one or two standout Options and why. Most evenings have no " +
+      "Day note; that is the ordinary case, and the brief goes straight to " +
+      "the weekday and the picks. The brief is about what to reach for: the " +
+      "ranking below carries the rest, the low placements included, so the " +
+      "brief leaves them to it. Restaurants shut this evening are already left out, so " +
       "closures need no mention. Write for the household, not about your " +
       "method: no remarks on how you read the data. One plain paragraph: no " +
       "headings, bullets, bold, or lists.",
