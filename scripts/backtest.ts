@@ -421,8 +421,11 @@ export function summarize(records: DayRecord[]) {
     /** Days the Pick came sooner than its shortest recent gap, and how many of those were hit@5. */
     pickUnderIntervalDays: count((r) => r.scorable && underInterval(r)),
     pickUnderIntervalHit5: count((r) => r.scorable && underInterval(r) && r.hit5),
-    neverEatenTop5Slots: sum(
-      (r) => r.ranking.slice(0, 5).filter((row) => !eaten.has(row.name)).length,
+    // Over scored days only, so it reads against `scored * 5`.
+    neverEatenTop5Slots: sum((r) =>
+      r.scorable
+        ? r.ranking.slice(0, 5).filter((row) => !eaten.has(row.name)).length
+        : 0,
     ),
     emptyTop10Rows: sum((r) => r.emptyTop10),
     catalogOrderDays: count((r) => r.catalogOrder === true),
@@ -465,12 +468,21 @@ export function parseBacktestArgs(args: string[], defaultJsonPath: string): Back
     }
     return days;
   };
+  const positive = (name: string, fallback: number) => {
+    const raw = value(name);
+    const n = Number(raw ?? fallback);
+    if (!Number.isInteger(n) || n < 1) {
+      console.error(`--${name} must be a positive integer, got ${raw}`);
+      process.exit(1);
+    }
+    return n;
+  };
   const jsonArg = args.find((arg) => arg === "--json" || arg.startsWith("--json="));
   return {
     days: dayList("days"),
     exclude: dayList("exclude") ?? [],
-    count: Number(value("count") ?? DEFAULT_COUNT),
-    windowDays: Number(value("window") ?? DEFAULT_WINDOW_DAYS),
+    count: positive("count", DEFAULT_COUNT),
+    windowDays: positive("window", DEFAULT_WINDOW_DAYS),
     jsonPath: jsonArg ? (jsonArg.includes("=") ? jsonArg.slice(7) : defaultJsonPath) : undefined,
     resume: args.includes("--resume"),
   };

@@ -85,7 +85,8 @@ metered model API and can burn the whole 90s timeout. State the cost shape
 tiny placeholder-body probe (a 64-token curl that never touches the real
 snapshot) is fine without asking; a full run is not. Strata, the local model
 behind `LOCAL_AI_*` and `scripts/prepared-note-eval.ts`, is free: the rule
-doesn't apply to it.
+doesn't apply to it. `prepared-note-eval.ts --claude` sends the backtest to a
+Claude model instead, and that run is billed.
 
 ## Browser tooling
 

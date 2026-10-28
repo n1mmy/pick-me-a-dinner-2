@@ -4,12 +4,15 @@
  * 1. The deterministic Tonight ranking (Score = Affinity × Readiness) scored
  *    on the same fixed day list, the Log cut to before each day, Closed
  *    Restaurants removed, Rejections on the day ignored (they are ground
- *    truth). A free baseline the model runs can be read against.
- * 2. For each day's Pick, the snapshot's own timing facts — daysSinceLast
- *    against its recent gaps for the thing they actually ate.
- * 3. Eat dates, gaps, and three Interval definitions (all-time median, median
+ *    truth). A free baseline the model runs can be read against. Each row
+ *    also shows the Pick's own timing facts from the snapshot: daysSinceLast
+ *    against its recent gaps.
+ * 2. Eat dates, gaps, and three Interval definitions (all-time median, median
  *    of the most recent half of the gaps, the last gap) for the Options the
  *    backtest keeps ranking high or low, as of the last backtest day.
+ * 3. The Rejections and Day notes from 2026-08-15 to 2026-10-26, the
+ *    backtest days starred.
+ * 4. The Log from 2026-09-20 to 2026-10-26.
  *
  *   npx tsx scripts/backtest-baseline.ts
  */

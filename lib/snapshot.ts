@@ -222,7 +222,7 @@ export type ModelSnapshot = {
   dayNotes: SnapshotModelDayNote[];
   /**
    * The anchor day's Day note — current context for this search — or `null`
-   * when it has none. Delimited: Household-authored.
+   * when it has none.
    */
   todayDayNote: string | null;
 };
@@ -385,8 +385,11 @@ export function buildSnapshot(input: {
   // UUID. Numbering covers the *whole* Catalog, not just candidates, so an
   // Option Picked, Rejected, or Closed for the anchor day still has a stable
   // number for its Log and Rejection rows; the candidate `options` list below
-  // simply omits it, leaving a gap.
-  const byName = [...options].sort((a, b) => a.name.localeCompare(b.name));
+  // simply omits it, leaving a gap. Two Options of the same name are ordered
+  // by id, so their numbers don't depend on the order the Catalog was read in.
+  const byName = [...options].sort(
+    (a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
+  );
   const indexByOptionId = new Map(byName.map((o, i) => [o.id, i + 1]));
 
   const { suppressedForAsOf, block } = partitionRejections(

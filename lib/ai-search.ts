@@ -173,8 +173,6 @@ export type ParsedRanking = {
  * - A repeated Option is deduped, the **first** occurrence kept — a model that
  *   lists the same Option twice never produces a duplicate result row.
  * - An AI rationale over ~200 characters is truncated (see `truncateRationale`).
- *   A caller asking for longer rationales passes its own `maxRationaleLength`
- *   (the Prepared ranking, `lib/prepared-note.ts`).
  *   An empty rationale — a line ending right after the `|` — is kept as-is: in
  *   `pithy` mode the model deliberately writes one for an obviously bad pick.
  *
@@ -192,7 +190,6 @@ export type ParsedRanking = {
 export function parseRankingText(
   text: string,
   idByIndex: ReadonlyMap<number, string>,
-  maxRationaleLength: number = MAX_RATIONALE_LENGTH,
 ): ParsedRanking | null {
   const rows: AiRankingRow[] = [];
   const seen = new Set<string>();
@@ -221,7 +218,7 @@ export function parseRankingText(
     seen.add(optionId);
     rows.push({
       id: optionId,
-      reason: truncateRationale(line.slice(bar + 1).trim(), maxRationaleLength),
+      reason: truncateRationale(line.slice(bar + 1).trim(), MAX_RATIONALE_LENGTH),
     });
   }
 
@@ -872,8 +869,8 @@ export function createAiSearchClient(
   // the misconfiguration instead, as `envThinkingChoice` does for a budget.
   if (choice.type === "off" && !canDisableThinking(model)) {
     throw new Error(
-      `AI_EFFORT=off, but ${model} cannot turn thinking off — set AI_EFFORT ` +
-        `to low/medium/high.`,
+      `Thinking is off (AI_EFFORT=${process.env.AI_EFFORT ?? "unset"}), but ` +
+        `${model} cannot turn thinking off — set AI_EFFORT to low/medium/high.`,
     );
   }
   const plan = planThinking(choice);

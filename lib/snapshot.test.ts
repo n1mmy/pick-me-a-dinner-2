@@ -925,6 +925,16 @@ describe("buildSnapshot — canonical order", () => {
       buildSnapshot({ ...input, logEntries: [apple, banana] }).snapshot,
     ).toEqual(buildSnapshot({ ...input, logEntries: [banana, apple] }).snapshot);
   });
+
+  it("numbers two Options of the same name the same whichever comes first", () => {
+    const home = option("h1", "Pizza");
+    const out = option("r1", "Pizza");
+    const input = { logEntries: [], rejections: [], asOf: TODAY, query: "" };
+
+    expect(buildSnapshot({ ...input, options: [out, home] }).idByIndex).toEqual(
+      buildSnapshot({ ...input, options: [home, out] }).idByIndex,
+    );
+  });
 });
 
 describe("leanSnapshot", () => {

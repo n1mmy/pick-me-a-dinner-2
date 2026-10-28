@@ -42,7 +42,6 @@ export function undelimit(delimited: string): string {
   );
 }
 
-
 /**
  * Format a SQL date (`"YYYY-MM-DD"`) as `"YYYY-MM-DD (Weekday)"` so day-of-week
  * patterns are visible to the model — a bare date hides whether a dinner fell

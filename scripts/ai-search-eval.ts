@@ -82,7 +82,7 @@ import {
   type ThinkingChoice,
 } from "../lib/ai-search";
 import { isValidSqlDate, today } from "../lib/local-day";
-import { type BuiltSnapshot, snapshotForDay } from "../lib/snapshot";
+import { type BuiltSnapshot, leanSnapshot, snapshotForDay } from "../lib/snapshot";
 import { parseBacktestArgs, runBacktest } from "./backtest";
 
 /** Tail modes accepted by `--mode` — see `resolveTailMode` in `lib/ai-search`. */
@@ -472,7 +472,7 @@ async function runSingle(apiKey: string): Promise<void> {
 
   if (dumpSnapshot) {
     console.log("--- snapshot sent to the model ---");
-    console.log(JSON.stringify(snapshot, null, 2));
+    console.log(JSON.stringify(leanSnapshot(snapshot), null, 2));
     console.log("--- end snapshot ---\n");
   }
 

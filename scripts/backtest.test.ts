@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildSnapshot, type SnapshotOption } from "../lib/snapshot";
 import {
   type BacktestDay,
@@ -20,6 +20,17 @@ describe("parseBacktestArgs", () => {
   it("takes a custom --json path over the default", () => {
     expect(parseBacktestArgs(["--json=out.json"], "x.json").jsonPath).toBe("out.json");
     expect(parseBacktestArgs(["--json"], "x.json").jsonPath).toBe("x.json");
+  });
+
+  it("refuses a --count or --window that is not a positive integer", () => {
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => parseBacktestArgs(["--count=abc"], "x.json")).toThrow("exit");
+    expect(() => parseBacktestArgs(["--window=0"], "x.json")).toThrow("exit");
+    exit.mockRestore();
+    error.mockRestore();
   });
 });
 
@@ -143,5 +154,15 @@ describe("scoreDay", () => {
       briefNamedOutsideTop3: 1,
       timingOnlyTopRows: 1,
     });
+  });
+
+  it("counts never-eaten top-5 slots on scored days only", () => {
+    const archived = scoreDay(
+      { ...truth, picks: [{ optionId: "gone", name: "Gone" }] },
+      built,
+      { ok: true, ranking: [{ id: "a", reason: "Due." }] },
+    );
+    // The scored day's top 5 holds four Options never eaten in the window.
+    expect(summarize([record, archived]).neverEatenTop5Slots).toBe(4);
   });
 });
