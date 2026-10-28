@@ -29,8 +29,8 @@ export function PreparedBrief({
 }) {
   const [expanded, setExpanded] = useState(false);
   const briefId = useId();
-  // A date with a Pick is never swept again, so its note is a frozen record
-  // of what was said beforehand — never out of date, whatever the flag says.
+  // A date with a Pick is decided: its note is a frozen record of what was
+  // said beforehand, so the brief starts hidden.
   const decided = eaten.length > 0;
 
   return (
@@ -50,7 +50,7 @@ export function PreparedBrief({
       {/* Out of date is told, not alarmed: the sweep rewrites the note on
           its own, so the marker asks for care, not action — no color step. */}
       <p className="text-meta text-muted">
-        {note.outOfDate && !decided ? `${note.label} · out of date, updating` : note.label}
+        {note.outOfDate ? `${note.label} · out of date, updating` : note.label}
       </p>
       {/* A frozen brief is a record of what was said, not advice to act on,
           so on a decided date it starts hidden at every width. */}

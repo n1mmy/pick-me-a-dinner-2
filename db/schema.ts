@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { AiRankingRow } from "../lib/ai-search";
 import {
   boolean,
   date,
@@ -179,9 +180,6 @@ export const dayNotes = pgTable("day_notes", {
     .defaultNow(),
 });
 
-/** One row of a Prepared ranking: an Option id and its AI rationale. */
-export type PreparedRankingRow = { id: string; reason: string };
-
 /**
  * Prepared notes (ADR-0011). A **Prepared note** is what the local model wrote
  * ahead of time for one date: a brief and a Prepared ranking of every
@@ -199,7 +197,7 @@ export const preparedNotes = pgTable("prepared_notes", {
   preparedFor: date("prepared_for").notNull().unique(),
   brief: text("brief"),
   /** Every candidate in rank order. */
-  ranking: jsonb("ranking").$type<PreparedRankingRow[]>(),
+  ranking: jsonb("ranking").$type<AiRankingRow[]>(),
   /** Hash of the snapshot, model, and prompt version the note was built from. */
   inputHash: text("input_hash"),
   model: text("model"),

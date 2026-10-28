@@ -118,7 +118,10 @@ entry is **Tonight's dinner**; when it is a future date the entry is a
 entity. Picking an Option on a date it carries a **Rejection** removes that
 Rejection — the Household changed its mind, and a reason for passing the
 Option over no longer describes a night it was eaten. This holds wherever the
-Pick is made (Tonight, the Log, the Option detail page), and for any date.
+Pick is made (Tonight, the Log, the Option detail page), and for any date —
+including when a Log entry is edited onto that Option and date. The reverse is
+refused: an Option already Picked on a date cannot be Rejected for it (see
+**Day decision**).
 
 **Planned dinner**:
 A Log entry dated after today. Excluded from the ranking until its date
@@ -141,7 +144,10 @@ Log screen or the Option detail page. **Bring back** is the narrower
 Selected-day quick-undo on Tonight's "Rejected" disclosure (labelled
 "Rejected tonight" when the Selected day is today). A **Pick** of the Option
 on the Rejection's date removes the Rejection — changing one's mind and eating
-it after all supersedes having passed it over. A Rejection is not a Log
+it after all supersedes having passed it over. The reverse is refused: an
+Option already Picked on a date cannot be Rejected for it, however the date is
+reached (a new Rejection, or an existing one edited onto that date); the Pick
+must be removed first. A Rejection is not a Log
 entry and does not affect any Score. A Restaurant's recurring closure is no
 longer expressed this way — that is a **Closed day** on the Restaurant itself
 (ADR-0010) — though a Rejection remains the way to record what was learned on
@@ -162,6 +168,16 @@ rejection (ADR-0010); the Planned rejection covers the one-off — a holiday, a
 private function, a night the Household already knows is out.
 _Avoid_: Recurring rejection (a Planned rejection is a single date); a Planned
 rejection for a weekly closure (that is a **Closed day**).
+
+**Day decision**:
+What the Household decided about one Option for one date: a **Pick** of it or
+a **Rejection** of it, never both. A Pick wins — Picking an Option removes its
+Rejection on that date, and Rejecting an Option already Picked on that date is
+refused until the Pick is removed. A date is **decided** once it carries any
+Pick, whatever has happened to the Option since (an Archived Option's Pick
+still decides its night); Rejections alone leave a date undecided.
+_Avoid_: "decision" for an **AI search** result or a **Prepared note**'s
+ranking (those are suggestions, not the Household's decisions).
 
 ### Ranking
 
@@ -320,14 +336,17 @@ sentences about that evening, read at a glance: what kind of evening it is
 standout suggestions, and the one thing to watch out for, if any. The **Prepared ranking** ranks every candidate Option with an **AI
 rationale**. It is written only for an undecided date from today through six
 days ahead, from the same snapshot AI search reads, and is rewritten in the
-background whenever that input changes. Once its date has a **Pick** it
-**freezes**: it keeps the last version written before the Household decided, so
-it can be read against what was actually eaten ("The note ranked Katsu curry
-#4"). On Tonight its brief sits under the heading, and its Prepared ranking is
-what the list shows on load. An AI search result sits on top of it until
-cleared, and clearing the Prepared ranking shows the deterministic list. It
-never changes a **Score** or a suppression. An undecided date's note built from
-older inputs is labelled out of date. A date with no note shows nothing.
+background whenever that input changes. Once its date is **decided** (has a
+**Pick**) it **freezes**: it keeps the last version written before the
+Household decided, so it can be read against what was actually eaten ("The
+note ranked Katsu curry #4"). A note also freezes once its date has passed,
+decided or not — it is no longer advice for a night still to come. On Tonight
+its brief sits under the heading, and its Prepared ranking is what the list
+shows on load. An AI search result sits on top of it until cleared, and
+clearing the Prepared ranking shows the deterministic list. It never changes a
+**Score** or a suppression. A note that has not frozen and was built from older
+inputs is labelled out of date; a frozen note never is. A date with no note
+shows nothing.
 _Avoid_: AI notes, AI brief (say Prepared note, or its brief); **Note** or
 **Day note** (both are the Household's own writing, a Prepared note is the
 model's); AI search (a Prepared note has no query and is never triggered).
@@ -377,7 +396,9 @@ single-household — no user accounts, no per-person identity.
 - A date carries zero or one **Day note**.
 - A date carries zero or one **Prepared note**. It is written only while the
   date is undecided and within six days of today, and freezes once the date has
-  a **Log entry**.
+  a **Log entry** or has passed.
+- An **Option** has at most one **Day decision** per date — a **Pick** or a
+  **Rejection**, never both — and a Pick wins.
 - A **Tonight** row shows the Option's **Last note** — its newest **Note** dated
   before the **Selected day** — when it has one.
 - An **Option** is either **Active** or **Archived**.

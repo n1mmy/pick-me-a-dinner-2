@@ -31,7 +31,7 @@ import {
   splitUserTurn,
 } from "../../lib/ai-search.ts";
 import { today } from "../../lib/local-day.ts";
-import { snapshotForDay } from "../../lib/snapshot-source.ts";
+import { snapshotForDay } from "../../lib/snapshot.ts";
 
 config({ override: true });
 

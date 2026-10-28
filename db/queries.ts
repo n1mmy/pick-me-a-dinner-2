@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import { db } from "./index";
 import {
   dayNotes,
@@ -9,8 +9,8 @@ import {
   rejections,
   tags,
   type Option,
-  type PreparedRankingRow,
 } from "./schema";
+import type { AiRankingRow } from "../lib/ai-search";
 import type { RankOption } from "../lib/ranking";
 import type { RejectionRow } from "../lib/rejections";
 import type { TodayLogEntry } from "../lib/tonights-dinner";
@@ -285,6 +285,22 @@ export async function getFullLogForSnapshot(): Promise<TonightLogRow[]> {
     .where(eq(options.active, true));
 }
 
+/**
+ * The **decided** dates between `from` and `to`, inclusive: every date with a
+ * Log entry (`CONTEXT.md`: **Day decision**). Not joined to `options.active` —
+ * a Pick of an Option since Archived still decides its date.
+ */
+export async function getDecidedDates(
+  from: string,
+  to: string,
+): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ eatenOn: dinnerLog.eatenOn })
+    .from(dinnerLog)
+    .where(and(gte(dinnerLog.eatenOn, from), lte(dinnerLog.eatenOn, to)));
+  return rows.map((row) => row.eatenOn);
+}
+
 /** A Log entry joined to its Option, narrowed to what the Log screen renders. */
 export type LogEntryRow = {
   id: string;
@@ -510,7 +526,7 @@ export async function getDayNotes(): Promise<DayNoteRow[]> {
 /** A stored **Prepared note** (ADR-0011), as Tonight and the sweep read it. */
 export type StoredPreparedNote = {
   brief: string;
-  ranking: PreparedRankingRow[];
+  ranking: AiRankingRow[];
   /** What the note was built from — compared against the current input. */
   inputHash: string;
   model: string;

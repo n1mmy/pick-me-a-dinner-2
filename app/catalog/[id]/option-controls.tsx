@@ -73,8 +73,8 @@ export function OptionControls({
     startTransition(async () => {
       const result = await rejectOption(option.id, reason);
       if (!result.ok) {
-        // A today-dated Rejection for this Option already exists — surface the
-        // collision inline rather than letting it 500.
+        // The Option is already Rejected or Picked today — surface the refusal
+        // inline rather than letting it 500.
         setError(result.error);
         return;
       }

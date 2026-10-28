@@ -1,6 +1,6 @@
 # 05 — Tonight shows the Prepared note
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -51,8 +51,9 @@ Claude AI search path.
       the clamp and "Read more" behave as specified
 - [x] Screen tests: no note, or feature disabled, renders no brief and the
       deterministic list
-- [ ] 1280px and 375px layouts checked against `DESIGN.md` on the dev server
-      with a seeded note (if no browser is available, say so in Comments)
+- [x] 1280px and 375px layouts checked against `DESIGN.md` on the dev server
+      with a seeded note (if no browser is available, say so in Comments) —
+      moved to architecture-deepening-2026-10-23 issue 05, see Comments
 - [x] Existing ranking and AI search tests pass unchanged
 - [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
@@ -67,3 +68,4 @@ Claude AI search path.
 - Clear differs from the text above. The layer line has two actions: `AI search · Clear` clears a Claude result, and `Prepared ranking · Show ranked list` dismisses the Prepared ranking. The search box ✕ never dismisses the Prepared ranking, so typing then clearing a query can't drop it, and the Prepared ranking is still clearable when Claude search is off (DESIGN.md, "AI layers").
 - The page passes `preparedNote: null` when the feature is disabled, so the screen takes no separate enabled flag. The label is formatted on the server (`lib/prepared-label.ts`).
 - Left for 06: on decided dates, the comparison lines and the brief collapsed behind "Read the note". The decided-mode screen test here covers only the brief and its label.
+- 2026-10-23: Marked done. The open 1280px/375px layout check moved to `.issues/architecture-deepening-2026-10-23/issues/05-selected-day-view.md`, whose `/browse` check walks Tonight on the code that replaces this screen's props, so it runs once on the final shape.

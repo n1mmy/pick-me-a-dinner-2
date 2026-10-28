@@ -17,10 +17,12 @@ import {
   within,
 } from "@testing-library/react";
 import { startTransition } from "react";
-import type { TonightRow } from "../lib/ranking";
-import type { LastNote } from "../lib/last-note";
-import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
-import { weekdayName } from "../lib/local-day";
+import { shiftSqlDate, weekdayName } from "../lib/local-day";
+import {
+  tonightForDay,
+  type TonightDayOption,
+  type TonightView,
+} from "../lib/tonight-day";
 
 // `aiSearchAction` is the client-side fetch wrapper around AI search's Route
 // Handler (`app/api/ai-search/route.ts`); the screen test drives the
@@ -78,41 +80,104 @@ const mockedCreate = vi.mocked(createOption);
 const mockedSetDayNote = vi.mocked(setDayNote);
 
 /**
- * A deterministic Tonight row. `tags` are the Option's Tags, which drive the
- * Tag filter chips in the filter zone. Rows are identified in assertions by
- * their Option name (digit-free, so a whole-string text match is safe).
+ * An active Catalog Option, Home unless a test says otherwise. `tags` are the
+ * Option's Tags, which drive the Tag filter chips in the filter zone. Options
+ * are identified in assertions by name (digit-free, so a whole-string text
+ * match is safe).
  */
-function row(id: string, name: string, tags: string[] = []): TonightRow {
+function option(
+  id: string,
+  name: string,
+  tags: string[] = [],
+  more: Partial<Pick<TonightDayOption, "kind" | "closedDays">> = {},
+): TonightDayOption {
   return {
-    option: { id, name, kind: "home", tags, url: null, phone: null },
-    score: 10,
-    affinity: 1,
-    readiness: 10,
-    tags: [],
-    recencyDays: 0,
-    neverEaten: false,
+    id,
+    name,
+    kind: "home",
+    tags,
+    url: null,
+    phone: null,
+    closedDays: [],
+    ...more,
   };
 }
 
-const ROWS: TonightRow[] = [
-  row("o1", "Apple Crumble"),
-  row("o2", "Banana Bread"),
+const OPTIONS: TonightDayOption[] = [
+  option("o1", "Apple Crumble"),
+  option("o2", "Banana Bread"),
 ];
 
-// Rows that carry a Tag, so the filter zone renders the Tag filter chips
+const CHERRY = option("o3", "Cherry Pie");
+
+// Options that carry a Tag, so the filter zone renders the Tag filter chips
 // alongside the kind segment.
-const TAGGED_ROWS: TonightRow[] = [
-  row("o1", "Apple Crumble", ["dessert"]),
-  row("o2", "Banana Bread", ["dessert"]),
+const TAGGED_OPTIONS: TonightDayOption[] = [
+  option("o1", "Apple Crumble", ["dessert"]),
+  option("o2", "Banana Bread", ["dessert"]),
 ];
 
-// Two Picked Options — a non-empty `tonightsDinner` puts Tonight in decided
-// mode and renders the "Tonight's dinner" block. `entryId` is the today Log
-// entry id the row's "Remove" deletes.
-const DINNER: TonightsDinnerEntry[] = [
-  { entryId: "e1", row: row("o1", "Apple Crumble"), note: null },
-  { entryId: "e2", row: row("o2", "Banana Bread"), note: null },
-];
+/** 2026-05-20, a Wednesday — the default Selected day and today. */
+const TODAY = "2026-05-20";
+
+/**
+ * The screen's input, built as the page builds it: through `tonightForDay`
+ * from the Catalog and the Selected day's Log and Rejections.
+ *
+ * - `picks`: Option ids Picked on the day, in order — Log entries `e1`, `e2`, …
+ * - `rejections`: Rejections dated the day, newest first — ids `r1`, `r2`, …
+ * - `notes`: noted Log entries `daysAgo` days before the day, for Last notes.
+ */
+function tonight({
+  options = [],
+  picks = [],
+  rejections = [],
+  notes = [],
+  day = TODAY,
+  today = TODAY,
+  dayNote = null,
+}: {
+  options?: TonightDayOption[];
+  picks?: string[];
+  rejections?: { optionId: string; reason?: string }[];
+  notes?: { optionId: string; daysAgo: number; note: string }[];
+  day?: string;
+  today?: string;
+  dayNote?: string | null;
+} = {}): TonightView {
+  const dayEntries = picks.map((optionId, index) => ({
+    id: `e${index + 1}`,
+    optionId,
+    createdAt: new Date(Date.UTC(2026, 0, 1, 18, index)),
+    note: null,
+  }));
+  return tonightForDay({
+    options,
+    logEntries: [
+      ...notes.map(({ optionId, daysAgo, note }) => ({
+        optionId,
+        eatenOn: shiftSqlDate(day, -daysAgo),
+        createdAt: new Date(Date.UTC(2026, 0, 1)),
+        note,
+      })),
+      ...dayEntries.map(({ optionId, createdAt }) => ({
+        optionId,
+        eatenOn: day,
+        createdAt,
+        note: null,
+      })),
+    ],
+    dayEntries,
+    rejections: rejections.map(({ optionId, reason }, index) => ({
+      id: `r${index + 1}`,
+      optionId,
+      reason: reason ?? null,
+    })),
+    selectedDay: day,
+    today,
+    dayNote,
+  });
+}
 
 afterEach(() => {
   cleanup();
@@ -160,7 +225,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />);
     // The deterministic list shows its rows.
     expect(screen.getByText("Apple Crumble")).toBeTruthy();
 
@@ -187,10 +252,7 @@ describe("TonightScreen — AI search", () => {
 
     render(
       <TonightScreen
-        selectedDay="2026-05-22"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ day: "2026-05-22", options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -216,7 +278,7 @@ describe("TonightScreen — AI search", () => {
     });
 
     const { container } = render(
-      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+      <TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />,
     );
     await submitSearchAndSettle();
 
@@ -230,7 +292,7 @@ describe("TonightScreen — AI search", () => {
   });
 
   it("shows the in-field clear control once the query has text", () => {
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />);
 
     // No text and no search run yet — nothing to clear, so no ✕.
     expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
@@ -250,7 +312,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />);
     await submitSearchAndSettle();
     await screen.findByText("Light and quick");
 
@@ -267,7 +329,7 @@ describe("TonightScreen — AI search", () => {
   it("shows a plain empty-state with a clear control on an empty AI result", async () => {
     mockedAiSearch.mockResolvedValue({ ok: true, results: [] });
 
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />);
     await submitSearchAndSettle();
 
     // The empty result reads as a real answer, not a broken screen.
@@ -292,7 +354,7 @@ describe("TonightScreen — AI search", () => {
   it("leaves the deterministic list intact and shows an error on failure", async () => {
     mockedAiSearch.mockResolvedValue({ ok: false });
 
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />);
     await submitSearchAndSettle();
 
     // The persistent inline error appears; the deterministic list is untouched.
@@ -306,7 +368,7 @@ describe("TonightScreen — AI search", () => {
   it("clears the error when the query is cleared", async () => {
     mockedAiSearch.mockResolvedValue({ ok: false });
 
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />);
     await submitSearchAndSettle();
     await screen.findByText("Search unavailable — try again");
 
@@ -325,7 +387,10 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={TAGGED_ROWS} searchEnabled />);
+    render(<TonightScreen
+        view={tonight({ options: TAGGED_OPTIONS })}
+        searchEnabled
+      />);
 
     // The kind segment and Tag filter chips are part of the deterministic view.
     expect(
@@ -368,7 +433,7 @@ describe("TonightScreen — AI search", () => {
       }),
     );
 
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />);
     expect(searchInput().disabled).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
@@ -402,7 +467,7 @@ describe("TonightScreen — AI search", () => {
     // this test would hang.
     mockedAiSearch.mockReturnValue(new Promise<AiSearchResult>(() => {}));
 
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />);
 
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await screen.findByRole("button", { name: /^Cancel search/ });
@@ -419,7 +484,7 @@ describe("TonightScreen — AI search", () => {
   it("reflects a Pick's revalidated props while an AI search is still pending", async () => {
     // A row-level Pick's `pickTonight` Server Action revalidates Tonight
     // server-side; Next's router then re-renders this tree with fresh
-    // `tonightsDinner`/`pickerRows` props. The AI search never resolves in
+    // Tonight's dinner and picker. The AI search never resolves in
     // this test, so if a pending search suppressed that prop update from
     // landing, this test would catch it.
     //
@@ -441,7 +506,7 @@ describe("TonightScreen — AI search", () => {
     mockedPick.mockResolvedValue({ ok: true });
 
     const { rerender } = render(
-      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+      <TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
@@ -453,15 +518,12 @@ describe("TonightScreen — AI search", () => {
     });
 
     // The revalidated props Next's router would hand back: o1 moved into
-    // `tonightsDinner`, dropped out of `pickerRows` — applied in a transition,
+    // Tonight's dinner, dropped out of the picker — applied in a transition,
     // as the router applies them.
     startTransition(() => {
       rerender(
         <TonightScreen
-          selectedDay="2026-05-20"
-          todaySql="2026-05-20"
-          tonightsDinner={[{ entryId: "e1", row: row("o1", "Apple Crumble"), note: null }]}
-          pickerRows={[row("o2", "Banana Bread")]}
+          view={tonight({ options: OPTIONS, picks: ["o1"] })}
           searchEnabled
         />,
       );
@@ -488,7 +550,7 @@ describe("TonightScreen — AI search", () => {
       }),
     );
 
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />);
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await screen.findByRole("button", { name: /^Cancel search/ });
 
@@ -522,7 +584,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />);
     await submitSearchAndSettle();
     await screen.findByText("Search unavailable — try again");
 
@@ -538,7 +600,7 @@ describe("TonightScreen — AI search", () => {
       results: [{ id: "o2", reason: "Light and quick" }],
     });
 
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />);
+    render(<TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />);
     await submitSearchAndSettle();
 
     // The button drops "Search" for a done badge — a check plus the elapsed
@@ -551,7 +613,10 @@ describe("TonightScreen — AI search", () => {
 
   it("hides the search box when AI search is not enabled", () => {
     // No ANTHROPIC_API_KEY — Tonight is exactly v1: the search box is absent.
-    render(<TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled={false} />);
+    render(<TonightScreen
+        view={tonight({ options: OPTIONS })}
+        searchEnabled={false}
+      />);
 
     expect(screen.queryByLabelText("Find a dinner by name, or describe a craving")).toBeNull();
     expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
@@ -564,7 +629,7 @@ describe("TonightScreen — AI search", () => {
   });
 
   it("keeps the AI result on screen when a Pick flips picker → decided mode", async () => {
-    // A Pick today empties `pickerRows` of the Picked Option and grows
+    // A Pick today drops the Picked Option from the picker and grows
     // `tonightsDinner`, which flips the screen from picker mode (Picker is a
     // direct child of `<main>`) to decided mode (Picker is wrapped in an
     // "Add another option" `<section>`). Holding the AI search state on
@@ -587,10 +652,7 @@ describe("TonightScreen — AI search", () => {
 
     const { rerender } = render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -599,14 +661,11 @@ describe("TonightScreen — AI search", () => {
     await screen.findByText("Light and quick");
 
     // A Pick on `o1`: the server revalidates, `tonightsDinner` now carries
-    // the Picked Option and `pickerRows` no longer does. The screen flips
+    // the Picked Option and the picker no longer does. The screen flips
     // into decided mode under the new section wrapper.
     rerender(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[DINNER[0]]}
-        pickerRows={[ROWS[1]]}
+        view={tonight({ options: OPTIONS, picks: ["o1"] })}
         searchEnabled
       />,
     );
@@ -622,7 +681,7 @@ describe("TonightScreen — AI search", () => {
     ).toBeTruthy();
     expect(screen.getByText("Light and quick")).toBeTruthy();
     // The Picked Option's AI rationale is gone — its row dropped out of the
-    // AI list because it left `pickerRows`.
+    // AI list because it left the picker.
     expect(screen.queryByText("Sweet and quick")).toBeNull();
   });
 
@@ -638,7 +697,7 @@ describe("TonightScreen — AI search", () => {
     });
 
     const { rerender } = render(
-      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+      <TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />,
     );
     fireEvent.change(searchInput(), { target: { value: "something light" } });
     await submitSearchAndSettle();
@@ -646,7 +705,10 @@ describe("TonightScreen — AI search", () => {
 
     // Step to Friday, where o1 is rejected or closed and so not in the rows.
     rerender(
-      <TonightScreen selectedDay="2026-05-22" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={[ROWS[1]]} searchEnabled />,
+      <TonightScreen
+        view={tonight({ day: "2026-05-22", options: [OPTIONS[1]] })}
+        searchEnabled
+      />,
     );
 
     expect(screen.getByText("Light and quick")).toBeTruthy();
@@ -666,13 +728,16 @@ describe("TonightScreen — AI search", () => {
     );
 
     const { rerender } = render(
-      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+      <TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await screen.findByRole("button", { name: /^Cancel search/ });
 
     rerender(
-      <TonightScreen selectedDay="2026-05-22" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+      <TonightScreen
+        view={tonight({ day: "2026-05-22", options: OPTIONS })}
+        searchEnabled
+      />,
     );
     // Still in flight — the day change did not cancel it.
     expect(screen.getByRole("button", { name: /^Cancel search/ })).toBeTruthy();
@@ -697,13 +762,16 @@ describe("TonightScreen — AI search", () => {
     });
 
     const { rerender } = render(
-      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+      <TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />,
     );
     await submitSearchAndSettle();
     await screen.findByRole("button", { name: /^Search complete/ });
 
     rerender(
-      <TonightScreen selectedDay="2026-05-22" todaySql="2026-05-20" tonightsDinner={[DINNER[0]]} pickerRows={[ROWS[1]]} searchEnabled />,
+      <TonightScreen
+        view={tonight({ day: "2026-05-22", picks: ["o1"], options: OPTIONS })}
+        searchEnabled
+      />,
     );
 
     expect(
@@ -723,7 +791,7 @@ describe("TonightScreen — AI search", () => {
     onTestFinished(() => now.mockRestore());
 
     const { rerender } = render(
-      <TonightScreen selectedDay="2026-05-20" todaySql="2026-05-20" tonightsDinner={[]} pickerRows={ROWS} searchEnabled />,
+      <TonightScreen view={tonight({ options: OPTIONS })} searchEnabled />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(
@@ -733,7 +801,10 @@ describe("TonightScreen — AI search", () => {
     // Seven seconds in, step to a day that already has a Pick.
     now.mockReturnValue(1_007_000);
     rerender(
-      <TonightScreen selectedDay="2026-05-22" todaySql="2026-05-20" tonightsDinner={[DINNER[0]]} pickerRows={[ROWS[1]]} searchEnabled />,
+      <TonightScreen
+        view={tonight({ day: "2026-05-22", picks: ["o1"], options: OPTIONS })}
+        searchEnabled
+      />,
     );
 
     expect(
@@ -751,10 +822,7 @@ describe("TonightScreen — search typeahead", () => {
   it("shows no suggestions on an empty query", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -775,10 +843,7 @@ describe("TonightScreen — search typeahead", () => {
     // submit exactly like the AI-search suite's `fireEvent.click` on Search.
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -793,10 +858,7 @@ describe("TonightScreen — search typeahead", () => {
   it("Picks the highlighted Option on Enter", async () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -814,10 +876,7 @@ describe("TonightScreen — search typeahead", () => {
   it("ArrowUp from the first row returns to nothing highlighted", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -835,14 +894,17 @@ describe("TonightScreen — search typeahead", () => {
 });
 
 describe("TonightScreen — search typeahead widens to every active Option (issue 02)", () => {
+  // Closed on Wednesdays — the default Selected day.
+  const AJI_ICHI = option("o9", "Aji Ichi", [], {
+    kind: "restaurant",
+    closedDays: [3],
+  });
+  const CURRY_HOUSE = option("o9", "Curry House");
+
   it("shows a Closed Option with a day-aware closed note", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
-        closedTonight={[row("o9", "Aji Ichi")]}
+        view={tonight({ options: [...OPTIONS, AJI_ICHI] })}
         searchEnabled
       />,
     );
@@ -855,11 +917,10 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
   it("shows a Rejected Option with 'rejected tonight' when the Selected day is today", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
-        rejectedRows={[row("o9", "Curry House")]}
+        view={tonight({
+          options: [...OPTIONS, CURRY_HOUSE],
+          rejections: [{ optionId: "o9" }],
+        })}
         searchEnabled
       />,
     );
@@ -872,11 +933,11 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
   it("shows a Rejected Option's weekday name when the Selected day is not today", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-22"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
-        rejectedRows={[row("o9", "Curry House")]}
+        view={tonight({
+          day: "2026-05-22",
+          options: [...OPTIONS, CURRY_HOUSE],
+          rejections: [{ optionId: "o9" }],
+        })}
         searchEnabled
       />,
     );
@@ -889,12 +950,10 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
   it("shows a Picked Option as a non-selectable 'already picked' row that ↑/↓ skip", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[
-          { entryId: "e9", row: row("o9", "Zed Diner"), note: null },
-        ]}
-        pickerRows={ROWS}
+        view={tonight({
+          options: [...OPTIONS, option("o9", "Zed Diner")],
+          picks: ["o9"],
+        })}
         searchEnabled
       />,
     );
@@ -913,11 +972,7 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
   it("selecting a Closed row opens an inline confirm instead of Picking; Cancel leaves it unchanged", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
-        closedTonight={[row("o9", "Aji Ichi")]}
+        view={tonight({ options: [...OPTIONS, AJI_ICHI] })}
         searchEnabled
       />,
     );
@@ -938,11 +993,7 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
   it("Pick anyway on a Closed row's confirm Picks it", async () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
-        closedTonight={[row("o9", "Aji Ichi")]}
+        view={tonight({ options: [...OPTIONS, AJI_ICHI] })}
         searchEnabled
       />,
     );
@@ -958,11 +1009,10 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
   it("selecting a Rejected row's confirm names the Rejection and links the Option", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
-        rejectedRows={[row("o9", "Curry House")]}
+        view={tonight({
+          options: [...OPTIONS, CURRY_HOUSE],
+          rejections: [{ optionId: "o9" }],
+        })}
         searchEnabled
       />,
     );
@@ -977,11 +1027,10 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
   it("Pick anyway on a Rejected row's confirm Picks it", async () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
-        rejectedRows={[row("o9", "Curry House")]}
+        view={tonight({
+          options: [...OPTIONS, CURRY_HOUSE],
+          rejections: [{ optionId: "o9" }],
+        })}
         searchEnabled
       />,
     );
@@ -997,10 +1046,7 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
   it("Picking an unsuppressed row from the widened candidates still Picks immediately", async () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -1016,11 +1062,7 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
   it("clears an armed confirm when the query changes", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
-        closedTonight={[row("o9", "Aji Ichi")]}
+        view={tonight({ options: [...OPTIONS, AJI_ICHI] })}
         searchEnabled
       />,
     );
@@ -1033,21 +1075,21 @@ describe("TonightScreen — search typeahead widens to every active Option (issu
   });
 
   it("clears an armed confirm when the Selected day changes", () => {
-    const props = {
-      todaySql: "2026-05-20",
-      tonightsDinner: [],
-      pickerRows: ROWS,
-      closedTonight: [row("o9", "Aji Ichi")],
-      searchEnabled: true,
-    };
+    const options = [...OPTIONS, AJI_ICHI];
     const { rerender } = render(
-      <TonightScreen {...props} selectedDay="2026-05-20" />,
+      <TonightScreen view={tonight({ options })} searchEnabled />,
     );
     fireEvent.change(searchInput(), { target: { value: "Aji" } });
     fireEvent.mouseDown(screen.getAllByRole("option")[0]);
     expect(screen.getByText(/is closed Wednesdays/)).toBeTruthy();
 
-    rerender(<TonightScreen {...props} selectedDay="2026-05-21" />);
+    // Thursday: Aji Ichi is open, so the confirm has nothing to stand on.
+    rerender(
+      <TonightScreen
+        view={tonight({ day: "2026-05-21", options })}
+        searchEnabled
+      />,
+    );
     expect(screen.queryByText(/is closed/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Pick anyway" })).toBeNull();
   });
@@ -1057,10 +1099,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
   it("shows only the Add row for a name matching no active Option", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -1073,10 +1112,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
   it("shows a substring match and the Add row last", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={[...ROWS, row("o5", "Thai Orchid")]}
+        view={tonight({ options: [...OPTIONS, option("o5", "Thai Orchid")] })}
         searchEnabled
       />,
     );
@@ -1090,10 +1126,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
   it("shows no Add row for an exact existing name, any case", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -1108,10 +1141,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
   it("leaves Enter unhandled with nothing highlighted, even with the Add row shown", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -1125,10 +1155,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
   it("is reachable via ArrowDown and Enter", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -1141,10 +1168,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
   it("selecting the Add row opens the inline form prefilled with the name, kind Restaurant, switchable to Home meal", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -1165,10 +1189,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
   it("Cancel closes the form and keeps the query", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -1183,10 +1204,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
   it("Add & Pick creates the Option and Picks it for the Selected day, with a day-aware label — including a past Selected day", async () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-18"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ day: "2026-05-18", options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -1210,10 +1228,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
   it("Add creates the Option without Picking it", async () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -1233,10 +1248,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
   ])("%s clears the query and closes the form once saved", async (button) => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -1258,10 +1270,7 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
     mockedPick.mockResolvedValueOnce({ ok: false, error: "Pick failed" });
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled
       />,
     );
@@ -1299,17 +1308,14 @@ describe("TonightScreen — Add row and inline quick-add form (issue 03)", () =>
   it("shows a warning linking to the detail page when the name matches an Archived Option", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
-        quickAddSources={{
+          view={tonight({ options: OPTIONS })}
+          quickAddSources={{
           allTags: [],
           placesEnabled: false,
           archivedOptions: [{ id: "a1", name: "Aji Ichi" }],
         }}
-        searchEnabled
-      />,
+          searchEnabled
+        />,
     );
     fireEvent.change(searchInput(), { target: { value: "Aji Ichi" } });
     fireEvent.mouseDown(screen.getAllByRole("option")[0]);
@@ -1324,10 +1330,7 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
   it("gives every decided-block row a Remove control", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={DINNER}
-        pickerRows={[]}
+        view={tonight({ options: OPTIONS, picks: ["o1", "o2"] })}
         searchEnabled={false}
       />,
     );
@@ -1338,10 +1341,7 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
   it("asks for an inline confirm before deleting today's Log entry", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={DINNER}
-        pickerRows={[]}
+        view={tonight({ options: OPTIONS, picks: ["o1", "o2"] })}
         searchEnabled={false}
       />,
     );
@@ -1361,10 +1361,7 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
   it("backs out of the confirm on Cancel without deleting", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={DINNER}
-        pickerRows={[]}
+        view={tonight({ options: OPTIONS, picks: ["o1", "o2"] })}
         searchEnabled={false}
       />,
     );
@@ -1382,10 +1379,7 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
     // `tonightsDinner`; emptying it returns the screen to picker mode.
     const { rerender } = render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={DINNER}
-        pickerRows={ROWS}
+        view={tonight({ picks: ["o1", "o2"], options: [...OPTIONS, CHERRY] })}
         searchEnabled={false}
       />,
     );
@@ -1400,10 +1394,7 @@ describe("TonightScreen — Remove from Tonight's dinner", () => {
 
     rerender(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled={false}
       />,
     );
@@ -1427,10 +1418,7 @@ describe("TonightScreen — decided-mode picker", () => {
   it("keeps the ranked picker open below the decided block, under a divider", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={DINNER}
-        pickerRows={ROWS}
+        view={tonight({ picks: ["o1", "o2"], options: [...OPTIONS, CHERRY] })}
         searchEnabled={false}
       />,
     );
@@ -1451,10 +1439,7 @@ describe("TonightScreen — decided-mode picker", () => {
   it("shows the all-picked message when nothing is left to pick", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={DINNER}
-        pickerRows={[]}
+        view={tonight({ options: OPTIONS, picks: ["o1", "o2"] })}
         searchEnabled={false}
       />,
     );
@@ -1471,18 +1456,14 @@ describe("TonightScreen — decided-mode picker", () => {
 describe("TonightScreen — Last note", () => {
   // Apple Crumble has a Last note; Banana Bread deliberately has none, so every
   // test here also asserts the no-note row stays bare.
-  const LAST_NOTES = new Map<string, LastNote>([
-    ["o1", { text: "got the katsu curry", daysAgo: 18 }],
-  ]);
+  const LAST_NOTES = [
+    { optionId: "o1", daysAgo: 18, note: "got the katsu curry" },
+  ];
 
   it("shows the note with its age on a picker row, and nothing on a row without one", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
-        lastNotes={LAST_NOTES}
+        view={tonight({ options: OPTIONS, notes: LAST_NOTES })}
         searchEnabled={false}
       />,
     );
@@ -1500,10 +1481,7 @@ describe("TonightScreen — Last note", () => {
   it("renders no note line at all when no Option has one", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled={false}
       />,
     );
@@ -1513,11 +1491,7 @@ describe("TonightScreen — Last note", () => {
   it("unclamps the picker note on tap and re-clamps on a second tap", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
-        lastNotes={LAST_NOTES}
+        view={tonight({ options: OPTIONS, notes: LAST_NOTES })}
         searchEnabled={false}
       />,
     );
@@ -1551,11 +1525,7 @@ describe("TonightScreen — Last note", () => {
 
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
-        lastNotes={LAST_NOTES}
+        view={tonight({ options: OPTIONS, notes: LAST_NOTES })}
         searchEnabled
       />,
     );
@@ -1570,11 +1540,7 @@ describe("TonightScreen — Last note", () => {
   it("shows the note in full on a decided row, labelled and inert", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={DINNER}
-        pickerRows={[]}
-        lastNotes={LAST_NOTES}
+        view={tonight({ options: OPTIONS, picks: ["o1", "o2"], notes: LAST_NOTES })}
         searchEnabled={false}
       />,
     );
@@ -1591,11 +1557,7 @@ describe("TonightScreen — Last note", () => {
   it("hides the decided row's Last note while its note editor is open", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={DINNER}
-        pickerRows={[]}
-        lastNotes={LAST_NOTES}
+        view={tonight({ options: OPTIONS, picks: ["o1", "o2"], notes: LAST_NOTES })}
         searchEnabled={false}
       />,
     );
@@ -1618,10 +1580,7 @@ describe("TonightScreen — scroll to top on Pick", () => {
     const scrollTo = stubScroll(false);
     const { rerender } = render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[DINNER[0]]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS, picks: ["o1"] })}
         searchEnabled={false}
       />,
     );
@@ -1631,10 +1590,7 @@ describe("TonightScreen — scroll to top on Pick", () => {
     // A Pick revalidates the page with another Option in Tonight's dinner.
     rerender(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={DINNER}
-        pickerRows={ROWS}
+        view={tonight({ picks: ["o1", "o2"], options: [...OPTIONS, CHERRY] })}
         searchEnabled={false}
       />,
     );
@@ -1645,19 +1601,13 @@ describe("TonightScreen — scroll to top on Pick", () => {
     const scrollTo = stubScroll(false);
     const { rerender } = render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={DINNER}
-        pickerRows={ROWS}
+        view={tonight({ picks: ["o1", "o2"], options: [...OPTIONS, CHERRY] })}
         searchEnabled={false}
       />,
     );
     rerender(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[DINNER[0]]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS, picks: ["o1"] })}
         searchEnabled={false}
       />,
     );
@@ -1668,19 +1618,13 @@ describe("TonightScreen — scroll to top on Pick", () => {
     const scrollTo = stubScroll(true);
     const { rerender } = render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[DINNER[0]]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS, picks: ["o1"] })}
         searchEnabled={false}
       />,
     );
     rerender(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={DINNER}
-        pickerRows={ROWS}
+        view={tonight({ picks: ["o1", "o2"], options: [...OPTIONS, CHERRY] })}
         searchEnabled={false}
       />,
     );
@@ -1689,18 +1633,23 @@ describe("TonightScreen — scroll to top on Pick", () => {
 });
 
 describe("TonightScreen — Closed disclosure", () => {
+  /** A Restaurant closed on Wednesdays — the default Selected day. */
+  const closedWednesdays = (id: string, name: string) =>
+    option(id, name, [], { kind: "restaurant", closedDays: [3] });
+
   it("renders below the Rejected disclosure, collapsed by default, with a day-aware heading", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({
+          options: [
+            ...OPTIONS,
+            option("o3", "Curry House"),
+            closedWednesdays("o4", "Zed Diner"),
+            closedWednesdays("o5", "Aji Ichi"),
+          ],
+          rejections: [{ optionId: "o3" }],
+        })}
         searchEnabled={false}
-        rejectedTonight={[
-          { id: "r1", optionId: "o3", optionName: "Curry House", reason: null },
-        ]}
-        closedTonight={[row("o4", "Zed Diner"), row("o5", "Aji Ichi")]}
       />,
     );
 
@@ -1725,15 +1674,15 @@ describe("TonightScreen — Closed disclosure", () => {
   it("links each Rejected and Closed Option name to its detail page", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({
+          options: [
+            ...OPTIONS,
+            option("o3", "Curry House"),
+            closedWednesdays("o4", "Zed Diner"),
+          ],
+          rejections: [{ optionId: "o3" }],
+        })}
         searchEnabled={false}
-        rejectedTonight={[
-          { id: "r1", optionId: "o3", optionName: "Curry House", reason: null },
-        ]}
-        closedTonight={[row("o4", "Zed Diner")]}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /^Rejected tonight/ }));
@@ -1750,12 +1699,15 @@ describe("TonightScreen — Closed disclosure", () => {
   it("expands to show alphabetically-ordered rows with full Pick/Reject controls and an empty rank gutter", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({
+          // Zed first, so the disclosure's alphabetical order is its own.
+          options: [
+            ...OPTIONS,
+            closedWednesdays("o5", "Zed Diner"),
+            closedWednesdays("o4", "Aji Ichi"),
+          ],
+        })}
         searchEnabled={false}
-        closedTonight={[row("o4", "Aji Ichi"), row("o5", "Zed Diner")]}
       />,
     );
 
@@ -1766,7 +1718,7 @@ describe("TonightScreen — Closed disclosure", () => {
     expect(screen.getByText("Aji Ichi")).toBeTruthy();
     expect(screen.getByText("Zed Diner")).toBeTruthy();
     // Each row still carries the full picker controls: the two ranked
-    // ROWS above plus the two closed rows.
+    // Options above plus the two closed rows.
     expect(screen.getAllByRole("button", { name: "Pick" })).toHaveLength(4);
     expect(screen.getAllByRole("button", { name: "Reject" })).toHaveLength(4);
 
@@ -1779,12 +1731,14 @@ describe("TonightScreen — Closed disclosure", () => {
   it("names the heading after the Selected day's weekday when it is not today", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-22"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({
+          day: "2026-05-22",
+          options: [
+            ...OPTIONS,
+            option("o4", "Aji Ichi", [], { kind: "restaurant", closedDays: [5] }),
+          ],
+        })}
         searchEnabled={false}
-        closedTonight={[row("o4", "Aji Ichi")]}
       />,
     );
     expect(
@@ -1795,10 +1749,7 @@ describe("TonightScreen — Closed disclosure", () => {
   it("stays absent from the screen when nothing is closed for the Selected day", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ options: OPTIONS })}
         searchEnabled={false}
       />,
     );
@@ -1812,13 +1763,10 @@ describe("TonightScreen — empty-picker copy", () => {
   it("stays honest when the list was emptied by closures alone, with no Rejection claim", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={[]}
-        allFiltered
+        view={tonight({
+          options: [option("o1", "Apple Crumble", [], { closedDays: [3] })],
+        })}
         searchEnabled={false}
-        closedTonight={[row("o1", "Apple Crumble")]}
       />,
     );
     expect(
@@ -1830,15 +1778,12 @@ describe("TonightScreen — empty-picker copy", () => {
   it("still distinguishes a genuinely empty Catalog from an all-filtered one", () => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
-        tonightsDinner={[]}
-        pickerRows={[]}
+        view={tonight()}
         searchEnabled={false}
       />,
     );
-    // `allFiltered` defaults to false, so an empty `pickerRows` with nothing
-    // filtered reads as an empty Catalog, not the all-filtered copy.
+    // No Options at all, so nothing was filtered: an empty Catalog, not the
+    // all-filtered copy.
     expect(screen.getByText(/Your Catalog is empty\./)).toBeTruthy();
     expect(
       screen.queryByText(/No Options are available for/),
@@ -1848,30 +1793,20 @@ describe("TonightScreen — empty-picker copy", () => {
 
 describe("TonightScreen — Day note", () => {
   // Every Tonight mode: picker, decided, and every Option unavailable.
-  const MODES: [
-    string,
-    {
-      tonightsDinner: TonightsDinnerEntry[];
-      pickerRows: TonightRow[];
-      allFiltered?: boolean;
-    },
-  ][] = [
-    ["picker mode", { tonightsDinner: [], pickerRows: ROWS }],
-    ["decided mode", { tonightsDinner: DINNER, pickerRows: ROWS }],
+  const MODES: [string, Parameters<typeof tonight>[0]][] = [
+    ["picker mode", { options: OPTIONS }],
+    ["decided mode", { options: [...OPTIONS, CHERRY], picks: ["o1", "o2"] }],
     [
       "the all-filtered state",
-      { tonightsDinner: [], pickerRows: [], allFiltered: true },
+      { options: OPTIONS, rejections: [{ optionId: "o1" }, { optionId: "o2" }] },
     ],
   ];
 
   it.each(MODES)("shows the Selected day's Day note in %s", (_, mode) => {
     render(
       <TonightScreen
-        selectedDay="2026-05-20"
-        todaySql="2026-05-20"
+        view={tonight({ ...mode, dayNote: "Jen won't be around" })}
         searchEnabled={false}
-        dayNote="Jen won't be around"
-        {...mode}
       />,
     );
     expect(screen.getByText("Jen won't be around")).toBeTruthy();
@@ -1885,12 +1820,8 @@ describe("TonightScreen — Day note", () => {
     (_, selectedDay, label) => {
       render(
         <TonightScreen
-          selectedDay={selectedDay}
-          todaySql="2026-10-10"
-          tonightsDinner={[]}
-          pickerRows={ROWS}
+          view={tonight({ day: selectedDay, today: "2026-10-10", options: OPTIONS })}
           searchEnabled={false}
-          dayNote={null}
         />,
       );
       expect(screen.getByRole("button", { name: label })).toBeTruthy();
@@ -1900,12 +1831,8 @@ describe("TonightScreen — Day note", () => {
   it("edits the Day note in place and saves it for the Selected day", async () => {
     render(
       <TonightScreen
-        selectedDay="2026-10-16"
-        todaySql="2026-10-10"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ day: "2026-10-16", today: "2026-10-10", options: OPTIONS, dayNote: "Jen won't be around" })}
         searchEnabled={false}
-        dayNote="Jen won't be around"
       />,
     );
 
@@ -1927,12 +1854,8 @@ describe("TonightScreen — Day note", () => {
   it("adds a Day note for tonight from the absent-state button", async () => {
     render(
       <TonightScreen
-        selectedDay="2026-10-10"
-        todaySql="2026-10-10"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ day: "2026-10-10", today: "2026-10-10", options: OPTIONS })}
         searchEnabled={false}
-        dayNote={null}
       />,
     );
 
@@ -1956,12 +1879,8 @@ describe("TonightScreen — Day note", () => {
   ])("saves the Day note on %s, like every other text field", async (_, mods) => {
     render(
       <TonightScreen
-        selectedDay="2026-10-16"
-        todaySql="2026-10-10"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ day: "2026-10-16", today: "2026-10-10", options: OPTIONS })}
         searchEnabled={false}
-        dayNote={null}
       />,
     );
 
@@ -1978,12 +1897,8 @@ describe("TonightScreen — Day note", () => {
   it("cancels an edit on Escape without saving", () => {
     render(
       <TonightScreen
-        selectedDay="2026-10-16"
-        todaySql="2026-10-10"
-        tonightsDinner={[]}
-        pickerRows={ROWS}
+        view={tonight({ day: "2026-10-16", today: "2026-10-10", options: OPTIONS, dayNote: "Jen won't be around" })}
         searchEnabled={false}
-        dayNote="Jen won't be around"
       />,
     );
 
@@ -2003,10 +1918,10 @@ describe("TonightScreen — Day note", () => {
 
 describe("TonightScreen — Prepared note", () => {
   // Three Options so the note can reorder them and leave one unnamed.
-  const THREE: TonightRow[] = [
-    row("o1", "Apple Crumble", ["dessert"]),
-    row("o2", "Banana Bread", ["dessert"]),
-    row("o3", "Cherry Pie", ["pie"]),
+  const THREE: TonightDayOption[] = [
+    option("o1", "Apple Crumble", ["dessert"]),
+    option("o2", "Banana Bread", ["dessert"]),
+    option("o3", "Cherry Pie", ["pie"]),
   ];
   const NOTE = {
     brief: "A quiet Thursday. Banana Bread fits the evening.",
@@ -2028,10 +1943,7 @@ describe("TonightScreen — Prepared note", () => {
   it("shows the Prepared ranking on load, with its rationales and layer line", () => {
     render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
         searchEnabled
         preparedNote={NOTE}
       />,
@@ -2046,11 +1958,12 @@ describe("TonightScreen — Prepared note", () => {
   it("keeps each row's Last note on the Prepared ranking, above its rationale", () => {
     render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
-        lastNotes={new Map([["o2", { text: "too dry last time", daysAgo: 9 }]])}
+        view={tonight({
+          day: "2026-10-22",
+          today: "2026-10-22",
+          options: THREE,
+          notes: [{ optionId: "o2", daysAgo: 9, note: "too dry last time" }],
+        })}
         searchEnabled
         preparedNote={NOTE}
       />,
@@ -2074,10 +1987,7 @@ describe("TonightScreen — Prepared note", () => {
   it("steps back to the deterministic list on Show ranked list", () => {
     render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
         searchEnabled
         preparedNote={NOTE}
       />,
@@ -2097,10 +2007,7 @@ describe("TonightScreen — Prepared note", () => {
     });
     render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
         searchEnabled
         preparedNote={NOTE}
       />,
@@ -2124,10 +2031,7 @@ describe("TonightScreen — Prepared note", () => {
   it("shows the new day's Prepared ranking after a Selected-day change, even if the last was dismissed", () => {
     const { rerender } = render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
         searchEnabled
         preparedNote={NOTE}
       />,
@@ -2136,16 +2040,13 @@ describe("TonightScreen — Prepared note", () => {
 
     rerender(
       <TonightScreen
-        selectedDay="2026-10-23"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
-        searchEnabled
-        preparedNote={{
+          view={tonight({ day: "2026-10-23", today: "2026-10-22", options: THREE })}
+          searchEnabled
+          preparedNote={{
           ...NOTE,
           ranking: [{ id: "o3", reason: "Pie on a Friday." }],
         }}
-      />,
+        />,
     );
 
     expect(listedNames()).toEqual(["Cherry Pie", "Apple Crumble", "Banana Bread"]);
@@ -2156,11 +2057,15 @@ describe("TonightScreen — Prepared note", () => {
     // The note ranked Durian Tart, since Closed; it never named Cherry Pie.
     render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
-        closedTonight={[row("o4", "Durian Tart")]}
+        view={tonight({
+          day: "2026-10-22",
+          today: "2026-10-22",
+          options: [
+            ...THREE,
+            // Closed on Thursdays — the Selected day.
+            option("o4", "Durian Tart", [], { closedDays: [4] }),
+          ],
+        })}
         searchEnabled
         preparedNote={{
           ...NOTE,
@@ -2179,10 +2084,7 @@ describe("TonightScreen — Prepared note", () => {
   it("keeps the filter chips over the Prepared ranking; a filtered row keeps the note's rank", () => {
     render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
         searchEnabled
         preparedNote={NOTE}
       />,
@@ -2202,16 +2104,20 @@ describe("TonightScreen — Prepared note", () => {
   });
 
   it.each([
-    ["picker", { tonightsDinner: [], pickerRows: THREE }],
-    ["all-filtered", { tonightsDinner: [], pickerRows: [], allFiltered: true }],
-  ])("shows the brief and its label in %s mode", (_mode, props) => {
+    ["picker", { options: THREE }],
+    [
+      "all-filtered",
+      {
+        options: THREE,
+        rejections: [{ optionId: "o1" }, { optionId: "o2" }, { optionId: "o3" }],
+      },
+    ],
+  ])("shows the brief and its label in %s mode", (_mode, input) => {
     render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", ...input })}
         searchEnabled
         preparedNote={NOTE}
-        {...props}
       />,
     );
 
@@ -2231,19 +2137,16 @@ describe("TonightScreen — Prepared note", () => {
     // list on show no longer carries it, but the comparison still finds it.
     render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={DINNER}
-        pickerRows={[row("o3", "Cherry Pie")]}
-        searchEnabled
-        preparedNote={{
+          view={tonight({ day: "2026-10-22", today: "2026-10-22", picks: ["o1", "o2"], options: [...OPTIONS, CHERRY] })}
+          searchEnabled
+          preparedNote={{
           ...NOTE,
           ranking: [
             { id: "o3", reason: "Pie night." },
             { id: "o1", reason: "A fallback." },
           ],
         }}
-      />,
+        />,
     );
 
     expect(briefLines().slice(0, 3)).toEqual([
@@ -2256,10 +2159,7 @@ describe("TonightScreen — Prepared note", () => {
   it("keeps a decided date's frozen brief behind Read the note, at every width", () => {
     render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={DINNER}
-        pickerRows={[row("o3", "Cherry Pie")]}
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", picks: ["o1", "o2"], options: [...OPTIONS, CHERRY] })}
         searchEnabled
         preparedNote={NOTE}
       />,
@@ -2277,29 +2177,10 @@ describe("TonightScreen — Prepared note", () => {
     expect(hide.className).not.toMatch(/desktop:hidden/);
   });
 
-  it("never marks a decided date's frozen note out of date", () => {
-    render(
-      <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={DINNER}
-        pickerRows={[row("o3", "Cherry Pie")]}
-        searchEnabled
-        preparedNote={{ ...NOTE, outOfDate: true }}
-      />,
-    );
-
-    expect(screen.getByText("Prepared 2:14pm")).toBeTruthy();
-    expect(screen.queryByText(/out of date/)).toBeNull();
-  });
-
   it("marks an out-of-date note on its label, and only then", () => {
     const { rerender } = render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
         searchEnabled
         preparedNote={NOTE}
       />,
@@ -2308,10 +2189,7 @@ describe("TonightScreen — Prepared note", () => {
 
     rerender(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
         searchEnabled
         preparedNote={{ ...NOTE, outOfDate: true }}
       />,
@@ -2325,21 +2203,20 @@ describe("TonightScreen — Prepared note", () => {
   it("expands the clamped brief on Read more, and collapses it again on a day change", () => {
     // jsdom has no layout, so this drives the toggle; the clamp itself (two
     // lines under 720px, full above) is checked by eye on the dev server.
-    const props = {
-      todaySql: "2026-10-22",
-      tonightsDinner: [],
-      pickerRows: THREE,
-      searchEnabled: true,
-      preparedNote: NOTE,
-    };
-    const { rerender } = render(<TonightScreen selectedDay="2026-10-22" {...props} />);
+    const onDay = (day: string) =>
+      tonight({ day, today: "2026-10-22", options: THREE });
+    const { rerender } = render(
+      <TonightScreen view={onDay("2026-10-22")} searchEnabled preparedNote={NOTE} />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Read more" }));
     expect(
       screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded"),
     ).toBe("true");
 
-    rerender(<TonightScreen selectedDay="2026-10-23" {...props} />);
+    rerender(
+      <TonightScreen view={onDay("2026-10-23")} searchEnabled preparedNote={NOTE} />,
+    );
 
     expect(
       screen.getByRole("button", { name: "Read more" }).getAttribute("aria-expanded"),
@@ -2361,10 +2238,7 @@ describe("TonightScreen — Prepared note", () => {
     });
     render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
         searchEnabled
         preparedNote={NOTE}
       />,
@@ -2384,10 +2258,7 @@ describe("TonightScreen — Prepared note", () => {
   it("announces the layer swap even when Claude AI search is off", () => {
     render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
         searchEnabled={false}
         preparedNote={NOTE}
       />,
@@ -2401,10 +2272,7 @@ describe("TonightScreen — Prepared note", () => {
   it("renders Tonight as before with no note (none written, or the feature off)", () => {
     render(
       <TonightScreen
-        selectedDay="2026-10-22"
-        todaySql="2026-10-22"
-        tonightsDinner={[]}
-        pickerRows={THREE}
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
         searchEnabled={false}
         preparedNote={null}
       />,

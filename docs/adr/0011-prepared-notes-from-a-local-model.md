@@ -46,7 +46,9 @@ the floor, one Clear away, and Claude AI search is untouched.
   before the Household decided, and past dates are never generated. A stored
   note is therefore a record of what the model said before reality happened,
   and Tonight shows it alongside what was actually eaten. Removing the Pick
-  makes the date undecided again and lets the note regenerate.
+  makes the date undecided again and lets the note regenerate. A note also
+  freezes once its date has passed, decided or not: the sweep never returns to
+  it, so it is never labelled out of date.
 - The generator is a loop inside the Next.js server, started from
   `instrumentation.ts` in production. Both replicas run it and coordinate only
   through an atomic per-date claim, a `claimed_until` lease on the note's row
@@ -54,8 +56,8 @@ the floor, one Clear away, and Claude AI search is untouched.
   leader election: two replicas and one GPU don't need more.
 - On Tonight the display stacks in layers: a Claude result over the Prepared
   ranking over the deterministic list. Clear removes the top layer.
-- Failure keeps the last good note. An undecided date whose note was built from
-  older inputs is labelled out of date. A date with no note shows nothing.
+- Failure keeps the last good note. A note that has not frozen and was built
+  from older inputs is labelled out of date. A date with no note shows nothing.
 
 ## Consequences
 

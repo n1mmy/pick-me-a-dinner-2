@@ -6,7 +6,7 @@
  * and why.
  *
  * Its two callers — `tonightForDay` (`lib/tonight-day.ts`) and AI search's
- * `buildSnapshot` (`lib/ai-search.ts`) — share this answer so the Tonight
+ * `buildSnapshot` (`lib/snapshot.ts`) — share this answer so the Tonight
  * picker and the AI candidate set can never disagree about which Options are
  * off for the day. They share the answer but not its consequence: Tonight
  * keeps a Closed Restaurant visible, in the Closed disclosure, with full

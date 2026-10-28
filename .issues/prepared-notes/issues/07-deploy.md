@@ -34,5 +34,7 @@ secrets, and the `/ship` and `/land-and-deploy` steps are user-triggered.
 ## Blocked by
 
 - Issues 01–06
+- All five issues in `.issues/architecture-deepening-2026-10-23/` (they fix
+  freeze and staleness bugs in this feature and land on the same branch)
 
 ## Comments

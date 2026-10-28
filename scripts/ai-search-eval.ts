@@ -2,8 +2,8 @@
  * AI search evaluation harness — run an AI search against the real dev
  * database from the command line, without the Tonight UI (ADR-0005).
  *
- * This is the iteration loop for the AI search prompt and snapshot
- * (`lib/ai-search.ts`): edit the system prompt or the snapshot shape, re-run
+ * This is the iteration loop for the AI search prompt (`lib/ai-search.ts`) and
+ * snapshot (`lib/snapshot.ts`): edit the system prompt or the snapshot shape, re-run
  * this, and read the ranked result, its rationales, and the token usage.
  * No browser, no React, one model call.
  *
@@ -66,11 +66,10 @@ import {
   createAiSearchClient,
   resolveModel,
   type AiSearchResult,
-  type ModelSnapshot,
   type ThinkingChoice,
 } from "../lib/ai-search";
 import { today } from "../lib/local-day";
-import { snapshotForDay } from "../lib/snapshot-source";
+import { type BuiltSnapshot, snapshotForDay } from "../lib/snapshot";
 
 /** Tail modes accepted by `--mode` — see `resolveTailMode` in `lib/ai-search`. */
 const TAIL_MODES = ["full", "pithy", "drop"] as const;
@@ -198,11 +197,7 @@ async function captureModelCall<T>(
   }
 }
 
-async function buildSnapshotFromDb(query: string): Promise<{
-  snapshot: ModelSnapshot;
-  idByIndex: Map<number, string>;
-  nameById: Map<string, string>;
-}> {
+async function buildSnapshotFromDb(query: string): Promise<BuiltSnapshot> {
   // `snapshotForDay` owns the reads and the mapping — this now measures
   // exactly the snapshot `aiSearchAction` builds, full Log (Planned dinners)
   // included, rather than the deterministic ranking's non-future Log.
@@ -241,7 +236,8 @@ async function runComparison(
     for (const cell of COMPARE_CELLS) console.error(`  ${cell.label}`);
     process.exit(1);
   }
-  const { snapshot, idByIndex, nameById } = await buildSnapshotFromDb(query);
+  const built = await buildSnapshotFromDb(query);
+  const { snapshot, nameById } = built;
 
   console.log(`today: ${snapshot.today}`);
   console.log(`query: ${query ? JSON.stringify(query) : "(empty)"}`);
@@ -264,7 +260,7 @@ async function runComparison(
         onResponseText: (text) => {
           rawText = text;
         },
-      }).search(snapshot, idByIndex);
+      }).search(built);
 
     // Token counts come from the structured log line, which can only be
     // attributed to its own call when nothing else is in flight — so a
@@ -434,7 +430,8 @@ async function runSingle(apiKey: string): Promise<void> {
   const dumpSnapshot = args.includes("--snapshot");
   const query = args.find((arg) => !arg.startsWith("--")) ?? "";
 
-  const { snapshot, idByIndex, nameById } = await buildSnapshotFromDb(query);
+  const built = await buildSnapshotFromDb(query);
+  const { snapshot, nameById } = built;
 
   console.log(`today: ${snapshot.today}`);
   console.log(`query: ${query ? JSON.stringify(query) : "(empty)"}`);
@@ -455,7 +452,7 @@ async function runSingle(apiKey: string): Promise<void> {
   // so the token counts can be reprinted as a tidy summary instead of a raw
   // JSON blob in the middle of the output.
   const { value: result, modelCall } = await captureModelCall(() =>
-    createAiSearchClient(apiKey).search(snapshot, idByIndex),
+    createAiSearchClient(apiKey).search(built),
   );
 
   if (modelCall) {

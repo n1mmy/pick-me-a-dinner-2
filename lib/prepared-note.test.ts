@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ModelSnapshot } from "./ai-search";
+import type { BuiltSnapshot, ModelSnapshot } from "./snapshot";
 import {
   PREPARED_MARKER,
   buildPreparedSystemPrompt,
@@ -111,6 +111,9 @@ const idByIndex = new Map([
   [2, MAZRA],
   [3, PHO],
 ]);
+
+/** The built value the client takes: the snapshot and its id map together. */
+const built: BuiltSnapshot = { snapshot, idByIndex, nameById: new Map() };
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -262,7 +265,7 @@ describe("createPreparedNoteClient().prepare", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     stubFetch(async () => streamResponse(completion(goodReply)));
 
-    expect(await client().prepare(snapshot, idByIndex)).toEqual(goodNote);
+    expect(await client().prepare(built)).toEqual(goodNote);
   });
 
   it("reads events and characters that straddle network chunks", async () => {
@@ -270,7 +273,7 @@ describe("createPreparedNoteClient().prepare", () => {
     const reply = `Pho … then rest.\n${PREPARED_MARKER}\n3|Standing Thursday choice.`;
     stubFetch(async () => streamResponse(completion(reply), { chunkBytes: 5 }));
 
-    expect(await client().prepare(snapshot, idByIndex)).toEqual({
+    expect(await client().prepare(built)).toEqual({
       ok: true,
       note: {
         brief: "Pho … then rest.",
@@ -283,7 +286,7 @@ describe("createPreparedNoteClient().prepare", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));
 
-    await client().prepare(snapshot, idByIndex);
+    await client().prepare(built);
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0];
@@ -308,7 +311,11 @@ describe("createPreparedNoteClient().prepare", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));
 
-    await client().prepare(snapshot, new Map([[1, KATSU], [2, MAZRA], [5, PHO]]));
+    await client().prepare({
+      snapshot,
+      idByIndex: new Map([[1, KATSU], [2, MAZRA], [5, PHO]]),
+      nameById: new Map(),
+    });
 
     const [, init] = fetchSpy.mock.calls[0];
     const userMessage = JSON.parse(String(init?.body)).messages[1].content;
@@ -324,7 +331,7 @@ describe("createPreparedNoteClient().prepare", () => {
       baseUrl: "http://strata.local/v1",
       apiKey: "",
       model: "qwen3.8-flash",
-    }).prepare(snapshot, idByIndex);
+    }).prepare(built);
 
     const [, init] = fetchSpy.mock.calls[0];
     expect(new Headers(init?.headers).has("Authorization")).toBe(false);
@@ -367,7 +374,7 @@ describe("createPreparedNoteClient().prepare", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     stubFetch(respond);
 
-    expect(await client().prepare(snapshot, idByIndex)).toEqual({ ok: false });
+    expect(await client().prepare(built)).toEqual({ ok: false });
   });
 
   it("waits out a slow generation, then gives up at about forty minutes", async () => {
@@ -385,7 +392,7 @@ describe("createPreparedNoteClient().prepare", () => {
 
     let settled = false;
     const pending = client()
-      .prepare(snapshot, idByIndex)
+      .prepare(built)
       .finally(() => {
         settled = true;
       });
@@ -419,7 +426,7 @@ describe("createPreparedNoteClient().prepare", () => {
       );
     });
 
-    const pending = client().prepare(snapshot, idByIndex);
+    const pending = client().prepare(built);
 
     await vi.advanceTimersByTimeAsync(41 * 60_000);
     expect(await pending).toEqual({ ok: false });
@@ -436,7 +443,7 @@ describe("createPreparedNoteClient().prepare", () => {
       baseUrl: "http://strata.local/v1",
       model: "qwen3.8-flash",
       onReply,
-    }).prepare(snapshot, idByIndex);
+    }).prepare(built);
 
     expect(result).toEqual({ ok: false });
     expect(onReply).toHaveBeenCalledWith({
@@ -450,7 +457,7 @@ describe("createPreparedNoteClient().prepare", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     stubFetch(async () => streamResponse(completion(goodReply)));
 
-    await client().prepare(snapshot, idByIndex);
+    await client().prepare(built);
 
     expect(log).toHaveBeenCalledTimes(1);
     expect(JSON.parse(log.mock.calls[0][0])).toEqual({
@@ -471,7 +478,7 @@ describe("createPreparedNoteClient().prepare", () => {
       throw new TypeError("fetch failed");
     });
 
-    await client().prepare(snapshot, idByIndex);
+    await client().prepare(built);
 
     expect(log).toHaveBeenCalledTimes(1);
     expect(JSON.parse(log.mock.calls[0][0])).toEqual({

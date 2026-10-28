@@ -1,21 +1,21 @@
 import { eq, sql } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "../db";
 import { getPreparedNote } from "../db/queries";
 import { dayNotes, dinnerLog, options, preparedNotes } from "../db/schema";
 import { truncateAll } from "../db/test-support";
 import type { PreparedNoteClient } from "./prepared-note";
-import {
-  claimDay,
-  releaseClaim,
-  runSweep,
-  storeNote,
-} from "./prepared-notes-job";
+import { claimDay, preparedNoteFor, runSweep } from "./prepared-notes";
 
 const FRIDAY = "2026-10-23";
 
 beforeEach(async () => {
   await truncateAll();
+  vi.stubEnv("LOCAL_AI_MODEL", "qwen");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("claimDay", () => {
@@ -43,48 +43,6 @@ describe("claimDay", () => {
   });
 });
 
-const KATSU = "11111111-1111-4111-8111-111111111111";
-const PHO = "33333333-3333-4333-8333-333333333333";
-
-const note = {
-  brief: "A quiet Friday.",
-  ranking: [
-    { id: PHO, reason: "The standing Friday choice." },
-    { id: KATSU, reason: "Long cook." },
-  ],
-};
-
-describe("storeNote", () => {
-  it("writes the note for Tonight to read and frees the date for the next claim", async () => {
-    await claimDay(FRIDAY);
-
-    await storeNote(FRIDAY, { note, inputHash: "hash-1", model: "qwen" });
-
-    expect(await getPreparedNote(FRIDAY)).toEqual({
-      brief: "A quiet Friday.",
-      ranking: note.ranking,
-      inputHash: "hash-1",
-      model: "qwen",
-      preparedAt: expect.any(Date),
-    });
-    expect(await claimDay(FRIDAY)).toEqual({ inputHash: "hash-1" });
-  });
-});
-
-describe("releaseClaim", () => {
-  it("frees the date and keeps the previous note untouched", async () => {
-    await claimDay(FRIDAY);
-    await storeNote(FRIDAY, { note, inputHash: "hash-1", model: "qwen" });
-    const stored = await getPreparedNote(FRIDAY);
-    await claimDay(FRIDAY);
-
-    await releaseClaim(FRIDAY);
-
-    expect(await getPreparedNote(FRIDAY)).toEqual(stored);
-    expect(await claimDay(FRIDAY)).toEqual({ inputHash: "hash-1" });
-  });
-});
-
 /** 19:00 UTC on Thursday 2026-10-22 — noon in Los Angeles. */
 const THURSDAY_NOON = new Date("2026-10-22T19:00:00Z");
 const LA = "America/Los_Angeles";
@@ -101,14 +59,19 @@ const WEEK = [
 /**
  * A stand-in for the local model: records which dates it was asked about, and
  * writes a note naming the date and ranking every candidate. `fail` lists the
- * dates whose generation comes back unavailable.
+ * dates whose generation comes back unavailable; `during` runs while a date is
+ * being generated, standing in for the Household acting mid-sweep.
  */
-function stubClient({ fail = [] as string[] } = {}) {
+function stubClient({
+  fail = [] as string[],
+  during = async (date: string) => void date,
+} = {}) {
   const asked: string[] = [];
   const client: PreparedNoteClient = {
-    async prepare(snapshot, idByIndex) {
+    async prepare({ snapshot, idByIndex }) {
       const date = snapshot.today.slice(0, 10);
       asked.push(date);
+      await during(date);
       if (fail.includes(date)) return { ok: false };
       return {
         ok: true,
@@ -122,9 +85,9 @@ function stubClient({ fail = [] as string[] } = {}) {
   return { client, asked };
 }
 
-/** One sweep at Thursday noon in Los Angeles. */
-function sweep(client: PreparedNoteClient, model = "qwen"): Promise<void> {
-  return runSweep({ now: THURSDAY_NOON, timeZone: LA, client, model });
+/** One sweep, by default at Thursday noon in Los Angeles. */
+function sweep(client: PreparedNoteClient, now = THURSDAY_NOON): Promise<void> {
+  return runSweep({ now, timeZone: LA, client });
 }
 
 async function seedPho(): Promise<string> {
@@ -135,12 +98,17 @@ async function seedPho(): Promise<string> {
   return pho.id;
 }
 
+/** Change a date's input, so its note goes stale. */
+async function addDayNote(date: string): Promise<void> {
+  await db.insert(dayNotes).values({ notedOn: date, note: "Guests over" });
+}
+
 describe("runSweep", () => {
   it("writes a note for each of the next seven dates, one at a time, today first", async () => {
     const phoId = await seedPho();
     const { client, asked } = stubClient();
 
-    await runSweep({ now: THURSDAY_NOON, timeZone: LA, client, model: "qwen" });
+    await sweep(client);
 
     expect(asked).toEqual(WEEK);
     expect(await getPreparedNote("2026-10-24")).toMatchObject({
@@ -148,6 +116,33 @@ describe("runSweep", () => {
       ranking: [{ id: phoId, reason: "Fits." }],
       model: "qwen",
     });
+  });
+
+  it("starts from the Household's day, not UTC's, late in the evening", async () => {
+    await seedPho();
+    const { client, asked } = stubClient();
+
+    // 22:30 on Thursday the 22nd in Los Angeles is already Friday in UTC.
+    await sweep(client, new Date("2026-10-23T05:30:00Z"));
+
+    expect(asked).toEqual(WEEK);
+  });
+
+  it("rolls over the end of a month", async () => {
+    await seedPho();
+    const { client, asked } = stubClient();
+
+    await sweep(client, new Date("2026-10-29T19:00:00Z"));
+
+    expect(asked).toEqual([
+      "2026-10-29",
+      "2026-10-30",
+      "2026-10-31",
+      "2026-11-01",
+      "2026-11-02",
+      "2026-11-03",
+      "2026-11-04",
+    ]);
   });
 
   it("prepares nothing on a second pass when nothing has changed", async () => {
@@ -164,9 +159,7 @@ describe("runSweep", () => {
     await seedPho();
     await sweep(stubClient().client);
     const before = await getPreparedNote("2026-10-24");
-    await db
-      .insert(dayNotes)
-      .values({ notedOn: "2026-10-24", note: "Guests over" });
+    await addDayNote("2026-10-24");
     const second = stubClient();
 
     await sweep(second.client);
@@ -181,9 +174,7 @@ describe("runSweep", () => {
     await seedPho();
     await sweep(stubClient().client);
     const before = await getPreparedNote("2026-10-24");
-    await db
-      .insert(dayNotes)
-      .values({ notedOn: "2026-10-24", note: "Guests over" });
+    await addDayNote("2026-10-24");
 
     await sweep(stubClient({ fail: ["2026-10-24"] }).client);
 
@@ -202,9 +193,7 @@ describe("runSweep", () => {
       .values({ optionId: phoId, eatenOn: "2026-10-24" })
       .returning({ id: dinnerLog.id });
     // Something changes while the date is decided: its note must not follow.
-    await db
-      .insert(dayNotes)
-      .values({ notedOn: "2026-10-24", note: "Guests over" });
+    await addDayNote("2026-10-24");
     const decided = stubClient();
 
     await sweep(decided.client);
@@ -221,6 +210,43 @@ describe("runSweep", () => {
     expect(await getPreparedNote("2026-10-24")).not.toEqual(frozen);
   });
 
+  it("freezes a date whose only Pick is of an Option since Archived", async () => {
+    const phoId = await seedPho();
+    await sweep(stubClient().client);
+    const frozen = await getPreparedNote("2026-10-24");
+    await db.insert(dinnerLog).values({ optionId: phoId, eatenOn: "2026-10-24" });
+    await db.update(options).set({ active: false }).where(eq(options.id, phoId));
+    await addDayNote("2026-10-24");
+    const second = stubClient();
+
+    await sweep(second.client);
+
+    expect(second.asked).not.toContain("2026-10-24");
+    expect(await getPreparedNote("2026-10-24")).toEqual(frozen);
+  });
+
+  it("leaves the stored note alone when a Pick lands while the date is being generated", async () => {
+    const phoId = await seedPho();
+    await sweep(stubClient().client);
+    const before = await getPreparedNote("2026-10-24");
+    await addDayNote("2026-10-24");
+    const second = stubClient({
+      during: async (date) => {
+        if (date === "2026-10-24") {
+          await db.insert(dinnerLog).values({ optionId: phoId, eatenOn: date });
+        }
+      },
+    });
+
+    await sweep(second.client);
+
+    expect(second.asked).toContain("2026-10-24");
+    expect(await getPreparedNote("2026-10-24")).toEqual(before);
+    expect(await claimDay("2026-10-24")).toEqual({
+      inputHash: before?.inputHash,
+    });
+  });
+
   it("leaves a date to the replica that holds its claim", async () => {
     await seedPho();
     await claimDay("2026-10-23");
@@ -235,21 +261,84 @@ describe("runSweep", () => {
   it("regenerates the notes when the model changes", async () => {
     await seedPho();
     await sweep(stubClient().client);
+    vi.stubEnv("LOCAL_AI_MODEL", "qwen-next");
     const second = stubClient();
 
-    await sweep(second.client, "qwen-next");
+    await sweep(second.client);
 
     expect(second.asked).toEqual(WEEK);
     expect((await getPreparedNote("2026-10-22"))?.model).toBe("qwen-next");
   });
 });
 
-describe("getPreparedNote", () => {
+describe("preparedNoteFor", () => {
+  const SATURDAY = "2026-10-24";
+  const THURSDAY = "2026-10-22";
+
   it("is null for a date with no note, even while it is claimed", async () => {
-    expect(await getPreparedNote(FRIDAY)).toBeNull();
+    expect(await preparedNoteFor({ day: SATURDAY, today: THURSDAY })).toBeNull();
 
-    await claimDay(FRIDAY);
+    await claimDay(SATURDAY);
 
-    expect(await getPreparedNote(FRIDAY)).toBeNull();
+    expect(await preparedNoteFor({ day: SATURDAY, today: THURSDAY })).toBeNull();
+  });
+
+  it("returns a freshly prepared note as current", async () => {
+    const phoId = await seedPho();
+    await sweep(stubClient().client);
+
+    expect(await preparedNoteFor({ day: SATURDAY, today: THURSDAY })).toEqual({
+      brief: "Brief for 2026-10-24 (Saturday)",
+      ranking: [{ id: phoId, reason: "Fits." }],
+      preparedAt: expect.any(Date),
+      status: "current",
+    });
+  });
+
+  it("is out of date once the date's input changes after the note was written", async () => {
+    await seedPho();
+    await sweep(stubClient().client);
+    await addDayNote(SATURDAY);
+
+    expect(await preparedNoteFor({ day: SATURDAY, today: THURSDAY })).toMatchObject({
+      brief: "Brief for 2026-10-24 (Saturday)",
+      status: "out-of-date",
+    });
+  });
+
+  it("is frozen once the date has a Pick, whatever changes after", async () => {
+    const phoId = await seedPho();
+    await sweep(stubClient().client);
+    await db.insert(dinnerLog).values({ optionId: phoId, eatenOn: SATURDAY });
+    await addDayNote(SATURDAY);
+
+    expect(await preparedNoteFor({ day: SATURDAY, today: THURSDAY })).toMatchObject({
+      brief: "Brief for 2026-10-24 (Saturday)",
+      status: "frozen",
+    });
+  });
+
+  it("is frozen when the date's only Pick is of an Option since Archived", async () => {
+    const phoId = await seedPho();
+    await sweep(stubClient().client);
+    await db.insert(dinnerLog).values({ optionId: phoId, eatenOn: SATURDAY });
+    await db.update(options).set({ active: false }).where(eq(options.id, phoId));
+
+    expect(await preparedNoteFor({ day: SATURDAY, today: THURSDAY })).toMatchObject({
+      status: "frozen",
+    });
+  });
+
+  it("is frozen once the date has passed, though its input has changed since", async () => {
+    await seedPho();
+    await sweep(stubClient().client);
+    await addDayNote(THURSDAY);
+
+    expect(
+      await preparedNoteFor({ day: THURSDAY, today: "2026-10-23" }),
+    ).toMatchObject({
+      brief: "Brief for 2026-10-22 (Thursday)",
+      status: "frozen",
+    });
   });
 });

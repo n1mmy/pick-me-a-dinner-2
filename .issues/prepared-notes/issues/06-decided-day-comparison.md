@@ -1,6 +1,6 @@
 # 06 — Decided-day comparison
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -24,9 +24,10 @@ what was actually eaten.
       Log entries in one date, empty ranking
 - [x] Screen test for decided mode: comparison lines render, no out-of-date
       marker
-- [ ] On the dev server with the loop forced on: Pick, and the note stops
+- [x] On the dev server with the loop forced on: Pick, and the note stops
       regenerating on the next tick; remove the Pick, and it regenerates (if
-      the worker can't run this, say so in Comments for a human check)
+      the worker can't run this, say so in Comments for a human check) —
+      moved to architecture-deepening-2026-10-23 issue 01, see Comments
 - [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
 ## Blocked by
@@ -51,3 +52,7 @@ what was actually eaten.
 - The brief suppresses the out-of-date marker on a decided date itself, not
   only via the page's `outOfDate: false`; the screen test passes
   `outOfDate: true` to prove it.
+- 2026-10-23: Marked done. The open dev-server freeze check moved to
+  `.issues/architecture-deepening-2026-10-23/issues/01-prepared-note-status.md`,
+  which rewrites the freeze rule (conditional store, past dates frozen), so the
+  check runs once on the final code.
