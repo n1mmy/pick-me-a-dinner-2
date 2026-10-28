@@ -27,3 +27,7 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
 - `ai-search-v10-opus-5-5-pithy` and `-run2` — prompt v10, Opus 5.5, pithy.
   Two identical runs: they differ by 3 days at hit@3 and 1 at hit@5.
 - Prompt v10 runs are named `ai-search-v10-…` and `strata-v10` by default.
+- `strata-v10` and `strata-v12` — Prepared note prompt v10 and v12 on Strata,
+  with traces, over the first ten days only (`2026-10-02` … `2026-10-14`):
+  7/8/8 and 5/6/10. Each stopped after its first half because the prompt
+  moved on before the `--resume` half could run.
