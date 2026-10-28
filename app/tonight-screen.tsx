@@ -78,6 +78,14 @@ const NO_QUICK_ADD_SOURCES: QuickAddSources = {
 };
 
 /**
+ * The rationale on a candidate the Prepared ranking didn't name, which the
+ * list appends unnumbered. Said outright, as AI search's
+ * `OMITTED_CANDIDATE_REASON` is, so a row the note forgot never reads as one
+ * it ranked low.
+ */
+const PREPARED_OMITTED_REASON = "The note left this one out";
+
+/**
  * The Selected day's **Prepared note** (ADR-0011) as the screen shows it: the
  * brief, the Prepared ranking, the server-formatted "Prepared 2:14pm" label,
  * and whether the note's input has changed since it was written.
@@ -761,17 +769,30 @@ function Picker({
   // the rows in the note's order — the Options it names first, then every
   // candidate it didn't, so none goes missing. An Option since Picked,
   // Rejected, or Closed is absent from `rows`, so the note can never offer
-  // it; the filter chips stay live, and a filtered row keeps the note's rank.
+  // it. A named row's number is its place in the stored ranking, so a
+  // Rejection doesn't renumber the rest and a filtered row keeps the note's
+  // rank; a row the note left out has no number (DESIGN.md, "AI layers").
   const prepared = useMemo(() => {
     if (preparedRanking === null) return null;
     const ranked = resolveRanking(preparedRanking, rows, { appendUnnamed: true });
     return {
       rows: ranked.map(({ row }) => row),
-      reasons: new Map(ranked.map(({ row, reason }) => [row.option.id, reason])),
+      reasons: new Map(
+        ranked.map(({ row, reason, rank }) => [
+          row.option.id,
+          rank === undefined ? PREPARED_OMITTED_REASON : reason,
+        ]),
+      ),
+      ranks: new Map(
+        ranked.flatMap(({ row, rank }) =>
+          rank === undefined ? [] : [[row.option.id, rank] as const],
+        ),
+      ),
     };
   }, [preparedRanking, rows]);
   const { visible, rankOf, choices, tags, hint } = useMemo(
-    () => pickerView(prepared?.rows ?? rows, kind, tagFilters, suppressed),
+    () =>
+      pickerView(prepared?.rows ?? rows, kind, tagFilters, suppressed, prepared?.ranks),
     [prepared, rows, kind, tagFilters, suppressed],
   );
 
@@ -948,7 +969,7 @@ function Picker({
                 <TonightRowItem
                   key={row.option.id}
                   row={row}
-                  rank={rankOf.get(row.option.id) ?? 0}
+                  rank={rankOf.get(row.option.id)}
                   // A Prepared row keeps its Last note above the rationale:
                   // this is the default view, so dropping it would hide
                   // every prior night's note on load (DESIGN.md, "Last note line").

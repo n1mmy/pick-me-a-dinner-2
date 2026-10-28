@@ -146,6 +146,17 @@ describe("pickerView — rankOf", () => {
     expect(rankOf.get("pasta-rest")).toBe(3);
     expect(rankOf.get("plain-rest")).toBe(4);
   });
+
+  it("takes the ranks it is given instead of numbering the rows", () => {
+    const given = new Map([
+      ["fish-home", 2],
+      ["pasta-rest", 5],
+    ]);
+
+    const { rankOf } = pickerView(ROWS, "all", {}, [], given);
+
+    expect(rankOf).toEqual(given);
+  });
 });
 
 describe("pickerView — choices", () => {
@@ -309,6 +320,25 @@ describe("resolveRanking", () => {
       ["pasta-home", undefined],
       ["fish-home", undefined],
       ["plain-rest", undefined],
+    ]);
+  });
+
+  it("gives a named row its place in the ranking it was given, even after an earlier one is gone", () => {
+    // "gone" was ranked #1 and has since been Rejected: fish-home stays #2.
+    const ranking = [
+      { id: "gone", reason: "Rejected since." },
+      { id: "fish-home", reason: "Fish is overdue." },
+      { id: "fish-home", reason: "Again." },
+      { id: "plain-rest", reason: "Nothing to cook." },
+    ];
+
+    const ranked = resolveRanking(ranking, ROWS, { appendUnnamed: true });
+
+    expect(ranked.map(({ row, rank }) => [row.option.id, rank])).toEqual([
+      ["fish-home", 2],
+      ["plain-rest", 4],
+      ["pasta-home", undefined],
+      ["pasta-rest", undefined],
     ]);
   });
 });

@@ -2017,6 +2017,10 @@ describe("TonightScreen — Prepared note", () => {
     expect(await screen.findByText("Pie night")).toBeTruthy();
     expect(screen.getByText("AI search")).toBeTruthy();
     expect(listedNames()).toEqual(["Cherry Pie"]);
+    // Claude's rows number as they always have: their place on screen.
+    expect(
+      screen.getByText("Cherry Pie").closest("li")?.querySelector(".w-6")?.textContent,
+    ).toBe("1");
 
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     await waitFor(() => {
@@ -2081,12 +2085,55 @@ describe("TonightScreen — Prepared note", () => {
     expect(screen.queryByText("Closed now.")).toBeNull();
   });
 
-  it("keeps the filter chips over the Prepared ranking; a filtered row keeps the note's rank", () => {
+  /** The numeral in `name`'s rank gutter — empty on an unnumbered row. */
+  function rankShown(name: string): string | null | undefined {
+    return screen.getByText(name).closest("li")?.querySelector(".w-6")?.textContent;
+  }
+
+  it("keeps the note's number on a Prepared row after an earlier-ranked one is Rejected", () => {
+    // The note ranked Banana Bread #1 and Apple Crumble #2; Banana Bread has
+    // since been Rejected, so Apple Crumble leads the list but is still #2.
+    render(
+      <TonightScreen
+        view={tonight({
+          day: "2026-10-22",
+          today: "2026-10-22",
+          options: THREE,
+          rejections: [{ optionId: "o2" }],
+        })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    expect(listedNames()).toEqual(["Apple Crumble", "Cherry Pie"]);
+    expect(rankShown("Apple Crumble")).toBe("2");
+  });
+
+  it("leaves a candidate the note didn't name unnumbered, saying the note left it out", () => {
     render(
       <TonightScreen
         view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
         searchEnabled
         preparedNote={NOTE}
+      />,
+    );
+
+    expect(rankShown("Banana Bread")).toBe("1");
+    expect(rankShown("Cherry Pie")).toBe("");
+    const cherry = screen.getByText("Cherry Pie").closest("li") as HTMLElement;
+    expect(within(cherry).getByText("The note left this one out")).toBeTruthy();
+  });
+
+  it("keeps the filter chips over the Prepared ranking; a filtered row keeps the note's rank", () => {
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={{
+          ...NOTE,
+          ranking: [...NOTE.ranking, { id: "o3", reason: "Pie, if anyone wants it." }],
+        }}
       />,
     );
 

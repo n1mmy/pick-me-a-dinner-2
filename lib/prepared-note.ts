@@ -264,6 +264,16 @@ const MAX_TOKENS = 20_000;
  */
 const REQUEST_TIMEOUT_MS = 40 * 60_000;
 
+/**
+ * The share of the candidates a ranking must name to be kept. A thinner one
+ * is refused, so the last good note stays rather than a partial ranking
+ * overwriting a full one. 90% is a default, not a measurement: it lets
+ * through the one-or-two-row omissions the backtest saw on ~37 candidates
+ * (the screen appends those rows unnumbered) and refuses a reply that
+ * stopped a handful of rows in.
+ */
+export const MIN_RANKED_SHARE = 0.9;
+
 /** The token counts a completion reports. */
 type Usage = { prompt_tokens?: number; completion_tokens?: number };
 
@@ -342,7 +352,10 @@ function logPrepareCall(fields: {
   latencyMs: number;
   /** `ok`, or `fallback` when the call yielded no usable note. */
   outcome: string;
-  /** Ranking rows in the note — `0` on the fallback path. */
+  /**
+   * Ranking rows read from the answer — on the fallback path, the rows of a
+   * ranking refused as too thin, else `0`.
+   */
   rowCount: number;
   inputTokens?: number;
   outputTokens?: number;
@@ -400,6 +413,7 @@ export function createPreparedNoteClient(config: {
       // `PREPARE_UNAVAILABLE`.
       let result: PrepareResult = PREPARE_UNAVAILABLE;
       let usage: Usage | undefined;
+      let rowCount = 0;
       try {
         const response = await fetch(`${config.baseUrl}/chat/completions`, {
           method: "POST",
@@ -430,7 +444,12 @@ export function createPreparedNoteClient(config: {
             reply.content !== null && reply.finishReason === "stop"
               ? parsePreparedReply(reply.content, idByIndex)
               : null;
-          if (note !== null) result = { ok: true, note };
+          if (note !== null) {
+            rowCount = note.ranking.length;
+            if (rowCount / idByIndex.size >= MIN_RANKED_SHARE) {
+              result = { ok: true, note };
+            }
+          }
         }
       } catch {
         // A network error, the timeout's abort, or an event that isn't JSON.
@@ -447,7 +466,7 @@ export function createPreparedNoteClient(config: {
         model: config.model,
         latencyMs: Date.now() - startedAt,
         outcome: result.ok ? "ok" : "fallback",
-        rowCount: result.ok ? result.note.ranking.length : 0,
+        rowCount,
         inputTokens: usage?.prompt_tokens,
         outputTokens: usage?.completion_tokens,
       });

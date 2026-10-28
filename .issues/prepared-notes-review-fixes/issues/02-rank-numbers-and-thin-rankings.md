@@ -1,6 +1,6 @@
 # 02 — Prepared rank numbers mean the stored place; refuse thin rankings
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -50,18 +50,38 @@ screen agrees with it.
 
 ## Acceptance criteria
 
-- [ ] `lib/picker-view.test.ts`: a named row keeps its stored place after an
+- [x] `lib/picker-view.test.ts`: a named row keeps its stored place after an
       earlier-ranked row is gone from `rows`; appended rows carry no `rank`
-- [ ] `app/tonight-screen.test.tsx`: after a Rejection the next Prepared row
+- [x] `app/tonight-screen.test.tsx`: after a Rejection the next Prepared row
       still shows the note's number; an appended row shows no numeral and
       the left-out rationale; the AI search layer is unchanged
-- [ ] `lib/prepared-note.test.ts`: a reply naming fewer than the threshold
+- [x] `lib/prepared-note.test.ts`: a reply naming fewer than the threshold
       is unavailable; one at the threshold parses; the threshold is a named
       constant with its reason beside it
-- [ ] `DESIGN.md` "AI layers" states the unnumbered appended row and its
+- [x] `DESIGN.md` "AI layers" states the unnumbered appended row and its
       rationale, in the same commit
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `build` all green
 
 ## Blocked by
 
 - Nothing. Second in the review's suggested order.
+
+## Comments
+
+- O1: `resolveRanking` gives each named row `rank`, its 1-based place in the
+  ranking it was given (a repeated id keeps its first place); appended rows
+  have none. `pickerView` takes an optional `ranks` map and uses it as given;
+  Tonight's Prepared memo builds it from the resolved rows. Claude AI search
+  rows still number by screen position.
+- I5, screen: an appended row has an empty rank gutter and the rationale
+  "The note left this one out" (`PREPARED_OMITTED_REASON` in
+  `app/tonight-screen.tsx`). The existing filter test now ranks Cherry Pie in
+  its note, since an unnamed row no longer carries a number to keep.
+- I5, server: the refusal lives in `prepare`, not `parsePreparedReply`, so
+  the fallback log line can carry the row count (`rowCount` is now the rows
+  read, on either path). `MIN_RANKED_SHARE = 0.9`, kept as the issue's
+  default; a ranking is kept when `rows / candidates >= 0.9`. The parser
+  still reads a one-row reply, so its tests stay about parsing. The client
+  tests' good replies now rank all three candidates.
+- DESIGN.md "AI layers" gains "A Prepared numeral is the note's own place".
+- Gate: typecheck, lint, test (569), build all green.
