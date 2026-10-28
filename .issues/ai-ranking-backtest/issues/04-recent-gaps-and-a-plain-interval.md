@@ -98,3 +98,50 @@ Two things follow, both general — no Option is named anywhere:
   Not done: a wording change. The one general sentence that would address
   the misreading is an evidence statement, not a rule — what a slowed pace
   is evidence of — and whether to add it is the user's call.
+
+- 2026-10-28 — **v13 Opus on the same 20 days: the Interval removed, four
+  recent gaps** (`scripts/backtest-runs/ai-search-v13-opus-5-5-pithy.*`,
+  read against v12 and v11). The user's call: no summary number at all.
+
+  **The misread is gone.** No row in the run calls an Option due against a
+  pace it no longer keeps. Aji Ichi's rows now say what the gaps say: "its
+  usual stretch has come round" on 10-12 at fourteen days since, against
+  gaps of 21, 21, 14, which is true; "its own longer stretch has come
+  round" on 10-22 at twenty-four days, also true; and on the days v12
+  called it "overdue" (10-15 at seventeen, 10-16 at eighteen) it is out of
+  the top 10 and at #9 "sushi recent; Ninja preferred". Aji #1 fell from
+  4 days to 2, and both of those are weekday-count reasons: Monday 10-12
+  (Mon 8 of 25, Ninja closed Mondays — the one day the frame is fair) and
+  Saturday 10-10 (Sat 6). Its top-3 count is unchanged at 7, on a frame
+  that was already there in v10: "covers sushi if Ninja feels too soon",
+  "sushi alternative when Ninja isn't wanted". That is the model reading
+  the sushi Tag's four-to-seven-day gaps and keeping a second sushi place
+  near the top whenever sushi is open. A different question from the one
+  this issue was about, and a product one: whether the Household wants the
+  second place of its steadiest kind ranked that way. Not a prompt change.
+
+  **The rest moved within the noise floor** (two identical runs differ by
+  one to three days on each hit count). Hit@3 13 → 10 (v11: 10), hit@5 13
+  → 12, hit@10 17 → 16; same #1 on 18 of 20 days as v12. The three hit@3
+  losses are Big Mouth 10-08 #2 → #6 ("American food has been spaced out
+  lately", at 29 days since gaps of 82, 18, 22, 6), Local Kitchens 10-12
+  #3 → #7 ("american had Thursday, so a touch soon"), Leftovers 10-17 #3
+  → #4. Gains: Ninja 10-18 #9 → #4 ("their sushi pace easily allows
+  another round now", at four days against gaps of 7, 6, 5, 6 — the gaps
+  read as a pace, not a floor), West Coast Cafe 10-16 #35 → #22. Elapsed
+  flags 16 → 13, weekday claims 95 → 91, never-eaten top-5 slots 48 → 50.
+  No empty reasons, no field names, no Interval or median in the prose.
+  The gaps are never recited as numbers; the nearest is "sushi as a tag
+  comes round every few days". Latency and tokens within noise (13.0 s,
+  1118 output tokens).
+
+  **The harness.** The Pick's timing line now reads "since 14 (gaps
+  20,46,15,11)", which made every one of the above checkable in the log
+  without the JSON. "Pick sooner than its shortest recent gap" fired on 4
+  days, 1 of them hit@5 — the Household going quicker than its own pace
+  (Big Mouth at 7 against a shortest gap of 18; Leftovers twice).
+
+  Verdict for the acceptance list: the first box holds (the Option that
+  led on "due" leads on two weekday counts instead, with reasons the facts
+  support); the second and third hold; the fourth is context. The 40 held
+  days are untouched.
