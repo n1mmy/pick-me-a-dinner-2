@@ -270,6 +270,32 @@ describe("runSweep", () => {
     });
   });
 
+  it("asks nothing for a date with no candidates", async () => {
+    // An empty Catalog: the model could only return an empty ranking, which
+    // is always refused, so the date would be retried every sweep.
+    const { client, asked } = stubClient();
+
+    await sweep(client);
+
+    expect(asked).toEqual([]);
+  });
+
+  it("skips a later date Picked while an earlier one is being generated", async () => {
+    const phoId = await seedPho();
+    const { client, asked } = stubClient({
+      during: async (date) => {
+        if (date === "2026-10-22") {
+          await db.insert(dinnerLog).values({ optionId: phoId, eatenOn: "2026-10-24" });
+        }
+      },
+    });
+
+    await sweep(client);
+
+    expect(asked).toEqual(WEEK.filter((day) => day !== "2026-10-24"));
+    expect(await getPreparedNote("2026-10-24")).toBeNull();
+  });
+
   it("leaves a date to the replica that holds its claim", async () => {
     await seedPho();
     await claimDay("2026-10-23");

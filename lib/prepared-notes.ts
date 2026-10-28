@@ -149,7 +149,15 @@ export async function runSweep({
 }): Promise<void> {
   const model = localModel();
   for (const day of await eligibleDays(now, timeZone)) {
+    // The eligible dates were read once, and a generation takes minutes: a
+    // Pick landing meanwhile has frozen this date, so don't generate a note
+    // the store would only refuse.
+    if ((await getDecidedDates(day, day)).length > 0) continue;
     const built = await snapshotForDay({ asOf: day, query: "" });
+    // Nothing to rank (an empty Catalog, or every Option Closed or Rejected):
+    // the model's empty ranking is always refused, so the date would be
+    // regenerated every sweep.
+    if (built.idByIndex.size === 0) continue;
     const hash = inputHash(built.snapshot, model);
     if ((await getPreparedNote(day))?.inputHash === hash) continue;
 

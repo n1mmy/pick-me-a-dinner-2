@@ -18,7 +18,8 @@
  *
  * Strata is free to call, so the billed-call rule in `CLAUDE.md` does not
  * apply here (it still applies to `scripts/ai-search-eval.ts`). One run is one
- * generation: a few minutes at Strata's ~25 tok/s.
+ * generation: six to ten minutes on an idle Strata, up to about 35 under
+ * another client's load (see `REQUEST_TIMEOUT_MS` in `lib/prepared-note.ts`).
  *
  * Env comes from `.env.local` then `.env`, as under Next.js (`./load-env`):
  * `DATABASE_URL` and `APP_TZ` for the snapshot, and `LOCAL_AI_BASE_URL`,
@@ -30,6 +31,7 @@ import { isValidSqlDate, shiftSqlDate, today } from "../lib/local-day";
 import {
   buildPreparedSystemPrompt,
   createPreparedNoteClient,
+  localModelConfig,
   PREPARED_PROMPT_VERSION,
   type PrepareResult,
   type RawPreparedReply,
@@ -91,9 +93,9 @@ async function main(): Promise<void> {
     args.find((arg) => arg.startsWith("--day="))?.slice(6),
   );
 
-  const baseUrl = process.env.LOCAL_AI_BASE_URL;
-  const model = process.env.LOCAL_AI_MODEL;
-  if (!baseUrl || !model) {
+  const config = localModelConfig();
+  const { model } = config;
+  if (!config.baseUrl || !model) {
     console.error(
       "LOCAL_AI_BASE_URL and LOCAL_AI_MODEL are not set — add them to .env.local.",
     );
@@ -126,9 +128,7 @@ async function main(): Promise<void> {
   const { value: result, logLine } = await captureLogLine(
     (): Promise<PrepareResult> =>
       createPreparedNoteClient({
-        baseUrl,
-        apiKey: process.env.LOCAL_AI_API_KEY,
-        model,
+        ...config,
         onReply: (raw) => {
           reply = raw;
         },

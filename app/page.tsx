@@ -5,7 +5,7 @@ import {
   getTonightData,
 } from "../db/queries";
 import { aiSearchEnabled } from "../lib/ai-search";
-import { parseSelectedDay, today } from "../lib/local-day";
+import { appTimeZone, parseSelectedDay, today } from "../lib/local-day";
 import { placesEnabled } from "../lib/places";
 import { preparedLabel } from "../lib/prepared-label";
 import { preparedNotesEnabled } from "../lib/prepared-note";
@@ -73,7 +73,7 @@ export default async function TonightPage({
   const preparedNote = stored && {
     brief: stored.brief,
     ranking: stored.ranking,
-    label: preparedLabel(stored.preparedAt, todaySql, process.env.APP_TZ ?? "UTC"),
+    label: preparedLabel(stored.preparedAt, todaySql, appTimeZone()),
     outOfDate: stored.status === "out-of-date",
   };
 

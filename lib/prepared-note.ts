@@ -35,15 +35,32 @@ export const PREPARED_MARKER = "=== RANKING ===";
  * broken, as with `aiSearchEnabled()`.
  */
 export function preparedNotesEnabled(): boolean {
-  return Boolean(process.env.LOCAL_AI_BASE_URL && localModel());
+  const { baseUrl, model } = localModelConfig();
+  return Boolean(baseUrl && model);
 }
 
 /**
- * The local model's id, `LOCAL_AI_MODEL` — the one place it is read. A note's
- * input hash includes it, so the sweep and Tonight's read must agree on it.
+ * The local model's id, `LOCAL_AI_MODEL`. A note's input hash includes it, so
+ * the sweep and Tonight's read must agree on it.
  */
 export function localModel(): string {
-  return process.env.LOCAL_AI_MODEL ?? "";
+  return localModelConfig().model;
+}
+
+/**
+ * The local model's connection, from the `LOCAL_AI_*` variables — the one
+ * place they are read. Shaped to spread into `createPreparedNoteClient`.
+ */
+export function localModelConfig(): {
+  baseUrl: string;
+  apiKey: string | undefined;
+  model: string;
+} {
+  return {
+    baseUrl: process.env.LOCAL_AI_BASE_URL ?? "",
+    apiKey: process.env.LOCAL_AI_API_KEY,
+    model: process.env.LOCAL_AI_MODEL ?? "",
+  };
 }
 
 /**
@@ -287,14 +304,16 @@ type ChatCompletionChunk = {
 
 /**
  * Read a streamed completion's server-sent events to the end, accumulating
- * the answer and the reasoning and keeping the stop reason and usage, which
- * arrive on the last chunk. The reply is streamed, not sent whole, because a
+ * the answer — and the reasoning, with `keepReasoning`, which only `onReply`
+ * reads — and keeping the stop reason and usage, which arrive on the last
+ * chunk. The reply is streamed, not sent whole, because a
  * generation outlasts `fetch`'s five-minute wait for response headers; a
  * stream sends headers at once and a chunk every token. Comment lines (the
  * server's keep-alives) are skipped. Throws on an event that isn't JSON.
  */
 async function readStream(
   body: ReadableStream<Uint8Array>,
+  { keepReasoning }: { keepReasoning: boolean },
 ): Promise<RawPreparedReply & { usage?: Usage }> {
   const reply: RawPreparedReply & { usage?: Usage } = {
     content: null,
@@ -310,7 +329,7 @@ async function readStream(
     const choice = chunk?.choices?.[0];
     const { content, reasoning_content: reasoning } = choice?.delta ?? {};
     if (typeof content === "string") reply.content = (reply.content ?? "") + content;
-    if (typeof reasoning === "string") {
+    if (keepReasoning && typeof reasoning === "string") {
       reply.reasoning = (reply.reasoning ?? "") + reasoning;
     }
     if (typeof choice?.finish_reason === "string") {
@@ -433,7 +452,9 @@ export function createPreparedNoteClient(config: {
           }),
         });
         if (response.ok && response.body) {
-          const { usage: reported, ...reply } = await readStream(response.body);
+          const { usage: reported, ...reply } = await readStream(response.body, {
+            keepReasoning: config.onReply !== undefined,
+          });
           usage = reported;
           config.onReply?.(reply);
           // Only the answer: `reasoning` is the model thinking aloud. Only a

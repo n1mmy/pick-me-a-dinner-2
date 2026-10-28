@@ -22,10 +22,11 @@ the moment Tonight opens, and with free tokens it can say more.
 Decisions settled in the grill:
 
 1. **Contents.** For one date, two parts:
-   - A **brief**: 150–300 words of plain prose covering the evening's context
-     (the Day note, weekday habits, the last few days' eating), two or three
-     standout suggestions with reasons, and what to watch out for (recent
-     disappointments, Rejections, Restaurants closed that day).
+   - A **brief**: two or three sentences, 40–70 words of plain prose, written
+     after the ranking: the evening's context (the Day note, who is around,
+     the last few days' eating) and the one or two standouts from the top of
+     the ranking, with reasons. Closed Restaurants are already left out; the
+     Closed disclosure lists them.
    - A **Prepared ranking**: every candidate Option, not a shortlist, each with
      an AI rationale. The strong picks get two or three sentences, tapering to
      a short line for the tail.
@@ -120,13 +121,12 @@ Ends with notes appearing in the database, and nothing on screen.
    - `preparedNotesEnabled()`: true when `LOCAL_AI_BASE_URL` and
      `LOCAL_AI_MODEL` are both non-empty.
    - `PREPARED_PROMPT_VERSION` constant, and `buildPreparedSystemPrompt()`. The
-     prompt asks for: the brief (150–300 words of plain prose covering the
-     evening's context, two or three standouts, and things to watch out for);
-     then the exact marker line; then `<number>|<rationale>` rows ranking
-     **every** candidate, two or three sentences for the strong picks and
-     tapering to a short line. Carry over the rhythm-claim rule and the
-     household-text and Day-note framing from `buildSystemPrompt` by reusing
-     its wording. Don't import the Claude prompt as a whole: its token-economy
+     prompt asks for (as of v10, ranking first): `<number>|<name>|<rationale>`
+     rows ranking **every** candidate, two or three sentences for the strong
+     picks and tapering to a short line; then the exact marker line; then the
+     brief (two or three sentences, 40–70 words). Carry over the rhythm-claim
+     rule and the household-text and Day-note framing from `buildSystemPrompt`
+     by reusing its wording. Don't import the Claude prompt as a whole: its token-economy
      instructions are the opposite of what we want here.
    - `parsePreparedReply(text, idByIndex)`: split on the marker, trim the
      brief, and run the remainder through `parseRankingText`. A missing marker,
@@ -134,7 +134,7 @@ Ends with notes appearing in the database, and nothing on screen.
    - `createPreparedNoteClient({ baseUrl, apiKey, model }).prepare(snapshot,
      idByIndex)`: one `fetch` POST to `/chat/completions` with a system and a
      user message (the serialized snapshot), and a generous `max_tokens` (start
-     at 16k and tune). It uses an `AbortController` timeout of about 15 minutes
+     at 16k and tune). It uses an `AbortController` timeout of 40 minutes
      and reads only `choices[0].message.content`. Every failure collapses to
      `{ ok: false }`. Each call writes one JSON log line: date, model, latency,
      outcome, usage, and row count.
@@ -145,7 +145,7 @@ Ends with notes appearing in the database, and nothing on screen.
    - `inputHash(snapshot, model)` is pure: SHA-256 over
      `JSON.stringify(snapshot)`, the model, and `PREPARED_PROMPT_VERSION`.
    - `claimDay(date)` is one statement: `INSERT … ON CONFLICT (prepared_for) DO
-     UPDATE SET claimed_until = now() + interval '20 minutes' WHERE
+     UPDATE SET claimed_until = now() + interval '45 minutes' WHERE
      claimed_until IS NULL OR claimed_until < now() RETURNING input_hash`. No
      row back means another replica has it, so skip it.
    - `storeNote(date, note)` writes the note and clears the claim.

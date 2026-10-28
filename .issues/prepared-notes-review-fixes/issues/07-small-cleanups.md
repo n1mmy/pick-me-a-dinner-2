@@ -1,6 +1,6 @@
 # 07 — Small cleanups the reviews named
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -40,10 +40,10 @@ together; none needs a design decision.
   date generates still claims and generates this one, only to be refused at
   the store, wasting one 10–40 minute generation. Re-check
   `getDecidedDates(day, day)` before `claimDay`. DB test.
-- **I6 — a sweep crossing midnight writes one note for a past date.** `now`
+- ~~**I6 — a sweep crossing midnight writes one note for a past date.** `now`
   is fixed per sweep. Recompute today per iteration (a `clock` parameter in
   place of the fixed `now`, defaulting to `() => new Date()`). Low priority;
-  skip if it complicates the signature for the tests.
+  skip if it complicates the signature for the tests.~~ Skipped: see Comments.
 - **O5 — the stream reader keeps reasoning it never uses.** `readStream`
   (`lib/prepared-note.ts:383`) accumulates `reasoning` always; production
   passes no `onReply`. Accumulate it only when `onReply` is set. The eval and
@@ -57,13 +57,49 @@ together; none needs a design decision.
 
 ## Acceptance criteria
 
-- [ ] Each bullet done or struck through with a one-line reason in Comments
-- [ ] `grep -rn 'APP_TZ ??' --include=*.ts --include=*.tsx .` and
+- [x] Each bullet done or struck through with a one-line reason in Comments
+- [x] `grep -rn 'APP_TZ ??' --include=*.ts --include=*.tsx .` and
       `grep -rn 'process.env.LOCAL_AI' --include=*.ts --include=*.tsx .`
       each find one file
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all
       green
 
 ## Blocked by
 
 - Issue 03 if it lands first (both touch `runSweep`); otherwise nothing.
+
+## Comments
+
+- M1 / Standards #2: `appTimeZone()` beside `today()` in `lib/local-day.ts`;
+  `app/page.tsx`, `instrumentation.ts`, `scripts/import-prior-data.ts`, and
+  three test files that repeated the fallback now call it. `grep -rn
+  'APP_TZ ??'` finds only `lib/local-day.ts`.
+- Standards #5: `localModelConfig()` returns `{ baseUrl, apiKey, model }`;
+  `preparedNotesEnabled` and `localModel` read through it, and
+  `instrumentation.ts` and `scripts/prepared-note-eval.ts` spread it into
+  `createPreparedNoteClient`. `grep -rn 'process.env.LOCAL_AI'` finds only
+  `lib/prepared-note.ts`.
+- M2: `PreparedNoteRow` deleted (no readers).
+- M3: the eval header now gives six to ten minutes idle, up to about 35
+  under load.
+- O2: `runSweep` skips a date whose `idByIndex` is empty, before the claim.
+  DB test: an empty Catalog asks the client nothing.
+- C1 residual: `runSweep` re-reads `getDecidedDates(day, day)` at the top of
+  each date, before building the snapshot or claiming. DB test: a Pick for
+  Saturday landing while Thursday generates means Saturday isn't asked.
+- I6 skipped. The past-date note a midnight crossing writes is the one
+  already generating at midnight (today is always first in the loop), and
+  recomputing today per iteration happens before the claim, so it can't
+  stop that note. The stored note is harmless: `preparedNoteFor` freezes a
+  past date. The cost is one generation, so the signature change isn't
+  worth making.
+- O5: `readStream` keeps the reasoning only when `onReply` is set. No
+  public behaviour changes without `onReply`; the existing "hands the raw
+  answer, reasoning, and stop reason to onReply" test covers the scripts'
+  path.
+- Spec (c)6: `.issues/prepared-notes/PRD.md` and `plans/prepared-notes.md`
+  now say a 40–70 word brief written after the ranking, a 40-minute
+  timeout, and a 45-minute lease. Story 4 says the note weighs
+  disappointments and Rejections, and that closed Restaurants go to the
+  Closed disclosure. The plan's prompt-format line also gives v10's order.
+- Gate: typecheck, lint, test (578), test:db (131), build all green.

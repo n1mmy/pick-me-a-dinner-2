@@ -18,7 +18,7 @@ vi.mock("../../../lib/ai-search", () => ({
 }));
 
 import { POST } from "./route";
-import { todaySqlDate } from "../../../lib/local-day";
+import { appTimeZone, todaySqlDate } from "../../../lib/local-day";
 
 /** A built snapshot as `snapshotForDay` hands it over — opaque to the route. */
 const BUILT = {
@@ -94,7 +94,7 @@ describe("POST /api/ai-search", () => {
 
     expect(response.status).toBe(200);
     expect(snapshotForDay).toHaveBeenCalledWith({
-      asOf: todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC"),
+      asOf: todaySqlDate(new Date(), appTimeZone()),
       query: "",
     });
   });

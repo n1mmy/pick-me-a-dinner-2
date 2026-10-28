@@ -66,17 +66,24 @@ export function todayEpochDay(now: Date, timeZone: string): number {
 }
 
 /**
+ * The Household's time zone, `APP_TZ`, falling back to `"UTC"` when it is
+ * unset — the one place that fallback lives. Every reader of the zone routes
+ * through here or `today()`.
+ */
+export function appTimeZone(): string {
+  return process.env.APP_TZ ?? "UTC";
+}
+
+/**
  * The Household's calendar day *now*, as a `"YYYY-MM-DD"` string — the standard
- * binding of the pure `todaySqlDate` to the wall clock and the `APP_TZ`
- * timezone (falling back to `"UTC"` when it is unset). Every page and action
- * that needs "today" routes through here, so the `process.env.APP_TZ ?? "UTC"`
- * fallback lives in exactly one place.
+ * binding of the pure `todaySqlDate` to the wall clock and `appTimeZone()`.
+ * Every page and action that needs "today" routes through here.
  *
- * This is the module's one impure convenience — it reads the clock and the
- * environment. The conversions above stay pure and unit-testable.
+ * With `appTimeZone`, the module's impure convenience — it reads the clock
+ * and the environment. The conversions above stay pure and unit-testable.
  */
 export function today(): string {
-  return todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+  return todaySqlDate(new Date(), appTimeZone());
 }
 
 /**

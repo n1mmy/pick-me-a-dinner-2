@@ -207,6 +207,3 @@ export const preparedNotes = pgTable("prepared_notes", {
     .notNull()
     .defaultNow(),
 });
-
-/** A Prepared note row as stored. */
-export type PreparedNoteRow = typeof preparedNotes.$inferSelect;
