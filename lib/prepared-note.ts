@@ -259,10 +259,9 @@ const MAX_TOKENS = 20_000;
  * Strata is shared, though, and under another client's load decoding fell to
  * ~10 tok/s; two notes cut off at 18 minutes were 15–16k tokens in. The bound
  * covers a full 20k-token budget at that speed (~35 minutes). The sweep's
- * claim lease (45 minutes) must stay longer than this, so a replica never
- * takes over a date another is still generating.
+ * claim lease is derived from this, so it always outlasts it.
  */
-const REQUEST_TIMEOUT_MS = 40 * 60_000;
+export const REQUEST_TIMEOUT_MS = 40 * 60_000;
 
 /**
  * The share of the candidates a ranking must name to be kept. A thinner one

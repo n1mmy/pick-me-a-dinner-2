@@ -7,6 +7,25 @@ import { truncateAll } from "../db/test-support";
 import type { PreparedNoteClient } from "./prepared-note";
 import { claimDay, preparedNoteFor, runSweep } from "./prepared-notes";
 
+// `getPreparedNote` passes through to the real query unless a test overrides
+// it, so a test can stand in for a note the other replica wrote unseen.
+vi.mock("../db/queries", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../db/queries")>();
+  return { ...actual, getPreparedNote: vi.fn(actual.getPreparedNote) };
+});
+
+// The prompt version, overridable per test: bumping it must stale every note.
+const promptVersion = vi.hoisted(() => ({ override: null as string | null }));
+vi.mock("./prepared-note", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./prepared-note")>();
+  return {
+    ...actual,
+    get PREPARED_PROMPT_VERSION() {
+      return promptVersion.override ?? actual.PREPARED_PROMPT_VERSION;
+    },
+  };
+});
+
 const FRIDAY = "2026-10-23";
 
 beforeEach(async () => {
@@ -14,8 +33,12 @@ beforeEach(async () => {
   vi.stubEnv("LOCAL_AI_MODEL", "qwen");
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.unstubAllEnvs();
+  promptVersion.override = null;
+  const { getPreparedNote: real } =
+    await vi.importActual<typeof import("../db/queries")>("../db/queries");
+  vi.mocked(getPreparedNote).mockImplementation(real);
 });
 
 describe("claimDay", () => {
@@ -256,6 +279,38 @@ describe("runSweep", () => {
 
     expect(asked).toEqual(WEEK.filter((day) => day !== "2026-10-23"));
     expect(await getPreparedNote("2026-10-23")).toBeNull();
+  });
+
+  it("leaves a date alone when the other replica wrote this exact note between the read and the claim", async () => {
+    await seedPho();
+    await sweep(stubClient().client);
+    // The sweep's read sees no note; the claim then finds the one just
+    // written, built from this same input.
+    vi.mocked(getPreparedNote).mockResolvedValue(null);
+    const second = stubClient();
+
+    await sweep(second.client);
+
+    expect(second.asked).toEqual([]);
+    // Each claim was released, so the date is free again straight away.
+    for (const day of WEEK) {
+      expect(await claimDay(day)).not.toBeNull();
+    }
+  });
+
+  it("regenerates the notes when the prompt version changes", async () => {
+    await seedPho();
+    await sweep(stubClient().client);
+    const before = await getPreparedNote("2026-10-24");
+    promptVersion.override = "next";
+    const second = stubClient();
+
+    await sweep(second.client);
+
+    expect(second.asked).toEqual(WEEK);
+    expect((await getPreparedNote("2026-10-24"))?.inputHash).not.toBe(
+      before?.inputHash,
+    );
   });
 
   it("regenerates the notes when the model changes", async () => {

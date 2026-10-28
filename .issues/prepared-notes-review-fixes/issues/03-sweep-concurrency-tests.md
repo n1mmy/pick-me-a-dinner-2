@@ -1,6 +1,6 @@
 # 03 — Sweep guards: lease derived from the timeout, claim race and prompt-version tests
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -43,15 +43,31 @@ comment or by luck. Each gets a test; one gets a derived constant.
 
 ## Acceptance criteria
 
-- [ ] `REQUEST_TIMEOUT_MS` exported; `CLAIM_LEASE` built from it; a unit
+- [x] `REQUEST_TIMEOUT_MS` exported; `CLAIM_LEASE` built from it; a unit
       test asserts lease > timeout
-- [ ] `lib/prepared-notes.db.test.ts`: the claim-race test above; deleting
+- [x] `lib/prepared-notes.db.test.ts`: the claim-race test above; deleting
       the `claim.inputHash === hash` branch makes it fail
-- [ ] `lib/prepared-notes.db.test.ts`: a prompt-version bump regenerates a
+- [x] `lib/prepared-notes.db.test.ts`: a prompt-version bump regenerates a
       stored note
-- [ ] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all
+- [x] `corepack pnpm typecheck`, `lint`, `test`, `test:db`, `build` all
       green
 
 ## Blocked by
 
 - Nothing. Third in the review's suggested order.
+
+## Comments
+
+- I7: `REQUEST_TIMEOUT_MS` exported; `CLAIM_LEASE_MS = REQUEST_TIMEOUT_MS +
+  5 * 60_000` (still 45 minutes), and the `sql` fragment is built from it.
+  `lib/prepared-notes.test.ts` asserts lease > timeout.
+- I9: `getPreparedNote` is wrapped in a pass-through `vi.fn` module mock; the
+  race test stores a week of notes, makes the read return `null`, and checks
+  the client is asked nothing and every date can be claimed straight after.
+  Mutation-checked: deleting the `claim.inputHash === hash` branch fails it,
+  and so does deleting only its `releaseClaim`.
+- Prompt version: `PREPARED_PROMPT_VERSION` is mocked with a getter over a
+  hoisted override; bumping it makes the next sweep regenerate all seven
+  dates with a new hash. Mutation-checked: dropping the version from
+  `inputHash` fails it.
+- Gate: typecheck, lint, test (570), test:db, build all green.
