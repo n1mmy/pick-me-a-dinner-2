@@ -138,8 +138,12 @@ Option detail page for a deliberately chosen date — a past date backfills a
 Rejection never recorded live, a future date is a **Planned rejection**. On the date it carries, a Rejection removes
 its Option from Tonight's list for that day (the Option returns on its own the
 next day); it is also kept as dated history fed into future AI searches, where
-the model judges from the reason which Rejections are a standing dislike and
-which were one-off. A Rejection can be edited or deleted at any time from the
+the model weighs each reason as dated evidence: a reason may be a standing
+dislike, a standing fact about how the Option works ("Jen cooks these only
+when she has ingredients set", "comes in two-packs, suggest the second one
+soon"), a passing state ("none left", "no box this week") that fades rather
+than holding until the Household says otherwise, or a one-off. Nothing obliges
+the Household to keep such state current. A Rejection can be edited or deleted at any time from the
 Log screen or the Option detail page. **Bring back** is the narrower
 Selected-day quick-undo on Tonight's "Rejected" disclosure (labelled
 "Rejected tonight" when the Selected day is today). A **Pick** of the Option
@@ -332,8 +336,14 @@ night". An elapsed-time claim restates how long it has been, at any precision �
 "9 days ago", "since early summer", "long out of rotation", "it's been a
 while". The Recency chip and Tag chips already show elapsed time as numbers on
 the same row, so an elapsed-time claim is redundant by construction however
-well it is phrased; the Option's own **Interval** is the timing fact the chips
-cannot carry.
+well it is phrased; the Option's own **Interval** is the one timing fact the
+chips cannot carry, and it qualifies a reason rather than being one.
+
+On a strong pick the rationale leads with what the chips cannot show at all —
+a Note, a weekday habit the Log bears out, a standing reason the Household once
+gave, how the Option fits the shape of the evening — and timing earns at most a
+clause ("…and its stretch is up"). A rationale whose only content is timing
+belongs to the tail: a sense of why the Option sits low, nothing more.
 _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).
 
