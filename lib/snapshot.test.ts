@@ -735,6 +735,74 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
   });
 });
 
+describe("buildSnapshot — backtest mode", () => {
+  // TODAY = "2026-05-20", a decided past day: Mazra was eaten on it.
+  const options = [
+    option("m1", "Mazra", ["rice"]),
+    option("q1", "Quiche"),
+    option("t1", "Tacos"),
+  ];
+  const input = {
+    options,
+    logEntries: [
+      { optionId: "m1", eatenOn: "2026-05-10", note: null },
+      { optionId: "m1", eatenOn: TODAY, note: "the answer" },
+      { optionId: "t1", eatenOn: "2026-05-22", note: "eaten after" },
+    ],
+    rejections: [
+      rejection("q1", "2026-05-12", "none left"),
+      rejection("q1", TODAY, "too soon"),
+      rejection("t1", "2026-05-25", "later"),
+    ],
+    dayNotes: [
+      { notedOn: "2026-05-12", note: "Guests over" },
+      { notedOn: TODAY, note: "Swim night" },
+      { notedOn: "2026-05-22", note: "Away" },
+    ],
+    asOf: TODAY,
+    query: "",
+    backtest: true,
+  };
+  const { snapshot, idByIndex } = buildSnapshot(input);
+
+  it("keeps Log entries dated before the anchor day only", () => {
+    expect(snapshot.log.map((entry) => entry.date)).toEqual([
+      "2026-05-10 (Sunday)",
+    ]);
+  });
+
+  it("keeps the anchor day's Pick a candidate, its timing counted from earlier eats", () => {
+    expect(snapshot.options.map((o) => o.name)).toEqual([
+      "Mazra",
+      "Quiche",
+      "Tacos",
+    ]);
+    expect([...idByIndex.values()]).toContain("m1");
+    expect(snapshot.options[0]).toMatchObject({ eaten: 1, daysSinceLast: 10 });
+    expect(snapshot.tags.rice.daysSinceLast).toBe(10);
+  });
+
+  it("carries no anchor-day Rejection and suppresses nothing for it", () => {
+    expect(snapshot.rejections.rejectedTonight).toEqual([]);
+    expect(
+      snapshot.rejections.notTodayRejections.map((row) => row.reason),
+    ).toEqual(["none left"]);
+    expect([...idByIndex.values()]).toContain("q1");
+  });
+
+  it("keeps Day notes on or before the anchor day, its own as todayDayNote", () => {
+    expect(snapshot.todayDayNote).toBe("Swim night");
+    expect(snapshot.dayNotes.map((d) => d.note)).toEqual(["Guests over"]);
+  });
+
+  it("changes nothing when off", () => {
+    const { snapshot: live } = buildSnapshot({ ...input, backtest: false });
+    expect(live.options.map((o) => o.name)).toEqual(["Tacos"]);
+    expect(live.log).toHaveLength(3);
+    expect(live.dayNotes).toHaveLength(2);
+  });
+});
+
 describe("buildSnapshot — canonical order", () => {
   it("builds the same snapshot from same-date Log entries in either order", () => {
     const input = {

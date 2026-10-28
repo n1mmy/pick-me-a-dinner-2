@@ -306,6 +306,12 @@ export type BuiltSnapshot = {
  *   notes — rides as plain JSON string values; each system prompt names those
  *   fields as data, never instructions. Only the query is wrapped in
  *   `<household-text>` delimiters, since it is sent outside the JSON.
+ * - **Backtest mode** (`backtest: true`) builds the snapshot as the Household
+ *   saw the anchor day before deciding it, for scoring a ranking against what
+ *   was eaten: Log entries and Rejections dated before `asOf` only — the
+ *   anchor day's Picks stay candidates and its Rejections suppress nothing,
+ *   both being the scorer's ground truth — and Day notes on or before `asOf`.
+ *   The Catalog is whatever is passed in.
  */
 export function buildSnapshot(input: {
   options: SnapshotOption[];
@@ -325,9 +331,19 @@ export function buildSnapshot(input: {
    */
   asOf: string;
   query: string;
+  /** Cut the history to what was known before deciding `asOf` — see above. */
+  backtest?: boolean;
 }): BuiltSnapshot {
-  const { options, logEntries, rejections, dayNotes = [], asOf, query } =
-    input;
+  const { options, asOf, query, backtest = false } = input;
+  const logEntries = backtest
+    ? input.logEntries.filter((entry) => entry.eatenOn < asOf)
+    : input.logEntries;
+  const rejections = backtest
+    ? input.rejections.filter((row) => row.rejectedOn < asOf)
+    : input.rejections;
+  const dayNotes = (input.dayNotes ?? []).filter(
+    (dayNote) => !backtest || dayNote.notedOn <= asOf,
+  );
 
   // Every Option is numbered by its 1-based position in the Catalog ordered
   // alphabetically by name — the number is what the model sees instead of the
@@ -517,13 +533,19 @@ function weekdayCountsOf(
  * (`getFullLogForSnapshot`), not `getTonightData`'s non-future `logEntries` —
  * the AI snapshot sees the household's near future (ADR-0008); only the
  * Catalog comes from `getTonightData`.
+ *
+ * `backtest` builds a past day as the Household saw it before deciding (see
+ * `buildSnapshot`) — for the eval scripts only. The Catalog is still read as
+ * it is now: an Option archived, added, or re-tagged since `asOf` is off.
  */
 export async function snapshotForDay({
   asOf,
   query,
+  backtest = false,
 }: {
   asOf: string;
   query: string;
+  backtest?: boolean;
 }): Promise<BuiltSnapshot> {
   const [{ options }, logEntries, rejections, dayNotes] = await Promise.all([
     getTonightData(asOf),
@@ -550,6 +572,7 @@ export async function snapshotForDay({
     dayNotes,
     asOf,
     query,
+    backtest,
   });
 }
 

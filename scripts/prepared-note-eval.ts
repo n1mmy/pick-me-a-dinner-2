@@ -17,6 +17,14 @@
  *   npx tsx scripts/prepared-note-eval.ts --no-prompt   # skip the system prompt
  *   npx tsx scripts/prepared-note-eval.ts --reasoning   # also print the model's reasoning
  *
+ * Backtest (`scripts/backtest.ts`): score notes for recent decided days, each
+ * built as the Household saw it, against what was eaten. ~9 minutes a day, so
+ * the default 20 days is about three hours; `--resume` picks a stopped run up.
+ *
+ *   npx tsx scripts/prepared-note-eval.ts --backtest --json --reasoning
+ *   npx tsx scripts/prepared-note-eval.ts --backtest --days=2026-10-20,2026-10-23 --json=x.json
+ *   npx tsx scripts/prepared-note-eval.ts --backtest --json --reasoning --resume
+ *
  * Strata is free to call, so the billed-call rule in `CLAUDE.md` does not
  * apply here (it still applies to `scripts/ai-search-eval.ts`). One run is one
  * generation: six to ten minutes on an idle Strata, up to about 35 under
@@ -38,17 +46,10 @@ import {
   type RawPreparedReply,
 } from "../lib/prepared-note";
 import { leanSnapshot, snapshotForDay } from "../lib/snapshot";
+import { parseBacktestArgs, RHYTHM_CLAIM_SUSPECTS, runBacktest } from "./backtest";
 
 /** The brief's target length, from the spec. */
 const BRIEF_WORDS = { min: 40, max: 70 };
-
-/**
- * Phrases that usually break the rhythm-claim rule — a date, a day or week
- * count, a month, or a vague "it has been a while". A flag to read, not a
- * verdict: "every two weeks" is fine and still matches.
- */
-const RHYTHM_CLAIM_SUSPECTS =
-  /\b\d{1,2}\/\d{1,2}\b|\b\d+\s+(?:[Dd]ays?|[Ww]eeks?|[Mm]onths?)\b|\b(?:days?|weeks?|months?)\s+ago\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\b|\b(?:a while|long gap)\b/g;
 
 /** `--day=+N`, `--day=YYYY-MM-DD`, or today when absent. */
 function resolveDay(arg: string | undefined): string {
@@ -101,6 +102,42 @@ async function main(): Promise<void> {
       "LOCAL_AI_BASE_URL and LOCAL_AI_MODEL are not set — add them to .env.local.",
     );
     process.exit(1);
+  }
+
+  if (args.includes("--backtest")) {
+    const backtestArgs = parseBacktestArgs(
+      args,
+      `scripts/backtest-runs/strata-v${PREPARED_PROMPT_VERSION}.json`,
+    );
+    if (args.includes("--reasoning") && !backtestArgs.jsonPath) {
+      console.error("--reasoning saves traces beside the JSON — add --json.");
+      process.exit(1);
+    }
+    await runBacktest({
+      args: backtestArgs,
+      meta: { ranker: "prepared note", model, promptVersion: PREPARED_PROMPT_VERSION },
+      saveReasoning: args.includes("--reasoning"),
+      generate: async (built) => {
+        let reply: RawPreparedReply | undefined;
+        const { value: result, logLine } = await captureLogLine(() =>
+          createPreparedNoteClient({
+            ...config,
+            onReply: (raw) => {
+              reply = raw;
+            },
+          }).prepare(built),
+        );
+        return {
+          ok: result.ok,
+          ranking: result.ok ? result.note.ranking : [],
+          brief: result.ok ? result.note.brief : undefined,
+          latencyMs: Number(logLine?.latencyMs) || undefined,
+          outputTokens: Number(logLine?.outputTokens) || undefined,
+          reasoning: reply?.reasoning ?? undefined,
+        };
+      },
+    });
+    return;
   }
 
   const built = await snapshotForDay({ asOf: day, query: "" });
