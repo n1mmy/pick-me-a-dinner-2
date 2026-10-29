@@ -198,7 +198,7 @@ export const preparedNotes = pgTable("prepared_notes", {
   brief: text("brief"),
   /** Every candidate in rank order. */
   ranking: jsonb("ranking").$type<AiRankingRow[]>(),
-  /** Hash of the snapshot, model, and prompt version the note was built from. */
+  /** Hash of the model, system prompt, and user message the note was built from. */
   inputHash: text("input_hash"),
   model: text("model"),
   preparedAt: timestamp("prepared_at", { withTimezone: true }),

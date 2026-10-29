@@ -1,6 +1,6 @@
 # 09 — The Prepared note's input hash covers what is sent
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -29,7 +29,11 @@ after deploy; accepted.
 
 ## Acceptance
 
-- [ ] A test shows a change to a shared prompt block, with no version bump,
+- [x] A test shows a change to a shared prompt block, with no version bump,
       makes a stored note read `out-of-date`.
-- [ ] `pnpm test:db` run if Postgres is up; say so if it was not.
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test` pass.
+- [x] `pnpm test:db` run if Postgres is up; say so if it was not.
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test` pass.
+
+## Comments
+
+- Done. `inputHash(built, model)` hashes `[model, buildPreparedSystemPrompt(), buildPreparedUserMessage(built)]`. The DB tests replace the prompt-version override with a getter over `RATIONALE_RULES` (shared with AI search): with no version bump, the sweep regenerates every date and `preparedNoteFor` reads `out-of-date`. `pnpm test:db` ran against the local `pmad-pg` (`.env` copied from `.env.ralph`): 9 files, 132 tests pass. Every stored note regenerates once after deploy, as accepted.

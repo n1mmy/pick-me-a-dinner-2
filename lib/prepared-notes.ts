@@ -14,13 +14,14 @@ import { dinnerLog, preparedNotes } from "../db/schema";
 import type { AiRankingRow } from "./ai-search";
 import { shiftSqlDate, todaySqlDate } from "./local-day";
 import {
+  buildPreparedSystemPrompt,
+  buildPreparedUserMessage,
   localModel,
-  PREPARED_PROMPT_VERSION,
   type PreparedNote,
   type PreparedNoteClient,
   REQUEST_TIMEOUT_MS,
 } from "./prepared-note";
-import { type ModelSnapshot, snapshotForDay } from "./snapshot";
+import { type BuiltSnapshot, snapshotForDay } from "./snapshot";
 
 /** How far ahead notes are written: today through today+6. */
 const DAYS_AHEAD = 6;
@@ -41,15 +42,19 @@ async function eligibleDays(now: Date, timeZone: string): Promise<string[]> {
 }
 
 /**
- * The fingerprint of everything a note is built from: the date's AI snapshot,
- * the model, and the prompt version. A stored note whose hash differs is
- * stale. Any Pick, Rejection, Day note, Note, or Catalog edit reaches the
- * snapshot, so this one comparison is the only change detection there is.
+ * The fingerprint of what the local model is sent for a date: the model, the
+ * system prompt, and the user message built from the date's snapshot. A stored
+ * note whose hash differs is stale. Any Pick, Rejection, Day note, Note, or
+ * Catalog edit reaches the user message, and an edit to a prompt block —
+ * shared with AI search or not — reaches the system prompt, so this one
+ * comparison is the only change detection there is: no version to bump.
  */
-function inputHash(snapshot: ModelSnapshot, model: string): string {
+function inputHash(built: BuiltSnapshot, model: string): string {
   // One JSON array, so no two different inputs can concatenate to the same text.
   return createHash("sha256")
-    .update(JSON.stringify([PREPARED_PROMPT_VERSION, model, snapshot]))
+    .update(
+      JSON.stringify([model, buildPreparedSystemPrompt(), buildPreparedUserMessage(built)]),
+    )
     .digest("hex");
 }
 
@@ -158,7 +163,7 @@ export async function runSweep({
     // the model's empty ranking is always refused, so the date would be
     // regenerated every sweep.
     if (built.idByCode.size === 0) continue;
-    const hash = inputHash(built.snapshot, model);
+    const hash = inputHash(built, model);
     if ((await getPreparedNote(day))?.inputHash === hash) continue;
 
     const claim = await claimDay(day);
@@ -220,11 +225,11 @@ export async function preparedNoteFor({
   if (day < today || (await getDecidedDates(day, day)).length > 0) {
     return { ...note, status: "frozen" };
   }
-  const { snapshot } = await snapshotForDay({ asOf: day, query: "" });
+  const built = await snapshotForDay({ asOf: day, query: "" });
   return {
     ...note,
     status:
-      inputHash(snapshot, localModel()) === stored.inputHash
+      inputHash(built, localModel()) === stored.inputHash
         ? "current"
         : "out-of-date",
   };

@@ -701,8 +701,7 @@ export type LeanSnapshot = Omit<ModelSnapshot, "log" | "rejections"> & {
  * those copies were over half the tokens. Candidates already carry them in
  * `options`; an Option dropped for the anchor day (Picked, Rejected, Closed)
  * would leave its rows pointing nowhere, so its entry moves to `otherOptions`.
- * A Prepared note's input hash stays on the full snapshot, which this is
- * derived from.
+ * A Prepared note's input hash covers this, as part of the user message sent.
  */
 export function leanSnapshot(snapshot: ModelSnapshot): LeanSnapshot {
   const { today, query, options, tags, log, rejections, ...rest } = snapshot;

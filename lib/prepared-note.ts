@@ -78,8 +78,10 @@ export function localModelConfig(): {
 }
 
 /**
- * Bumped whenever the prompt's wording changes, so every stored note's input
- * hash goes stale and the sweep rewrites it under the new prompt.
+ * Bumped whenever the prompt's wording changes, so a backtest run's file name
+ * and record say which prompt it measured (`scripts/prepared-note-eval.ts`).
+ * Not part of the input hash: that covers the prompt text itself
+ * (`lib/prepared-notes.ts`).
  */
 export const PREPARED_PROMPT_VERSION = "14";
 

@@ -495,9 +495,7 @@ const TEXT_FORMAT_INSTRUCTION = [
 
 /**
  * Bumped whenever the ranking prompt's wording changes, so a backtest run's
- * record says which prompt it measured (`scripts/ai-search-eval.ts`). The
- * Prepared note prompt has its own (`PREPARED_PROMPT_VERSION`); the two move
- * together when a shared bullet changes.
+ * record says which prompt it measured (`scripts/ai-search-eval.ts`).
  */
 export const AI_SEARCH_PROMPT_VERSION = "14";
 

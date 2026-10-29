@@ -14,14 +14,15 @@ vi.mock("../db/queries", async (importOriginal) => {
   return { ...actual, getPreparedNote: vi.fn(actual.getPreparedNote) };
 });
 
-// The prompt version, overridable per test: bumping it must stale every note.
-const promptVersion = vi.hoisted(() => ({ override: null as string | null }));
-vi.mock("./prepared-note", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./prepared-note")>();
+// A rationale rule shared with AI search, overridable per test: editing it,
+// with no version bump, must stale every note.
+const sharedRules = vi.hoisted(() => ({ override: null as string | null }));
+vi.mock("./ai-search", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./ai-search")>();
   return {
     ...actual,
-    get PREPARED_PROMPT_VERSION() {
-      return promptVersion.override ?? actual.PREPARED_PROMPT_VERSION;
+    get RATIONALE_RULES() {
+      return sharedRules.override ?? actual.RATIONALE_RULES;
     },
   };
 });
@@ -35,7 +36,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.unstubAllEnvs();
-  promptVersion.override = null;
+  sharedRules.override = null;
   const { getPreparedNote: real } =
     await vi.importActual<typeof import("../db/queries")>("../db/queries");
   vi.mocked(getPreparedNote).mockImplementation(real);
@@ -324,11 +325,11 @@ describe("runSweep", () => {
     }
   });
 
-  it("regenerates the notes when the prompt version changes", async () => {
+  it("regenerates the notes when a shared prompt block changes, with no version bump", async () => {
     await seedPho();
     await sweep(stubClient().client);
     const before = await getPreparedNote("2026-10-24");
-    promptVersion.override = "next";
+    sharedRules.override = "How to write each rationale: briefly.";
     const second = stubClient();
 
     await sweep(second.client);
@@ -373,6 +374,16 @@ describe("preparedNoteFor", () => {
       ranking: [{ id: phoId, reason: "Fits." }],
       preparedAt: expect.any(Date),
       status: "current",
+    });
+  });
+
+  it("is out of date once a shared prompt block changes, with no version bump", async () => {
+    await seedPho();
+    await sweep(stubClient().client);
+    sharedRules.override = "How to write each rationale: briefly.";
+
+    expect(await preparedNoteFor({ day: SATURDAY, today: THURSDAY })).toMatchObject({
+      status: "out-of-date",
     });
   });
 
