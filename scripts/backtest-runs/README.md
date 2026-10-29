@@ -36,6 +36,11 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   `2026-10-26` missing): 10/10/16, mean rank 5.8, 44/90 never-eaten top-5
   slots. 138 of its 180 top-10 rows were resolved by name — the rank written
   as the number — which is the shape v14's letter codes refuse.
+- `strata-v14` — Prepared note prompt v14 on Strata, with traces, over the
+  first 11 days (`2026-10-02` … `2026-10-15`; stopped when v15 landed):
+  5/6/9, mean / median rank 5.8 / 5, 32/55 never-eaten top-5 slots,
+  too-soon days 2 (`2026-10-11`, `2026-10-15`). Every reply used the letter
+  codes; none was refused.
 - `prepared-v13-opus-5-5-low` — the Prepared note prompt v13 sent to Opus 5.5
   instead of Strata (`--claude`, effort low): 10/11/17 against v13 AI
   search Opus's 10/12/16, ~22s and ~2k output tokens a day. Its
@@ -49,6 +54,13 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   the whole ranking in its reasoning, ~20k tokens, so it needs
   `LOCAL_AI_MAX_TOKENS=40000`: at Strata's 20k both days tried were cut off
   before the reply. Stopped when the prompt moved to v14.
+- `qwen3.8-v14` — the same on prompt v14 (letter codes), over the first
+  eleven days (`2026-10-02` … `2026-10-15`), in three `--resume` parts:
+  6/7/8, mean rank 6.7, median 2, against Strata v14's 5/6/9 and 5.8 on the
+  same days. Its misses are deliberate in the traces, not misread codes: on
+  `2026-10-09` it read "back late" with an old "jen not here, save it"
+  Rejection and put Mazra at #19. 6–11 minutes a day. Stopped when the
+  prompt moved to v15.
 
 Fireworks models, through its Anthropic-compatible endpoint, on the same 20
 days: `ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference`, a Fireworks key
