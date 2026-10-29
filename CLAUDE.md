@@ -25,9 +25,12 @@ before the next tool call.
 
 ## Skill routing
 
-When a request matches a skill, invoke it via the Skill tool as the FIRST
-action — don't answer directly or pre-explore. When in doubt, invoke;
-over-invoking is cheap, under-invoking ships unreviewed work.
+Skills are suggested, and the user runs them. When a request matches a skill
+below, name it in your reply with a one-line reason ("`/investigate` fits —
+run it for the full root-cause loop"), then carry on with the request as
+asked. Call the Skill tool only after the user types `/<name>` or says yes to
+the suggestion. This overrides the default of invoking a matching skill
+first.
 
 - Product ideas, "is this worth building", brainstorming → `/office-hours`
 - Strategy, scope, "think bigger" → `/plan-ceo-review`
@@ -53,10 +56,6 @@ Workflow skills (installed globally from `~/.agents/skills/`):
 - Module design, deepening, refactor / consolidation → `/codebase-design`
 - Writing a skill, `CLAUDE.md`, or another agent-facing doc →
   `/writing-for-agents`
-
-These are user-only (`disable-model-invocation`): when the work matches,
-suggest the user run them.
-
 - Grill a plan with ADRs and glossary updated inline → `/grill-with-docs`
 - Turn the conversation into a spec → `/to-spec`; break a plan into tracker
   tickets → `/to-tickets`
@@ -67,10 +66,8 @@ suggest the user run them.
   `/handoff`
 - Find or install a skill for a capability → `/find-skills`
 
-`/ship` and `/land-and-deploy` are user-triggered and billed; only invoke
-them when explicitly asked. Other skills may be proactively suggested when
-the work matches. If the user types `/<name>` you don't recognize, ask which
-skill they mean — don't guess.
+`/ship` and `/land-and-deploy` are billed: say so when suggesting them. If
+the user types `/<name>` you don't recognize, ask which skill they mean.
 
 ## Billed-call rule
 
