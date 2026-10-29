@@ -209,9 +209,20 @@ describe("parseRankingText", () => {
 });
 
 describe("buildSystemPrompt", () => {
-  it("lets an open query's weak picks go terse, never empty", () => {
-    expect(buildSystemPrompt()).toContain("give only a terse note of three to six words");
-    expect(buildSystemPrompt()).toContain("reads recency through their habits");
+  it("sizes an open query's rows by the pick, and says what the line is for", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("one sentence for the few genuine picks, a few words for the rest");
+    expect(prompt).toContain("reads recency through their habits");
+    // v16: the line is for what the row cannot show — stated as what the row
+    // shows, not as a ban on restating it (lib/ai-search.ts RATIONALE_RULES).
+    expect(prompt).toContain("how recent it is, and the same per Tag");
+    expect(prompt).toContain("what keeps it below the rows above");
+    // v17: the elapsed-time and name rules are back as one clause each,
+    // paired with the positive — v16 without them restated the number in
+    // 91 of 200 top-10 rows. The lead menu and the budgets stay gone.
+    expect(prompt).toContain("never how long it has been");
+    expect(prompt).toContain("so it never opens with it");
+    expect(prompt).not.toMatch(/NEVER state|Lead with|140 characters|Vary how/);
   });
 
   it("describes Log rows by code alone and where those codes resolve", () => {
@@ -265,7 +276,7 @@ describe("buildSystemPrompt", () => {
   });
 
   it("never asks for an empty reason: every ranked row says one thing", () => {
-    expect(buildSystemPrompt()).toContain("never nothing");
+    expect(buildSystemPrompt()).toContain("a few words for the rest");
     expect(buildSystemPrompt()).not.toContain("empty string");
   });
 
