@@ -415,22 +415,47 @@ export const RECENCY_THROUGH_HABITS =
  * the weighing — state what the thing is, leave the judgment to the model —
  * applied to the writing. Each prompt says its own lengths.
  *
- * Two of the old rules are back as single clauses, paired with what to do
- * instead: v16 stated only what the row shows, and the model took the
- * days-since number as the thing to write about (elapsed-time rows 3 → 91
- * of 200, rows opening with the name 12 → 131). Those two are guardrails,
- * not recipe.
+ * Three of the old rules are back as single clauses, each paired with what
+ * goes in the line's place: v16 stated only what the row shows, and the
+ * model took the days-since number as the thing to write about (rows
+ * opening with the name 12 → 131). v17 said what the line must not carry
+ * but not what to write instead, and the local models at xhigh filled the
+ * gap with nothing ("The frequent comfort pick has a comfortable pace");
+ * the snapshot's own words — tag syntax, codes, lower-case names as typed —
+ * reached the screen once v16 stopped naming them. So v18 said what the
+ * line opens on (the reason, not the name or a stand-in) and whose words it
+ * uses (theirs, with the snapshot's named once).
+ *
+ * v19 withdrew the elapsed-time ban that v17 and v18 carried (ADR-0005,
+ * fifth amendment). It rested on the count being redundant beside the
+ * Recency chip; read in production, a line that gives the count is skimmed
+ * faster than the chip is found and parsed, and the stretch the line sets
+ * it against was never on a chip. So the timing clause now says what the
+ * line may read back (the count, against the stretch they usually leave
+ * it), from which last turn it is measured (the Option's or a Tag's,
+ * whichever is nearer — a line that counted twenty days since Aji Ichi while
+ * sushi was four days ago disagreed with the redder chip beside it), and
+ * what still never appears (the gaps as a list). Pace, cadence and rhythm
+ * are ordinary words again; the leak list keeps tag syntax, field names,
+ * Log dates and codes. Guardrails, not recipe: no lead menu, no examples,
+ * no "vary".
  */
 export const RATIONALE_RULES =
   "Each line is read beside the Option's name and the row's numbers: how " +
-  "recent it is, and the same per Tag. Those numbers are theirs to read; " +
-  "the line says what the timing means, never how long it has been, in " +
-  "any form. It carries what that row cannot show: why the Option sits " +
-  "where it does this evening, in their history or their own words — for a " +
-  "genuine pick, what makes it one; for the rest, what keeps it below the " +
-  "rows above. They read the line beside the name, so it never opens with " +
-  "it. Write about the household in the third person, in their words — the " +
-  "food, the person, the night.";
+  "recent it is, and the same per Tag. Those numbers are theirs to read, " +
+  "and the line may read them back: how long it has been, set against the " +
+  "stretch they usually leave it, measured from whichever is nearer, the " +
+  "Option's own last turn or one of its Tags'. A count with no stretch " +
+  "beside it says little; the gaps themselves never appear as a list. It " +
+  "carries what that row cannot show: why the Option sits where it does " +
+  "this evening, in their history or their own words — for a genuine pick, " +
+  "what makes it one; for the rest, what keeps it below the rows above. It " +
+  "opens on that reason, not on the name beside it or a stand-in for it. " +
+  "Write about the household in the third person, in their words — the " +
+  "food, the person, the night — never the snapshot's: not a tag written " +
+  "as the snapshot writes it, not a field name, not a Log date, not an " +
+  "Option's code. An Option is called by its name, a person by theirs, " +
+  "capitalised even where the household typed it lower case.";
 
 /**
  * The empty/open-query result instruction (Q2 / ADR-0005): every candidate,
@@ -483,7 +508,7 @@ const TEXT_FORMAT_INSTRUCTION = [
  * Bumped whenever the ranking prompt's wording changes, so a backtest run's
  * record says which prompt it measured (`scripts/ai-search-eval.ts`).
  */
-export const AI_SEARCH_PROMPT_VERSION = "17";
+export const AI_SEARCH_PROMPT_VERSION = "19";
 
 /** Build the AI search system prompt. */
 export function buildSystemPrompt(): string {

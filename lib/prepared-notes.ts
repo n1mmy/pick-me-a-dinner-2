@@ -93,7 +93,8 @@ export async function claimDay(date: string): Promise<Claim | null> {
  * Write a freshly generated note over the date's previous one and clear the
  * claim — but only while the date is still undecided: a Pick that landed
  * during the generation has frozen the note already stored, and the claim is
- * released either way. Only the latest version is kept.
+ * released either way. Only the latest version is kept. Says whether the note
+ * was written.
  */
 async function storeNote(
   date: string,
@@ -102,7 +103,7 @@ async function storeNote(
     inputHash,
     model,
   }: { note: PreparedNote; inputHash: string; model: string },
-): Promise<void> {
+): Promise<boolean> {
   const stored = await db
     .update(preparedNotes)
     .set({
@@ -126,6 +127,7 @@ async function storeNote(
     )
     .returning({ preparedFor: preparedNotes.preparedFor });
   if (stored.length === 0) await releaseClaim(date);
+  return stored.length > 0;
 }
 
 /**
@@ -137,6 +139,28 @@ async function releaseClaim(date: string): Promise<void> {
     .update(preparedNotes)
     .set({ claimedUntil: null })
     .where(eq(preparedNotes.preparedFor, date));
+}
+
+/**
+ * What a pass did with its dates, for the closing log line. `current` dates
+ * already had this input's note; `skipped` ones were frozen mid-pass, had no
+ * candidates, or were held by the other replica.
+ */
+type SweepTally = {
+  written: number;
+  failed: number;
+  discarded: number;
+  current: number;
+  skipped: number;
+};
+
+/**
+ * One structured line per sweep event, alongside the client's per-call
+ * `prepared_note` line, so a pass can be followed in the pod logs: each
+ * date's generation starting, a finished note thrown away, and the pass done.
+ */
+function logSweep(event: string, fields: Record<string, unknown>): void {
+  console.log(JSON.stringify({ event, ...fields }));
 }
 
 /**
@@ -152,40 +176,78 @@ export async function runSweep({
   timeZone: string;
   client: PreparedNoteClient;
 }): Promise<void> {
+  const startedAt = Date.now();
   const model = localModel();
+  const tally: SweepTally = { written: 0, failed: 0, discarded: 0, current: 0, skipped: 0 };
   // The eligible dates were read once against `now`, and a pass can run for
   // hours: read a fresh clock, so a date midnight has frozen is left alone.
   const passed = (day: string) => day < todaySqlDate(new Date(), timeZone);
   for (const day of await eligibleDays(now, timeZone)) {
-    if (passed(day)) continue;
+    if (passed(day)) {
+      tally.skipped++;
+      continue;
+    }
     // A generation takes minutes: a Pick landing meanwhile has frozen this
     // date, so don't generate a note the store would only refuse.
-    if ((await getDecidedDates(day, day)).length > 0) continue;
+    if ((await getDecidedDates(day, day)).length > 0) {
+      tally.skipped++;
+      continue;
+    }
     const built = await snapshotForDay({ asOf: day, query: "" });
     // Nothing to rank (an empty Catalog, or every Option Closed or Rejected):
     // the model's empty ranking is always refused, so the date would be
     // regenerated every sweep.
-    if (built.idByCode.size === 0) continue;
+    if (built.idByCode.size === 0) {
+      tally.skipped++;
+      continue;
+    }
     const hash = inputHash(built, model);
-    if ((await getPreparedNote(day))?.inputHash === hash) continue;
+    if ((await getPreparedNote(day))?.inputHash === hash) {
+      tally.current++;
+      continue;
+    }
 
     const claim = await claimDay(day);
-    if (claim === null) continue;
+    if (claim === null) {
+      tally.skipped++;
+      continue;
+    }
     // The other replica may have written this exact note between the read
     // above and the claim.
     if (claim.inputHash === hash) {
       await releaseClaim(day);
+      tally.current++;
       continue;
     }
 
+    logSweep("prepared_note_start", {
+      date: built.snapshot.today,
+      model,
+      candidates: built.idByCode.size,
+      // `stale` rewrites a note whose input changed; `new` writes a date with none.
+      reason: claim.inputHash === null ? "new" : "stale",
+    });
     const result = await client.prepare(built);
-    // A generation that ran past midnight would write onto a frozen date.
-    if (result.ok && !passed(day)) {
-      await storeNote(day, { note: result.note, inputHash: hash, model });
-    } else {
+    if (!result.ok) {
       // No retry: the next pass tries again, and the last good note stays.
       await releaseClaim(day);
+      tally.failed++;
+    } else if (passed(day)) {
+      // A generation that ran past midnight would write onto a frozen date.
+      await releaseClaim(day);
+      logSweep("prepared_note_discarded", { date: built.snapshot.today, reason: "passed" });
+      tally.discarded++;
+    } else if (await storeNote(day, { note: result.note, inputHash: hash, model })) {
+      tally.written++;
+    } else {
+      logSweep("prepared_note_discarded", { date: built.snapshot.today, reason: "picked" });
+      tally.discarded++;
     }
+  }
+  // A pass that found every date current says nothing: it would log the same
+  // line every ten minutes. One that generated says it is done.
+  if (tally.written + tally.failed + tally.discarded > 0) {
+    logSweep("prepared_sweep_done", { ...tally, durationMs: Date.now() - startedAt });
   }
 }
 

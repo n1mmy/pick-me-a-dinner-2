@@ -5,6 +5,7 @@
  * every candidate Option (ADR-0011).
  */
 
+import { Agent } from "undici";
 import {
   type AiRankingRow,
   RATIONALE_RULES,
@@ -91,7 +92,7 @@ export function localModelConfig(): {
  * Not part of the input hash: that covers the prompt text itself
  * (`lib/prepared-notes.ts`).
  */
-export const PREPARED_PROMPT_VERSION = "17";
+export const PREPARED_PROMPT_VERSION = "19";
 
 /**
  * Build the Prepared note system prompt. What the snapshot is evidence of,
@@ -137,9 +138,9 @@ export function buildPreparedSystemPrompt(): string {
       "it, so none is left out — Options with little or no history are the " +
       "easiest to forget, and they matter as much as the top. An Option you " +
       "mean to put last is still a row: write it.",
-    "Give each a rationale. The top five rows each get two or three full " +
-      "sentences: the pattern behind the placement, what the notes say, how " +
-      "it fits this evening. Write less as you go down, tapering to a single " +
+    "Give each a rationale: enough on the strongest rows to make the " +
+      "decision useful, up to three sentences; one is enough when there is " +
+      "one useful reason. Write less as you go down, tapering to a single " +
       "short sentence for the weakest; no row is left blank.",
     "",
     "Second, the brief: two or three sentences of plain prose, 40 to 70 words " +
@@ -149,8 +150,8 @@ export function buildPreparedSystemPrompt(): string {
       "kind of evening it is — the Day note when there is one, otherwise " +
       "whether it is a weekend or a weeknight, who is likely home, what the " +
       "last few nights were — not on the weekday or any weekday habit, and " +
-      "then name the one or two standout Options and why. Most evenings have " +
-      "no Day note; that is the ordinary case. The brief is about what to " +
+      "then name the one or two standout Options and why. Describe the " +
+      "evening only as specifically as the evidence allows. The brief is about what to " +
       "reach for: the ranking carries the rest, the low placements included, " +
       "so the brief leaves them to it. Restaurants shut this evening are " +
       "already left out, so closures need no mention. Write for the " +
@@ -179,7 +180,7 @@ export function buildPreparedSystemPrompt(): string {
 }
 
 /**
- * The Prepared rationale cap. A strong pick's two or three sentences run to
+ * The Prepared rationale cap. A strong pick's three sentences run to
  * 300–450 characters, past AI search's ~200 line cap, so this path passes its
  * own; it is still a backstop so a runaway row can't sprawl.
  */
@@ -255,6 +256,17 @@ const MAX_TOKENS = 20_000;
  * claim lease is derived from this, so it always outlasts it.
  */
 export const REQUEST_TIMEOUT_MS = 40 * 60_000;
+
+/**
+ * `fetch`'s own limits, raised to the request's bound. Node's `fetch` gives
+ * up after 300s without response headers or between body chunks, and the
+ * server has one slot: a request queued behind another client's note waits
+ * silently and failed at ~301s, long before `REQUEST_TIMEOUT_MS`.
+ */
+const dispatcher = new Agent({
+  headersTimeout: REQUEST_TIMEOUT_MS,
+  bodyTimeout: REQUEST_TIMEOUT_MS,
+});
 
 /**
  * The share of the candidates a ranking must name to be kept. A thinner one
@@ -431,6 +443,8 @@ export function createPreparedNoteClient(config: {
         const response = await fetch(`${config.baseUrl}/chat/completions`, {
           method: "POST",
           signal: controller.signal,
+          // Node's `fetch` takes undici's `dispatcher`; the DOM type omits it.
+          ...{ dispatcher },
           headers,
           body: JSON.stringify({
             model: config.model,

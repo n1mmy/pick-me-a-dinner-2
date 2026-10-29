@@ -23,6 +23,28 @@ stated only what the row shows, restated the days-since number in nearly half
 its top-10 rows and opened two thirds of them with the Option's name. The
 rhythm-claim rule below is the guardrail's reason._
 
+_Amended 2026-10-29 (prompt v18): each guardrail says what goes in the line's
+place, not only what the line must not carry. v17 said the line never states
+elapsed time and never opens with the name; a local model at low effort filled
+the gap with the number spelled out, and at high effort with nothing, while the
+snapshot's own words — pace, gap, tag, codes, names as typed — reached the
+screen. Now the timing is written in what the household would notice, the line
+opens on the reason, and it is in their words with the snapshot's named once.
+The Prepared prompt's sentence quota for its top five becomes a ceiling, so one
+decisive reason is not padded to three sentences._
+
+_Amended 2026-10-29, later the same day: the elapsed-time ban is withdrawn.
+It rested on the count being redundant beside the Recency chip. Reading v17
+in production showed the opposite: a line is skimmed faster than a chip is
+found and parsed, and the yardstick the line sets the count against — the
+usual stretch — was never on a chip at all. A rationale's timing is now the
+count against the stretch ("15 days, inside the two weeks they usually leave
+it"), measured from whichever is nearer, the Option's last turn or a Tag's,
+so the line agrees with the redder chip. The timing words (pace, cadence, rhythm, spacing, gap) are ordinary
+English again; what stays forbidden is the snapshot itself: gap lists, Log
+dates, field names, codes. The harness stops counting elapsed time as a fault
+and counts timing lines with a yardstick instead._
+
 ADR-0004 added AI search as an additive, triggered layer over the
 deterministic ranking. In practice it added little: the model was fed the same
 pre-digested recency integers the deterministic Score already uses and was
@@ -68,17 +90,14 @@ other Options carry a higher raw recency.
   harness against real data, judged by whether the rationales surface something
   genuinely useful. Reverting to the deterministic cadence option later means
   building that math from scratch.
-- An **AI rationale** states a **rhythm claim**, never an elapsed-time claim
-  (both defined in `CONTEXT.md`). The prompt originally allowed plain-words
-  timing ("overdue", "just had it") as the readable alternative to raw dates;
-  in practice most rationales became restatements of "it has been a while",
-  duplicating the Recency chip and the per-Tag chips the Tonight row renders
-  directly above them. What replaces duration is the Option's own Interval
-  ("runs about every two weeks and that stretch is up"), which the chips cannot
-  show — the habit-reasoning this ADR exists for, now required rather than
-  invited. This governs how findings are *expressed*. If the ranking itself
-  must return a top five that is diverse *in kind*, that is an amendment to
-  this ADR, not a tuning.
+- An **AI rationale** states a **rhythm claim**: the count set against the
+  **usual stretch** (both defined in `CONTEXT.md`). For a day the rule was
+  the reverse — never the count, which the chips already show, only the shape
+  of the habit — and the amendment above withdrew it: the count reads faster
+  in a line than on a chip, and the stretch is the part no chip shows, the
+  habit-reasoning this ADR exists for. This governs how findings are
+  *expressed*. If the ranking itself must return a top five that is diverse
+  *in kind*, that is an amendment to this ADR, not a tuning.
 - The size of the AI result is query-dependent. A query that genuinely narrows
   the Catalog ("something light") returns a focused shortlist of the Options
   that fit. An empty query, or an open one that narrows nothing ("recommend

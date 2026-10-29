@@ -1,3 +1,4 @@
+import { Agent } from "undici";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   type BuiltSnapshot,
@@ -338,13 +339,30 @@ describe("buildPreparedSystemPrompt", () => {
 
   it("keeps the snapshot's vocabulary and the weekday out of what the household reads", () => {
     expect(prompt).toContain("in their words — the food, the person, the night");
+    // v18: the snapshot's leaks named once, as a shared guardrail (issue 14);
+    // v19 took the timing words off the list (issue 15).
+    expect(prompt).toContain("not a tag written as the snapshot writes it");
+    expect(prompt).not.toContain("cadence, rhythm");
+    expect(prompt).toContain("not an Option's code");
     expect(prompt).toContain("not on the weekday or any weekday habit");
     expect(prompt).toContain("names only Options in your top three rows");
   });
 
-  it("asks for a brief of two or three sentences, not a page", () => {
+  it("sizes a strong row by its reasons, not a sentence quota, and never leaves a row blank", () => {
+    // v18: "two or three full sentences" for every top-five row left room
+    // for filler when one fact decided a candidate (issue 14).
+    expect(prompt).toContain("up to three sentences; one is enough when there is one useful reason");
+    expect(prompt).toContain("no row is left blank");
+    expect(prompt).not.toContain("two or three full sentences");
+  });
+
+  it("asks for a brief of two or three sentences, not a page, and does not invite announcing a missing Day note", () => {
     expect(prompt).toContain("the brief: two or three sentences");
     expect(prompt).not.toContain("150 to 300 words");
+    // v18: "that is the ordinary case" came back as "With no special
+    // note…" briefs (issue 14).
+    expect(prompt).toContain("only as specifically as the evidence allows");
+    expect(prompt).not.toContain("that is the ordinary case");
   });
 
   it("carries the shared rationale rule, for the brief too, and the household-text and Day-note framing", () => {
@@ -424,6 +442,16 @@ describe("createPreparedNoteClient().prepare", () => {
         { role: "user", content: expect.stringContaining(JSON.stringify(leanSnapshot(snapshot))) },
       ],
     });
+  });
+
+  it("sends its own dispatcher, so a request queued behind another client outlasts fetch's 300s default", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));
+
+    await client().prepare(built);
+
+    const init = fetchSpy.mock.calls[0][1] as { dispatcher?: unknown };
+    expect(init.dispatcher).toBeInstanceOf(Agent);
   });
 
   it("posts the reasoning effort and token budget when they are configured", async () => {

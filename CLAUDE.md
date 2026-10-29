@@ -3,10 +3,8 @@
 Helps decide what's for dinner: a small Next.js + Drizzle/Postgres app. What
 it's for: `PRODUCT.md`. Domain language: `CONTEXT.md`.
 
-This file is the single source of project instructions: it is self-contained
-and does not assume any global `~/.claude/CLAUDE.md` is present. Project
-`CLAUDE.md` is the highest-precedence instruction source — it wins over
-heuristic auto-memory entries when they conflict.
+This file is the single, self-contained source of project instructions. It
+wins over auto-memory entries when they conflict.
 
 ## Skill workflows run end-to-end
 
@@ -27,9 +25,12 @@ before the next tool call.
 
 ## Skill routing
 
-When a request matches a skill, invoke it via the Skill tool as the FIRST
-action — don't answer directly or pre-explore. When in doubt, invoke;
-over-invoking is cheap, under-invoking ships unreviewed work.
+Skills are suggested, and the user runs them. When a request matches a skill
+below, name it in your reply with a one-line reason ("`/investigate` fits —
+run it for the full root-cause loop"), then carry on with the request as
+asked. Call the Skill tool only after the user types `/<name>` or says yes to
+the suggestion. This overrides the default of invoking a matching skill
+first.
 
 - Product ideas, "is this worth building", brainstorming → `/office-hours`
 - Strategy, scope, "think bigger" → `/plan-ceo-review`
@@ -51,15 +52,10 @@ Workflow skills (installed globally from `~/.agents/skills/`):
 - Throwaway prototype to flesh out a design before committing → `/prototype`
 - Test-first feature work, red-green-refactor → `/tdd`
 - Hard bug or performance regression, disciplined root-cause loop →
-  `/diagnosing-bugs` (gstack's `/investigate` is the equivalent — prefer
-  whichever the user names)
+  `/diagnosing-bugs` (or `/investigate` — whichever the user names)
 - Module design, deepening, refactor / consolidation → `/codebase-design`
 - Writing a skill, `CLAUDE.md`, or another agent-facing doc →
   `/writing-for-agents`
-
-These are user-only (`disable-model-invocation`): when the work matches,
-suggest the user run them.
-
 - Grill a plan with ADRs and glossary updated inline → `/grill-with-docs`
 - Turn the conversation into a spec → `/to-spec`; break a plan into tracker
   tickets → `/to-tickets`
@@ -70,23 +66,20 @@ suggest the user run them.
   `/handoff`
 - Find or install a skill for a capability → `/find-skills`
 
-`/ship` and `/land-and-deploy` are user-triggered and billed; only invoke
-them when explicitly asked. Other skills may be proactively suggested when
-the work matches. If the user types `/<name>` you don't recognize, ask which
-skill they mean — don't guess.
+`/ship` and `/land-and-deploy` are billed: say so when suggesting them. If
+the user types `/<name>` you don't recognize, ask which skill they mean.
 
 ## Billed-call rule
 
-The billed-call rule extends past skills: anything that spends money against
-an external service is user-triggered too. The standing example is
-`scripts/ai-search-eval.ts` — one run sends the full dinner snapshot to the
-metered model API and can burn the whole 90s timeout. State the cost shape
-(one call vs a sweep, rough size) and wait for approval before running. A
-tiny placeholder-body probe (a 64-token curl that never touches the real
-snapshot) is fine without asking; a full run is not. Strata, the local model
-behind `LOCAL_AI_*` and `scripts/prepared-note-eval.ts`, is free: the rule
-doesn't apply to it. `prepared-note-eval.ts --claude` sends the backtest to a
-Claude model instead, and that run is billed.
+Anything that spends money against an external service, or occupies a
+shared one, is user-triggered: state the shape (one call vs a sweep, rough
+size and duration) and wait for approval. `scripts/ai-search-eval.ts` and
+`scripts/prepared-note-eval.ts --claude` send the full dinner snapshot to a
+metered Claude model, so they fall under the rule; a 64-token placeholder
+probe that never touches the real snapshot does not. Strata, the local model
+behind `LOCAL_AI_*`, is not metered but is a shared resource: a backtest
+sweep on it ties it up for an hour or more, so it is approved the same way.
+A single probe call is not.
 
 ## Browser tooling
 
@@ -96,19 +89,11 @@ tools.
 ## Agents in other models
 
 Consider Paseo (`paseo`, on `$PATH`) whenever an agent in another model would
-help — an outside voice on a review or plan, a cross-model second opinion. For
-OpenAI models go through the omp harness, which holds the login — not the
-`codex` harness, which isn't logged in here:
-`paseo run --provider omp --model openai/<model> --mode write --title "<title>" "<prompt>"`
-(omp modes: `full`, `write`, `ask`). In `write` mode the agent stalls on
-approval prompts (shell commands included) that show only as `OMP select`
-with no detail: `paseo wait` returns while it's still `running`, so check
-`paseo permit ls` and answer with `paseo permit allow|deny <agent> <req>`.
-List omp's models with
-`omp models find <pattern>`; `paseo provider ls` lists the other providers.
-gstack's own `codex exec` can't start its sandbox in this container, so Paseo
-is also the route for a skill's Codex outside-voice step. A run against a
-metered provider falls under the billed-call rule above.
+help — an outside voice on a review or plan, a cross-model second opinion, or
+a skill's Codex step (gstack's own `codex exec` cannot start its sandbox
+here). Running an OpenAI model and answering its approval prompts:
+`docs/agents/paseo.md`. A run against a metered provider falls under the
+billed-call rule.
 
 ## Bash shapes
 
