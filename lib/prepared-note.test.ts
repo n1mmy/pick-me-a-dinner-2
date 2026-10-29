@@ -1,3 +1,4 @@
+import { Agent } from "undici";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   type BuiltSnapshot,
@@ -441,6 +442,16 @@ describe("createPreparedNoteClient().prepare", () => {
         { role: "user", content: expect.stringContaining(JSON.stringify(leanSnapshot(snapshot))) },
       ],
     });
+  });
+
+  it("sends its own dispatcher, so a request queued behind another client outlasts fetch's 300s default", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));
+
+    await client().prepare(built);
+
+    const init = fetchSpy.mock.calls[0][1] as { dispatcher?: unknown };
+    expect(init.dispatcher).toBeInstanceOf(Agent);
   });
 
   it("posts the reasoning effort and token budget when they are configured", async () => {

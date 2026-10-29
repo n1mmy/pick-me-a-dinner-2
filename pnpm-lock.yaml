@@ -32,6 +32,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.6(react@19.2.6)
+      undici:
+        specifier: ^7.25.0
+        version: 7.25.0
     devDependencies:
       '@testing-library/dom':
         specifier: ^10.4.1

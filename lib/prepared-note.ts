@@ -5,6 +5,7 @@
  * every candidate Option (ADR-0011).
  */
 
+import { Agent } from "undici";
 import {
   type AiRankingRow,
   RATIONALE_RULES,
@@ -257,6 +258,17 @@ const MAX_TOKENS = 20_000;
 export const REQUEST_TIMEOUT_MS = 40 * 60_000;
 
 /**
+ * `fetch`'s own limits, raised to the request's bound. Node's `fetch` gives
+ * up after 300s without response headers or between body chunks, and the
+ * server has one slot: a request queued behind another client's note waits
+ * silently and failed at ~301s, long before `REQUEST_TIMEOUT_MS`.
+ */
+const dispatcher = new Agent({
+  headersTimeout: REQUEST_TIMEOUT_MS,
+  bodyTimeout: REQUEST_TIMEOUT_MS,
+});
+
+/**
  * The share of the candidates a ranking must name to be kept. A thinner one
  * is refused, so the last good note stays rather than a partial ranking
  * overwriting a full one. 90% is a default, not a measurement: it lets
@@ -431,6 +443,8 @@ export function createPreparedNoteClient(config: {
         const response = await fetch(`${config.baseUrl}/chat/completions`, {
           method: "POST",
           signal: controller.signal,
+          // Node's `fetch` takes undici's `dispatcher`; the DOM type omits it.
+          ...{ dispatcher },
           headers,
           body: JSON.stringify({
             model: config.model,
