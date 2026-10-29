@@ -153,10 +153,13 @@ export async function runSweep({
   client: PreparedNoteClient;
 }): Promise<void> {
   const model = localModel();
+  // The eligible dates were read once against `now`, and a pass can run for
+  // hours: read a fresh clock, so a date midnight has frozen is left alone.
+  const passed = (day: string) => day < todaySqlDate(new Date(), timeZone);
   for (const day of await eligibleDays(now, timeZone)) {
-    // The eligible dates were read once, and a generation takes minutes: a
-    // Pick landing meanwhile has frozen this date, so don't generate a note
-    // the store would only refuse.
+    if (passed(day)) continue;
+    // A generation takes minutes: a Pick landing meanwhile has frozen this
+    // date, so don't generate a note the store would only refuse.
     if ((await getDecidedDates(day, day)).length > 0) continue;
     const built = await snapshotForDay({ asOf: day, query: "" });
     // Nothing to rank (an empty Catalog, or every Option Closed or Rejected):
@@ -176,7 +179,8 @@ export async function runSweep({
     }
 
     const result = await client.prepare(built);
-    if (result.ok) {
+    // A generation that ran past midnight would write onto a frozen date.
+    if (result.ok && !passed(day)) {
       await storeNote(day, { note: result.note, inputHash: hash, model });
     } else {
       // No retry: the next pass tries again, and the last good note stays.
@@ -206,7 +210,8 @@ export type TonightPreparedNote = {
  * staleness test — the date's current snapshot hashed against the hash the
  * note was built from — so the marker shows exactly while the sweep would
  * rewrite the note. A frozen note is a record rather than advice: never out of
- * date, and its snapshot (one full-Log read) is never built.
+ * date, and its snapshot (one full-Log read) is never built. A date with no
+ * candidates reads frozen too: the sweep leaves it alone.
  */
 export async function preparedNoteFor({
   day,
@@ -226,6 +231,8 @@ export async function preparedNoteFor({
     return { ...note, status: "frozen" };
   }
   const built = await snapshotForDay({ asOf: day, query: "" });
+  // Nothing to rank: the sweep skips the date, so the note stays as it is.
+  if (built.idByCode.size === 0) return { ...note, status: "frozen" };
   return {
     ...note,
     status:

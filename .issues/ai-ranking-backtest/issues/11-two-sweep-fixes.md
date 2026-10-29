@@ -1,6 +1,6 @@
 # 11 — Two sweep fixes: past midnight, and a date with no candidates
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -34,6 +34,10 @@ Tests in `lib/prepared-notes.db.test.ts`.
 
 ## Acceptance
 
-- [ ] Both tests pass under `pnpm test:db`, or the run is reported as not
+- [x] Both tests pass under `pnpm test:db`, or the run is reported as not
       possible.
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test` pass.
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test` pass.
+
+## Comments
+
+- Done. The fresh-clock check runs twice: at the top of each iteration as the issue asks, and again after the generation, before the store. A check at the top alone cannot catch a generation that *finishes* after midnight (the date was today when it started), and that case is the one the issue names. `preparedNoteFor` reads a date with no candidates as `frozen`. The DB tests drive the sweep's clock with `vi.useFakeTimers({ toFake: ["Date"] })`. Three new tests (past midnight during a generation, past midnight before the pass reached the date, no candidates), each mutation-checked: removing its guard fails exactly that test. `pnpm test:db` against the local `pmad-pg`: 9 files, 135 tests pass.
