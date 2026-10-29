@@ -2,174 +2,44 @@
  * AI search evaluation harness — run an AI search against the real dev
  * database from the command line, without the Tonight UI (ADR-0005).
  *
- * This is the iteration loop for the AI search prompt and snapshot
- * (`lib/ai-search.ts`): edit the system prompt or the snapshot shape, re-run
+ * This is the iteration loop for the AI search prompt (`lib/ai-search.ts`) and
+ * snapshot (`lib/snapshot.ts`): edit the system prompt or the snapshot shape, re-run
  * this, and read the ranked result, its rationales, and the token usage.
  * No browser, no React, one model call.
  *
  *   npx tsx scripts/ai-search-eval.ts "something light"
  *   npx tsx scripts/ai-search-eval.ts                      # empty query
+ *   npx tsx scripts/ai-search-eval.ts --day=2026-10-30     # a Selected day, not today
  *   npx tsx scripts/ai-search-eval.ts --snapshot "guests"  # also dump the
  *                                                            JSON sent to the model
- *   npx tsx scripts/ai-search-eval.ts --mode=drop ""       # force a tail mode
- *   npx tsx scripts/ai-search-eval.ts --compare            # model matrix
- *   npx tsx scripts/ai-search-eval.ts --compare --serial   # one call at a time
- *   npx tsx scripts/ai-search-eval.ts --compare --reps=3   # repeat each cell
- *   npx tsx scripts/ai-search-eval.ts --compare --json     # record rankings to a file
- *   npx tsx scripts/ai-search-eval.ts --compare --cells="effort low" "light"
- *                                                          # one effort, one query
- *   npx tsx scripts/ai-search-eval.ts --compare --serial \
- *     --cells="opus-5 · effort low,opus-5 · effort high,sonnet-5 · effort low,sonnet-5 · effort high"
- *                                                          # two models × two efforts
+ *   npx tsx scripts/ai-search-eval.ts --backtest --json    # score recent decided days
+ *   npx tsx scripts/ai-search-eval.ts --backtest --days=2026-10-20,2026-10-23
  *
- * The `--mode` flag (`full` | `pithy` | `drop`) overrides `AI_TAIL_MODE`
- * for the run, so the three open-query result shapes can be compared on the
- * same data; a plain run prints its input / output / cache token counts.
+ * `--backtest` (`scripts/backtest.ts`, shared with the Prepared note eval)
+ * runs an open search for each of about 20 recent decided days, built as the
+ * Household saw it, and scores the ranking against what was eaten. One billed
+ * call per day — state the count and get approval first (`CLAUDE.md`).
  *
- * `--compare` runs one shared snapshot through the `COMPARE_CELLS` matrix and
- * prints each run's latency and ranking. Every cell goes through
- * `createAiSearchClient` with an explicit model + `ThinkingChoice` override,
- * so the budget-API models (Sonnet 4.6, Haiku) and the adaptive-API models
- * (Opus 4.8, Opus 5, Sonnet 5) are all exercised through the production path.
- * `--serial` runs
- * the cells one at a time — slower, but the per-call latencies are free of the
- * contention a parallel sweep adds. `--reps=N` repeats every cell N times and
- * the latency summary aggregates each cell to mean/min/max (interleaved under
- * `--serial`); `--json[=path]` records every run's full ranking to a file for
- * programmatic before/after comparison. Each cell prints and is written to
- * that file as soon as it lands — a sweep is readable while it runs, and a
- * crash keeps the cells already paid for. A partial file carries
- * `inProgress: true`. Several sweeps' files collapse into one per snapshot and
- * query with `scripts/model-comparison/merge-runs.mjs`, which is how the
- * comparison artifacts stay at one file per question rather than one per
- * sweep; `scripts/model-comparison/analyze.mjs` reads either shape.
+ * A plain run uses the env-configured model / effort
+ * (`AI_MODEL` / `AI_EFFORT`), exactly as the `aiSearchAction` server action,
+ * and prints its input / output / cache token counts.
  *
- * `--compare` takes the same positional query a plain run does (empty when
- * omitted), and `--cells=<substring>[,<substring>...]` narrows the matrix to
- * the cells whose label contains any of the substrings — the full matrix is
- * twenty-two live calls per rep, so a two-model question should say so rather
- * than pay for the sweep. Listing several terms keeps the chosen cells in ONE
- * run, which is what makes them comparable: every cell in a run shares a
- * single snapshot.
- *
- * A plain run (no `--compare`) uses the env-configured model / effort
- * (`AI_MODEL` / `AI_EFFORT`), exactly as the `aiSearchAction` server action.
- *
- * `DATABASE_URL`, `APP_TZ`, and `ANTHROPIC_API_KEY` are read from `.env`. The
+ * `DATABASE_URL`, `APP_TZ`, and `ANTHROPIC_API_KEY` are read from `.env`, or
+ * from the file `DOTENV_CONFIG_PATH` names (e.g. `.env.k8s`). The
  * snapshot is built exactly as the `aiSearchAction` server action builds it,
  * so what this prints is what the Tonight screen would show.
  */
 import "dotenv/config";
 import { config } from "dotenv";
-import { writeFileSync } from "node:fs";
 import {
+  AI_SEARCH_PROMPT_VERSION,
   createAiSearchClient,
   resolveModel,
-  type AiSearchResult,
-  type ModelSnapshot,
-  type ThinkingChoice,
+  splitUserTurn,
 } from "../lib/ai-search";
-import { today } from "../lib/local-day";
-import { snapshotForDay } from "../lib/snapshot-source";
-
-/** Tail modes accepted by `--mode` — see `resolveTailMode` in `lib/ai-search`. */
-const TAIL_MODES = ["full", "pithy", "drop"] as const;
-
-/** One cell of the `--compare` matrix — a model paired with a thinking choice. */
-type ComparisonCell = {
-  label: string;
-  model: string;
-  thinking: ThinkingChoice;
-};
-
-/** One completed `--compare` run: its cell, rep index, latency, and result. */
-type ComparisonRun = {
-  cell: ComparisonCell;
-  /** 1-based repetition index — always `1` unless `--reps` asked for more. */
-  rep: number;
-  latencyMs: number;
-  ok: boolean;
-  rows: { id: string; reason: string }[];
-  /** Output tokens the call generated — absent when the call left no response. */
-  outputTokens?: number;
-  /** Candidates the model omitted that `search` appended (serial runs only). */
-  backfilledCount?: number;
-  /** The model's ranking text before parsing — absent when the call left none. */
-  rawText?: string;
-};
-
-/** Budget-API models (Sonnet, Haiku) swept over token-budget levels. */
-const BUDGET_MODELS = [
-  { name: "haiku", model: "claude-haiku-4-5-20251001" },
-  { name: "sonnet", model: "claude-sonnet-4-6" },
-];
-/** Token budgets to sweep — `0` is thinking off. */
-const BUDGET_LEVELS = [0, 1024, 2048, 4096, 6144];
-/** Adaptive-thinking effort levels (`null` = thinking off). */
-const ADAPTIVE_EFFORTS: ("low" | "medium" | "high" | null)[] = [
-  null,
-  "low",
-  "medium",
-  "high",
-];
-/**
- * The adaptive-thinking models swept over the effort levels — the current
- * default first. Sonnet 5 belongs here, not with its 4.6 predecessor in
- * `BUDGET_MODELS`: it takes `output_config.effort` like Opus and rejects a
- * `budget_tokens` call (see `usesAdaptiveThinking` in `lib/ai-search`), so it
- * is comparable to Opus 5 level-for-level on the same knob.
- */
-const ADAPTIVE_MODELS = [
-  "claude-opus-4-8",
-  "claude-opus-5",
-  "claude-opus-5-5",
-  "claude-sonnet-5",
-];
-
-/**
- * gpt-oss-120b, served through Fireworks's Anthropic-compatible endpoint
- * rather than Anthropic's own API — see `.env.k8s.kimi` (repurposed for any
- * Fireworks model under test, not just Kimi), which points
- * `ANTHROPIC_BASE_URL` / `ANTHROPIC_API_KEY` at Fireworks. It is a single
- * fixed cell, not a member of `ADAPTIVE_MODELS`, because Fireworks does not
- * serve Anthropic's adaptive-thinking API — only `thinking: off` is valid.
- * Comparing it against the Anthropic cells in the same `--compare` invocation
- * would send every cell's call to whichever base URL is in `.env`, so filter
- * to just this cell (`--cells="fireworks"`) when `.env` points at Fireworks.
- */
-const FIREWORKS_MODEL = "accounts/fireworks/models/gpt-oss-120b";
-
-/**
- * The matrix `--compare` runs — every model family on one shared snapshot.
- * For a latency measurement, narrow this to one model with repeated cells and
- * run with `--serial` (interleave reps so API-load drift is spread evenly).
- */
-const COMPARE_CELLS: ComparisonCell[] = [
-  ...BUDGET_MODELS.flatMap((m) =>
-    BUDGET_LEVELS.map(
-      (budget): ComparisonCell => ({
-        label: `${m.name} · thinking ${budget === 0 ? "off" : budget}`,
-        model: m.model,
-        thinking:
-          budget === 0
-            ? { type: "off" }
-            : { type: "budget", budgetTokens: budget },
-      }),
-    ),
-  ),
-  ...ADAPTIVE_MODELS.flatMap((model) =>
-    ADAPTIVE_EFFORTS.map(
-      (effort): ComparisonCell => ({
-        label: `${model.replace("claude-", "")} · ${
-          effort ? `effort ${effort}` : "thinking off"
-        }`,
-        model,
-        thinking: effort ? { type: "effort", effort } : { type: "off" },
-      }),
-    ),
-  ),
-  { label: "fireworks-gpt-oss-120b · thinking off", model: FIREWORKS_MODEL, thinking: { type: "off" } },
-];
+import { isValidSqlDate, today } from "../lib/local-day";
+import { type BuiltSnapshot, snapshotForDay } from "../lib/snapshot";
+import { parseBacktestArgs, runBacktest } from "./backtest";
 
 /**
  * Run `call` with the `ai_search` log line `search` emits captured rather than
@@ -198,235 +68,23 @@ async function captureModelCall<T>(
   }
 }
 
-async function buildSnapshotFromDb(query: string): Promise<{
-  snapshot: ModelSnapshot;
-  idByIndex: Map<number, string>;
-  nameById: Map<string, string>;
-}> {
+/**
+ * The anchor day: `--day=YYYY-MM-DD` — the Selected day, as a stepped Tonight
+ * sends it — or today when absent.
+ */
+function anchorDay(): string {
+  const arg = process.argv.find((a) => a.startsWith("--day="))?.slice(6);
+  if (arg === undefined) return today();
+  if (isValidSqlDate(arg)) return arg;
+  console.error(`--day must be YYYY-MM-DD, got ${arg}`);
+  process.exit(1);
+}
+
+async function buildSnapshotFromDb(query: string): Promise<BuiltSnapshot> {
   // `snapshotForDay` owns the reads and the mapping — this now measures
   // exactly the snapshot `aiSearchAction` builds, full Log (Planned dinners)
   // included, rather than the deterministic ranking's non-future Log.
-  return snapshotForDay({ asOf: today(), query });
-}
-
-async function runComparison(
-  apiKey: string,
-  opts: {
-    serial: boolean;
-    reps: number;
-    jsonPath?: string;
-    query: string;
-    cellFilter?: string;
-  },
-): Promise<void> {
-  const { serial, reps, jsonPath, query, cellFilter } = opts;
-  // The full matrix is every model family at every thinking level — far more
-  // calls than most questions need. `--cells=` narrows it to the cells whose
-  // label contains any of the comma-separated substrings, so "compare two
-  // models at two efforts" costs four calls rather than the full sweep. A list
-  // rather than one substring matters because a cross-model comparison is only
-  // sound over ONE shared snapshot: the four cells have to run together, and no
-  // single substring selects exactly them.
-  const filterTerms = cellFilter
-    ?.split(",")
-    .map((term) => term.trim())
-    .filter((term) => term !== "");
-  const cells = filterTerms?.length
-    ? COMPARE_CELLS.filter((cell) =>
-        filterTerms.some((term) => cell.label.includes(term)),
-      )
-    : COMPARE_CELLS;
-  if (cells.length === 0) {
-    console.error(`--cells=${cellFilter} matched no cell. Available labels:`);
-    for (const cell of COMPARE_CELLS) console.error(`  ${cell.label}`);
-    process.exit(1);
-  }
-  const { snapshot, idByIndex, nameById } = await buildSnapshotFromDb(query);
-
-  console.log(`today: ${snapshot.today}`);
-  console.log(`query: ${query ? JSON.stringify(query) : "(empty)"}`);
-  console.log(
-    `catalog: ${snapshot.options.length} Options   ` +
-      `log: ${snapshot.log.length} dinners`,
-  );
-  console.log(`mode: ${serial ? "serial" : "parallel"}   reps: ${reps}\n`);
-
-  const runCell = async (
-    cell: ComparisonCell,
-    rep: number,
-  ): Promise<ComparisonRun> => {
-    const startedAt = Date.now();
-    let rawText: string | undefined;
-    const call = (): Promise<AiSearchResult> =>
-      createAiSearchClient(apiKey, {
-        model: cell.model,
-        thinking: cell.thinking,
-        onResponseText: (text) => {
-          rawText = text;
-        },
-      }).search(snapshot, idByIndex);
-
-    // Token counts come from the structured log line, which can only be
-    // attributed to its own call when nothing else is in flight — so a
-    // parallel sweep reports latency only.
-    const { value: result, modelCall } = serial
-      ? await captureModelCall(call)
-      : { value: await call(), modelCall: undefined };
-
-    return {
-      cell,
-      rep,
-      latencyMs: Date.now() - startedAt,
-      ok: result.ok,
-      rows: result.ok ? result.results : [],
-      outputTokens:
-        typeof modelCall?.outputTokens === "number"
-          ? modelCall.outputTokens
-          : undefined,
-      backfilledCount:
-        typeof modelCall?.backfilledCount === "number"
-          ? modelCall.backfilledCount
-          : undefined,
-      rawText,
-    };
-  };
-
-  const runs: ComparisonRun[] = [];
-
-  /**
-   * Write every run recorded so far to `jsonPath`. Called after each cell
-   * completes rather than once at the end: a sweep is a long line of billed
-   * calls, and a crash — or a `max_tokens` blow-up on the last cell — must not
-   * take the finished ones with it. The file is always valid JSON for the runs
-   * it contains, so an analysis script can read it mid-sweep.
-   */
-  const writeJson = (): void => {
-    if (!jsonPath) return;
-    writeFileSync(
-      jsonPath,
-      JSON.stringify(
-        {
-          today: snapshot.today,
-          query: query || "(empty)",
-          mode: serial ? "serial" : "parallel",
-          reps,
-          catalog: snapshot.options.length,
-          logEntries: snapshot.log.length,
-          /** True until the last cell lands — a reader can tell a partial file. */
-          inProgress: runs.length < cells.length * reps,
-          runs: runs.map((run) => ({
-            rep: run.rep,
-            label: run.cell.label,
-            model: run.cell.model,
-            thinking: run.cell.thinking,
-            latencyMs: run.latencyMs,
-            outputTokens: run.outputTokens,
-            backfilledCount: run.backfilledCount,
-            ok: run.ok,
-            ranking: run.rows.map((row, index) => ({
-              rank: index + 1,
-              name: nameById.get(row.id) ?? row.id,
-              reason: row.reason,
-            })),
-            rawText: run.rawText,
-          })),
-        },
-        null,
-        2,
-      ),
-    );
-  };
-
-  // Full rankings — printed once per cell (its first rep) to stay readable
-  // when reps multiply the run count; the latency summary below covers them all.
-  const printedRanking = new Set<string>();
-
-  /**
-   * Record one completed run: print it and persist the file immediately, so a
-   * sweep is observable while it runs instead of silent until the end.
-   */
-  const recordRun = (run: ComparisonRun): void => {
-    runs.push(run);
-    const secs = (run.latencyMs / 1000).toFixed(1);
-    const repTag = reps > 1 ? ` (rep ${run.rep})` : "";
-    console.log(
-      `\n=== ${run.cell.label}${repTag}  —  ${secs}s  —  ` +
-        `${run.ok ? `${run.rows.length} results` : "UNAVAILABLE"} ` +
-        `—  ${runs.length}/${cells.length * reps} ===`,
-    );
-    if (run.ok && !printedRanking.has(run.cell.label)) {
-      printedRanking.add(run.cell.label);
-      run.rows.forEach((row, index) => {
-        console.log(
-          `${String(index + 1).padStart(2)}. ${nameById.get(row.id) ?? row.id}`,
-        );
-        console.log(`    ${row.reason}`);
-      });
-    }
-    writeJson();
-  };
-
-  // Serial avoids the concurrency contention that makes a parallel sweep's
-  // per-call latencies unreadable, and interleaves reps (rep-major) so
-  // API-load drift spreads evenly across cells; parallel is faster when only
-  // ranking quality, not timing, is under test.
-  if (serial) {
-    for (let rep = 1; rep <= reps; rep++) {
-      for (const cell of cells) {
-        // Announced before the call, so a watcher sees which cell a long wait
-        // belongs to rather than an idle terminal.
-        console.log(
-          `→ ${cell.label}${reps > 1 ? ` (rep ${rep})` : ""} …`,
-        );
-        recordRun(await runCell(cell, rep));
-      }
-    }
-  } else {
-    const jobs: Promise<void>[] = [];
-    for (let rep = 1; rep <= reps; rep++) {
-      // Recorded as each call lands, so the file and the output follow
-      // completion order rather than waiting on the slowest cell.
-      for (const cell of cells) jobs.push(runCell(cell, rep).then(recordRun));
-    }
-    await Promise.all(jobs);
-  }
-
-  console.log("\n--- latency summary ---");
-  for (const cell of cells) {
-    const cellRuns = runs.filter((r) => r.cell.label === cell.label);
-    const ms = cellRuns.map((r) => r.latencyMs);
-    const mean = ms.reduce((a, b) => a + b, 0) / ms.length / 1000;
-    const okCount = cellRuns.filter((r) => r.ok).length;
-    const detail =
-      reps > 1
-        ? `mean ${mean.toFixed(1).padStart(5)}s  min ${(
-            Math.min(...ms) / 1000
-          ).toFixed(1)}s  max ${(Math.max(...ms) / 1000).toFixed(1)}s`
-        : `${mean.toFixed(1).padStart(6)}s`;
-    // Output tokens are only captured on
-    // a serial sweep (see `runCell`), so the column is absent in parallel.
-    const tokens = cellRuns
-      .map((r) => r.outputTokens)
-      .filter((value): value is number => value !== undefined);
-    const tokenDetail = tokens.length
-      ? `   out ${Math.round(
-          tokens.reduce((a, b) => a + b, 0) / tokens.length,
-        )
-          .toString()
-          .padStart(5)} tok`
-      : "";
-    console.log(
-      `${cell.label.padEnd(24)} ${detail}   ${okCount}/${cellRuns.length} ok` +
-        tokenDetail,
-    );
-  }
-
-  if (jsonPath) {
-    // Each cell already wrote the file as it landed; this final write is what
-    // clears `inProgress`.
-    writeJson();
-    console.log(`\nfull rankings recorded → ${jsonPath}`);
-  }
+  return snapshotForDay({ asOf: anchorDay(), query });
 }
 
 async function runSingle(apiKey: string): Promise<void> {
@@ -434,11 +92,11 @@ async function runSingle(apiKey: string): Promise<void> {
   const dumpSnapshot = args.includes("--snapshot");
   const query = args.find((arg) => !arg.startsWith("--")) ?? "";
 
-  const { snapshot, idByIndex, nameById } = await buildSnapshotFromDb(query);
+  const built = await buildSnapshotFromDb(query);
+  const { snapshot, nameById } = built;
 
   console.log(`today: ${snapshot.today}`);
   console.log(`query: ${query ? JSON.stringify(query) : "(empty)"}`);
-  console.log(`tail mode: ${process.env.AI_TAIL_MODE ?? "pithy"}`);
   console.log(`model: ${resolveModel()}`);
   console.log(
     `catalog: ${snapshot.options.length} Options   ` +
@@ -446,16 +104,18 @@ async function runSingle(apiKey: string): Promise<void> {
   );
 
   if (dumpSnapshot) {
-    console.log("--- snapshot sent to the model ---");
-    console.log(JSON.stringify(snapshot, null, 2));
-    console.log("--- end snapshot ---\n");
+    const { snapshotBody, queryBlock } = splitUserTurn(snapshot);
+    console.log("--- user turn sent to the model ---");
+    console.log(JSON.stringify(snapshotBody, null, 2));
+    console.log(queryBlock);
+    console.log("--- end user turn ---\n");
   }
 
   // `search` emits one structured `ai_search` log line to stdout; capture it
   // so the token counts can be reprinted as a tidy summary instead of a raw
   // JSON blob in the middle of the output.
   const { value: result, modelCall } = await captureModelCall(() =>
-    createAiSearchClient(apiKey).search(snapshot, idByIndex),
+    createAiSearchClient(apiKey).search(built),
   );
 
   if (modelCall) {
@@ -494,21 +154,11 @@ async function main(): Promise<void> {
   // `ANTHROPIC_API_KEY` the shell may export (the Claude Code harness does);
   // plain `dotenv/config` above keeps an already-present var, leaving the key
   // blank. By here the DB client has its `DATABASE_URL` from the first load.
-  config({ override: true });
+  // `DOTENV_CONFIG_PATH` (read by `dotenv/config` too) points both loads at
+  // another file, e.g. `.env.k8s`.
+  config({ path: process.env.DOTENV_CONFIG_PATH, override: true });
 
   const args = process.argv.slice(2);
-
-  // `--mode=X` overrides the tail mode for this run by setting the env var
-  // `createAiSearchClient` reads, so a `full` / `pithy` / `drop` comparison
-  // needs no `.env` edit between runs.
-  const modeArg = args.find((arg) => arg.startsWith("--mode="))?.slice(7);
-  if (modeArg !== undefined) {
-    if (!(TAIL_MODES as readonly string[]).includes(modeArg)) {
-      console.error(`--mode must be one of: ${TAIL_MODES.join(", ")}`);
-      process.exit(1);
-    }
-    process.env.AI_TAIL_MODE = modeArg;
-  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -516,27 +166,31 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  if (args.includes("--compare")) {
-    // `--reps=N` repeats every cell N times (latency is aggregated per cell);
-    // `--json` / `--json=path` writes every run's full ranking to a file for
-    // programmatic before/after comparison.
-    const repsArg = args.find((arg) => arg.startsWith("--reps="))?.slice(7);
-    const parsedReps = repsArg ? Number.parseInt(repsArg, 10) : 1;
-    const reps = Number.isFinite(parsedReps) ? Math.max(1, parsedReps) : 1;
-    const jsonArg = args.find(
-      (arg) => arg === "--json" || arg.startsWith("--json="),
-    );
-    const jsonPath = jsonArg
-      ? jsonArg.includes("=")
-        ? jsonArg.slice(7)
-        : "scripts/ai-search-compare.json"
-      : undefined;
-    await runComparison(apiKey, {
-      serial: args.includes("--serial"),
-      reps,
-      jsonPath,
-      query: args.find((arg) => !arg.startsWith("--")) ?? "",
-      cellFilter: args.find((arg) => arg.startsWith("--cells="))?.slice(8),
+  if (args.includes("--backtest")) {
+    await runBacktest({
+      // "-pithy" was the tail mode when there were three; it stays in the
+      // name so new runs sort beside the recorded ones.
+      args: parseBacktestArgs(
+        args,
+        `scripts/backtest-runs/ai-search-v${AI_SEARCH_PROMPT_VERSION}-${resolveModel().replace("claude-", "")}-pithy.json`,
+      ),
+      meta: {
+        ranker: "AI search",
+        model: resolveModel(),
+        effort: process.env.AI_EFFORT || "default",
+        promptVersion: AI_SEARCH_PROMPT_VERSION,
+      },
+      generate: async (built) => {
+        const { value: result, modelCall } = await captureModelCall(() =>
+          createAiSearchClient(apiKey).search(built),
+        );
+        return {
+          ok: result.ok,
+          ranking: result.ok ? result.results : [],
+          latencyMs: Number(modelCall?.latencyMs) || undefined,
+          outputTokens: Number(modelCall?.outputTokens) || undefined,
+        };
+      },
     });
   } else {
     await runSingle(apiKey);

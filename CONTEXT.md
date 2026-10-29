@@ -118,7 +118,10 @@ entry is **Tonight's dinner**; when it is a future date the entry is a
 entity. Picking an Option on a date it carries a **Rejection** removes that
 Rejection — the Household changed its mind, and a reason for passing the
 Option over no longer describes a night it was eaten. This holds wherever the
-Pick is made (Tonight, the Log, the Option detail page), and for any date.
+Pick is made (Tonight, the Log, the Option detail page), and for any date —
+including when a Log entry is edited onto that Option and date. The reverse is
+refused: an Option already Picked on a date cannot be Rejected for it (see
+**Day decision**).
 
 **Planned dinner**:
 A Log entry dated after today. Excluded from the ranking until its date
@@ -135,13 +138,24 @@ Option detail page for a deliberately chosen date — a past date backfills a
 Rejection never recorded live, a future date is a **Planned rejection**. On the date it carries, a Rejection removes
 its Option from Tonight's list for that day (the Option returns on its own the
 next day); it is also kept as dated history fed into future AI searches, where
-the model judges from the reason which Rejections are a standing dislike and
-which were one-off. A Rejection can be edited or deleted at any time from the
+the model weighs each reason as dated evidence: a reason may be a standing
+dislike, a standing fact about how the Option works ("Jen cooks these only
+when she has ingredients set", "comes in two-packs, suggest the second one
+soon"), a passing state ("none left", "no box this week") that fades rather
+than holding until the Household says otherwise, or a one-off. A too-soon
+reason may be about the kind of food or about that one Option, and its words
+do not always say which ("sushi too recent" on one sushi place, then the other
+sushi place eaten the next day): it is read against the Option's **Tags** as
+one more dated fact, and how far it reaches is a judgement, not a rule.
+Nothing obliges the Household to keep such state current. A Rejection can be edited or deleted at any time from the
 Log screen or the Option detail page. **Bring back** is the narrower
 Selected-day quick-undo on Tonight's "Rejected" disclosure (labelled
 "Rejected tonight" when the Selected day is today). A **Pick** of the Option
 on the Rejection's date removes the Rejection — changing one's mind and eating
-it after all supersedes having passed it over. A Rejection is not a Log
+it after all supersedes having passed it over. The reverse is refused: an
+Option already Picked on a date cannot be Rejected for it, however the date is
+reached (a new Rejection, or an existing one edited onto that date); the Pick
+must be removed first. A Rejection is not a Log
 entry and does not affect any Score. A Restaurant's recurring closure is no
 longer expressed this way — that is a **Closed day** on the Restaurant itself
 (ADR-0010) — though a Rejection remains the way to record what was learned on
@@ -162,6 +176,16 @@ rejection (ADR-0010); the Planned rejection covers the one-off — a holiday, a
 private function, a night the Household already knows is out.
 _Avoid_: Recurring rejection (a Planned rejection is a single date); a Planned
 rejection for a weekly closure (that is a **Closed day**).
+
+**Day decision**:
+What the Household decided about one Option for one date: a **Pick** of it or
+a **Rejection** of it, never both. A Pick wins — Picking an Option removes its
+Rejection on that date, and Rejecting an Option already Picked on that date is
+refused until the Pick is removed. A date is **decided** once it carries any
+Pick, whatever has happened to the Option since (an Archived Option's Pick
+still decides its night); Rejections alone leave a date undecided.
+_Avoid_: "decision" for an **AI search** result or a **Prepared note**'s
+ranking (those are suggestions, not the Household's decisions).
 
 ### Ranking
 
@@ -187,7 +211,9 @@ The home screen. It ranks active Options by Score (descending) for a
 and once a Pick is made it surfaces the Dinner for that day — the screen has
 both jobs, deciding and showing what was decided. "Tonight" is the screen's
 name and its H1 label when the Selected day is today; on any other day the H1
-shows that day's name.
+shows that day's name. When the Selected day has a **Prepared note**, its brief
+sits under the heading and its Prepared ranking is what the list shows on load.
+The Score ranking is one Clear away.
 
 **Closed disclosure**:
 The collapsed list at the foot of **Tonight** holding the Restaurants dropped
@@ -233,6 +259,25 @@ sits at a neutral baseline. Rejections do **not** feed Affinity — they stay
 day-scoped.
 _Avoid_: Rating, preference score (it is inferred from eat-frequency, never
 entered by hand).
+
+**Recent gaps**:
+The days between an Option's last eats — or, for a Tag, the last eats of any
+active Option carrying it — newest first, four at most. The pace the Household
+keeps now, as they keep it: an Option eaten every ten days for a year and every
+three weeks since reads 21, 21, 10, 10, and the slowdown is on the row. It is
+the timing side of a habit, set against **Recency**: whether something is
+recent *for that Option*. The gaps vary, so a Recency short of the last gap is
+ordinary, and a long gap among them is a break the Household took, not a pace
+to catch up on; what that means for the evening is a judgement, not a
+threshold. There is deliberately no summary number over the gaps. One existed,
+the **Interval**, a median of them: in three forms (the median of every gap,
+of the gaps since the longest break, and the plain median beside the recent
+gaps) the AI ranked on it and called an Option due against a pace the Household
+had left behind, even with the real gaps on the same row (ADR-0012). Not a
+Score factor: **Readiness** measures time since on one scale for every Option,
+and **Affinity** measures how much an Option is wanted, not when it is due.
+_Avoid_: Interval, usual gap, cadence (the habit itself, not its numbers),
+overdue (the Tag chip threshold, not a relation to the gaps).
 
 **Recency chip**:
 The small chip on each Tonight row showing the Option's own **per-Option
@@ -280,17 +325,32 @@ what — the deterministic Score's recency-and-frequency cannot; with an empty
 query, finding those patterns is the whole job. It also reads every **Day
 note**, past and future, as dated history, and treats the **Selected day**'s
 own Day note as current context for the search.
-Always a deliberate action; it never replaces the deterministic ranking as the
-default Tonight view. The model decides how many Options to return, so a
-narrowing query yields a subset of the Catalog, not the whole list.
-_Avoid_: AI ranking (it is search — there is a query, even when empty).
+Always a deliberate action, and never what Tonight loads with: what loads is a
+**Prepared note**'s ranking if there is one, otherwise the deterministic list.
+A search result sits on top of either one until cleared. The model decides how
+many Options to return, so a narrowing query yields a subset of the Catalog,
+not the whole list.
+_Avoid_: AI ranking (it is search — there is a query, even when empty); AI
+search for a **Prepared note** (that is written ahead, not searched).
+
+**Option code**:
+The short letter label (`A`, `B`, … `AK`) a snapshot gives each Option so a
+model can refer to it, in place of the Option's id. The letters make a code
+unmistakable for a rank position — a model's ranking is a list of places,
+`1`, `2`, `3`, and a place written where a code belongs resolves to no Option
+instead of silently naming the wrong one. A code belongs to one snapshot and
+is never shown to the Household.
+_Avoid_: number, snapshot number, index (a code is not an integer); name (two
+Options may share a name; a code is unique within a snapshot).
 
 **AI rationale**:
 The model-generated line of prose on each AI search result row explaining why
 that Option fits — naming the query intent, the habit the model found in the
 Log, or what the Household's own **Notes** say about the Option ("Light and
-fast — a soup, and the katsu was the good call last time"). Generative and
-query-aware, and unique to AI search — the deterministic Tonight list has no
+fast — a soup, and the katsu was the good call last time"). Generative, and
+query-aware on an AI search row. A **Prepared note**'s ranking rows carry one
+too, with no query and more room: two or three sentences for the strong picks,
+tapering to a short line for the tail. The deterministic Tonight list has no
 prose "why" line; it shows the Recency chip and Tag chips instead.
 
 A rationale states a **rhythm claim**, never an **elapsed-time claim**. A
@@ -300,10 +360,46 @@ night". An elapsed-time claim restates how long it has been, at any precision �
 "9 days ago", "since early summer", "long out of rotation", "it's been a
 while". The Recency chip and Tag chips already show elapsed time as numbers on
 the same row, so an elapsed-time claim is redundant by construction however
-well it is phrased; the Option's own *interval* is the timing fact the chips
-cannot carry.
+well it is phrased; the Option's own pace (its **Recent gaps**) is the one
+timing fact the chips cannot carry, and it qualifies a reason rather than being
+one.
+
+The prompt states this as what the row shows and what the line is for, with
+two guardrails and no recipe: the line is read beside the name and the chips,
+and carries why the Option sits where it does this evening — for a genuine
+pick, what makes it one; for the rest, what keeps it below the rows above. The
+guardrails are the two rules the model breaks when told only what the row
+shows: the line says what the timing means, never how long it has been, and
+never opens with the name. A menu of leads to open with (a Note, a weekday
+habit, a standing reason, the shape of the evening) made every strong row a
+lead plus a timing clause, with the weekday as the lead whenever nothing else
+was to hand.
 _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).
+
+**Prepared note**:
+What a local model — one the Household runs at home — writes ahead of time for
+one date, so it is ready when Tonight opens (ADR-0011). It has two parts. The **brief** is two or three
+sentences about that evening, read at a glance: what kind of evening it is
+(the **Day note**, weekday habits, the last few days' eating), and the one or two
+standout suggestions — what to reach for, with what sits low left to the
+ranking. The **Prepared ranking** ranks every candidate Option with an **AI
+rationale**. It is written only for an undecided date from today through six
+days ahead, from the same snapshot AI search reads, and is rewritten in the
+background whenever that input changes. Once its date is **decided** (has a
+**Pick**) it **freezes**: it keeps the last version written before the
+Household decided, so it can be read against what was actually eaten ("The
+note ranked Katsu curry #4"). A note also freezes once its date has passed,
+decided or not — it is no longer advice for a night still to come. On Tonight
+its brief sits under the heading, and its Prepared ranking is what the list
+shows on load. An AI search result sits on top of it until cleared, and
+clearing the Prepared ranking shows the deterministic list. It never changes a
+**Score** or a suppression. A note that has not frozen and was built from older
+inputs is labelled out of date; a frozen note never is. A date with no note
+shows nothing.
+_Avoid_: AI notes, AI brief (say Prepared note, or its brief); **Note** or
+**Day note** (both are the Household's own writing, a Prepared note is the
+model's); AI search (a Prepared note has no query and is never triggered).
 
 ### Lifecycle & access
 
@@ -333,6 +429,8 @@ single-household — no user accounts, no per-person identity.
 - A **Restaurant** carries zero or more **Closed days**; a **Home meal** never
   carries any.
 - The **Catalog** is the set of all **Options**.
+- Within one snapshot, every **Option** carries exactly one **Option code**,
+  and no two Options share one; two Options may share a name.
 - A **Log entry** records exactly one **Option** on one date.
 - A **Dinner** is one or more **Log entries** sharing the same date.
 - The **Log** is the set of all **Log entries**.
@@ -348,6 +446,11 @@ single-household — no user accounts, no per-person identity.
 - A **Log entry** carries zero or one **Note**; an **Option** carries its own
   standing **Option notes**.
 - A date carries zero or one **Day note**.
+- A date carries zero or one **Prepared note**. It is written only while the
+  date is undecided and within six days of today, and freezes once the date has
+  a **Log entry** or has passed.
+- An **Option** has at most one **Day decision** per date — a **Pick** or a
+  **Rejection**, never both — and a Pick wins.
 - A **Tonight** row shows the Option's **Last note** — its newest **Note** dated
   before the **Selected day** — when it has one.
 - An **Option** is either **Active** or **Archived**.
@@ -391,6 +494,13 @@ single-household — no user accounts, no per-person identity.
 > Restaurant. The Closed disclosure still has a Pick button for that night, so
 > we're not blocked — but the fix belongs on the Restaurant, not in a nightly
 > override."
+>
+> **Dev:** "We Picked the katsu tonight. Should the Prepared note regenerate now
+> that it's out of date?"
+> **Domain expert:** "No, it freezes. The point of keeping it is to see what the
+> model said before we decided. It had the katsu at #4, and that's worth
+> knowing. If we Remove the Pick, the night is open again and the note can be
+> rewritten."
 
 ## Flagged ambiguities
 
@@ -419,3 +529,7 @@ single-household — no user accounts, no per-person identity.
   Tonight screen, and returning the **Selected day** to today while already on
   that screen. Resolved: the second is **resetting the Selected day to today**;
   "Tonight" unqualified always means the screen.
+- "AI notes" was the working name for the local model's written-ahead output,
+  which collides with **Note**, **Option notes**, and **Day note**, all of which
+  are the Household's own writing. Resolved: it is a **Prepared note** (a brief
+  plus a Prepared ranking). ADR-0011.

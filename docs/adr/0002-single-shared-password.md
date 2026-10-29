@@ -18,5 +18,5 @@ already inside the infrastructure. Hashing would protect a credential
 
 A future reader should not "fix" this by adding hashed credentials or a users
 table without first revisiting the threat model — real multi-user accounts are
-an explicit non-goal (plan §10). If the app ever needs per-person identity,
+an explicit non-goal. If the app ever needs per-person identity,
 that is a new decision that supersedes this ADR, not a patch.

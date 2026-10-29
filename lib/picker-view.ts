@@ -11,8 +11,10 @@
  * "exclude" Tags.
  */
 import type { OptionChoice } from "../db/queries";
+import type { AiRankingRow } from "./ai-search";
 import type { Suppression } from "./day-suppressions";
 import type { TonightRow } from "./ranking";
+import type { SuppressedRow } from "./tonight-day";
 
 /**
  * One typeahead candidate: an `OptionChoice` plus why it is off Tonight's
@@ -137,19 +139,14 @@ function filterHint(kind: KindFilter, tagFilters: TagFilters): string {
     : `Showing ${noun}`;
 }
 
-/** The rows Closed, Rejected, and already Picked for the Selected day. */
-export type SuppressedRows = {
-  closed: TonightRow[];
-  rejected: TonightRow[];
-  picked: TonightRow[];
-};
-
 /**
  * The Picker's view model: everything the Picker renders, derived from the
  * ranked (unfiltered) rows and the active filter state.
  *
  * `rankOf` is built from the unfiltered `rows` so a filtered row keeps its
- * true rank (#4, #7, ...) rather than being renumbered. `choices` widens past
+ * true rank (#4, #7, ...) rather than being renumbered — unless the caller
+ * passes `ranks`, which are used as given: a Prepared row's number is its
+ * place in the stored ranking, and a row the note left out has none. `choices` widens past
  * `rows` to every active Option (issue 02): the picker rows plus whatever the
  * caller passes in `suppressed` — the Options Closed, Rejected, or Picked for
  * the Selected day — each carrying why it is off the list, so the typeahead
@@ -160,7 +157,8 @@ export function pickerView(
   rows: TonightRow[],
   kind: KindFilter,
   tagFilters: TagFilters,
-  suppressed: SuppressedRows = { closed: [], rejected: [], picked: [] },
+  suppressed: SuppressedRow[] = [],
+  ranks?: Map<string, number>,
 ): {
   visible: TonightRow[];
   rankOf: Map<string, number>;
@@ -170,14 +168,49 @@ export function pickerView(
 } {
   return {
     visible: filterTonightRows(rows, kind, tagFilters),
-    rankOf: new Map(rows.map((row, index) => [row.option.id, index + 1])),
+    rankOf: ranks ?? new Map(rows.map((row, index) => [row.option.id, index + 1])),
     choices: [
       ...rows.map((row) => toChoice(row, "none")),
-      ...suppressed.closed.map((row) => toChoice(row, "closed")),
-      ...suppressed.rejected.map((row) => toChoice(row, "rejected")),
-      ...suppressed.picked.map((row) => toChoice(row, "picked")),
+      ...suppressed.map(({ row, suppression }) => toChoice(row, suppression)),
     ].sort((a, b) => a.name.localeCompare(b.name)),
     tags: distinctTags(rows),
     hint: filterHint(kind, tagFilters),
   };
+}
+
+/**
+ * A Tonight row, with the AI rationale of the ranking that named it and its
+ * 1-based place in that ranking — absent on a row the ranking didn't name.
+ */
+export type RankedRow = { row: TonightRow; reason?: string; rank?: number };
+
+/**
+ * Resolve an id-ranked list — an AI search result or a Prepared ranking —
+ * against the rows on screen, in the ranking's order. An id with no row (an
+ * Option Picked, Rejected, or Closed since the ranking was made) is skipped,
+ * and a repeated id keeps its first place. Each named row carries its place
+ * in `ranking`, so a skipped row leaves a gap rather than renumbering the
+ * rest. With `appendUnnamed`, the rows the ranking didn't name follow in
+ * their existing order, with no rationale and no place, so none goes missing.
+ */
+export function resolveRanking(
+  ranking: AiRankingRow[],
+  rows: TonightRow[],
+  { appendUnnamed }: { appendUnnamed: boolean },
+): RankedRow[] {
+  const byId = new Map(rows.map((row) => [row.option.id, row]));
+  const named = new Set<string>();
+  const ranked: RankedRow[] = [];
+  ranking.forEach(({ id, reason }, index) => {
+    const row = byId.get(id);
+    if (!row || named.has(id)) return;
+    named.add(id);
+    ranked.push({ row, reason, rank: index + 1 });
+  });
+  if (appendUnnamed) {
+    for (const row of rows) {
+      if (!named.has(row.option.id)) ranked.push({ row });
+    }
+  }
+  return ranked;
 }

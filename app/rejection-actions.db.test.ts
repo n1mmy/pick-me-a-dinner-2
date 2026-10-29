@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
-import { options, rejections } from "../db/schema";
+import { dinnerLog, options, rejections } from "../db/schema";
 import { getLogRejections, getOptionRejections } from "../db/queries";
 import { truncateAll } from "../db/test-support";
-import { todaySqlDate } from "../lib/local-day";
+import { appTimeZone, todaySqlDate } from "../lib/local-day";
 import {
   createRejection,
   deleteRejection,
@@ -200,6 +200,54 @@ describe("updateRejection", () => {
   });
 });
 
+describe("a Rejection of an Option already Picked that date is refused", () => {
+  // CONTEXT.md, Day decision: a Pick wins.
+  const REFUSED = {
+    ok: false,
+    error: "Already picked for that date — remove the Pick first",
+  };
+
+  async function pick(optionId: string, eatenOn: string): Promise<void> {
+    await db.insert(dinnerLog).values({ optionId, eatenOn });
+  }
+
+  it("createRejection", async () => {
+    const pizza = await makeOption("Pizza");
+    await pick(pizza, "2026-01-10");
+
+    expect(await createRejection(pizza, "2026-01-10", "too heavy")).toEqual(
+      REFUSED,
+    );
+    expect(await db.select().from(rejections)).toHaveLength(0);
+  });
+
+  it("rejectOption", async () => {
+    const pizza = await makeOption("Pizza");
+    await pick(pizza, "2026-01-10");
+
+    expect(await rejectOption(pizza, "too heavy", "2026-01-10")).toEqual(
+      REFUSED,
+    );
+    expect(await db.select().from(rejections)).toHaveLength(0);
+  });
+
+  it("updateRejection moving a Rejection onto the Picked date", async () => {
+    const pizza = await makeOption("Pizza");
+    await pick(pizza, "2026-01-10");
+    const id = await makeRejection(pizza, "2026-01-11", "too heavy");
+
+    expect(
+      await updateRejection(id, {
+        optionId: pizza,
+        rejectedOn: "2026-01-10",
+        reason: "changed",
+      }),
+    ).toEqual(REFUSED);
+    const [row] = await db.select().from(rejections);
+    expect(row).toMatchObject({ rejectedOn: "2026-01-11", reason: "too heavy" });
+  });
+});
+
 describe("deleteRejection", () => {
   it("removes the rejections row entirely", async () => {
     const pizza = await makeOption("Pizza");
@@ -309,7 +357,7 @@ describe("rejectOption", () => {
  */
 function futureSqlDate(daysAhead: number): string {
   const ms = Date.now() + daysAhead * 86_400_000;
-  return todaySqlDate(new Date(ms), process.env.APP_TZ ?? "UTC");
+  return todaySqlDate(new Date(ms), appTimeZone());
 }
 
 describe("getLogRejections", () => {

@@ -16,5 +16,23 @@ export async function register(): Promise<void> {
     checkEnvOnBoot();
     const { checkSchemaOnBoot } = await import("./lib/schema-check");
     await checkSchemaOnBoot();
+
+    // The Prepared notes sweep (ADR-0011): production only, and only when the
+    // local model is configured — the loop checks both and otherwise no-ops.
+    const { startPreparedNotesLoop } = await import(
+      "./lib/prepared-notes-loop"
+    );
+    startPreparedNotesLoop(async () => {
+      const { createPreparedNoteClient, localModelConfig } = await import(
+        "./lib/prepared-note"
+      );
+      const { appTimeZone } = await import("./lib/local-day");
+      const { runSweep } = await import("./lib/prepared-notes");
+      await runSweep({
+        now: new Date(),
+        timeZone: appTimeZone(),
+        client: createPreparedNoteClient(localModelConfig()),
+      });
+    });
   }
 }

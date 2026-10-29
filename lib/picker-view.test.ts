@@ -4,6 +4,7 @@ import {
   chipStateLabel,
   cycleChipState,
   pickerView,
+  resolveRanking,
   showAddRow,
   type TonightChoice,
 } from "./picker-view";
@@ -145,6 +146,17 @@ describe("pickerView — rankOf", () => {
     expect(rankOf.get("pasta-rest")).toBe(3);
     expect(rankOf.get("plain-rest")).toBe(4);
   });
+
+  it("takes the ranks it is given instead of numbering the rows", () => {
+    const given = new Map([
+      ["fish-home", 2],
+      ["pasta-rest", 5],
+    ]);
+
+    const { rankOf } = pickerView(ROWS, "all", {}, [], given);
+
+    expect(rankOf).toEqual(given);
+  });
 });
 
 describe("pickerView — choices", () => {
@@ -162,11 +174,15 @@ describe("pickerView — choices", () => {
   });
 
   it("widens past `rows` to the Closed, Rejected, and Picked candidates, each carrying its suppression", () => {
-    const { choices } = pickerView([row("open-home", "home")], "all", {}, {
-      closed: [row("closed-rest", "restaurant")],
-      rejected: [row("rejected-home", "home")],
-      picked: [row("picked-rest", "restaurant")],
-    });
+    const { choices } = pickerView([row("open-home", "home")], "all", {}, [
+      { suppression: "closed", row: row("closed-rest", "restaurant") },
+      {
+        suppression: "rejected",
+        row: row("rejected-home", "home"),
+        rejection: { id: "r1", reason: null },
+      },
+      { suppression: "picked", row: row("picked-rest", "restaurant") },
+    ]);
     expect(choices).toEqual([
       { id: "closed-rest", name: "closed-rest", kind: "restaurant", suppression: "closed" },
       { id: "open-home", name: "open-home", kind: "home", suppression: "none" },
@@ -251,5 +267,78 @@ describe("showAddRow (issue 03)", () => {
 
   it("ignores surrounding whitespace on the query", () => {
     expect(showAddRow(CHOICES, "  Thai Orchid  ")).toBe(false);
+  });
+});
+
+describe("resolveRanking", () => {
+  const resolved = (ranked: { row: TonightRow; reason?: string }[]) =>
+    ranked.map(({ row, reason }) => [row.option.id, reason]);
+
+  it("keeps the ranking's order, each row with its AI rationale", () => {
+    const ranking = [
+      { id: "plain-rest", reason: "Nothing to cook." },
+      { id: "fish-home", reason: "Fish is overdue." },
+    ];
+
+    expect(
+      resolved(resolveRanking(ranking, ROWS, { appendUnnamed: false })),
+    ).toEqual([
+      ["plain-rest", "Nothing to cook."],
+      ["fish-home", "Fish is overdue."],
+    ]);
+  });
+
+  it("skips an id with no row — an Option Picked, Rejected, or Closed since", () => {
+    const ranking = [
+      { id: "gone", reason: "Picked since." },
+      { id: "fish-home", reason: "Fish is overdue." },
+    ];
+
+    expect(
+      resolved(resolveRanking(ranking, ROWS, { appendUnnamed: false })),
+    ).toEqual([["fish-home", "Fish is overdue."]]);
+  });
+
+  it("keeps only the first of a repeated id", () => {
+    const ranking = [
+      { id: "fish-home", reason: "First." },
+      { id: "fish-home", reason: "Again." },
+    ];
+
+    expect(
+      resolved(resolveRanking(ranking, ROWS, { appendUnnamed: false })),
+    ).toEqual([["fish-home", "First."]]);
+  });
+
+  it("appends the rows the ranking didn't name, in their order, when asked", () => {
+    const ranking = [{ id: "pasta-rest", reason: "Pasta night." }];
+
+    expect(
+      resolved(resolveRanking(ranking, ROWS, { appendUnnamed: true })),
+    ).toEqual([
+      ["pasta-rest", "Pasta night."],
+      ["pasta-home", undefined],
+      ["fish-home", undefined],
+      ["plain-rest", undefined],
+    ]);
+  });
+
+  it("gives a named row its place in the ranking it was given, even after an earlier one is gone", () => {
+    // "gone" was ranked #1 and has since been Rejected: fish-home stays #2.
+    const ranking = [
+      { id: "gone", reason: "Rejected since." },
+      { id: "fish-home", reason: "Fish is overdue." },
+      { id: "fish-home", reason: "Again." },
+      { id: "plain-rest", reason: "Nothing to cook." },
+    ];
+
+    const ranked = resolveRanking(ranking, ROWS, { appendUnnamed: true });
+
+    expect(ranked.map(({ row, rank }) => [row.option.id, rank])).toEqual([
+      ["fish-home", 2],
+      ["plain-rest", 4],
+      ["pasta-home", undefined],
+      ["pasta-rest", undefined],
+    ]);
   });
 });

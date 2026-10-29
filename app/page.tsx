@@ -5,8 +5,11 @@ import {
   getTonightData,
 } from "../db/queries";
 import { aiSearchEnabled } from "../lib/ai-search";
-import { parseSelectedDay, today } from "../lib/local-day";
+import { appTimeZone, parseSelectedDay, today } from "../lib/local-day";
 import { placesEnabled } from "../lib/places";
+import { preparedLabel } from "../lib/prepared-label";
+import { preparedNotesEnabled } from "../lib/prepared-note";
+import { preparedNoteFor } from "../lib/prepared-notes";
 import { tonightForDay } from "../lib/tonight-day";
 import { TonightScreen } from "./tonight-screen";
 
@@ -49,33 +52,38 @@ export default async function TonightPage({
     getArchivedOptions(),
   ]);
 
-  // Every Selected-day suppression rule — Picked, Rejected, Closed — and the
-  // Last note reduction compose inside `tonightForDay` (issue 05); the page
-  // only owns its queries and the props it hands to the screen.
-  const { tonightsDinner, picker, closed, rejected, lastNotes, allFiltered } =
-    tonightForDay({
-      options,
-      logEntries,
-      dayEntries: todayEntries,
-      rejectedOptionIds: anchorRejections.map((r) => r.optionId),
-      selectedDay,
-    });
+  // Every Selected-day suppression rule — Picked, Rejected, Closed — the Last
+  // note reduction, and the day's names compose inside `tonightForDay`; the
+  // page only owns its queries and hands the view to the screen.
+  const view = tonightForDay({
+    options,
+    logEntries,
+    dayEntries: todayEntries,
+    rejections: anchorRejections,
+    selectedDay,
+    today: todaySql,
+    dayNote,
+  });
+
+  // The Selected day's Prepared note (ADR-0011), read only when the local model
+  // is configured; without it, or with no note yet, Tonight is as before.
+  const stored = preparedNotesEnabled()
+    ? await preparedNoteFor({ day: selectedDay, today: todaySql })
+    : null;
+  const preparedNote = stored && {
+    brief: stored.brief,
+    ranking: stored.ranking,
+    label: preparedLabel(stored.preparedAt, todaySql, appTimeZone()),
+    outOfDate: stored.status === "out-of-date",
+  };
 
   // AI search appears only when `ANTHROPIC_API_KEY` is configured; without it
   // Tonight is exactly v1.
   return (
     <TonightScreen
-      tonightsDinner={tonightsDinner}
-      pickerRows={picker}
-      lastNotes={lastNotes}
-      rejectedTonight={anchorRejections}
-      closedTonight={closed}
-      rejectedRows={rejected}
-      allFiltered={allFiltered}
+      view={view}
       searchEnabled={aiSearchEnabled()}
-      selectedDay={selectedDay}
-      todaySql={todaySql}
-      dayNote={dayNote}
+      preparedNote={preparedNote}
       quickAddSources={{
         allTags,
         placesEnabled: placesEnabled(),

@@ -5,7 +5,7 @@ import { dinnerLog, options, rejections } from "../../db/schema";
 import { revalidatePath } from "next/cache";
 import { getLog, getTodayRejections, getTonightData } from "../../db/queries";
 import { truncateAll } from "../../db/test-support";
-import { todaySqlDate } from "../../lib/local-day";
+import { appTimeZone, todaySqlDate } from "../../lib/local-day";
 import {
   deleteLogEntry,
   logForDate,
@@ -24,7 +24,7 @@ vi.mock("../../lib/require-session", () => ({
 }));
 
 /** The Household's calendar day — `pickTonight` logs against exactly this. */
-const TODAY = todaySqlDate(new Date(), process.env.APP_TZ ?? "UTC");
+const TODAY = todaySqlDate(new Date(), appTimeZone());
 
 /** Insert an Option directly — Catalog CRUD is covered by its own suite. */
 async function makeOption(
@@ -152,7 +152,7 @@ describe("pickTonight", () => {
  */
 function futureSqlDate(daysAhead: number): string {
   const ms = Date.now() + daysAhead * 86_400_000;
-  return todaySqlDate(new Date(ms), process.env.APP_TZ ?? "UTC");
+  return todaySqlDate(new Date(ms), appTimeZone());
 }
 
 describe("logForDate", () => {
@@ -220,19 +220,8 @@ describe("logForDate", () => {
 });
 
 describe("a Pick supersedes that date's Rejection", () => {
-  // CONTEXT.md, Pick: picking an Option on a date it carries a Rejection
-  // removes that Rejection.
-
-  it("pickTonight deletes a same-date Rejection of the same Option", async () => {
-    const pizza = await makeOption("Pizza");
-    await makeRejection(pizza, TODAY);
-
-    const result = await pickTonight(pizza);
-
-    expect(result.ok).toBe(true);
-    expect(await db.select().from(dinnerLog)).toHaveLength(1);
-    expect(await db.select().from(rejections)).toHaveLength(0);
-  });
+  // The rule itself is `lib/day-decisions.db.test.ts`'s; this checks a Pick
+  // reaches the screens that show the Rejection.
 
   it("a detail-page Pick (no Selected day) drops the Option from Tonight's Rejected disclosure", async () => {
     // The detail page's PickButton calls `pickTonight(id)` with no day; Tonight's
@@ -248,167 +237,7 @@ describe("a Pick supersedes that date's Rejection", () => {
     expect(await getTodayRejections(TODAY)).toEqual([]);
     expect(revalidatePath).toHaveBeenCalledWith("/");
   });
-
-  it("pickTonight on an already-logged Option still clears a lingering same-date Rejection", async () => {
-    const pizza = await makeOption("Pizza");
-    await makeEntry(pizza, TODAY);
-    await makeRejection(pizza, TODAY);
-
-    const result = await pickTonight(pizza);
-
-    expect(result.ok).toBe(true);
-    expect(await db.select().from(dinnerLog)).toHaveLength(1);
-    expect(await db.select().from(rejections)).toHaveLength(0);
-  });
-
-  it("pickTonight leaves a Rejection of the same Option on a different date untouched", async () => {
-    const pizza = await makeOption("Pizza");
-    const otherDate = await makeRejection(pizza, "2025-01-01");
-
-    await pickTonight(pizza);
-
-    const rows = await db.select().from(rejections);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].id).toBe(otherDate);
-  });
-
-  it("pickTonight leaves a same-date Rejection of a different Option untouched", async () => {
-    const pizza = await makeOption("Pizza");
-    const tacos = await makeOption("Tacos", "restaurant");
-    const otherOption = await makeRejection(tacos, TODAY);
-
-    await pickTonight(pizza);
-
-    const rows = await db.select().from(rejections);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].id).toBe(otherOption);
-  });
-
-  it("logForDate on a past date deletes a same-date Rejection of the same Option", async () => {
-    const pizza = await makeOption("Pizza");
-    await makeRejection(pizza, "2026-01-10");
-
-    const result = await logForDate(pizza, "2026-01-10");
-
-    expect(result).toEqual({ ok: true });
-    expect(await db.select().from(rejections)).toHaveLength(0);
-  });
-
-  it("logForDate on today deletes a same-date Rejection of the same Option", async () => {
-    const pizza = await makeOption("Pizza");
-    await makeRejection(pizza, TODAY);
-
-    const result = await logForDate(pizza, TODAY);
-
-    expect(result).toEqual({ ok: true });
-    expect(await db.select().from(rejections)).toHaveLength(0);
-  });
-
-  it("logForDate on a future date deletes a same-date Planned rejection of the same Option", async () => {
-    const pizza = await makeOption("Pizza");
-    const future = futureSqlDate(7);
-    await makeRejection(pizza, future);
-
-    const result = await logForDate(pizza, future);
-
-    expect(result).toEqual({ ok: true });
-    expect(await db.select().from(rejections)).toHaveLength(0);
-  });
-
-  it("logForDate leaves a Rejection of the same Option on a different date untouched", async () => {
-    const pizza = await makeOption("Pizza");
-    const otherDate = await makeRejection(pizza, "2025-06-01");
-
-    await logForDate(pizza, "2026-01-10");
-
-    const rows = await db.select().from(rejections);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].id).toBe(otherDate);
-  });
-
-  it("logForDate leaves a same-date Rejection of a different Option untouched", async () => {
-    const pizza = await makeOption("Pizza");
-    const tacos = await makeOption("Tacos", "restaurant");
-    const otherOption = await makeRejection(tacos, "2026-01-10");
-
-    await logForDate(pizza, "2026-01-10");
-
-    const rows = await db.select().from(rejections);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].id).toBe(otherOption);
-  });
-
-  it("logForDate on an already-logged date reports the duplicate and leaves the Rejection in place", async () => {
-    const pizza = await makeOption("Pizza");
-    await makeEntry(pizza, "2026-01-10");
-    await makeRejection(pizza, "2026-01-10");
-
-    const result = await logForDate(pizza, "2026-01-10");
-
-    expect(result).toEqual({
-      ok: false,
-      error: "Already logged for that date",
-    });
-    // The insert threw before the delete ran — the Rejection survives.
-    expect(await db.select().from(rejections)).toHaveLength(1);
-  });
-
-  it("pickTonight rolls back its Log insert when the Rejection delete fails (transactional)", async () => {
-    const pizza = await makeOption("Pizza");
-    await makeRejection(pizza, TODAY);
-
-    const result = await withFailingRejectionDelete(() => pickTonight(pizza));
-
-    expect(result.ok).toBe(false);
-    expect(await db.select().from(dinnerLog)).toHaveLength(0);
-    expect(await db.select().from(rejections)).toHaveLength(1);
-  });
-
-  it("logForDate rolls back its Log insert when the Rejection delete fails (transactional)", async () => {
-    const pizza = await makeOption("Pizza");
-    await makeRejection(pizza, "2026-01-10");
-
-    // Unlike `pickTonight`, `logForDate` maps only expected Postgres errors
-    // inline (`pgErrorMessage`); an unforeseen one rethrows as a 500.
-    await expect(
-      withFailingRejectionDelete(() => logForDate(pizza, "2026-01-10")),
-    ).rejects.toThrow("injected Rejection delete failure");
-
-    expect(await db.select().from(dinnerLog)).toHaveLength(0);
-    expect(await db.select().from(rejections)).toHaveLength(1);
-  });
 });
-
-/**
- * Runs `action` with the next `db.transaction`'s `delete` throwing. The Log
- * insert has already landed inside the transaction by then, so only a real
- * rollback leaves the table empty — the insert-first duplicate case above
- * can't tell a transaction from none.
- */
-async function withFailingRejectionDelete<T>(
-  action: () => Promise<T>,
-): Promise<T> {
-  const realTransaction = db.transaction.bind(db);
-  const spy = vi.spyOn(db, "transaction").mockImplementationOnce((run) =>
-    realTransaction((tx) =>
-      run(
-        new Proxy(tx, {
-          get: (target, prop, receiver) =>
-            prop === "delete"
-              ? () => {
-                  throw new Error("injected Rejection delete failure");
-                }
-              : Reflect.get(target, prop, receiver),
-        }),
-      ),
-    ),
-  );
-  try {
-    return await action();
-  } finally {
-    spy.mockRestore();
-  }
-}
 
 describe("updateLogEntry", () => {
   it("changes the Option of an entry", async () => {

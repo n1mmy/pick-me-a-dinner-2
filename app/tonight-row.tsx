@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { noteAge, type LastNote } from "../lib/last-note";
 import { CAP } from "../lib/ranking.config";
 import type { TagRecency, TonightRow } from "../lib/ranking";
@@ -48,9 +48,10 @@ import { rejectOption } from "./rejection-actions";
  * model deliberately returns no rationale for an obviously bad pick — and an
  * empty `aiReason` renders no line at all, so that row reads like a
  * deterministic one. The Recency and Tag chips render the same on AI and
- * deterministic rows. `lastNote` is never passed on an AI row — the caller
- * omits it (DESIGN.md, "Last note line") — because the AI rationale already
- * carries a prose line and stacking a second one reads as too busy.
+ * deterministic rows. A Claude result row is given no `lastNote` — its
+ * rationale is the row's aside — but a Prepared ranking row is, since that is
+ * the default view; the Last note line then sits above the rationale
+ * (DESIGN.md, "Last note line").
  *
  * The rank+name line and `RowChips` below it stay stacked at every width —
  * unlike an earlier draft, they never merge onto one flex line, because
@@ -114,6 +115,7 @@ export function TonightRowItem({
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const boxId = `reject-box-${option.id}`;
+  const rejectRef = useRef<HTMLButtonElement>(null);
 
   function pick() {
     setActionError(null);
@@ -150,6 +152,9 @@ export function TonightRowItem({
     setRejecting(false);
     setReason("");
     setActionError(null);
+    // The box unmounts under the focused field or Cancel; hand focus back to
+    // the button that opened it, so it never drops to <body>.
+    rejectRef.current?.focus();
   }
 
   return (
@@ -216,10 +221,12 @@ export function TonightRowItem({
           </p>
           <button
             type="button"
+            ref={rejectRef}
             onClick={() => setRejecting((open) => !open)}
             disabled={pending}
             aria-expanded={rejecting}
-            aria-controls={boxId}
+            // Only while the box is rendered, so it never names a missing id.
+            aria-controls={rejecting ? boxId : undefined}
             className={`min-h-11 rounded-control px-3 text-meta text-muted
               transition-colors duration-short hover:text-ink
               disabled:opacity-60 ${focusRing}`}

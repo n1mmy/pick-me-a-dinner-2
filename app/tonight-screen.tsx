@@ -9,25 +9,31 @@ import {
   useTransition,
 } from "react";
 import Link from "next/link";
-import type { ArchivedOption, TodayRejection } from "../db/queries";
+import type { ArchivedOption } from "../db/queries";
 import type { AiRankingRow } from "../lib/ai-search";
 import type { Suppression } from "../lib/day-suppressions";
 import type { LastNote } from "../lib/last-note";
 import { weekdayName } from "../lib/local-day";
+import type { PreparedLabel } from "../lib/prepared-label";
 import type { TonightRow } from "../lib/ranking";
 import {
   chipStateLabel,
   cycleChipState,
   pickerView,
+  resolveRanking,
   showAddRow,
   type ChipState,
   type KindFilter,
   type TagFilters,
 } from "../lib/picker-view";
-import type { TonightsDinnerEntry } from "../lib/tonights-dinner";
+import type {
+  SelectedDayView,
+  SuppressedRow,
+  TonightView,
+} from "../lib/tonight-day";
 import { DayNoteLine } from "./day-note-line";
 import { DayNameReset, DayStepper } from "./day-stepper";
-import type { SuppressedRows, TonightChoice } from "../lib/picker-view";
+import type { TonightChoice } from "../lib/picker-view";
 import { OptionForm } from "./catalog/option-form";
 import { ConfirmPair } from "./confirm-pair";
 import {
@@ -41,6 +47,7 @@ import { fieldFocusRing, focusRing } from "./focus-ring";
 import { inlineLinkClass } from "./inline-link";
 import { kindChipFillClass } from "./kind-bar";
 import { pickTonight } from "./log/actions";
+import { PreparedBrief } from "./prepared-brief";
 import { pressFeedback } from "./press-feedback";
 import { deleteRejection } from "./rejection-actions";
 import { aiSearchAction } from "./tonight-search-client";
@@ -71,8 +78,26 @@ const NO_QUICK_ADD_SOURCES: QuickAddSources = {
   archivedOptions: [],
 };
 
-/** The no-Last-notes default — module-level so its identity stays stable. */
-const NO_LAST_NOTES: Map<string, LastNote> = new Map();
+/**
+ * The rationale on a candidate the Prepared ranking didn't name, which the
+ * list appends unnumbered. Said outright, as AI search's
+ * `OMITTED_CANDIDATE_REASON` is, so a row the note forgot never reads as one
+ * it ranked low.
+ */
+const PREPARED_OMITTED_REASON = "The note left this one out";
+
+/**
+ * The Selected day's **Prepared note** (ADR-0011) as the screen shows it: the
+ * brief, the Prepared ranking, the server-formatted "Prepared 2:14pm" label
+ * (its words and its time apart), and whether the note's input has changed
+ * since it was written.
+ */
+export type PreparedNoteView = {
+  brief: string;
+  ranking: AiRankingRow[];
+  label: PreparedLabel;
+  outOfDate: boolean;
+};
 
 /**
  * The Tonight screen (plan §9, §16; PRD: Tonight — decided mode) — the home
@@ -104,93 +129,47 @@ const NO_LAST_NOTES: Map<string, LastNote> = new Map();
  * AI list on its own, because `pickerRows` no longer carries it).
  */
 export function TonightScreen({
-  tonightsDinner,
-  pickerRows,
-  lastNotes = NO_LAST_NOTES,
+  view,
   searchEnabled,
-  allFiltered = false,
-  rejectedTonight = [],
-  closedTonight = [],
-  rejectedRows = [],
-  selectedDay,
-  todaySql,
-  dayNote = null,
+  preparedNote = null,
   quickAddSources = NO_QUICK_ADD_SOURCES,
 }: {
-  /** The Picked Options, in pick order — non-empty puts Tonight in decided mode. */
-  tonightsDinner: TonightsDinnerEntry[];
   /**
-   * The ranked picker rows, with Picked, Selected-day-rejected, and
-   * Selected-day-closed Options removed.
+   * The Selected day's Tonight (`tonightForDay`): its names and write date,
+   * Day note, Tonight's dinner — non-empty puts Tonight in decided mode — the
+   * ranked picker rows, the suppressed rows tagged picked / rejected /
+   * closed, and each Option's **Last note**.
    */
-  pickerRows: TonightRow[];
-  /**
-   * Each Option's **Last note** keyed by Option id — the newest Note dated
-   * before the Selected day. One Map serves all three row types (picker, AI
-   * result, decided); an Option absent from it renders no note line. Empty by
-   * default so a screen with no Log history costs nothing.
-   */
-  lastNotes?: Map<string, LastNote>;
+  view: TonightView;
   /** Whether AI search is configured — gates the search box (`aiSearchEnabled`). */
   searchEnabled: boolean;
   /**
-   * True when the picker had rows but every one was filtered out for the
-   * Selected day — rejected, closed, or both (PRD: Rejections; PRD: Closed
-   * days). It separates that real state, with the Options back the next day,
-   * from a genuinely empty Catalog. One flag covers both filter causes: the
-   * two disclosures directly below already say which Options landed where,
-   * so the empty-picker copy itself need not distinguish the cause.
+   * The Selected day's Prepared note, or `null` when it has none or the
+   * feature is off — in which case Tonight renders exactly as without it.
    */
-  allFiltered?: boolean;
-  /**
-   * The Selected day's Rejections (PRD: Rejections on Tonight) — what the
-   * "Rejected for [day]" disclosure lists and lets the Household bring back.
-   * Empty by default, so the disclosure costs nothing until something is
-   * rejected.
-   */
-  rejectedTonight?: TodayRejection[];
-  /**
-   * The Restaurants closed on the Selected day's weekday (PRD: Closed days,
-   * ADR-0010) — what the **Closed disclosure** lists, alphabetical by name. A
-   * Restaurant both closed and rejected for the Selected day is excluded here
-   * (it appears in `rejectedTonight` only). Empty by default, so the
-   * disclosure costs nothing until a Restaurant is shut for the day.
-   */
-  closedTonight?: TonightRow[];
-  /**
-   * The rows rejected for the Selected day, full `TonightRow`s (issue 02) —
-   * unlike `rejectedTonight` (which the Rejected disclosure renders with
-   * each Rejection's reason), the typeahead's candidate set needs the row's
-   * kind for its kind bar. Empty by default.
-   */
-  rejectedRows?: TonightRow[];
-  /**
-   * The Tonight screen's **Selected day** (ADR-0009). When equal to
-   * `todaySql` the screen reads as today's Tonight; when not, the H1, copy,
-   * and Pick/Reject writes all rotate to that day.
-   */
-  selectedDay: string;
-  /** Today's SQL date in the Household's `APP_TZ`. */
-  todaySql: string;
-  /**
-   * The Selected day's **Day note** (PRD: Day notes), or `null` when it has
-   * none. Shown under the heading in every mode; it never touches the ranking,
-   * the suppressions, or decided mode.
-   */
-  dayNote?: string | null;
+  preparedNote?: PreparedNoteView | null;
   quickAddSources?: QuickAddSources;
 }) {
-  const isToday = selectedDay === todaySql;
-  // The H1 label: "Tonight" today, the weekday name on any other Selected day,
-  // past or future (ADR-0009 amended). The full date stays visible in the
-  // DayStepper, so a bare weekday is unambiguous. The navigation entry's
-  // "Tonight" label is unchanged either way — it lives in `app-nav.tsx`.
-  const heading = isToday ? "Tonight" : weekdayName(selectedDay);
-  // Day-aware copy for the decided block, the "Rejected …" disclosure, and
-  // the "all rejected" empty state. "tonight" for today, the weekday name
-  // otherwise — the day name reads as a noun in both copy slots.
-  const dayLabel = isToday ? "tonight" : weekdayName(selectedDay);
-  const decided = tonightsDinner.length > 0;
+  const {
+    day,
+    dayNote,
+    tonightsDinner,
+    picker: pickerRows,
+    suppressed,
+    lastNotes,
+    allFiltered,
+  } = view;
+  // The Selected day's Rejections, newest first, for the Rejected disclosure;
+  // and its Closed rows, alphabetical, for the Closed disclosure.
+  const rejected = suppressed.flatMap((entry) =>
+    entry.suppression === "rejected" ? [entry] : [],
+  );
+  const closed = suppressed.flatMap((entry) =>
+    entry.suppression === "closed" ? [entry.row] : [],
+  );
+  // Decided is the day's own flag, not a non-empty dinner: a Pick of an
+  // Option since Archived decides the day but renders no dinner row.
+  const decided = day.decided;
   // Picker mode with nothing to rank at all — an empty Catalog, not "all Picked"
   // and not "all filtered out" (both of which are real states with their own
   // copy).
@@ -246,6 +225,20 @@ export function TonightScreen({
   // search is cleared.
   const searchGenerationRef = useRef(0);
 
+  // The three AI layers (DESIGN.md, "AI layers"): a Claude result on top of
+  // the Prepared ranking, on top of the deterministic list. Dismissing the
+  // Prepared ranking holds only for the day it was dismissed on: a Selected-day
+  // change shows that day's note (reset in render, React's "adjust state on a
+  // prop change" pattern, so the dismissed state never paints for the new day).
+  const [preparedDismissed, setPreparedDismissed] = useState(false);
+  const [dismissedDay, setDismissedDay] = useState(day.date);
+  if (dismissedDay !== day.date) {
+    setDismissedDay(day.date);
+    setPreparedDismissed(false);
+  }
+  const preparedRanking =
+    preparedNote !== null && !preparedDismissed ? preparedNote.ranking : null;
+
   // An ordinary async function, deliberately not an async transition — see the
   // `startSearchTransition` comment above. The fetch itself is not a state
   // update, so nothing here needs transition semantics until the result lands.
@@ -253,10 +246,7 @@ export function TonightScreen({
     const generation = ++searchGenerationRef.current;
     const startedAt = Date.now();
     setSearchStartedAt(startedAt);
-    const result = await aiSearchAction(
-      query,
-      isToday ? undefined : selectedDay,
-    );
+    const result = await aiSearchAction(query, day.writeDate);
     if (searchGenerationRef.current !== generation) return;
     startSearchTransition(() => {
       setSearchStartedAt(null);
@@ -317,23 +307,35 @@ export function TonightScreen({
   // a fresh load is silent; a Pick that flips picker → decided (or a Remove
   // that flips back) is announced. The day-aware copy mirrors the visible H1.
   const modeStatus = decided
-    ? `${capitalize(dayLabel)}'s dinner is decided.`
-    : `Choosing ${dayLabel}'s dinner.`;
+    ? `${day.heading}'s dinner is decided.`
+    : `Choosing ${day.label}'s dinner.`;
 
-  // Memoised so `Picker`'s `pickerView` memo isn't invalidated every render.
-  const suppressedRows = useMemo<SuppressedRows>(
-    () => ({
-      closed: closedTonight,
-      rejected: rejectedRows,
-      picked: tonightsDinner.map((entry) => entry.row),
-    }),
-    [closedTonight, rejectedRows, tonightsDinner],
-  );
+  // Which list is on show, restated for assistive tech: a polite announcement
+  // of the pending search and of every layer swap — Claude result, Prepared
+  // ranking, deterministic list. The initial string is not announced — a live
+  // region only voices changes — so a fresh load stays silent. A failed search
+  // is announced separately by the inline error on the search box. The region
+  // is always mounted — one mounted already holding its text isn't voiced, so
+  // stepping onto a note day must find it there — and is empty when no list
+  // is shown (an empty Catalog, everything filtered, everything Picked).
+  const listStatus =
+    pickerRows.length === 0
+      ? ""
+      : searchStartedAt !== null
+        ? "Searching for dinner…"
+        : aiResults !== null
+          ? aiResults.length === 0
+            ? "AI search found no Options."
+            : "Showing AI search results."
+          : preparedRanking !== null
+            ? "Showing the prepared ranking."
+            : "Showing the ranked dinner list.";
+
   // One element for both modes: under the decided block, or on its own.
   const picker = (
     <Picker
       rows={pickerRows}
-      suppressedRows={suppressedRows}
+      suppressed={suppressed}
       lastNotes={lastNotes}
       searchEnabled={searchEnabled}
       kind={kind}
@@ -347,8 +349,9 @@ export function TonightScreen({
       onSubmitSearch={runSearch}
       onCancelSearch={cancelSearch}
       onClearSearch={clearSearch}
-      selectedDay={selectedDay}
-      isToday={isToday}
+      preparedRanking={preparedRanking}
+      onDismissPrepared={() => setPreparedDismissed(true)}
+      day={day}
       quickAddSources={quickAddSources}
     />
   );
@@ -369,20 +372,31 @@ export function TonightScreen({
       <div className="flex flex-col">
         <div className="flex w-full items-center justify-between gap-2">
           <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
-            <DayNameReset heading={heading} />
+            <DayNameReset heading={day.heading} />
           </h1>
-          <DayStepper selectedDay={selectedDay} todaySql={todaySql} />
+          <DayStepper selectedDay={day.date} todaySql={day.today} />
         </div>
         <DayNoteLine
-          notedOn={selectedDay}
+          notedOn={day.date}
           note={dayNote}
-          label={`Note for ${dayLabel}`}
-          addLabel={`+ Note for ${dayLabel}`}
+          label={`Note for ${day.label}`}
+          addLabel={`+ Note for ${day.label}`}
           placement="header"
         />
       </div>
+      {preparedNote !== null && (
+        <PreparedBrief
+          key={day.date}
+          note={preparedNote}
+          decided={decided}
+          eaten={tonightsDinner.map((entry) => entry.row.option)}
+        />
+      )}
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}
+      </p>
+      <p className="sr-only" role="status" aria-live="polite">
+        {listStatus}
       </p>
 
       {catalogEmpty ? (
@@ -402,7 +416,7 @@ export function TonightScreen({
         // Household never made: the disclosures below say which Options
         // landed where. Either way the Options return on a different day.
         <p className="text-body text-muted">
-          No Options are available for {dayLabel}. They&rsquo;ll be back on a
+          No Options are available for {day.label}. They&rsquo;ll be back on a
           different day.
         </p>
       ) : decided ? (
@@ -410,24 +424,26 @@ export function TonightScreen({
           <TonightsDinnerBlock
             entries={tonightsDinner}
             lastNotes={lastNotes}
-            dayLabel={dayLabel}
-            eatenOn={selectedDay}
+            heading={day.heading}
+            eatenOn={day.date}
           />
           {pickerRows.length === 0 ? (
             <p className="border-t border-divider pt-5.5 text-body text-muted">
               {allFiltered
-                ? `Every remaining Option is unavailable for ${dayLabel}.`
-                : `Every Option is already on ${dayLabel}’s dinner.`}
+                ? `Every remaining Option is unavailable for ${day.label}.`
+                : `Every Option is already on ${day.label}’s dinner.`}
             </p>
           ) : (
             // The ranked picker stays open below the decided block, under a
             // plain divider — no heading or explanatory copy, just the rule
             // (2026-09-24, direct user feedback: "don't need it explained to
             // me"). `aria-label` still names the region for assistive tech,
-            // which has no rule to read as a section break.
+            // which has no rule to read as a section break. `gap-5.5` is
+            // `main`'s own gap, so the Picker spaces its filter zone and list
+            // the same here as on an undecided day.
             <section
               aria-label="Add another option"
-              className="flex flex-col gap-2 border-t border-divider pt-5.5"
+              className="flex flex-col gap-5.5 border-t border-divider pt-5.5"
             >
               {picker}
             </section>
@@ -441,34 +457,19 @@ export function TonightScreen({
           by default, so it costs no screen space until scrolled to. Rendered
           whenever something was rejected for the Selected day; it then lists
           those Rejections with a "Bring back" undo. */}
-      {rejectedTonight.length > 0 && (
-        <RejectedTonightDisclosure
-          rejections={rejectedTonight}
-          dayLabel={dayLabel}
-          isToday={isToday}
-        />
+      {rejected.length > 0 && (
+        <RejectedTonightDisclosure rejections={rejected} day={day} />
       )}
 
       {/* Below the Rejected disclosure (Rejected holds the time-sensitive
           undo, so it keeps the closer position — DESIGN.md "Closed
           disclosure"). Rendered whenever a Restaurant is closed on the
           Selected day's weekday. */}
-      {closedTonight.length > 0 && (
-        <ClosedDisclosure
-          rows={closedTonight}
-          lastNotes={lastNotes}
-          dayLabel={dayLabel}
-          selectedDay={selectedDay}
-          isToday={isToday}
-        />
+      {closed.length > 0 && (
+        <ClosedDisclosure rows={closed} lastNotes={lastNotes} day={day} />
       )}
     </main>
   );
-}
-
-/** Capitalize a lowercase day label for sentence-start copy. */
-function capitalize(s: string): string {
-  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
 }
 
 /**
@@ -518,13 +519,10 @@ function DisclosureToggle({
  */
 function RejectedTonightDisclosure({
   rejections,
-  dayLabel,
-  isToday,
+  day,
 }: {
-  rejections: TodayRejection[];
-  /** Day-aware copy noun — "tonight" or the weekday name for any other Selected day. */
-  dayLabel: string;
-  isToday: boolean;
+  rejections: Extract<SuppressedRow, { suppression: "rejected" }>[];
+  day: SelectedDayView;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -554,25 +552,25 @@ function RejectedTonightDisclosure({
         open={open}
         onToggle={() => setOpen((isOpen) => !isOpen)}
         label={
-          isToday
+          day.isToday
             ? `Rejected tonight (${rejections.length})`
-            : `Rejected for ${dayLabel} (${rejections.length})`
+            : `Rejected for ${day.label} (${rejections.length})`
         }
       />
       {open && (
         <ul className="expand-in flex flex-col">
-          {rejections.map((rejection) => (
+          {rejections.map(({ row, rejection }) => (
             <li
               key={rejection.id}
               className="flex items-start gap-3 border-b border-divider py-3"
             >
               <div className="min-w-0 flex-1">
                 <Link
-                  href={`/catalog/${rejection.optionId}`}
+                  href={`/catalog/${row.option.id}`}
                   className={`font-display text-name font-name text-ink
                     underline-offset-2 hover:underline ${focusRing}`}
                 >
-                  {rejection.optionName}
+                  {row.option.name}
                 </Link>
                 {rejection.reason && (
                   <p className="mt-0.5 text-meta text-muted">
@@ -615,7 +613,7 @@ function RejectedTonightDisclosure({
  * `undefined`) — the same Pick, Reject-with-reason, chip row, and Last note as
  * the ranked list above, because a Closed day is the app's best information,
  * not a veto: the Household may know better than the data. Rows are ordered
- * alphabetically by the caller (`app/page.tsx`) — this is a list, not a
+ * alphabetically by `tonightForDay` — this is a list, not a
  * ranking, so no row carries a rank numeral, though the `w-6` gutter still
  * renders empty to keep names on the picker's vertical. No per-row closure
  * label: the heading already says why every row is here.
@@ -628,16 +626,11 @@ function RejectedTonightDisclosure({
 function ClosedDisclosure({
   rows,
   lastNotes,
-  dayLabel,
-  selectedDay,
-  isToday,
+  day,
 }: {
   rows: TonightRow[];
   lastNotes: Map<string, LastNote>;
-  /** Day-aware copy noun — "tonight" or the weekday name for any other Selected day. */
-  dayLabel: string;
-  selectedDay: string;
-  isToday: boolean;
+  day: SelectedDayView;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -654,9 +647,9 @@ function ClosedDisclosure({
         open={open}
         onToggle={() => setOpen((isOpen) => !isOpen)}
         label={
-          isToday
+          day.isToday
             ? `Closed tonight (${rows.length})`
-            : `Closed on ${dayLabel} (${rows.length})`
+            : `Closed on ${day.label} (${rows.length})`
         }
       />
       <p className="sr-only" role="status" aria-live="polite">
@@ -670,7 +663,7 @@ function ClosedDisclosure({
               key={row.option.id}
               row={row}
               lastNote={lastNotes.get(row.option.id)}
-              selectedDay={isToday ? undefined : selectedDay}
+              selectedDay={day.writeDate}
               onRejected={(name) =>
                 setRejectNotice(`Rejected ${name}, removed from the list.`)
               }
@@ -706,7 +699,7 @@ function ClosedDisclosure({
  */
 function Picker({
   rows,
-  suppressedRows,
+  suppressed,
   lastNotes,
   searchEnabled,
   kind,
@@ -720,13 +713,14 @@ function Picker({
   onSubmitSearch,
   onCancelSearch,
   onClearSearch,
-  selectedDay,
-  isToday,
+  preparedRanking,
+  onDismissPrepared,
+  day,
   quickAddSources,
 }: {
   rows: TonightRow[];
   /** Widens the typeahead past `rows` (issue 02). */
-  suppressedRows: SuppressedRows;
+  suppressed: SuppressedRow[];
   /** Each Option's Last note, keyed by Option id; absent means no note line. */
   lastNotes: Map<string, LastNote>;
   searchEnabled: boolean;
@@ -743,10 +737,12 @@ function Picker({
   onSubmitSearch: () => void;
   onCancelSearch: () => void;
   onClearSearch: () => void;
-  /** The Selected day — threaded into Pick/Reject writes and AI search. */
-  selectedDay: string;
-  /** True when the Selected day is today — drives copy and lets AI search skip the parameter. */
-  isToday: boolean;
+  /** The Prepared ranking on show under any Claude result; null when none is. */
+  preparedRanking: AiRankingRow[] | null;
+  /** Peels the Prepared ranking off, back to the deterministic list. */
+  onDismissPrepared: () => void;
+  /** The Selected day — its copy, and the date Pick/Reject writes carry. */
+  day: SelectedDayView;
   quickAddSources: QuickAddSources;
 }) {
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
@@ -755,7 +751,6 @@ function Picker({
   // save clears both this and the shared query, Cancel clears only this one
   // — the query itself survives so the Household doesn't retype it.
   const [addQuery, setAddQuery] = useState<string | null>(null);
-  const addDayLabel = isToday ? "tonight" : weekdayName(selectedDay);
   // The hint line restates the filter in words. With only a kind chip in
   // play it just repeats what the chip itself already shows ("Showing all
   // Options", "Showing Home meals"), so it is visible only once a Tag filter
@@ -765,6 +760,28 @@ function Picker({
   const tagFilterActive = Object.values(tagFilters).some(
     (state) => state !== "off",
   );
+
+  // The layer line's button unmounts with the layer it peels off, which would
+  // drop focus to <body>. Once the list under it renders, focus moves to its
+  // first row, or to the filter zone when no row matches (DESIGN.md, "Focus").
+  const listRef = useRef<HTMLOListElement>(null);
+  const filterZoneRef = useRef<HTMLDivElement>(null);
+  const focusAfterPeel = useRef(false);
+  useEffect(() => {
+    if (!focusAfterPeel.current) return;
+    const target =
+      listRef.current?.querySelector<HTMLElement>("a, button") ??
+      filterZoneRef.current?.querySelector<HTMLElement>("button");
+    if (!target) return;
+    focusAfterPeel.current = false;
+    target.focus();
+  });
+  function peel(action: () => void): () => void {
+    return () => {
+      focusAfterPeel.current = true;
+      action();
+    };
+  }
 
   // A submitted Rejection removes its row from the list on revalidation; this
   // live region — stable across that re-render, unlike the row itself —
@@ -777,38 +794,50 @@ function Picker({
   // active Option, each tagged with its suppression so SearchBox can confirm
   // a Closed/Rejected pick and disable a Picked one (issue 02) — the chip
   // row's Tags, and the hint line.
+  //
+  // Under a Prepared ranking (and no Claude result) the same view runs over
+  // the rows in the note's order — the Options it names first, then every
+  // candidate it didn't, so none goes missing. An Option since Picked,
+  // Rejected, or Closed is absent from `rows`, so the note can never offer
+  // it. A named row's number is its place in the stored ranking, so a
+  // Rejection doesn't renumber the rest and a filtered row keeps the note's
+  // rank; a row the note left out has no number (DESIGN.md, "AI layers").
+  const prepared = useMemo(() => {
+    if (preparedRanking === null) return null;
+    const ranked = resolveRanking(preparedRanking, rows, { appendUnnamed: true });
+    return {
+      rows: ranked.map(({ row }) => row),
+      reasons: new Map(
+        ranked.map(({ row, reason, rank }) => [
+          row.option.id,
+          rank === undefined ? PREPARED_OMITTED_REASON : reason,
+        ]),
+      ),
+      ranks: new Map(
+        ranked.flatMap(({ row, rank }) =>
+          rank === undefined ? [] : [[row.option.id, rank] as const],
+        ),
+      ),
+    };
+  }, [preparedRanking, rows]);
   const { visible, rankOf, choices, tags, hint } = useMemo(
-    () => pickerView(rows, kind, tagFilters, suppressedRows),
-    [rows, kind, tagFilters, suppressedRows],
+    () =>
+      pickerView(prepared?.rows ?? rows, kind, tagFilters, suppressed, prepared?.ranks),
+    [prepared, rows, kind, tagFilters, suppressed],
   );
-
-  // The AI search mode restated for assistive tech: a polite announcement of
-  // the pending state and of the swap between the deterministic list and the
-  // AI result. The initial string is not announced — a live region only voices
-  // changes — so a fresh load stays silent. A failed search is announced
-  // separately by the inline error on the search box.
-  const searchPending = searchStartedAt !== null;
-  const searchStatus = searchPending
-    ? "Searching for dinner…"
-    : aiResults === null
-      ? "Showing the ranked dinner list."
-      : aiResults.length === 0
-        ? "AI search found no Options."
-        : "Showing AI search results.";
 
   // The AI result resolved against the rows already on screen: every validated
   // id is in the active Catalog, so it has a row to render with name and Tags.
   // A Pick (in picker mode → decided mode) drops the Picked Option from
   // `rows`, so its entry naturally falls out of `aiRows` while the rest of the
   // AI-ranked list stays put.
-  const aiRows = useMemo(() => {
-    if (aiResults === null) return null;
-    const byId = new Map(rows.map((row) => [row.option.id, row]));
-    return aiResults.flatMap((result) => {
-      const row = byId.get(result.id);
-      return row ? [{ row, reason: result.reason }] : [];
-    });
-  }, [aiResults, rows]);
+  const aiRows = useMemo(
+    () =>
+      aiResults === null
+        ? null
+        : resolveRanking(aiResults, rows, { appendUnnamed: false }),
+    [aiResults, rows],
+  );
 
   function cycleTag(tag: string) {
     setTagFilters((prev) => ({
@@ -823,29 +852,23 @@ function Picker({
         {/* The search box appears only when AI search is configured; with
             no key Tonight is exactly v1 and the box is absent entirely. */}
         {searchEnabled && (
-          <>
-            <SearchBox
-              // Remount per Selected day, so a confirm or pick error armed
-              // for one day never carries over to — and acts on — another.
-              key={selectedDay}
-              query={query}
-              onQueryChange={onQueryChange}
-              onSubmit={onSubmitSearch}
-              onCancel={onCancelSearch}
-              onClear={onClearSearch}
-              startedAt={searchStartedAt}
-              doneSeconds={searchDoneSeconds}
-              error={aiError}
-              showClear={aiResults !== null || aiError}
-              choices={choices}
-              selectedDay={selectedDay}
-              isToday={isToday}
-              onSelectAdd={setAddQuery}
-            />
-            <p className="sr-only" role="status" aria-live="polite">
-              {searchStatus}
-            </p>
-          </>
+          <SearchBox
+            // Remount per Selected day, so a confirm or pick error armed
+            // for one day never carries over to — and acts on — another.
+            key={day.date}
+            query={query}
+            onQueryChange={onQueryChange}
+            onSubmit={onSubmitSearch}
+            onCancel={onCancelSearch}
+            onClear={onClearSearch}
+            startedAt={searchStartedAt}
+            doneSeconds={searchDoneSeconds}
+            error={aiError}
+            showClear={aiResults !== null || aiError}
+            choices={choices}
+            day={day}
+            onSelectAdd={setAddQuery}
+          />
         )}
         {/* The filter zone — kind chips and Tag chips — is hidden while an
             AI result is shown, or the quick-add form is open, so the query
@@ -859,7 +882,10 @@ function Picker({
                 carry the a11y grouping (`role="group"`) but `contents`
                 removes them from layout, so their chip children wrap exactly
                 as if they were direct children of the row. */}
-            <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+            <div
+              ref={filterZoneRef}
+              className="flex flex-wrap items-start gap-x-2 gap-y-1"
+            >
               <KindChips kind={kind} onChange={onKindChange} />
               {tags.length > 0 && (
                 <div role="group" aria-label="Filter by tag" className="contents">
@@ -898,8 +924,8 @@ function Picker({
           quickAdd={{
             defaultName: addQuery,
             archivedOptions: quickAddSources.archivedOptions,
-            pickLabel: `Add & Pick for ${addDayLabel}`,
-            pick: (id) => pickTonight(id, isToday ? undefined : selectedDay),
+            pickLabel: `Add & Pick for ${day.label}`,
+            pick: (id) => pickTonight(id, day.writeDate),
           }}
           onCancel={() => setAddQuery(null)}
           onSaved={() => {
@@ -934,43 +960,103 @@ function Picker({
           // a layout step) separates rows with a sliver of `bg` instead of a
           // divider: every row already carries a kind-tinted background, so a
           // divider between two tinted rows read as a redundant, heavy seam.
-          <ol className="flex flex-col gap-[2px]">
-            {aiRows.map(({ row, reason }, index) => (
-              <TonightRowItem
-                key={row.option.id}
-                row={row}
-                rank={index + 1}
-                aiReason={reason}
-                selectedDay={isToday ? undefined : selectedDay}
-                onRejected={(name) =>
-                  setRejectNotice(`Rejected ${name}, removed from the list.`)
-                }
-              />
-            ))}
-          </ol>
-        )
-      ) : visible.length === 0 ? (
-        <p className="text-body text-muted">
-          No Options match the current filter.
-        </p>
-      ) : (
-        // See the AI-rows list above for why `gap-[2px]` replaces a divider here.
-        <ol className="flex flex-col gap-[2px]">
-          {visible.map((row) => (
-            <TonightRowItem
-              key={row.option.id}
-              row={row}
-              rank={rankOf.get(row.option.id) ?? 0}
-              lastNote={lastNotes.get(row.option.id)}
-              selectedDay={isToday ? undefined : selectedDay}
-              onRejected={(name) =>
-                setRejectNotice(`Rejected ${name}, removed from the list.`)
-              }
+          //
+          // The layer line and its list share one `gap-3` column in both
+          // branches: the line's 44px target bleeds 12px past it each way, so
+          // the bleed fills that gap exactly. Above the line the Picker sits
+          // in a 22px gap in both modes, so the bleed never reaches the chips.
+          <div className="flex flex-col gap-3">
+            <LayerLine
+              label="AI search"
+              action="Clear"
+              onAction={peel(onClearSearch)}
             />
-          ))}
-        </ol>
+            <ol className="flex flex-col gap-[2px]">
+              {aiRows.map(({ row, reason }, index) => (
+                <TonightRowItem
+                  key={row.option.id}
+                  row={row}
+                  rank={index + 1}
+                  aiReason={reason}
+                  selectedDay={day.writeDate}
+                  onRejected={(name) =>
+                    setRejectNotice(`Rejected ${name}, removed from the list.`)
+                  }
+                />
+              ))}
+            </ol>
+          </div>
+        )
+      ) : (
+        <div className="flex flex-col gap-3">
+          {prepared !== null && (
+            <LayerLine
+              label="Prepared ranking"
+              action="Show ranked list"
+              onAction={peel(onDismissPrepared)}
+            />
+          )}
+          {visible.length === 0 ? (
+            <p className="text-body text-muted">
+              No Options match the current filter.
+            </p>
+          ) : (
+            // See the AI-rows list above for why `gap-[2px]` replaces a divider here.
+            <ol ref={listRef} className="flex flex-col gap-[2px]">
+              {visible.map((row) => (
+                <TonightRowItem
+                  key={row.option.id}
+                  row={row}
+                  rank={rankOf.get(row.option.id)}
+                  // A Prepared row keeps its Last note above the rationale:
+                  // this is the default view, so dropping it would hide
+                  // every prior night's note on load (DESIGN.md, "Last note line").
+                  aiReason={prepared?.reasons.get(row.option.id)}
+                  lastNote={lastNotes.get(row.option.id)}
+                  selectedDay={day.writeDate}
+                  onRejected={(name) =>
+                    setRejectNotice(`Rejected ${name}, removed from the list.`)
+                  }
+                />
+              ))}
+            </ol>
+          )}
+        </div>
       )}
     </>
+  );
+}
+
+/**
+ * The line above an AI layer naming what the Household is reading, with the
+ * one control that peels that layer off (DESIGN.md, "AI layers"). The 44px
+ * hit area overlaps the gap around the line rather than setting its height,
+ * and its `px-2` padding is taken back by `-mx-2`, as the brief's toggle does,
+ * so the word stays on the line's left edge.
+ */
+function LayerLine({
+  label,
+  action,
+  onAction,
+}: {
+  label: string;
+  action: string;
+  onAction: () => void;
+}) {
+  return (
+    <p className="flex items-center gap-2 text-meta text-muted">
+      <span>{label}</span>
+      <span aria-hidden="true">·</span>
+      <button
+        type="button"
+        onClick={onAction}
+        className={`-mx-2 -my-3 min-h-11 rounded-control px-2 text-meta
+          font-emphasis text-action transition-colors duration-micro
+          hover:bg-raised ${focusRing}`}
+      >
+        {action}
+      </button>
+    </p>
   );
 }
 
@@ -1026,8 +1112,7 @@ function SearchBox({
   error,
   showClear,
   choices,
-  selectedDay,
-  isToday,
+  day,
   onSelectAdd,
 }: {
   query: string;
@@ -1047,18 +1132,11 @@ function SearchBox({
   /** Every active Option, by name, each carrying why it is off Tonight's ranked list, if at all (issue 02). */
   choices: TonightChoice[];
   /** The Selected day a typeahead pick is logged to (ADR-0009). */
-  selectedDay: string;
-  /** True when the Selected day is today — then the pick omits the day. */
-  isToday: boolean;
+  day: SelectedDayView;
   /** Selecting the dropdown's trailing Add row (issue 03) — opens the quick-add form for the trimmed query. */
   onSelectAdd: (query: string) => void;
 }) {
   const listId = useId();
-  // The day-aware noun for a suppression note — "tonight" today, the weekday
-  // name otherwise — mirroring the screen's own `dayLabel`. A Closed note
-  // always names the weekday, pluralised as a standing fact ("closed
-  // Mondays"), even when the Selected day is today.
-  const dayLabel = isToday ? "tonight" : weekdayName(selectedDay);
   const pending = startedAt !== null;
   // Elapsed whole seconds of the in-flight search. An AI search runs ~50–90s,
   // so a live counter reassures the Household the request is still working.
@@ -1119,10 +1197,7 @@ function SearchBox({
   function pick(optionId: string) {
     setPickError(null);
     startPick(async () => {
-      const result = await pickTonight(
-        optionId,
-        isToday ? undefined : selectedDay,
-      );
+      const result = await pickTonight(optionId, day.writeDate);
       if (!result.ok) {
         setPickError(result.error);
         return;
@@ -1184,8 +1259,10 @@ function SearchBox({
 
   /** The muted row suffix naming why a candidate is off the ranked list. */
   const suppressionNotes: Record<Suppression, string> = {
-    closed: `closed ${weekdayName(selectedDay)}s`,
-    rejected: `rejected ${dayLabel}`,
+    // A Closed note always names the weekday, pluralised as a standing fact
+    // ("closed Mondays"), even when the Selected day is today.
+    closed: `closed ${weekdayName(day.date)}s`,
+    rejected: `rejected ${day.label}`,
     picked: "already picked",
   };
   function suppressionNote(option: SearchRow): string | undefined {
@@ -1388,7 +1465,7 @@ function SearchBox({
               >
                 {pendingConfirm.name}
               </Link>
-              {` ${dayLabel}`}
+              {` ${day.label}`}
             </>
           )}
           {" — "}

@@ -1,10 +1,12 @@
 import { sql } from "drizzle-orm";
+import type { AiRankingRow } from "../lib/ai-search";
 import {
   boolean,
   date,
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -173,6 +175,34 @@ export const dayNotes = pgTable("day_notes", {
   /** The Household's calendar day in `APP_TZ` the note is about. */
   notedOn: date("noted_on").notNull().unique(),
   note: text("note").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * Prepared notes (ADR-0011). A **Prepared note** is what the local model wrote
+ * ahead of time for one date: a brief and a Prepared ranking of every
+ * candidate. The unique `prepared_for` keeps one row per date — only the latest
+ * (or, once the date has a Pick, the frozen) version is kept.
+ *
+ * The row doubles as the per-date claim: `claimed_until` is a lease a replica
+ * takes before generating, so two replicas never generate the same date at
+ * once. A claim on a date with no note yet inserts a row holding only the date
+ * and the lease, which is why every note column is nullable.
+ */
+export const preparedNotes = pgTable("prepared_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /** The Household's calendar day in `APP_TZ` the note is for. */
+  preparedFor: date("prepared_for").notNull().unique(),
+  brief: text("brief"),
+  /** Every candidate in rank order. */
+  ranking: jsonb("ranking").$type<AiRankingRow[]>(),
+  /** Hash of the model, system prompt, and user message the note was built from. */
+  inputHash: text("input_hash"),
+  model: text("model"),
+  preparedAt: timestamp("prepared_at", { withTimezone: true }),
+  claimedUntil: timestamp("claimed_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

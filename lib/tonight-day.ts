@@ -15,14 +15,14 @@
  *   - **Closed** on the Selected day —
  *
  * all three decided by `suppressionsOn` (`./day-suppressions`), the one
- * statement of the per-day rules. AI search (`lib/ai-search.ts`) calls it too,
- * so the AI candidate set and the picker can never disagree about which
- * Options are off for the day.
+ * statement of the per-day rules. The AI snapshot (`lib/snapshot.ts`) calls
+ * it too, so the AI candidate set and the picker can never disagree about
+ * which Options are off for the day.
  *
  * The precedence is load-bearing and lives in `suppressionsOn` alone: Picked,
  * then Rejected, then Closed, each Option carrying only its first. So an
  * Option both closed and rejected for the Selected day lands in the Rejected
- * disclosure only — it can never also appear in `closed`.
+ * disclosure only — it is never also tagged closed.
  *
  * The composition, in order:
  *
@@ -33,21 +33,24 @@
  *      rather than a meaningless "0d";
  *   4. `splitTonight` → `tonightsDinner` + `picker`;
  *   5. `suppressionsOn` → drop every suppressed row from the picker, keeping
- *      the Closed and Rejected ones aside as `closed` and `rejected`;
+ *      each aside in `suppressed`, tagged picked / rejected / closed;
  *   6. `lastNotesByOption` for every row type;
  *   7. `allFiltered` — the picker had rows before step 5 and none after, so
  *      the screen can tell "filtered empty" from "genuinely empty Catalog".
  *
+ * The result is the **Selected day** view Tonight renders whole: the day's
+ * names and the date writes go to, its Day note, and the rows above.
+ *
  * This is a presentation composition only: it runs after `rankTonight`, so
  * the Score and the ranking stay untouched (ADR-0003, ADR-0006, ADR-0010).
  */
-import { suppressionsOn, type Suppression } from "./day-suppressions";
+import { suppressionsOn } from "./day-suppressions";
 import {
   lastNotesByOption,
   type LastNote,
   type NotedLogEntry,
 } from "./last-note";
-import { epochDayFromSqlDate } from "./local-day";
+import { epochDayFromSqlDate, weekdayName } from "./local-day";
 import {
   rankTonight,
   type LogEntry,
@@ -87,6 +90,17 @@ export type TonightDayLogEntry = {
   note: string | null;
 };
 
+/**
+ * A Rejection dated the Selected day. `db/queries.ts`'s `TodayRejection`
+ * satisfies this structurally.
+ */
+export type TonightDayRejection = {
+  id: string;
+  optionId: string;
+  /** The optional short reason; `null` when the Household gave none. */
+  reason: string | null;
+};
+
 /** The input `tonightForDay` needs to compose the Selected day's Tonight screen. */
 export type TonightForDayInput = {
   /** The active Catalog, carrying each Option's `closedDays`. */
@@ -95,27 +109,66 @@ export type TonightForDayInput = {
   logEntries: TonightDayLogEntry[];
   /** The Selected day's own Log entries (`getTonightData`'s `todayEntries`). */
   dayEntries: TodayLogEntry[];
-  /** Option ids carrying a Rejection dated the Selected day. */
-  rejectedOptionIds: string[];
+  /** The Selected day's Rejections, newest first. */
+  rejections: TonightDayRejection[];
   /** The Selected day, as a SQL `date` string. */
   selectedDay: string;
+  /** Today in the Household's time zone, as a SQL `date` string. */
+  today: string;
+  /** The Selected day's **Day note**, or `null` when it has none. */
+  dayNote: string | null;
 };
 
+/** The Selected day as the screen names it and writes to it (ADR-0009). */
+export type SelectedDayView = {
+  /** The Selected day, as a SQL `date` string. */
+  date: string;
+  /** Today, as a SQL `date` string — the day stepper's reset target. */
+  today: string;
+  isToday: boolean;
+  /** The H1: "Tonight" today, the weekday name on any other day. */
+  heading: string;
+  /** The copy noun: "tonight" today, the weekday name on any other day. */
+  label: string;
+  /**
+   * The date a Pick, Reject, or AI search carries: `undefined` for today, so
+   * the server dates it to its own today; the Selected day otherwise.
+   */
+  writeDate: string | undefined;
+  /**
+   * Whether the day is decided — it has any Log entry, one of an Archived
+   * Option included (`CONTEXT.md`, **Day decision**). Read from the day's
+   * entries, not the rendered dinner, which drops Archived Options.
+   */
+  decided: boolean;
+};
+
+/**
+ * A row off the picker for the Selected day, tagged with why. A rejected row
+ * carries its Rejection, for the Rejected disclosure's reason and Bring back.
+ */
+export type SuppressedRow =
+  | { suppression: "picked" | "closed"; row: TonightRow }
+  | {
+      suppression: "rejected";
+      row: TonightRow;
+      rejection: { id: string; reason: string | null };
+    };
+
 /** Everything the Tonight screen renders for the Selected day. */
-export type TonightForDay = {
+export type TonightView = {
+  day: SelectedDayView;
+  dayNote: string | null;
   /** The Picked Options, in pick order. */
   tonightsDinner: TonightsDinnerEntry[];
   /** The ranked, still-pickable rows: Picked, Rejected, and Closed all removed. */
   picker: TonightRow[];
-  /** The rows closed on the Selected day, alphabetical by name. */
-  closed: TonightRow[];
   /**
-   * The rows rejected for the Selected day, alphabetical by name — the
-   * Rejected disclosure itself renders `TodayRejection` (with each
-   * Rejection's reason), but the typeahead's candidate set (issue 02) needs
-   * the full row for its kind bar and label, exactly as `closed` does.
+   * Every row off the picker, tagged: the Picked ones in pick order, then the
+   * Rejected ones in the Rejections' order (newest first), then the Closed
+   * ones alphabetical by name (DESIGN.md "Closed disclosure").
    */
-  rejected: TonightRow[];
+  suppressed: SuppressedRow[];
   /** Each Option's Last note, keyed by Option id. */
   lastNotes: Map<string, LastNote>;
   /**
@@ -135,9 +188,11 @@ export function tonightForDay({
   options,
   logEntries,
   dayEntries,
-  rejectedOptionIds,
+  rejections,
   selectedDay,
-}: TonightForDayInput): TonightForDay {
+  today,
+  dayNote,
+}: TonightForDayInput): TonightView {
   const anchorEpochDay = epochDayFromSqlDate(selectedDay);
 
   // 1. epoch-day conversion.
@@ -165,24 +220,32 @@ export function tonightForDay({
 
   // 5. drop every suppressed row. `splitTonight` already took the Picked ones
   // out, so passing them here changes nothing on Tonight — it keeps the call
-  // the same full rule set AI search applies. The Closed ones go to the
-  // Closed disclosure, which is alphabetical, not ranked (DESIGN.md "Closed
-  // disclosure"). The picker keeps rank order.
+  // the same full rule set AI search applies. The picker keeps rank order.
   const suppressions = suppressionsOn({
     options,
     pickedOptionIds: dayEntries.map((entry) => entry.optionId),
-    rejectedOptionIds,
+    rejectedOptionIds: rejections.map((r) => r.optionId),
     day: selectedDay,
   });
   const visiblePicker = picker.filter(
     (row) => !suppressions.has(row.option.id),
   );
-  const suppressedByName = (reason: Suppression) =>
-    picker
-      .filter((row) => suppressions.get(row.option.id) === reason)
-      .sort((a, b) => a.option.name.localeCompare(b.option.name));
-  const closed = suppressedByName("closed");
-  const rejected = suppressedByName("rejected");
+  const pickerById = new Map(picker.map((row) => [row.option.id, row]));
+  const suppressed: SuppressedRow[] = [
+    ...tonightsDinner.map(
+      ({ row }): SuppressedRow => ({ suppression: "picked", row }),
+    ),
+    ...rejections.flatMap(({ id, optionId, reason }): SuppressedRow[] => {
+      const row = pickerById.get(optionId);
+      return row && suppressions.get(optionId) === "rejected"
+        ? [{ suppression: "rejected", row, rejection: { id, reason } }]
+        : [];
+    }),
+    ...picker
+      .filter((row) => suppressions.get(row.option.id) === "closed")
+      .sort((a, b) => a.option.name.localeCompare(b.option.name))
+      .map((row): SuppressedRow => ({ suppression: "closed", row })),
+  ];
 
   // 6. Last notes, for every row type — one Map serves picker, AI result,
   // and decided rows alike.
@@ -201,11 +264,23 @@ export function tonightForDay({
   // 7. "filtered empty" vs. "genuinely empty Catalog".
   const allFiltered = picker.length > 0 && visiblePicker.length === 0;
 
+  const isToday = selectedDay === today;
+  const name = isToday ? null : weekdayName(selectedDay);
+
   return {
+    day: {
+      date: selectedDay,
+      today,
+      isToday,
+      heading: name ?? "Tonight",
+      label: name ?? "tonight",
+      writeDate: isToday ? undefined : selectedDay,
+      decided: dayEntries.length > 0,
+    },
+    dayNote,
     tonightsDinner,
     picker: visiblePicker,
-    closed,
-    rejected,
+    suppressed,
     lastNotes,
     allFiltered,
   };
