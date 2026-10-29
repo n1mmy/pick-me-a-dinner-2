@@ -105,9 +105,23 @@ export type DayRecord = {
    */
   catalogOrder: boolean;
   brief?: string;
-  ranking: (Ranked & { reason: string })[];
+  ranking: RankingRow[];
   latencyMs?: number;
   outputTokens?: number;
+};
+
+/**
+ * One ranked row with the timing facts its line was written beside: the
+ * Option's own daysSinceLast, and the Tag that was had more recently than
+ * the Option itself when there is one — the count the line should measure
+ * from (issue 15). Old run files carry neither.
+ */
+export type RankingRow = Ranked & {
+  reason: string;
+  /** The Option's daysSinceLast — `null` when never eaten. */
+  daysSinceLast?: number | null;
+  /** The nearest Tag had sooner than the Option, when one was. */
+  nearerTag?: { tag: string; daysSinceLast: number };
 };
 
 /**
@@ -169,10 +183,24 @@ export function scoreDay(
     if (option) modelOption.set(id, option);
   }
 
-  const ranking = generation.ranking.map((row, i) => ({
+  const timingOf = (id: string): Pick<RankingRow, "daysSinceLast" | "nearerTag"> => {
+    const option = modelOption.get(id);
+    if (!option) return {};
+    const nearer = option.tags
+      .flatMap((tag) => {
+        const days = snapshot.tags[tag]?.daysSinceLast;
+        return days !== undefined && (option.daysSinceLast === undefined || days < option.daysSinceLast)
+          ? [{ tag, daysSinceLast: days }]
+          : [];
+      })
+      .sort((a, b) => a.daysSinceLast - b.daysSinceLast)[0];
+    return { daysSinceLast: option.daysSinceLast ?? null, ...(nearer ? { nearerTag: nearer } : {}) };
+  };
+  const ranking: RankingRow[] = generation.ranking.map((row, i) => ({
     rank: i + 1,
     name: nameOf(row.id),
     reason: row.reason,
+    ...timingOf(row.id),
   }));
   const top10 = generation.ranking.slice(0, 10);
 

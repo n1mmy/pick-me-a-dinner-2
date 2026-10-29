@@ -199,6 +199,14 @@ and deliberately with no summary number over it (ADR-0012).
 _Avoid_: Interval, usual gap, cadence (the habit itself, not its numbers),
 overdue (the Tag chip threshold).
 
+**Usual stretch**:
+The gap the Household tends to leave between turns of an Option, or of a Tag,
+as a rationale states it ("about every two weeks", "four to six days"): the
+habit read from the Recent gaps, in the household's words. It is what a
+rhythm claim sets the count against, and it appears on no chip.
+_Avoid_: Interval (retired), cadence or rhythm as a term (fine as words in a
+line, not as the name of the concept).
+
 **Recency chip**:
 The small chip on each Tonight row showing the Option's per-Option recency
 ("18d", "60d+" at the cap, "new" when never eaten). With the Tag chips it
@@ -253,15 +261,18 @@ soup, and the katsu was the good call last time"). A search row's is
 query-aware and short; a Prepared ranking row's has up to three sentences for
 a strong pick, tapering for the tail. The deterministic list has none.
 
-A rationale states a **rhythm claim**, never an **elapsed-time claim**. A
-rhythm claim names the shape of a habit ("runs about every two weeks and that
-stretch is up", "the standing Thursday choice"); an elapsed-time claim
-restates how long it has been, at any precision ("9 days ago", "it's been a
-while") — redundant beside the Recency and Tag chips on the same row. The
-line opens on its reason, says what the timing means in what the household
-would notice, and is in the household's words rather than the snapshot's
-(ADR-0005).
-_Avoid_: Recency chip (data, not a rationale).
+A rationale's timing is a **rhythm claim**: how long it has been, set
+against the **Usual stretch** ("15 days, inside the two weeks they usually
+leave it"; "sushi was Thursday, sooner than they tend to repeat it"),
+measured from whichever is nearer, the Option's own last turn or one of its
+Tags'. The count also sits on the Recency and Tag chips, and that is fine: a line is
+skimmed faster than a chip is read, and the stretch is on no chip at all. A
+bare count with no stretch beside it is allowed but adds little. What the
+line never carries is the snapshot itself: a list of gaps, a Log date, a
+field name, an Option code. The line opens on its reason and is in the
+household's words rather than the snapshot's (ADR-0005).
+_Avoid_: Recency chip (data, not a rationale); elapsed-time claim (retired as
+a fault: the count is welcome when the stretch is beside it).
 
 **Prepared note**:
 What a local model the Household runs at home writes ahead for one date, so it

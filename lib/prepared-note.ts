@@ -91,7 +91,7 @@ export function localModelConfig(): {
  * Not part of the input hash: that covers the prompt text itself
  * (`lib/prepared-notes.ts`).
  */
-export const PREPARED_PROMPT_VERSION = "18";
+export const PREPARED_PROMPT_VERSION = "19";
 
 /**
  * Build the Prepared note system prompt. What the snapshot is evidence of,

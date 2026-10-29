@@ -1,6 +1,6 @@
 # 14 — The rationale rules say what goes in the line's place (prompt v18)
 
-Status: in-progress
+Status: done
 Type: AFK
 
 ## Parent
@@ -130,3 +130,10 @@ the shorter rows lose material reasons, restore the quota and keep the rest.
 - 2026-10-29: edits 1 and 2, the harness counters, tests and docs are in.
   Nothing has been run on v18 yet; the table above is v17 as the harness
   counts it.
+- 2026-10-29, later: v18 ran free on Strata (low all 20 days, medium 12)
+  and Qwen low, and billed on Opus (Prepared and AI search). Its timing
+  premise was then reversed: the count is wanted, with the usual stretch
+  beside it (`plans/prompt-tweaks-v19.md`, ADR-0005 fifth amendment). The
+  elapsed-time bars above are superseded by issue 15; the name-opener,
+  leak and quota bars carry over there, and the v18 runs are its baseline.
+  Closed as superseded.

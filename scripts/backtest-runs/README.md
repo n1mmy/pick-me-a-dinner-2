@@ -18,15 +18,21 @@ the run list below records what each one showed.
 
 Compare two runs on the same days with
 `npx tsx scripts/backtest-compare.ts <a.json> <b.json>`: aggregates side by
-side, the text counts (top-10 rows that state elapsed time, use a snapshot
-word, leak a code, write a name lower case, open with the name or a stand-in
-for it, quote the household, name a weekday; the same for the briefs; mean
-row length; usable-note coverage per run), the Pick's rank per day, top-N
-overlap, hit flips, top-5 occupancy per Option, never-eaten slots, and the
-Pick's row in each run. The counts are the definitions every prompt version
-is read against (issue 14): the code and lowercase-name counters are
-heuristics (a run file carries no codes and no list of the household's
-names), so the compare prints their rows for the eye to discard false hits.
+side, the text counts (top-10 rows that give a timing count, and how many
+of those with a yardstick beside it; rows with a gap list, a Log date, a
+snapshot word, a code, a name written lower case; rows that count the
+Option's days while a Tag was had sooner; rows opening with the name or a
+stand-in for it, quoting the household, naming a weekday; the same for the
+briefs; mean row length; usable-note coverage per run), the Pick's rank per
+day, top-N overlap, hit flips, top-5 occupancy per Option, never-eaten
+slots, and the Pick's row in each run. The counts are the definitions every
+prompt version is read against (issues 14 and 15). The timing count is a
+readout, not a fault, from v19 on: the count is wanted with the usual stretch
+beside it (`CONTEXT.md`, rhythm claim). The code and lowercase-name counters
+are heuristics (a run file carries no codes and no list of the household's
+names), and the tag-nearer counter needs the per-row timing facts run files
+carry from issue 15 on (older files print n/a); the compare prints their
+rows for the eye.
 
 Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
 
@@ -133,6 +139,25 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   shared misses (Ninja Sushi `2026-10-18`, Leftovers `2026-10-21`, out of
   every top 10). No day unavailable or briefless. Low 2.5–4.5 minutes a
   day, medium 3–5, xhigh 6–10.
+
+- `strata-v17-low-40k`, `-medium-40k` and `-xhigh-40k` — Prepared note
+  prompt v17 on Strata at each effort with a 40k budget, with traces: low
+  11/11/13, mean / median rank 7.8 / 2 on all 20 days; medium and xhigh
+  stopped short of the 20 (xhigh at 14). Read in issue 14 and re-counted
+  in issue 15.
+- `strata-v18-low-40k` and `-medium-40k` — the same on prompt v18: low
+  7/9/11, mean / median rank 9.9 / 6 on all 20 days, behind its v17 at
+  every hit level; medium 2/4/11 and 7.5 / 8 over 13 days. `qwen3.8-v18-low`
+  — Qwen 3.8 dense on v18 at low: 7/7/12, 8.2 / 6, two days unusable.
+  `prepared-v18-opus-5-5-low` — v18 on Opus 5.5 low: 12/13/16, 6.6 / 3.
+  `ai-search-v18-opus-5-5-pithy` — AI search v18 on Opus pithy: 9/11/15,
+  6.7 / 4. The text counts of all of them against v17, with the issue 15
+  counters, are the baseline table in `plans/prompt-tweaks-v19.md`: v18 cut
+  the leaks (gap lists, Log dates, tag syntax, codes, lowercase names) and
+  halved the quotes, with every row shorter.
+- `strata-v19-low-40k` — Prepared note prompt v19 (the count and the usual
+  stretch, issue 15) on Strata at low with a 40k budget, with traces, on the
+  same 20 days.
 
 Fireworks models, through its Anthropic-compatible endpoint, on the same 20
 days: `ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference`, a Fireworks key

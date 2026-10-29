@@ -338,8 +338,10 @@ describe("buildPreparedSystemPrompt", () => {
 
   it("keeps the snapshot's vocabulary and the weekday out of what the household reads", () => {
     expect(prompt).toContain("in their words — the food, the person, the night");
-    // v18: the snapshot's words named once, as a shared guardrail (issue 14).
-    expect(prompt).toContain("not tag, gap, pace, cadence, rhythm or spacing");
+    // v18: the snapshot's leaks named once, as a shared guardrail (issue 14);
+    // v19 took the timing words off the list (issue 15).
+    expect(prompt).toContain("not a tag written as the snapshot writes it");
+    expect(prompt).not.toContain("cadence, rhythm");
     expect(prompt).toContain("not an Option's code");
     expect(prompt).toContain("not on the weekday or any weekday habit");
     expect(prompt).toContain("names only Options in your top three rows");

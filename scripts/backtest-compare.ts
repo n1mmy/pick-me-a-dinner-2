@@ -4,9 +4,12 @@
  * runs, one under the other, with the Pick and any too-soon Rejection marked
  * on its row — a prompt change is judged by reading days, and the numbers are
  * context (issue 02). Then the aggregates side by side; the text counts —
- * how many top-10 rows state elapsed time, use a snapshot word, leak a code,
+ * how many top-10 rows use a snapshot word, leak a code,
  * open with the name, quote the household, and so on, with coverage per run
- * (issue 14); per-day rank of the Pick and top-N overlap, hit flips, top-5
+ * (issue 14), and from issue 15 the timing counts read as a readout — how
+ * many lines give the count, how many with a yardstick — with the leaks (a
+ * gap list, a Log date) and a Tag nearer than the Option the line counts as
+ * the faults; per-day rank of the Pick and top-N overlap, hit flips, top-5
  * occupancy per Option, top-5 slots spent on Options never eaten in the
  * window, and empty top-10 reasons.
  *
@@ -14,7 +17,14 @@
  */
 import { readFileSync } from "node:fs";
 
-type Row = { rank: number; name: string; reason: string };
+type Row = {
+  rank: number;
+  name: string;
+  reason: string;
+  /** From issue 15 on: the Option's daysSinceLast and the Tag had sooner than it, when one was. */
+  daysSinceLast?: number | null;
+  nearerTag?: { tag: string; daysSinceLast: number };
+};
 type Day = {
   day: string;
   weekday: string;
@@ -99,7 +109,7 @@ for (const k of aggKeys) console.log(`${k.padEnd(22)} ${String(A.aggregate[k]).p
 console.log(`${"latency s (mean)".padEnd(22)} ${fmt(mean(A.results.map((d) => d.latencyMs)) / 1000).padStart(6)} ${fmt(mean(B.results.map((d) => d.latencyMs)) / 1000).padStart(6)}`);
 console.log(`${"output tokens (mean)".padEnd(22)} ${fmt(mean(A.results.map((d) => d.outputTokens ?? 0)), 0).padStart(6)} ${fmt(mean(B.results.map((d) => d.outputTokens ?? 0)), 0).padStart(6)}`);
 
-// The text: the prose faults the prompt reads are judged on, counted the
+// The text: the prose patterns the prompt reads are judged on, counted the
 // same way for every version (issue 14; the v17 reads each counted in a
 // script of their own). Each is the number of shared-day top-10 rows the
 // pattern hits, so a run's counts compare to another's on the same days;
@@ -108,19 +118,46 @@ console.log(`${"output tokens (mean)".padEnd(22)} ${fmt(mean(A.results.map((d) =
 // household's names, so those two counters are heuristics — a one- or
 // two-letter capital word, and a word the runs themselves write capitalised
 // mid-sentence — and print their rows for the eye to discard false hits.
+//
+// The timing counts changed sign at v19 (issue 15): a line that gives the
+// count is wanted, and wanted with a yardstick beside it — the stretch the
+// household usually leaves — so "timing count" is a readout and "with a
+// yardstick" the one to raise. The faults are the snapshot leaking: a gap
+// list as written, a Log date, a Tag as the snapshot writes it, a field
+// name. "Tag nearer, counts the Option" needs the per-row timing facts the
+// run file carries from issue 15 on; older files print n/a.
 const NUMBER_WORD =
   "(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|a few|a couple of|several)";
-const ELAPSED = new RegExp(
+const TIMING_COUNT = new RegExp(
   [
     // a count of days/weeks/months, unless it is a rhythm ("every two weeks") or a horizon ("two days out")
-    `(?<!every )(?<!about every )(?<!every about )(?<!a-half-)(?<!and-a-half )\\b${NUMBER_WORD}[\\s-]+(?:full\\s+)?(?:days?|weeks?|months?)\\b(?![\\s-]+(?:out|ahead|from now|pace|minimum|gap|rhythm|window|cadence|apart))`,
+    `(?<!every )(?<!about every )(?<!every about )(?<!a-half-)(?<!and-a-half )\\b${NUMBER_WORD}[\\s-]+(?:full\\s+)?(?:days?|weeks?|months?)\\b(?![\\s-]+(?:out|ahead|from now))`,
     "\\bdays? ago\\b", "\\bweeks? ago\\b", "\\blast night\\b", "\\byesterday\\b", "\\bdays since\\b", "\\bat \\d+\\b",
-    "\\b\\d+\\s*(?:,\\s*\\d+){2,}\\b", // a gap list as written: 21,21,14,6
-    "\\b\\d+(?:–|-to-|-)\\d+\\b", // a gap range as written: 12-to-29, 12–16
   ].join("|"),
   "i",
 );
-const SNAPSHOT_WORD = /\b(?:tags?|tagged|gaps?|paces?|cadence|rhythms?|spacing)\b/i;
+// The count set against something: the stretch they keep, a comparison to it, or a weekday habit.
+const YARDSTICK = /\b(?:every|usual(?:ly)?|typical(?:ly)?|normal(?:ly)?|tends?|stretch|rhythm|cadence|pace|cycle|rotation|spacing|gap|range|in line|on cue|due|overdue|sooner|earlier|later|longer|shorter|short of|ahead of|past|beyond|within|inside|between (?:visits|turns|orders))\b/i;
+const GAP_LIST = /\b\d+\s*(?:,\s*\d+){2,}\b/; // 21,21,14,6 as written
+const LOG_DATE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b|\b\d{1,2}\/\d{1,2}\b|\b\d{4}-\d{2}-\d{2}\b/i;
+const SNAPSHOT_WORD = /\b(?:tags?|tagged|daysSinceLast|recentGaps|otherOptions|dayNote)\b/;
+const DAY_WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40 };
+/** The day counts a line states: "15 days", "fifteen days", "yesterday" (1), "last night" (1). */
+const dayCounts = (reason: string): number[] => {
+  const out: number[] = [];
+  for (const m of reason.matchAll(/(?<!every )(?<!about every )\b(\d+|[a-z]+)[\s-]+(?:full\s+)?days?\b(?![\s-]+(?:out|ahead|from now))/gi)) {
+    const n = /^\d+$/.test(m[1]) ? Number(m[1]) : DAY_WORDS[m[1].toLowerCase()];
+    if (n !== undefined) out.push(n);
+  }
+  if (/\byesterday\b|\blast night\b/i.test(reason)) out.push(1);
+  return out;
+};
+/** A Tag was had sooner than the Option, and the line counts the Option's days without the Tag's. */
+const countsOptionNotTag = (r: Row): boolean => {
+  if (!r.nearerTag || r.daysSinceLast == null) return false;
+  const counts = dayCounts(r.reason ?? "");
+  return counts.includes(r.daysSinceLast) && !counts.includes(r.nearerTag.daysSinceLast);
+};
 const CODE_WORD = /(?<![\w'’.])(?!A\b|I\b)[A-Z]{1,2}(?![\w'’.&-])/;
 const WEEKDAY = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b/i;
 const STAND_IN_OPENER = /^(?:the|this|that|a|an|their)\s+(?:\S+\s+){0,3}(?:pick|option|choice|standby|staple|favou?rite|spot|place|habit)\b/i;
@@ -154,7 +191,11 @@ const properNouns = [...nameCounts].filter(([, n]) => n >= 3).map(([w]) => w).so
 const LOWERCASE_NAME = properNouns.length ? new RegExp(`\\b(?:${properNouns.map((w) => w.toLowerCase()).join("|")})\\b`) : /$^/;
 
 const ROW_COUNTERS: Array<[string, (row: Row, d: Day) => boolean]> = [
-  ["states elapsed time", (r) => ELAPSED.test(r.reason ?? "")],
+  ["timing count", (r) => TIMING_COUNT.test(r.reason ?? "")],
+  ["  with a yardstick", (r) => TIMING_COUNT.test(r.reason ?? "") && YARDSTICK.test(r.reason ?? "")],
+  ["tag nearer, counts option", countsOptionNotTag],
+  ["gap list", (r) => GAP_LIST.test(r.reason ?? "")],
+  ["Log date", (r) => LOG_DATE.test(r.reason ?? "")],
   ["snapshot word", (r) => SNAPSHOT_WORD.test(r.reason ?? "")],
   ["code as a word", (r) => CODE_WORD.test(r.reason ?? "")],
   ["lowercase name", (r) => LOWERCASE_NAME.test(r.reason ?? "")],
@@ -166,7 +207,10 @@ const ROW_COUNTERS: Array<[string, (row: Row, d: Day) => boolean]> = [
   ["names another weekday", (r, d) => [...(r.reason ?? "").matchAll(new RegExp(WEEKDAY.source, "gi"))].some((m) => m[1].toLowerCase() !== d.weekday.toLowerCase())],
 ];
 const BRIEF_COUNTERS: Array<[string, (brief: string, d: Day) => boolean]> = [
-  ["states elapsed time", (b) => ELAPSED.test(b)],
+  ["timing count", (b) => TIMING_COUNT.test(b)],
+  ["  with a yardstick", (b) => TIMING_COUNT.test(b) && YARDSTICK.test(b)],
+  ["gap list", (b) => GAP_LIST.test(b)],
+  ["Log date", (b) => LOG_DATE.test(b)],
   ["snapshot word", (b) => SNAPSHOT_WORD.test(b)],
   ["code as a word", (b) => CODE_WORD.test(b)],
   ["lowercase name", (b) => LOWERCASE_NAME.test(b)],
@@ -179,8 +223,11 @@ const briefs = (run: Run) => run.results.filter((d) => shared.has(d.day) && d.br
 const rowsA = topRows(A), rowsB = topRows(B);
 const briefsA = briefs(A), briefsB = briefs(B);
 console.log(`\n=== the text: top-10 rows of the ${days.length} shared days hit by each pattern (A ${rowsA.length} rows, B ${rowsB.length}) ===`);
+const hasTiming = (rows: (readonly [Row, Day])[]) => rows.some(([r]) => r.daysSinceLast !== undefined);
 for (const [label, hit] of ROW_COUNTERS) {
-  console.log(`${label.padEnd(24)} ${String(rowsA.filter(([r, d]) => hit(r, d)).length).padStart(6)} ${String(rowsB.filter(([r, d]) => hit(r, d)).length).padStart(6)}`);
+  const cell = (rows: (readonly [Row, Day])[]) =>
+    hit === countsOptionNotTag && !hasTiming(rows) ? "n/a" : String(rows.filter(([r, d]) => hit(r, d)).length);
+  console.log(`${label.padEnd(24)} ${cell(rowsA).padStart(6)} ${cell(rowsB).padStart(6)}`);
 }
 console.log(`${"row length (mean chars)".padEnd(24)} ${fmt(mean(rowsA.map(([r]) => (r.reason ?? "").length)), 0).padStart(6)} ${fmt(mean(rowsB.map(([r]) => (r.reason ?? "").length)), 0).padStart(6)}`);
 console.log(`${"top-5 length (mean)".padEnd(24)} ${fmt(mean(rowsA.filter(([r]) => r.rank <= 5).map(([r]) => (r.reason ?? "").length)), 0).padStart(6)} ${fmt(mean(rowsB.filter(([r]) => r.rank <= 5).map(([r]) => (r.reason ?? "").length)), 0).padStart(6)}`);
@@ -204,6 +251,9 @@ const printHits = (label: string, hit: (row: Row, d: Day) => boolean) => {
 };
 printHits("code as a word", (r) => CODE_WORD.test(r.reason ?? ""));
 printHits("lowercase name", (r) => LOWERCASE_NAME.test(r.reason ?? ""));
+printHits("tag nearer, counts option", countsOptionNotTag);
+printHits("gap list", (r) => GAP_LIST.test(r.reason ?? ""));
+printHits("Log date", (r) => LOG_DATE.test(r.reason ?? ""));
 
 console.log("\n=== per day ===");
 console.log("day         wk   rankA rankB  Δ   ov3 ov5 ov10 same#1  tooSoon A/B  pick");
