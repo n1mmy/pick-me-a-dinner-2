@@ -10,7 +10,7 @@
  * the household's eating *habits* — cadence, day-of-week rhythm, streaks, drift
  * — rather than re-sort recency. So the snapshot carries dated history plus
  * timing facts that combine into no sort key (ADR-0012: eat counts, days since,
- * the last few gaps, weekday counts — no median, overdue flag or ratio), and the model is given
+ * the last few gaps — no median, overdue flag or ratio), and the model is given
  * room to think (extended thinking) and works the patterns out itself. A
  * pre-combined "how overdue" number would re-anchor the model on recency and
  * undo the feature — do not add one.
@@ -357,15 +357,13 @@ export const SNAPSHOT_EVIDENCE = [
     "long cook on a weeknight, a restaurant after a run of home-cooked meals, " +
     "a heavy dish after a heavy one.",
   "- The timing facts are counts, not a ranking. Each candidate carries " +
-    "eaten (how many days they have had it), daysSinceLast, recentGaps and " +
-    "weekdays; each Tag carries all but weekdays across every Option carrying " +
-    "it. recentGaps are the days between its last eats, newest first, up to " +
-    "four, given once it has been eaten twice: the pace they keep now, as " +
-    "they keep it. Their gaps vary, so daysSinceLast short of the last gap is " +
-    "ordinary, not ruled out, and a long gap among them is a break they took, " +
-    "not a pace to catch up on. weekdays is how many of its dinners fell on " +
-    "each weekday; anything said about a weekday habit has to be true of " +
-    "those counts.",
+    "eaten (how many days they have had it), daysSinceLast and recentGaps; " +
+    "each Tag carries the same across every Option carrying it. recentGaps " +
+    "are the days between its last eats, newest first, up to four, given " +
+    "once it has been eaten twice: the pace they keep now, as they keep it. " +
+    "Their gaps vary, so daysSinceLast short of the last gap is ordinary, " +
+    "not ruled out, and a long gap among them is a break they took, not a " +
+    "pace to catch up on.",
   "- A Rejection is their verdict on one Option for one night, with an " +
     "optional reason and a date, past or upcoming. A reason can be a " +
     "condition that holds until a Log entry or a later note says otherwise, " +
@@ -415,7 +413,7 @@ export const RATIONALE_RULES = [
   "- Lead with what the screen cannot show: a note of theirs about how it " +
     "went, a standing reason they once gave, how the Option fits the shape of " +
     "this evening (who is home, what the last few nights were, what the Day " +
-    "note says), or a weekday habit the counts bear out. Timing earns at most " +
+    "note says), or a weekday habit the Log bears out. Timing earns at most " +
     "a clause after that (\"…and its stretch is up\"), never the whole line. " +
     "A row with nothing but timing to say belongs low and says little.",
   "- NEVER state how long it has been since the household last ate " +
@@ -497,7 +495,7 @@ const TEXT_FORMAT_INSTRUCTION = [
  * Bumped whenever the ranking prompt's wording changes, so a backtest run's
  * record says which prompt it measured (`scripts/ai-search-eval.ts`).
  */
-export const AI_SEARCH_PROMPT_VERSION = "14";
+export const AI_SEARCH_PROMPT_VERSION = "15";
 
 /** Build the AI search system prompt. */
 export function buildSystemPrompt(): string {

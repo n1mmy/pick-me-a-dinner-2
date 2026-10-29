@@ -88,7 +88,7 @@ describe("buildSnapshot", () => {
   it("carries candidate and timing fields — no Places fields", () => {
     // Eaten once, so no gaps yet.
     expect(Object.keys(snapshot.options[0]).sort()).toEqual(
-      ["id", "kind", "name", "notes", "tags", "eaten", "daysSinceLast", "weekdays"].sort(),
+      ["id", "kind", "name", "notes", "tags", "eaten", "daysSinceLast"].sort(),
     );
   });
 
@@ -694,7 +694,7 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
   });
   const byName = (name: string) => snapshot.options.find((o) => o.name === name)!;
 
-  it("gives a candidate its eat count, days since, recent gaps, and weekday counts", () => {
+  it("gives a candidate its eat count, days since, and recent gaps — no weekday counts", () => {
     expect(byName("Mazra")).toEqual({
       id: expect.any(String),
       name: "Mazra",
@@ -704,7 +704,6 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
       eaten: 3,
       daysSinceLast: 7,
       recentGaps: [12, 9],
-      weekdays: { Wednesday: 2, Friday: 1 },
     });
   });
 
@@ -733,11 +732,6 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
     const never = byName("Never Tried");
     expect(never.eaten).toBe(0);
     expect(never).not.toHaveProperty("daysSinceLast");
-    expect(never).not.toHaveProperty("weekdays");
-  });
-
-  it("lists weekdays in week order from Sunday, leaving out ones with none", () => {
-    expect(Object.keys(byName("Mazra").weekdays!)).toEqual(["Wednesday", "Friday"]);
   });
 
   it("gives each Tag the timing of every active Option carrying it, a shared day once", () => {

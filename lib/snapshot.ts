@@ -17,11 +17,7 @@ import {
   getTonightData,
 } from "../db/queries";
 import { suppressionsOn } from "./day-suppressions";
-import {
-  epochDayFromSqlDate,
-  WEEKDAY_NAMES,
-  weekdayFromSqlDate,
-} from "./local-day";
+import { epochDayFromSqlDate, WEEKDAY_NAMES } from "./local-day";
 import {
   partitionRejections,
   type RejectionRow,
@@ -143,13 +139,6 @@ export type SnapshotModelOption = SnapshotTiming & {
    * Household-authored text.
    */
   closedDays?: string[];
-  /**
-   * How many of its eats fell on each weekday, by weekday name, in week order
-   * from Sunday — omitted when never eaten, and a weekday with none is left
-   * out. Counts, not a "habit" label: the model judges whether one weekday
-   * stands out from an even spread.
-   */
-  weekdays?: Record<string, number>;
 };
 
 /**
@@ -303,9 +292,12 @@ export function codeIndex(code: string): number {
  *   (ADR-0013).
  * - **Timing facts, not a sort key** (ADR-0012, superseding that part of
  *   ADR-0005). Each candidate carries how often it was eaten, days since its
- *   last eat, its last four gaps, and its weekday counts; the `tags` block
- *   carries all but the weekdays per Tag. Left to work these out from the Log, the model
- *   worked out a different subset each run and judged them inconsistently.
+ *   last eat, and its last four gaps; the `tags` block carries the same per
+ *   Tag. Left to work these out from the Log, the model worked out a
+ *   different subset each run and judged them inconsistently. A weekday habit
+ *   is read from the Log's dates, each carrying its weekday: weekday counts
+ *   gave the model a cheap true sentence about every row, and it read habits
+ *   into flat ones.
  *   Nothing here combines them — no overdue flag, no ratio, no habit label —
  *   so the judgment stays the model's.
  * - The Log is the **full Log — past entries and future-dated ones (Planned
@@ -458,7 +450,6 @@ export function buildSnapshot(input: {
       notes: option.notes,
       tags: option.tags,
       ...timingOf(eatenDaysByOption.get(option.id)!, asOf),
-      ...weekdayCountsOf(eatenDaysByOption.get(option.id)!),
       // Omitted entirely — not an empty array — when the Restaurant has no
       // Closed days, so an always-open Restaurant and every Home meal cost
       // nothing.
@@ -601,25 +592,6 @@ const RECENT_GAPS = 4;
  */
 export function recentGapsOf(gaps: number[]): number[] {
   return gaps.slice(-RECENT_GAPS).reverse();
-}
-
-/**
- * How many eat days fell on each weekday, in week order from Sunday, leaving
- * out weekdays with none — and the whole key when there are no eats.
- */
-function weekdayCountsOf(
-  eatenDays: Set<string>,
-): Pick<SnapshotModelOption, "weekdays"> {
-  if (eatenDays.size === 0) return {};
-  const counts = WEEKDAY_NAMES.map(() => 0);
-  for (const day of eatenDays) counts[weekdayFromSqlDate(day)] += 1;
-  return {
-    weekdays: Object.fromEntries(
-      WEEKDAY_NAMES.flatMap((name, weekday) =>
-        counts[weekday] > 0 ? [[name, counts[weekday]]] : [],
-      ),
-    ),
-  };
 }
 
 /**

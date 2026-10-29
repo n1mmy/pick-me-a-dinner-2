@@ -24,13 +24,20 @@ four gaps, newest first** (`recentGaps`), on each candidate and each Tag,
 and the prompt says that falling short of the last gap is ordinary and a
 long gap among them is a break they took, not a pace to catch up on._
 
+_Amended a fourth time, 2026-10-29: the weekday counts are gone from the
+snapshot, the Interval's story one field over. They gave every row a cheap
+true sentence, and the model read habits into flat counts — four Options
+called a Wednesday, Thursday, Friday or Saturday regular on four different
+days (`issues/02`), and the claim rate up again on the 40-day run after a
+strict weekday test came and went (`issues/03`). Every Log date carries its
+weekday, so a real habit is still there to find (`issues/10`)._
+
 ADR-0005 withheld pre-computed recency from the model snapshot, so the model
 would reason about habits instead of re-sorting on a ready-made key, and
 ADR-0011 carried that over to Prepared notes. We now put **timing facts** in the
 snapshot shared by AI search and Prepared notes. Each candidate carries how many
 days it was eaten, days since its last eat, its last four gaps newest first
-(from two eats up), and its eats per weekday. A `tags` block carries all but
-the weekdays for every Tag. This amends ADR-0005's withheld-recency
+(from two eats up). A `tags` block carries the same for every Tag. This amends ADR-0005's withheld-recency
 consequence and ADR-0011's inheritance of it. The rest of ADR-0005 stands: the
 model still reasons over the dated history, and nothing in the snapshot
 combines the facts into a sort key.
