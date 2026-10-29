@@ -74,12 +74,15 @@ skill they mean — don't guess.
 
 ## Billed-call rule
 
-Anything that spends money against an external service is user-triggered:
-state the cost shape (one call vs a sweep, rough size) and wait for approval.
-`scripts/ai-search-eval.ts` and `scripts/prepared-note-eval.ts --claude` send
-the full dinner snapshot to a metered Claude model, so they fall under the
-rule; a 64-token placeholder probe that never touches the real snapshot does
-not. Strata, the local model behind `LOCAL_AI_*`, is free and exempt.
+Anything that spends money against an external service, or occupies a
+shared one, is user-triggered: state the shape (one call vs a sweep, rough
+size and duration) and wait for approval. `scripts/ai-search-eval.ts` and
+`scripts/prepared-note-eval.ts --claude` send the full dinner snapshot to a
+metered Claude model, so they fall under the rule; a 64-token placeholder
+probe that never touches the real snapshot does not. Strata, the local model
+behind `LOCAL_AI_*`, is not metered but is a shared resource: a backtest
+sweep on it ties it up for an hour or more, so it is approved the same way.
+A single probe call is not.
 
 ## Browser tooling
 

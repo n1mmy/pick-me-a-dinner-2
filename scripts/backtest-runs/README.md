@@ -157,7 +157,8 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   halved the quotes, with every row shorter.
 - `strata-v19-low-40k` — Prepared note prompt v19 (the count and the usual
   stretch, issue 15) on Strata at low with a 40k budget, with traces, on the
-  same 20 days.
+  same 20 days: stopped during its first day, before approval. Rerun with
+  `--resume` once approved.
 
 Fireworks models, through its Anthropic-compatible endpoint, on the same 20
 days: `ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference`, a Fireworks key

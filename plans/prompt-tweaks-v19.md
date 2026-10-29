@@ -71,7 +71,7 @@ ranked against, a range over four gaps is one too, and the v17 lines show
 the model already turns the gaps into "12–16 day rhythm" itself. The Aji
 mismatch was not a gaps problem either; the sushi Tag's facts were in the
 snapshot. If v19's yardstick coverage comes out low, a range is a separate
-free experiment after.
+experiment after.
 
 ### 4. Not changing
 
@@ -105,7 +105,8 @@ keeping the leaks down.
 
 ## Read
 
-1. **Free, first:** Prepared v19 on Strata at low, then medium, with
+1. **Local, first, each run approved like a billed one:** Prepared v19 on
+   Strata at low, then medium, with
    `LOCAL_AI_MAX_TOKENS=40000`, on the same 20 days, each read against its
    own v18 and v17 through `backtest-compare`.
 2. **Billed, after approval:** Prepared v19 on Opus 5.5 low (`--claude`,

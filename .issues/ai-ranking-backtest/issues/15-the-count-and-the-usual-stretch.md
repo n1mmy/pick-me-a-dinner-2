@@ -68,7 +68,8 @@ undo the second.
 
 ## Read
 
-1. **Free, first:** Prepared v19 on Strata at low, then medium, 40k budget,
+1. **Local, first, each run approved like a billed one:** Prepared v19 on
+   Strata at low, then medium, 40k budget,
    same 20 days, against v18 and v17.
 2. **Billed, after approval:** Prepared v19 on Opus 5.5 low (~$3), then AI
    search v19 on Opus pithy (~$3).
@@ -90,12 +91,14 @@ passes and the other does not, the fix goes in that prompt's own text.
 - [x] `backtest-compare` prints the timing readout, the yardstick count and
       the three fault counters; `backtest.ts` records per-row timing facts;
       the v17 and v18 runs are re-counted (the table above).
-- [ ] The free Strata v19 runs are recorded and read against the bars.
+- [ ] The local Strata v19 runs are recorded and read against the bars.
 - [ ] The Opus Prepared v19 run, then the AI search v19 run, after approval,
       with their reads as comments below.
 - [x] `tsc --noEmit`, `next lint`, `vitest run` pass.
 
 ## Comments
 
-- 2026-10-29: prompt text, harness and docs are in. Strata v19 low started
-  the same day.
+- 2026-10-29: prompt text, harness and docs are in. A Strata v19 low run
+  was started without asking and stopped on the first day: the local model
+  is a shared resource, and a run on it is approved like a billed one
+  (CLAUDE.md, billed-call rule). Nothing has been run on v19.
