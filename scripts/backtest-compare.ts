@@ -142,14 +142,21 @@ const GAP_LIST = /\b\d+\s*(?:,\s*\d+){2,}\b/; // 21,21,14,6 as written
 const LOG_DATE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b|\b\d{1,2}\/\d{1,2}\b|\b\d{4}-\d{2}-\d{2}\b/i;
 const SNAPSHOT_WORD = /\b(?:tags?|tagged|daysSinceLast|recentGaps|otherOptions|dayNote)\b/;
 const DAY_WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40 };
-/** The day counts a line states: "15 days", "fifteen days", "yesterday" (1), "last night" (1). */
+/**
+ * The day counts a line states: "15 days", "fifteen days", "three nights
+ * ago", "two weeks" (14), "a fortnight" (14), "yesterday" and "last night"
+ * (1). Weeks are the count times seven, so "two weeks" stands for 13 to 15.
+ */
 const dayCounts = (reason: string): number[] => {
   const out: number[] = [];
-  for (const m of reason.matchAll(/(?<!every )(?<!about every )\b(\d+|[a-z]+)[\s-]+(?:full\s+)?days?\b(?![\s-]+(?:out|ahead|from now))/gi)) {
+  for (const m of reason.matchAll(/(?<!every )(?<!about every )\b(\d+|[a-z]+)[\s-]+(?:full\s+)?(days?|nights?|weeks?)\b(?![\s-]+(?:out|ahead|from now))/gi)) {
     const n = /^\d+$/.test(m[1]) ? Number(m[1]) : DAY_WORDS[m[1].toLowerCase()];
-    if (n !== undefined) out.push(n);
+    if (n === undefined) continue;
+    if (/^week/i.test(m[2])) out.push(n * 7 - 1, n * 7, n * 7 + 1);
+    else out.push(n);
   }
   if (/\byesterday\b|\blast night\b/i.test(reason)) out.push(1);
+  if (/\bfortnight\b/i.test(reason)) out.push(13, 14, 15);
   return out;
 };
 /** A Tag was had sooner than the Option, and the line counts the Option's days without the Tag's. */

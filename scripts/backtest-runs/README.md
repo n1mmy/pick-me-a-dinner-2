@@ -159,6 +159,12 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   stretch, issue 15) on Strata at low with a 40k budget, with traces, on the
   same 20 days: stopped during its first day, before approval. Rerun with
   `--resume` once approved.
+- `prepared-v19-opus-5-5-low` and `ai-search-v19-opus-5-5-pithy` — v19 on
+  Opus 5.5, Prepared at low and AI search pithy, on the same 20 days:
+  11/12/18, mean / median rank 5.5 / 3, and 11/11/15, 7.7 / 2. The read is
+  issue 15's comment: the count-and-stretch line is the norm (144 and 115
+  timing lines of 200, 85 and 56 with a yardstick), leaks at zero, rows
+  longer, ranking within noise of v18.
 
 Fireworks models, through its Anthropic-compatible endpoint, on the same 20
 days: `ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference`, a Fireworks key

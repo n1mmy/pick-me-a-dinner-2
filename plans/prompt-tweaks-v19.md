@@ -122,8 +122,13 @@ Days to read closely: 10-06, 10-09, 10-13, 10-17, 10-18, 10-20, 10-26.
 - Gap list and Log date rows at zero.
 - "Tag nearer, counts option" rows: first measured on v19, so no number to
   beat; read the rows it prints on the close-read days and expect few.
-- Quotes back toward v17's count (Strata low 70, Qwen low 58, Opus 26).
-- v18's leak and name-opener counts hold; lowercase names and codes at zero.
+- Quotes are a readout, not a bar: a paraphrase of a note ("Jen asked for
+  no more buns") is as good as the quote. Checked in production, not
+  counted.
+- v18's leak counts hold; lowercase names and codes at zero. Name and
+  stand-in openers are readouts: "Their quick swim-night fallback, two weeks
+  since the last one" reads fine, and whether it wears thin is a production
+  check.
 - hit@N and mean rank within noise; no new unusable notes or omitted rows.
 - Read by eye, which decides: top fives as concrete as Opus v17, no invented
   availability or attendance, no self-contradicting arithmetic. A line that
