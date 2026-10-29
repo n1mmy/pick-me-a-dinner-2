@@ -31,12 +31,24 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   with traces, over the first ten days only (`2026-10-02` … `2026-10-14`):
   7/8/8 and 5/6/10. Each stopped after its first half because the prompt
   moved on before the `--resume` half could run.
+- `strata-v13` — Prepared note prompt v13 on Strata, with traces, over 18 of
+  the 20 days (stopped during `2026-10-25` when v14 landed; `2026-10-25` and
+  `2026-10-26` missing): 10/10/16, mean rank 5.8, 44/90 never-eaten top-5
+  slots. 138 of its 180 top-10 rows were resolved by name — the rank written
+  as the number — which is the shape v14's letter codes refuse.
 - `prepared-v13-opus-5-5-low` — the Prepared note prompt v13 sent to Opus 5.5
   instead of Strata (`--claude`, effort low): 10/11/17 against v13 AI
   search Opus's 10/12/16, ~22s and ~2k output tokens a day. Its
   `-reasoning/` files are thinking summaries, on the 11 days it thought. On
   `2026-10-09` and `2026-10-16` it wrote rank positions in the number
   column; every row was resolved by name.
+- `qwen3.8-v13` — Prepared note prompt v13 on Qwen 3.8 dense (27B, Q4_K_M,
+  llama.cpp; `.env.backtest.qwen`), with traces, over the first eight days
+  (`2026-10-02` … `2026-10-12`): 5/6/7, mean rank 4.8, against Strata v13's
+  4/4/6 and 7.3 on the same days. 8–11 minutes a day at ~49 tok/s. It drafts
+  the whole ranking in its reasoning, ~20k tokens, so it needs
+  `LOCAL_AI_MAX_TOKENS=40000`: at Strata's 20k both days tried were cut off
+  before the reply. Stopped when the prompt moved to v14.
 
 Fireworks models, through its Anthropic-compatible endpoint, on the same 20
 days: `ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference`, a Fireworks key

@@ -64,16 +64,20 @@ export function localModel(): string {
 /**
  * The local model's connection, from the `LOCAL_AI_*` variables — the one
  * place they are read. Shaped to spread into `createPreparedNoteClient`.
+ * `LOCAL_AI_MAX_TOKENS` overrides the completion budget for a model that
+ * reasons longer than Strata; unset, it is `MAX_TOKENS`.
  */
 export function localModelConfig(): {
   baseUrl: string;
   apiKey: string | undefined;
   model: string;
+  maxTokens: number | undefined;
 } {
   return {
     baseUrl: process.env.LOCAL_AI_BASE_URL ?? "",
     apiKey: process.env.LOCAL_AI_API_KEY,
     model: process.env.LOCAL_AI_MODEL ?? "",
+    maxTokens: Number(process.env.LOCAL_AI_MAX_TOKENS) || undefined,
   };
 }
 
@@ -403,6 +407,7 @@ export function createPreparedNoteClient(config: {
   baseUrl: string;
   apiKey?: string;
   model: string;
+  maxTokens?: number;
   onReply?: (reply: RawPreparedReply) => void;
 }): PreparedNoteClient {
   const systemPrompt = buildPreparedSystemPrompt();
@@ -430,7 +435,7 @@ export function createPreparedNoteClient(config: {
           headers,
           body: JSON.stringify({
             model: config.model,
-            max_tokens: MAX_TOKENS,
+            max_tokens: config.maxTokens ?? MAX_TOKENS,
             stream: true,
             stream_options: { include_usage: true },
             messages: [
