@@ -76,6 +76,14 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   `2026-10-09` it read "back late" with an old "jen not here, save it"
   Rejection and put Mazra at #19. 6–11 minutes a day. Stopped when the
   prompt moved to v15.
+- `qwen3.8-v15` — the same on prompt v15, on all 20 days in four
+  `--resume` parts, at the server's default reasoning effort (`xhigh`):
+  6/8/14, mean rank 9.6, median 7, against v15 Prepared Opus's 11/13/17 and
+  10/13/14; behind its own v14 on the eleven days both ran (4/5/8 and 9.2
+  against 6/7/8 and 6.7). Mazra is its standing miss, #19 on `2026-10-22`
+  in the middle of its usual gap. `2026-10-08` came back unavailable once,
+  at 25k tokens with a well-formed draft in the trace, and scored on the
+  `--resume` retry (#7). 6–12 minutes a day.
 
 Fireworks models, through its Anthropic-compatible endpoint, on the same 20
 days: `ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference`, a Fireworks key
