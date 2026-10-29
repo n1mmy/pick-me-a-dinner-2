@@ -314,12 +314,11 @@ the feature off, nothing renders — not even an empty frame.
   "Show less". Expanded state resets on a Selected-day change. At ≥720px the
   brief shows in full with no toggle — there the list starts on screen
   anyway, and on a phone it would not.
-- **Decided dates** lead with the comparison: one line per Log entry on that
-  date, `meta` `ink`, above the label — `The note ranked Katsu curry #4` (the
-  `#4` in Geist Mono) or `The note didn't rank Katsu curry`. The frozen brief
-  then starts collapsed at every width behind the same borderless "Read the
-  note" button (toggling to "Hide the note"), because it is now a record of
-  what was said, not advice to act on.
+- **Decided dates** show the frozen brief exactly as an undecided date shows
+  its brief: same label, same clamp and "Read more" on phones, in full from
+  720px. The note is still worth reading once the night is settled, and a
+  line scoring the note against what was eaten told the Household nothing
+  they wanted.
 
 ### AI layers
 

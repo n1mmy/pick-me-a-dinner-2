@@ -2272,76 +2272,22 @@ describe("TonightScreen — Prepared note", () => {
     ).map((line) => line.textContent ?? "");
   }
 
-  it("leads a decided date with where the frozen note ranked each Log entry", () => {
-    // The note put Apple Crumble second; it has since been Picked, so the
-    // list on show no longer carries it, but the comparison still finds it.
+  it.each([
+    ["Pick", ["o1", "o2"]],
+    ["Pick of an Option since Archived", ["gone"]],
+  ])("keeps the brief on a date decided by a %s, as on an undecided one", (_kind, picks) => {
     render(
       <TonightScreen
-          view={tonight({ day: "2026-10-22", today: "2026-10-22", picks: ["o1", "o2"], options: [...OPTIONS, CHERRY] })}
-          searchEnabled
-          preparedNote={{
-          ...NOTE,
-          ranking: [
-            { id: "o3", reason: "Pie night." },
-            { id: "o1", reason: "A fallback." },
-          ],
-        }}
-        />,
-    );
-
-    expect(briefLines().slice(0, 3)).toEqual([
-      "The note ranked Apple Crumble #2",
-      "The note didn't rank Banana Bread",
-      "Prepared 2:14pm",
-    ]);
-  });
-
-  it("keeps a decided date's frozen brief behind Read the note, at every width", () => {
-    render(
-      <TonightScreen
-        view={tonight({ day: "2026-10-22", today: "2026-10-22", picks: ["o1", "o2"], options: [...OPTIONS, CHERRY] })}
-        searchEnabled
-        preparedNote={NOTE}
-      />,
-    );
-
-    expect(briefLines()).toContain("Prepared 2:14pm");
-    expect(screen.queryByText(NOTE.brief)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Read more" })).toBeNull();
-    // Nothing to point at while the brief isn't rendered.
-    const read = screen.getByRole("button", { name: "Read the note" });
-    expect(read.hasAttribute("aria-controls")).toBe(false);
-
-    fireEvent.click(read);
-
-    // A disclosure body arriving fresh in the DOM gets the inline-expand motion.
-    expect(screen.getByText(NOTE.brief).className).toMatch(/\bexpand-in\b/);
-    const hide = screen.getByRole("button", { name: "Hide the note" });
-    expect(hide.getAttribute("aria-expanded")).toBe("true");
-    expect(document.getElementById(hide.getAttribute("aria-controls") ?? "")?.textContent).toBe(
-      NOTE.brief,
-    );
-    expect(hide.className).not.toMatch(/desktop:hidden/);
-  });
-
-  it("is decided on a date whose only Pick is of an Option since Archived", () => {
-    // "gone" is no longer in the active Catalog, so no decided row renders.
-    render(
-      <TonightScreen
-        view={tonight({
-          day: "2026-10-22",
-          today: "2026-10-22",
-          options: THREE,
-          picks: ["gone"],
-        })}
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", picks, options: [...OPTIONS, CHERRY] })}
         searchEnabled
         preparedNote={NOTE}
       />,
     );
 
     expect(screen.getByText("Tonight's dinner is decided.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Read the note" })).toBeTruthy();
-    expect(screen.queryByText(NOTE.brief)).toBeNull();
+    expect(briefLines()).toEqual(["Prepared 2:14pm", NOTE.brief]);
+    expect(screen.queryByText(/The note (ranked|didn't rank)/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Read more" }).className).toMatch(/desktop:hidden/);
   });
 
   it("marks an out-of-date note on its label, and only then", () => {
