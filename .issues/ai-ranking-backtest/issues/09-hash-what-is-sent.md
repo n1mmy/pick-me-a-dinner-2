@@ -6,8 +6,8 @@ Type: AFK
 ## Parent
 
 [Spec: Backtest the AI ranking, then decide](../PRD.md) ·
-[Plan: simplifications](../../../plans/simplifications-2026-10-29.md), step 4 ·
-review item 4 in `plans/code-review-2026-10-28.md`
+[Plan: simplifications](../../../plans/old/simplifications-2026-10-29.md), step 4 ·
+review item 4 in `plans/old/code-review-2026-10-28.md`
 
 ## Why
 

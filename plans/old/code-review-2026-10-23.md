@@ -21,7 +21,7 @@ Reviewed at `c1dc788`. A later re-check found no new commits on the branch.
   baseline. The repo has no `CODING_STANDARDS.md` or `CONTRIBUTING.md`.
 - **Spec:** `.issues/prepared-notes/` (the PRD and issues 01–07), ADR-0011,
   `plans/prepared-notes.md`, `.issues/architecture-deepening-2026-10-23/`
-  (issues 01–05), and `plans/architecture-deepening-2026-10-23.md`.
+  (issues 01–05), and `plans/old/architecture-deepening-2026-10-23.md`.
 
 ## Standards
 
@@ -178,7 +178,7 @@ Each item below is small, and each is documented in an issue or in DESIGN.md.
 
      Story 4 should say the Closed disclosure carries the warning.
 
-#### Status of the earlier review (`plans/prepared-notes-review.md`)
+#### Status of the earlier review (`plans/old/prepared-notes-review.md`)
 
 - **Fixed:** C1, I1, I4, I8 (`lib/prepared-notes.ts:107-117,208`;
   `lib/snapshot.ts:338`).
@@ -211,7 +211,7 @@ The core refactors match the spec:
    `/browse` check, and issue 05's `/browse` check at 1280px and 375px.
    - Each box is `[x]`, but its own text says the check was "not run".
    - The spec allows a reviewer to "say so in Comments", not to tick the box.
-   - `plans/architecture-deepening-2026-10-23.md:3` also calls the plan
+   - `plans/old/architecture-deepening-2026-10-23.md:3` also calls the plan
      "implemented".
 2. **Issue 03's rollback replacement doesn't cover what the old test did.**
    This criterion was unticked in `1d0c00f` as "replaced, not met", but the

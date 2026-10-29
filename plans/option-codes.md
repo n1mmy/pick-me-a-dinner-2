@@ -1,6 +1,6 @@
 # Option codes: ending the rank/number confusion
 
-The first fix out of `plans/code-review-2026-10-28.md`, taken ahead of the
+The first fix out of `plans/old/code-review-2026-10-28.md`, taken ahead of the
 rest of that review. Decided in the grilling of 2026-10-28; the decision is
 ADR-0013, the term is **Option code** in `CONTEXT.md`.
 
@@ -151,7 +151,7 @@ are recorded beside v10's 7/8/8.
 
 ## Out of scope here
 
-The rest of `plans/code-review-2026-10-28.md`, to be grilled after this
+The rest of `plans/old/code-review-2026-10-28.md`, to be grilled after this
 lands: the midnight store guard (3a), frozen for a zero-candidate date (3b),
 accepting 3c/3d, hashing what is sent (4), the Tonight `Promise.all` (6),
 dark-mode contrast off-branch (7), the lean-rows simplification (8). Item 1
