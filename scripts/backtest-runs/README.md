@@ -62,6 +62,19 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   `2026-10-21` #13 / #33. Averaged per pair, v15 (10.5/13/15.5) is level
   with v14 (10.5/12/15). The #1 is the same on 16 of 20 days. ~20s and
   ~1.7k output tokens a day, thinking on 12 and 9 days.
+- `ai-search-v16-opus-5-5-pithy` and `ai-search-v17-opus-5-5-pithy` —
+  prompts v16 and v17 (the rationale rules as one statement; v17 with the
+  elapsed-time and name rules back as a clause each), Opus 5.5, pithy:
+  10/13/15 and 10/12/18, mean rank 7.8 and 6.0, against v15's 12/12/17 and
+  6.0. The read is on `.issues/ai-ranking-backtest/issues/13`: v16 restated
+  the days-since number in 91 of 200 top-10 rows, v17 in 6; v17 ships.
+- `prepared-v17-opus-5-5-low` — the Prepared note prompt v17 on Opus 5.5
+  (`--claude`, effort low), in two parts (`--resume` for the last two days):
+  11/11/16, mean / median rank 6.5 / 2, too-soon days 1 — level with v15.
+  Elapsed-time rows 3 of 200 and weekday leads down against both v15 runs;
+  rows opening with the name 132 and rows using the snapshot's words (pace,
+  rhythm, spacing) 48, both up, the second from the folded-away vocabulary
+  bullet. ~22s and ~1.9k output tokens a day, thinking on 16 days.
 - `qwen3.8-v13` — Prepared note prompt v13 on Qwen 3.8 dense (27B, Q4_K_M,
   llama.cpp; `.env.backtest.qwen`), with traces, over the first eight days
   (`2026-10-02` … `2026-10-12`): 5/6/7, mean rank 4.8, against Strata v13's

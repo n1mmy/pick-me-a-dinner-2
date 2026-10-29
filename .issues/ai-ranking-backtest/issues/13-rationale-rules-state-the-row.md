@@ -141,3 +141,31 @@ billed calls, about three dollars; approved 2026-10-29. Read for:
   and the template, at level ranking, with the name-opening regression as
   its cost. Whether to ship it as is or spend one more run on the name
   rule as its own line is the user's call.
+- **The Prepared v17 read** (Opus 5.5, `--claude`, effort low;
+  `prepared-v17-opus-5-5-low.{json,log}` and `-reasoning/`; 20 billed
+  calls, run in two parts after the session ended at 18 days). Against
+  the two v15 Prepared Opus runs, the same counts over 200 top-10 rows
+  (v15 / v15 run2 / v17):
+  - elapsed-time rows 11 / 9 / **3**; rows naming the evening's weekday
+    60 / 68 / **51**; rows naming another weekday 55 / 50 / **38**. The
+    briefs: elapsed time in 7 / 5 / 6, the weekday named in 13 / 18 / 11,
+    "you" in none. The briefs read well — each opens on the kind of
+    evening and names one or two picks in the household's words.
+  - rows opening with the Option's name 59 / 48 / **132**: worse again
+    than on AI search, as two- or three-sentence rows naturally start
+    "Mazra is…".
+  - rows using the snapshot's words (pace, rhythm, spacing, tag)
+    9 / 7 / **48**. This is the Prepared prompt's own vocabulary bullet,
+    folded into "in their words — the food, the person, the night" in
+    v16: the enumerated list ("the words tag, interval, cadence, rhythm
+    and spacing … never appear") was doing work the positive form does
+    not, on this prompt's longer rows.
+  - Ranking 11/11/16, mean rank 6.5, median 2, too-soon days 1 — level
+    with v15's 11/13/17 and 10/13/14. Thinking on some days only, as
+    before.
+- **Open for the Prepared prompt:** two regressions — the name opening
+  and the snapshot vocabulary — against gains on elapsed time and the
+  weekday. The vocabulary one has a known fix (its bullet back, as a
+  guardrail paired with the positive); the name one is the same open
+  question as on AI search. Not done here; the user decides whether v18
+  carries both.
