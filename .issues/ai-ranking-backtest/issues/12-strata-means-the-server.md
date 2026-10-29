@@ -1,6 +1,6 @@
 # 12 — "Strata" means the server; the role is "the local model"
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -33,6 +33,10 @@ inconsistent with their top three. The v13 reads did not.
 
 ## Acceptance
 
-- [ ] `grep -n Strata lib/ scripts/*.ts CLAUDE.md docs/` shows server
+- [x] `grep -n Strata lib/ scripts/*.ts CLAUDE.md docs/` shows server
       references and measurements only.
-- [ ] `pnpm lint` passes.
+- [x] `pnpm lint` passes.
+
+## Comments
+
+- Done. Behaviours moved to "the local model": the brief-as-a-row stop (`lib/prepared-note.ts`), reasoning before content, the re-sort framing that made it ignore recency (`lib/ai-search.ts`), ranks written as codes (ADR-0013, a test), reasoning traces (ADR-0012, `scripts/backtest.ts`), and the eval scripts' replies. ADR-0011 now says a Qwen served on a Strata server. What `grep -n Strata lib/ scripts/*.ts CLAUDE.md docs/` still shows is the server (the module header, `LOCAL_AI_*`, the stream shape in a test fixture, free to call, serving other clients) or a measurement on it (six to ten minutes idle, ~10 tok/s under load, the repeated-run ADR-0012 measurements, a long run). `CLAUDE.md` is unchanged, as the issue says. The two-call brief stays a candidate, recorded above.

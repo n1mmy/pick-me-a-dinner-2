@@ -1,11 +1,11 @@
 /**
- * Prepared note evaluation harness — ask the local model (Strata) for one
+ * Prepared note evaluation harness — ask the local model (on Strata) for one
  * date's Prepared note against the real dev database, without the sweep or
  * the Tonight UI (ADR-0011).
  *
  * This is the iteration loop for `buildPreparedSystemPrompt` and the token
  * budget in `lib/prepared-note.ts`: edit them, re-run this, and read the brief
- * and the ranking. It prints the built prompt, Strata's raw reply, and the
+ * and the ranking. It prints the built prompt, the model's raw reply, and the
  * parsed note, plus the numbers issue 03 judges a note by — the brief's word
  * count, how many candidates were ranked, why generation stopped — so they
  * don't have to be counted by eye. Nothing is written to `prepared_notes`.
@@ -103,9 +103,10 @@ async function captureLogLine<T>(
 
 /**
  * A backtest generator that sends the Prepared note prompt to a Claude model:
- * the same system prompt and user message Strata gets, adaptive thinking at
- * `effort`, streamed. Read as the Strata path reads in the backtest: a reply
- * that ended on its own is parsed leniently, so a skipped brief still scores.
+ * the same system prompt and user message the local model gets, adaptive
+ * thinking at `effort`, streamed. Read as the local-model path reads in the
+ * backtest: a reply that ended on its own is parsed leniently, so a skipped
+ * brief still scores.
  */
 function claudeGenerator(
   model: string,

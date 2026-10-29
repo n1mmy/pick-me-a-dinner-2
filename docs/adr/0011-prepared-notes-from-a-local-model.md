@@ -15,8 +15,8 @@ latency: each call costs money and takes 50–90 seconds, so it could never sit
 on the page load, and every token of output had to earn its place (one-line
 rationales, integer ids, compact rows).
 
-The Household now runs a local LLM, Strata (an OpenAI-compatible server), that
-costs nothing per call. It is slow: about 25 tok/s of output, so a long answer
+The Household now runs a local model — a Qwen, served from home on a Strata
+server (OpenAI-compatible) — that costs nothing per call. It is slow: about 25 tok/s of output, so a long answer
 over the full snapshot takes minutes. It is also probably weaker than Claude.
 Being free changes what is worth generating. Being slow changes when it can
 happen. So we are adding the **Prepared note**: for today and each of the next

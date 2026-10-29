@@ -4,7 +4,7 @@ The snapshot refers to Options by a short label (ADR-0004, ADR-0011) and both
 rankers write one label per row in rank order. With integer labels `1..N`, a
 rank position is always a valid label, so a model that writes its place
 where the Option belongs produces a row the parser cannot tell from a right
-one: Strata, Opus and GLM have each done it, and the sweep stored a Catalog
+one: the local model, Opus and GLM have each done it, and the sweep stored a Catalog
 in alphabetical order as a ranking. **Options are labelled with letter codes
 (`A`…`Z`, `AA`…), so a rank written as a code resolves to nothing, the reply
 falls under the ranked-share bar and is refused.** The code replaces the

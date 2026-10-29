@@ -1,8 +1,8 @@
 /**
- * Prepared note client — a deep module wrapping the local model (Strata, an
- * OpenAI-compatible server) that writes a **Prepared note** ahead of time: a
- * **brief** about the evening and a **Prepared ranking** of every candidate
- * Option (ADR-0011).
+ * Prepared note client — a deep module wrapping the local model (a Qwen on an
+ * OpenAI-compatible server, Strata today) that writes a **Prepared note**
+ * ahead of time: a **brief** about the evening and a **Prepared ranking** of
+ * every candidate Option (ADR-0011).
  */
 
 import {
@@ -33,9 +33,9 @@ export interface PreparedNoteClient {
  * The shape of the brief's line, the last line of the reply (prompt v10): the
  * brief is written after the ranking rows, so it can only summarise what is
  * there (a brief written first named Options the ranking then put at #4–#12),
- * and it is written as one more row because Strata, asked for a paragraph
- * after the rows, ended its reply at the last row on two tries in three — a
- * list it is counting rows into is where it keeps going.
+ * and it is written as one more row because the local model, asked for a
+ * paragraph after the rows, ended its reply at the last row on two tries in
+ * three — a list it is counting rows into is where it keeps going.
  */
 export const BRIEF_ROW = "brief|<the brief>";
 
@@ -236,7 +236,7 @@ export function parsePreparedReply(
 }
 
 /**
- * The completion budget. Strata is a reasoning model: `reasoning_content` is
+ * The completion budget. The local model reasons: `reasoning_content` is
  * written before `content` and both count against `max_tokens`, so this has to
  * cover the reasoning as well as the brief and a whole-Catalog ranking. Over
  * ~37 candidates a note was measured at 13–17k tokens, nearly all of it

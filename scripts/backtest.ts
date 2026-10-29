@@ -1,9 +1,9 @@
 /**
- * The AI ranking backtest, shared by `scripts/prepared-note-eval.ts` (Strata)
- * and `scripts/ai-search-eval.ts` (Claude): run a ranker against recent
- * **decided** days, each built as the Household saw it before deciding
- * (`snapshotForDay`'s backtest mode), and score the ranking against what was
- * actually eaten that day.
+ * The AI ranking backtest, shared by `scripts/prepared-note-eval.ts` (the
+ * local model) and `scripts/ai-search-eval.ts` (Claude): run a ranker
+ * against recent **decided** days, each built as the Household saw it before
+ * deciding (`snapshotForDay`'s backtest mode), and score the ranking against
+ * what was actually eaten that day.
  *
  * Per day and in aggregate: the rank of the Pick, hit@3/5/10, the Pick's
  * daysSinceLast and recent gaps, any Option Rejected that day as too soon
@@ -66,7 +66,7 @@ export type Generation = {
   brief?: string;
   latencyMs?: number;
   outputTokens?: number;
-  /** Strata's reasoning trace, saved beside the JSON when asked for. */
+  /** The local model's reasoning trace, saved beside the JSON when asked for. */
   reasoning?: string;
 };
 

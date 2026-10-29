@@ -42,7 +42,7 @@ consequence and ADR-0011's inheritance of it. The rest of ADR-0005 stands: the
 model still reasons over the dated history, and nothing in the snapshot
 combines the facts into a sort key.
 
-The case for it is consistency, not arithmetic. Strata's reasoning traces
+The case for it is consistency, not arithmetic. The local model's reasoning traces
 subtracted dates correctly every time; what varied was *which* facts it worked
 out and how it weighed them, so the same Option could land near the top of one
 run and near the bottom of the next. The clearest failure was a Tag-level
@@ -76,7 +76,7 @@ which is why the facts are per Tag as well as per Option.
   a few still state elapsed time ("they just had it last week"), which the
   rhythm-claim rule forbids.
 - The snapshot grows by about 1.7k tokens, on Claude's cached prefix and on
-  every Strata note.
+  every Prepared note.
 - Timing is counted the way **Recency** is: Log entries of active Options on or
   before the anchor day. A Pick already made for the anchor day counts toward
   its Tags.

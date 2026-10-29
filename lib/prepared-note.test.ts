@@ -176,9 +176,9 @@ describe("parsePreparedReply", () => {
   });
 
   it("is unavailable for a ranking written in rank positions", () => {
-    // Strata and Opus have both written the rank where the code belongs. With
-    // integer ids that read as the Catalog in alphabetical order (ADR-0013);
-    // a digit is no code, so now no row resolves.
+    // The local model and Opus have both written the rank where the code
+    // belongs. With integer ids that read as the Catalog in alphabetical order
+    // (ADR-0013); a digit is no code, so now no row resolves.
     const reply = [
       "1|The standing Thursday choice.",
       "2|Long cook.",

@@ -389,9 +389,9 @@ export const SNAPSHOT_EVIDENCE = [
 
 /**
  * Recency as one input, read through habits — shared by both prompts. The
- * older "your job is NOT to re-sort by recency" framing made Strata ignore
- * recency altogether: it ranked an Option first a week after the household
- * last had it.
+ * older "your job is NOT to re-sort by recency" framing made the local model
+ * ignore recency altogether: it ranked an Option first a week after the
+ * household last had it.
  */
 export const RECENCY_THROUGH_HABITS =
   "Read the whole history for its rhythms — how often each thing comes " +
