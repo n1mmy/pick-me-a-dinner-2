@@ -113,6 +113,16 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   in the middle of its usual gap. `2026-10-08` came back unavailable once,
   at 25k tokens with a well-formed draft in the trace, and scored on the
   `--resume` retry (#7). 6–12 minutes a day.
+- `qwen3.8-v17-low`, `-medium` and `-xhigh` — the same on prompt v17 at each
+  `LOCAL_AI_REASONING_EFFORT`, on all 20 days, run a day at a time across
+  the three: 11/14/17, 7/8/15 and 9/11/13, mean / median rank 6.8 / 3,
+  9.1 / 7 and 9.6 / 5, against v17 Prepared Opus's 11/11/16 and 6.5. Low is
+  level with Opus at hit@3 and ahead at 5 and 10; xhigh, the default, is
+  ahead of its v15 run (6/8/14). Mazra is no longer the miss: #1–#3 on
+  `2026-10-09` and `2026-10-22` at every effort. The too-soon days are the
+  shared misses (Ninja Sushi `2026-10-18`, Leftovers `2026-10-21`, out of
+  every top 10). No day unavailable or briefless. Low 2.5–4.5 minutes a
+  day, medium 3–5, xhigh 6–10.
 
 Fireworks models, through its Anthropic-compatible endpoint, on the same 20
 days: `ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference`, a Fireworks key
