@@ -142,11 +142,12 @@ the model weighs each reason as dated evidence: a reason may be a standing
 dislike, a standing fact about how the Option works ("Jen cooks these only
 when she has ingredients set", "comes in two-packs, suggest the second one
 soon"), a passing state ("none left", "no box this week") that fades rather
-than holding until the Household says otherwise, or a one-off. A reason that
-the Option was too soon speaks for its **Tags** as well as for it: it is the
-Household saying that kind of food is recent, so every Option sharing the Tag
-is as recent as the one turned down. Nothing obliges
-the Household to keep such state current. A Rejection can be edited or deleted at any time from the
+than holding until the Household says otherwise, or a one-off. A too-soon
+reason may be about the kind of food or about that one Option, and its words
+do not always say which ("sushi too recent" on one sushi place, then the other
+sushi place eaten the next day): it is read against the Option's **Tags** as
+one more dated fact, and how far it reaches is a judgement, not a rule.
+Nothing obliges the Household to keep such state current. A Rejection can be edited or deleted at any time from the
 Log screen or the Option detail page. **Bring back** is the narrower
 Selected-day quick-undo on Tonight's "Rejected" disclosure (labelled
 "Rejected tonight" when the Selected day is today). A **Pick** of the Option
@@ -372,8 +373,8 @@ _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).
 
 **Prepared note**:
-What a free local model writes ahead of time for one date, so it is ready when
-Tonight opens (ADR-0011). It has two parts. The **brief** is two or three
+What a local model — one the Household runs at home — writes ahead of time for
+one date, so it is ready when Tonight opens (ADR-0011). It has two parts. The **brief** is two or three
 sentences about that evening, read at a glance: what kind of evening it is
 (the **Day note**, weekday habits, the last few days' eating), and the one or two
 standout suggestions — what to reach for, with what sits low left to the
