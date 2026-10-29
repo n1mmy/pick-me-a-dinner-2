@@ -221,8 +221,15 @@ describe("buildSystemPrompt", () => {
     // paired with the positive — v16 without them restated the number in
     // 91 of 200 top-10 rows. The lead menu and the budgets stay gone.
     expect(prompt).toContain("never how long it has been");
-    expect(prompt).toContain("so it never opens with it");
-    expect(prompt).not.toMatch(/NEVER state|Lead with|140 characters|Vary how/);
+    // v18: each guardrail says what goes in the line's place — the timing
+    // in what the household would notice, the reason where the name or a
+    // stand-in would be, their words with the snapshot's named once
+    // (issue 14).
+    expect(prompt).toContain("in what the household would notice");
+    expect(prompt).toContain("opens on that reason, not on the name beside it or a stand-in for it");
+    expect(prompt).toContain("not tag, gap, pace, cadence, rhythm or spacing");
+    expect(prompt).toContain("capitalised even where the household typed it lower case");
+    expect(prompt).not.toMatch(/NEVER state|Lead with|140 characters|Vary how|so it never opens with it/);
   });
 
   it("describes Log rows by code alone and where those codes resolve", () => {

@@ -3,9 +3,12 @@
  * same day list. The read comes first: each day's top 10 and brief from both
  * runs, one under the other, with the Pick and any too-soon Rejection marked
  * on its row — a prompt change is judged by reading days, and the numbers are
- * context (issue 02). Then the aggregates side by side, per-day rank of the
- * Pick and top-N overlap, hit flips, top-5 occupancy per Option, top-5 slots
- * spent on Options never eaten in the window, and empty top-10 reasons.
+ * context (issue 02). Then the aggregates side by side; the text counts —
+ * how many top-10 rows state elapsed time, use a snapshot word, leak a code,
+ * open with the name, quote the household, and so on, with coverage per run
+ * (issue 14); per-day rank of the Pick and top-N overlap, hit flips, top-5
+ * occupancy per Option, top-5 slots spent on Options never eaten in the
+ * window, and empty top-10 reasons.
  *
  *   npx tsx scripts/backtest-compare.ts <a.json> <b.json>
  */
@@ -95,6 +98,112 @@ const aggKeys = ["hit3", "hit5", "hit10", "meanRank", "medianRank", "daysWithToo
 for (const k of aggKeys) console.log(`${k.padEnd(22)} ${String(A.aggregate[k]).padStart(6)} ${String(B.aggregate[k]).padStart(6)}`);
 console.log(`${"latency s (mean)".padEnd(22)} ${fmt(mean(A.results.map((d) => d.latencyMs)) / 1000).padStart(6)} ${fmt(mean(B.results.map((d) => d.latencyMs)) / 1000).padStart(6)}`);
 console.log(`${"output tokens (mean)".padEnd(22)} ${fmt(mean(A.results.map((d) => d.outputTokens ?? 0)), 0).padStart(6)} ${fmt(mean(B.results.map((d) => d.outputTokens ?? 0)), 0).padStart(6)}`);
+
+// The text: the prose faults the prompt reads are judged on, counted the
+// same way for every version (issue 14; the v17 reads each counted in a
+// script of their own). Each is the number of shared-day top-10 rows the
+// pattern hits, so a run's counts compare to another's on the same days;
+// coverage is over the whole file, so a missing day is a coverage fact and
+// not a prose score. A run file holds no codes and no list of the
+// household's names, so those two counters are heuristics — a one- or
+// two-letter capital word, and a word the runs themselves write capitalised
+// mid-sentence — and print their rows for the eye to discard false hits.
+const NUMBER_WORD =
+  "(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|a few|a couple of|several)";
+const ELAPSED = new RegExp(
+  [
+    // a count of days/weeks/months, unless it is a rhythm ("every two weeks") or a horizon ("two days out")
+    `(?<!every )(?<!about every )(?<!every about )(?<!a-half-)(?<!and-a-half )\\b${NUMBER_WORD}[\\s-]+(?:full\\s+)?(?:days?|weeks?|months?)\\b(?![\\s-]+(?:out|ahead|from now|pace|minimum|gap|rhythm|window|cadence|apart))`,
+    "\\bdays? ago\\b", "\\bweeks? ago\\b", "\\blast night\\b", "\\byesterday\\b", "\\bdays since\\b", "\\bat \\d+\\b",
+    "\\b\\d+\\s*(?:,\\s*\\d+){2,}\\b", // a gap list as written: 21,21,14,6
+    "\\b\\d+(?:–|-to-|-)\\d+\\b", // a gap range as written: 12-to-29, 12–16
+  ].join("|"),
+  "i",
+);
+const SNAPSHOT_WORD = /\b(?:tags?|tagged|gaps?|paces?|cadence|rhythms?|spacing)\b/i;
+const CODE_WORD = /(?<![\w'’.])(?!A\b|I\b)[A-Z]{1,2}(?![\w'’.&-])/;
+const WEEKDAY = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b/i;
+const STAND_IN_OPENER = /^(?:the|this|that|a|an|their)\s+(?:\S+\s+){0,3}(?:pick|option|choice|standby|staple|favou?rite|spot|place|habit)\b/i;
+const AFTER_OPENER = /^after\b/i;
+const QUOTE = /["“]\w[^"”]{3,}["”]/;
+const NO_NOTE = /\bno (?:special |day |specific |particular )?note\b/i;
+const strip = (s: string) => s.trim().replace(/^["'“‘]+/, "");
+const opensWithName = (name: string, reason: string): boolean => {
+  const r = strip(reason);
+  if (r.toLowerCase().startsWith(name.toLowerCase())) return true;
+  const [first, ...rest] = name.split(" ");
+  return rest.length > 0 && first.length >= 4 && r.startsWith(first);
+};
+// Words either run writes capitalised mid-sentence three or more times, less
+// weekdays, months, the snapshot's own nouns, and any word of an Option's
+// name (so "frozen food" in prose is not a lowercase "Frozen food").
+const STOP_WORDS = new Set("Option Options Log Day Catalog Tag Tags Pick Picks Rejection Rejections Note Notes Household".split(" "));
+const DATE_WORD = /^(?:(?:mon|tues|wednes|thurs|fri|satur|sun)(?:day)?s?|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)$/i;
+const optionWords = new Set(
+  [...A.results, ...B.results].flatMap((d) => d.ranking.flatMap((r) => r.name.toLowerCase().split(/[^a-z]+/))),
+);
+const nameCounts = new Map<string, number>();
+for (const d of [...A.results, ...B.results]) {
+  for (const text of [...d.ranking.map((r) => r.reason ?? ""), d.brief ?? ""]) {
+    for (const m of text.matchAll(/(?<=[^.!?:"“”]\s)([A-Z][a-z]{2,})\b/g)) {
+      if (!STOP_WORDS.has(m[1]) && !DATE_WORD.test(m[1]) && !optionWords.has(m[1].toLowerCase())) nameCounts.set(m[1], (nameCounts.get(m[1]) ?? 0) + 1);
+    }
+  }
+}
+const properNouns = [...nameCounts].filter(([, n]) => n >= 3).map(([w]) => w).sort();
+const LOWERCASE_NAME = properNouns.length ? new RegExp(`\\b(?:${properNouns.map((w) => w.toLowerCase()).join("|")})\\b`) : /$^/;
+
+const ROW_COUNTERS: Array<[string, (row: Row, d: Day) => boolean]> = [
+  ["states elapsed time", (r) => ELAPSED.test(r.reason ?? "")],
+  ["snapshot word", (r) => SNAPSHOT_WORD.test(r.reason ?? "")],
+  ["code as a word", (r) => CODE_WORD.test(r.reason ?? "")],
+  ["lowercase name", (r) => LOWERCASE_NAME.test(r.reason ?? "")],
+  ["opens with the name", (r) => opensWithName(r.name, r.reason ?? "")],
+  ["opens with a stand-in", (r) => STAND_IN_OPENER.test(strip(r.reason ?? ""))],
+  ['opens "After…"', (r) => AFTER_OPENER.test(strip(r.reason ?? ""))],
+  ["quotes the household", (r) => QUOTE.test(r.reason ?? "")],
+  ["names a weekday", (r) => WEEKDAY.test(r.reason ?? "")],
+  ["names another weekday", (r, d) => [...(r.reason ?? "").matchAll(new RegExp(WEEKDAY.source, "gi"))].some((m) => m[1].toLowerCase() !== d.weekday.toLowerCase())],
+];
+const BRIEF_COUNTERS: Array<[string, (brief: string, d: Day) => boolean]> = [
+  ["states elapsed time", (b) => ELAPSED.test(b)],
+  ["snapshot word", (b) => SNAPSHOT_WORD.test(b)],
+  ["code as a word", (b) => CODE_WORD.test(b)],
+  ["lowercase name", (b) => LOWERCASE_NAME.test(b)],
+  ["names a weekday", (b) => WEEKDAY.test(b)],
+  ["announces no Day note", (b) => NO_NOTE.test(b)],
+];
+const shared = new Set(days.map((d) => d.day));
+const topRows = (run: Run) => run.results.filter((d) => shared.has(d.day)).flatMap((d) => d.ranking.filter((r) => r.rank <= 10).map((r) => [r, d] as const));
+const briefs = (run: Run) => run.results.filter((d) => shared.has(d.day) && d.brief !== undefined).map((d) => [d.brief ?? "", d] as const);
+const rowsA = topRows(A), rowsB = topRows(B);
+const briefsA = briefs(A), briefsB = briefs(B);
+console.log(`\n=== the text: top-10 rows of the ${days.length} shared days hit by each pattern (A ${rowsA.length} rows, B ${rowsB.length}) ===`);
+for (const [label, hit] of ROW_COUNTERS) {
+  console.log(`${label.padEnd(24)} ${String(rowsA.filter(([r, d]) => hit(r, d)).length).padStart(6)} ${String(rowsB.filter(([r, d]) => hit(r, d)).length).padStart(6)}`);
+}
+console.log(`${"row length (mean chars)".padEnd(24)} ${fmt(mean(rowsA.map(([r]) => (r.reason ?? "").length)), 0).padStart(6)} ${fmt(mean(rowsB.map(([r]) => (r.reason ?? "").length)), 0).padStart(6)}`);
+console.log(`${"top-5 length (mean)".padEnd(24)} ${fmt(mean(rowsA.filter(([r]) => r.rank <= 5).map(([r]) => (r.reason ?? "").length)), 0).padStart(6)} ${fmt(mean(rowsB.filter(([r]) => r.rank <= 5).map(([r]) => (r.reason ?? "").length)), 0).padStart(6)}`);
+if (briefsA.length || briefsB.length) {
+  console.log(`\n--- briefs (A ${briefsA.length}, B ${briefsB.length}) ---`);
+  for (const [label, hit] of BRIEF_COUNTERS) {
+    console.log(`${label.padEnd(24)} ${String(briefsA.filter(([b, d]) => hit(b, d)).length).padStart(6)} ${String(briefsB.filter(([b, d]) => hit(b, d)).length).padStart(6)}`);
+  }
+  console.log(`${"brief length (mean words)".padEnd(24)} ${fmt(mean(briefsA.map(([b]) => b.split(/\s+/).filter(Boolean).length)), 0).padStart(6)} ${fmt(mean(briefsB.map(([b]) => b.split(/\s+/).filter(Boolean).length)), 0).padStart(6)}`);
+}
+console.log(`names read from the runs (capitalised mid-sentence 3+ times): ${properNouns.join(", ") || "none"}`);
+const usable = (run: Run) => run.results.filter((d) => d.ranking.length > 0);
+const omitted = (run: Run) => usable(run).reduce((acc, d) => acc + Math.max(0, d.candidates - d.ranking.length), 0);
+const briefless = (run: Run) => usable(run).filter((d) => d.brief !== undefined && !d.brief).length;
+console.log(`coverage: A ${usable(A).length}/${A.results.length} days usable, ${briefless(A)} briefless, ${omitted(A)} candidate rows omitted · B ${usable(B).length}/${B.results.length} days usable, ${briefless(B)} briefless, ${omitted(B)} candidate rows omitted`);
+const printHits = (label: string, hit: (row: Row, d: Day) => boolean) => {
+  const hits = [...rowsA.map(([r, d]) => ["A", r, d] as const), ...rowsB.map(([r, d]) => ["B", r, d] as const)].filter(([, r, d]) => hit(r, d));
+  if (!hits.length) return;
+  console.log(`\n--- ${label}: the rows, for the eye ---`);
+  for (const [run, r, d] of hits) console.log(`${run} ${d.day} #${r.rank} ${r.name}: ${(r.reason ?? "").slice(0, 160)}${(r.reason ?? "").length > 160 ? "…" : ""}`);
+};
+printHits("code as a word", (r) => CODE_WORD.test(r.reason ?? ""));
+printHits("lowercase name", (r) => LOWERCASE_NAME.test(r.reason ?? ""));
 
 console.log("\n=== per day ===");
 console.log("day         wk   rankA rankB  Δ   ov3 ov5 ov10 same#1  tooSoon A/B  pick");

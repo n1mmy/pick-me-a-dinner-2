@@ -18,8 +18,15 @@ the run list below records what each one showed.
 
 Compare two runs on the same days with
 `npx tsx scripts/backtest-compare.ts <a.json> <b.json>`: aggregates side by
-side, the Pick's rank per day, top-N overlap, hit flips, top-5 occupancy per
-Option, never-eaten slots, and the Pick's row in each run.
+side, the text counts (top-10 rows that state elapsed time, use a snapshot
+word, leak a code, write a name lower case, open with the name or a stand-in
+for it, quote the household, name a weekday; the same for the briefs; mean
+row length; usable-note coverage per run), the Pick's rank per day, top-N
+overlap, hit flips, top-5 occupancy per Option, never-eaten slots, and the
+Pick's row in each run. The counts are the definitions every prompt version
+is read against (issue 14): the code and lowercase-name counters are
+heuristics (a run file carries no codes and no list of the household's
+names), so the compare prints their rows for the eye to discard false hits.
 
 Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
 

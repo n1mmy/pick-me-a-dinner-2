@@ -349,8 +349,9 @@ that Option fits — naming the query intent, the habit the model found in the
 Log, or what the Household's own **Notes** say about the Option ("Light and
 fast — a soup, and the katsu was the good call last time"). Generative, and
 query-aware on an AI search row. A **Prepared note**'s ranking rows carry one
-too, with no query and more room: two or three sentences for the strong picks,
-tapering to a short line for the tail. The deterministic Tonight list has no
+too, with no query and more room: up to three sentences for a strong pick, one
+when one reason decides it, tapering to a short line for the tail. The
+deterministic Tonight list has no
 prose "why" line; it shows the Recency chip and Tag chips instead.
 
 A rationale states a **rhythm claim**, never an **elapsed-time claim**. A
@@ -365,15 +366,21 @@ timing fact the chips cannot carry, and it qualifies a reason rather than being
 one.
 
 The prompt states this as what the row shows and what the line is for, with
-two guardrails and no recipe: the line is read beside the name and the chips,
-and carries why the Option sits where it does this evening — for a genuine
-pick, what makes it one; for the rest, what keeps it below the rows above. The
-guardrails are the two rules the model breaks when told only what the row
-shows: the line says what the timing means, never how long it has been, and
-never opens with the name. A menu of leads to open with (a Note, a weekday
-habit, a standing reason, the shape of the evening) made every strong row a
-lead plus a timing clause, with the weekday as the lead whenever nothing else
-was to hand.
+three guardrails and no recipe: the line is read beside the name and the
+chips, and carries why the Option sits where it does this evening — for a
+genuine pick, what makes it one; for the rest, what keeps it below the rows
+above. The guardrails are the rules the model breaks when told only what the
+row shows, and each says what goes in the line's place, since a rule that only
+forbids is filled with the forbidden thing at low effort and with nothing at
+high: the line says what the timing means in what the household would notice
+(what they had this week, who is home, what they said last time), never how
+long it has been; it opens on that reason, not on the name or a stand-in for
+it; and it is in the household's words, never the snapshot's — tag, gap, pace,
+cadence, rhythm, spacing, a field name, a Log date, an Option's code — with
+Options and people called by their names, capitalised even where the Household
+typed them lower case. A menu of leads to open with (a Note, a weekday habit, a
+standing reason, the shape of the evening) made every strong row a lead plus a
+timing clause, with the weekday as the lead whenever nothing else was to hand.
 _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).
 

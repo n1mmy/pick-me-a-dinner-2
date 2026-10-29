@@ -23,6 +23,16 @@ stated only what the row shows, restated the days-since number in nearly half
 its top-10 rows and opened two thirds of them with the Option's name. The
 rhythm-claim rule below is the guardrail's reason._
 
+_Amended 2026-10-29 (prompt v18): each guardrail says what goes in the line's
+place, not only what the line must not carry. v17 said the line never states
+elapsed time and never opens with the name; a local model at low effort filled
+the gap with the number spelled out, and at high effort with nothing, while the
+snapshot's own words — pace, gap, tag, codes, names as typed — reached the
+screen. Now the timing is written in what the household would notice, the line
+opens on the reason, and it is in their words with the snapshot's named once.
+The Prepared prompt's sentence quota for its top five becomes a ceiling, so one
+decisive reason is not padded to three sentences._
+
 ADR-0004 added AI search as an additive, triggered layer over the
 deterministic ranking. In practice it added little: the model was fed the same
 pre-digested recency integers the deterministic Score already uses and was
