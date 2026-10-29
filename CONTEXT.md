@@ -364,11 +364,16 @@ well it is phrased; the Option's own pace (its **Recent gaps**) is the one
 timing fact the chips cannot carry, and it qualifies a reason rather than being
 one.
 
-On a strong pick the rationale leads with what the chips cannot show at all —
-a Note, a weekday habit the Log bears out, a standing reason the Household once
-gave, how the Option fits the shape of the evening — and timing earns at most a
-clause ("…and its stretch is up"). A rationale whose only content is timing
-belongs to the tail: a sense of why the Option sits low, nothing more.
+The prompt states this as what the row shows and what the line is for, with
+two guardrails and no recipe: the line is read beside the name and the chips,
+and carries why the Option sits where it does this evening — for a genuine
+pick, what makes it one; for the rest, what keeps it below the rows above. The
+guardrails are the two rules the model breaks when told only what the row
+shows: the line says what the timing means, never how long it has been, and
+never opens with the name. A menu of leads to open with (a Note, a weekday
+habit, a standing reason, the shape of the evening) made every strong row a
+lead plus a timing clause, with the weekday as the lead whenever nothing else
+was to hand.
 _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).
 

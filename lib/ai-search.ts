@@ -404,61 +404,49 @@ export const RECENCY_THROUGH_HABITS =
   "like any other.";
 
 /**
- * How a rationale is written — `CONTEXT.md`'s **AI rationale** rule, shared by
- * both prompts. Only general statements: the v10 version's example leads were
- * lines from this Household's Log.
+ * What a rationale is for — `CONTEXT.md`'s **AI rationale** rule, shared by
+ * both prompts: what the row already shows, and that the line is for what it
+ * cannot. Prompt v15 carried seven writing rules instead, one per failure
+ * seen in some run — a menu of leads to open with, a timing clause to
+ * follow, a ban on elapsed time in every form, "vary the openings" — and the
+ * model wrote to the recipe: lead fact + "its pace has come round", in every
+ * strong row, with the weekday as the lead whenever nothing else was to hand
+ * (it is the one fact every Log date carries). The same move v11 made for
+ * the weighing — state what the thing is, leave the judgment to the model —
+ * applied to the writing. Each prompt says its own lengths.
+ *
+ * Two of the old rules are back as single clauses, paired with what to do
+ * instead: v16 stated only what the row shows, and the model took the
+ * days-since number as the thing to write about (elapsed-time rows 3 → 91
+ * of 200, rows opening with the name 12 → 131). Those two are guardrails,
+ * not recipe.
  */
-export const RATIONALE_RULES = [
-  "How to write each rationale:",
-  "- Lead with what the screen cannot show: a note of theirs about how it " +
-    "went, a standing reason they once gave, how the Option fits the shape of " +
-    "this evening (who is home, what the last few nights were, what the Day " +
-    "note says), or a weekday habit the Log bears out. Timing earns at most " +
-    "a clause after that (\"…and its stretch is up\"), never the whole line. " +
-    "A row with nothing but timing to say belongs low and says little.",
-  "- NEVER state how long it has been since the household last ate " +
-    "something. The screen shows that as a number beside every Option and " +
-    "each of its Tags, so prose restating it tells them nothing. This bans " +
-    "every form of it: calendar dates, day or week counts, seasons or " +
-    "months, and vague durations (\"it has been a while\", \"long out of " +
-    "rotation\"). daysSinceLast is there to weigh, never to quote. Say what " +
-    "the timing MEANS instead — the shape of the habit, which is what the " +
-    "numbers cannot say.",
-  "- Do not open with the Option's own name, or a short form of it: they " +
-    "read the line beside the name.",
-  "- Name the actual reason behind the placement, not a generic one. A " +
-    "second clause only when it adds a different kind of fact — a habit plus " +
-    "a note, a fit plus a constraint — never a second justification of the " +
-    "same kind or a hollow summary.",
-  "- Write in the third person about the household throughout — never " +
-    "\"you\".",
-  "- Vary how the rationales open and are built down the list. The idea of " +
-    "an Option having left the rotation, in any phrasing, appears at most " +
-    "once in the whole reply. Never write the same rationale twice.",
-].join("\n");
+export const RATIONALE_RULES =
+  "Each line is read beside the Option's name and the row's numbers: how " +
+  "recent it is, and the same per Tag. Those numbers are theirs to read; " +
+  "the line says what the timing means, never how long it has been, in " +
+  "any form. It carries what that row cannot show: why the Option sits " +
+  "where it does this evening, in their history or their own words — for a " +
+  "genuine pick, what makes it one; for the rest, what keeps it below the " +
+  "rows above. They read the line beside the name, so it never opens with " +
+  "it. Write about the household in the third person, in their words — the " +
+  "food, the person, the night.";
 
 /**
  * The empty/open-query result instruction (Q2 / ADR-0005): every candidate,
  * the rationale shrinking with the pick, which trims the output the model has
- * to generate while keeping the whole Catalog ranked. Its last sentence did
- * not stop the model leaving out the one candidate with no Log history, notes,
- * or Rejections (still omitted in every run of the September comparison);
- * `search` appending the omitted candidates is what fixes that.
+ * to generate while keeping the whole Catalog ranked. The lengths are one
+ * sentence and a few words — v15's character and word budgets and its two
+ * named tiers were a recipe the rows read as written to. Its last sentence
+ * did not stop the model leaving out the one candidate with no Log history,
+ * notes, or Rejections (still omitted in every run of the September
+ * comparison); `search` appending the omitted candidates is what fixes that.
  */
 const OPEN_QUERY_INSTRUCTION =
   "- If the query is empty or does not narrow the Catalog, return every " +
-  "candidate Option from the snapshot, ranked best first, varying how " +
-  "much you write by how strong the pick is. For an Option that is a " +
-  "genuine pick tonight — typically the first few in the ranking — give " +
-  "a one-line rationale of roughly 100 characters (140 at most) naming " +
-  "the strongest reason behind its rank. Say it and stop: do not hedge or " +
-  "pile on further justification once the reason is stated. For an Option " +
-  "you judge a weak pick, give only a terse note of three to six words " +
-  "— never a full sentence, and never nothing: every row says one thing, " +
-  "so the household can see why it sits where it does. You decide which " +
-  "tier each Option falls in; the weaker the pick, the less needs to be " +
-  "said. Every candidate must appear exactly once, including an Option " +
-  "with no Log history at all.";
+  "candidate Option from the snapshot, ranked best first: one sentence for " +
+  "the few genuine picks, a few words for the rest. Every candidate must " +
+  "appear exactly once, including an Option with no Log history at all.";
 
 /**
  * The output format spec — the exact shape `parseRankingText` reads back.
@@ -495,7 +483,7 @@ const TEXT_FORMAT_INSTRUCTION = [
  * Bumped whenever the ranking prompt's wording changes, so a backtest run's
  * record says which prompt it measured (`scripts/ai-search-eval.ts`).
  */
-export const AI_SEARCH_PROMPT_VERSION = "15";
+export const AI_SEARCH_PROMPT_VERSION = "17";
 
 /** Build the AI search system prompt. */
 export function buildSystemPrompt(): string {

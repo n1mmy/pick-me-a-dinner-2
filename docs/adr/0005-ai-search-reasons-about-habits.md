@@ -11,6 +11,18 @@ backtest finding, each with an example from this Household's Log; the model
 quoted the rules and ranked against them, and the examples read as
 instructions rather than patterns to find._
 
+_Amended 2026-10-29 (prompts v16 and v17): the same for the writing. The
+rationale rules — a menu of leads, a timing clause after, a ban on elapsed
+time in every form, "vary the openings", character budgets — were one rule per
+failure seen in some run, and the model wrote to the recipe: lead fact plus
+"its pace has come round" on every strong row, the weekday as the lead
+whenever nothing else was to hand. The prompt now says what the row shows and
+what the line is for, and leaves the writing to the model. Two of the old
+rules stay, as one clause each paired with what to do instead: v16, which
+stated only what the row shows, restated the days-since number in nearly half
+its top-10 rows and opened two thirds of them with the Option's name. The
+rhythm-claim rule below is the guardrail's reason._
+
 ADR-0004 added AI search as an additive, triggered layer over the
 deterministic ranking. In practice it added little: the model was fed the same
 pre-digested recency integers the deterministic Score already uses and was

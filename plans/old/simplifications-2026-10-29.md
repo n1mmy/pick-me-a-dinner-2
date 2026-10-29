@@ -109,7 +109,7 @@ its own `--effort` and builds the same request shape.
 
 Done when: `AI_EFFORT=off` is an unrecognised value that falls back to `low`
 (a test says so), nothing in `lib/` names a model family, and the three
-checks pass. Review item 2 (`plans/code-review-2026-10-28.md`) is closed by
+checks pass. Review item 2 (`plans/old/code-review-2026-10-28.md`) is closed by
 this step.
 
 ### 3. Tail modes, and the `3|G|` tolerance (issue 08)

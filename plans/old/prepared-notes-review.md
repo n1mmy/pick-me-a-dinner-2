@@ -10,7 +10,7 @@ its edits were reverted, so it applied no fixes itself.
 
 **Re-checked at `c1dc788`** (2026-10-23). The eight architecture-deepening
 commits since then (`b74dcea`..`c1dc788`, plan
-`plans/architecture-deepening-2026-10-23.md`) fixed some findings and moved
+`plans/old/architecture-deepening-2026-10-23.md`) fixed some findings and moved
 most of the cited code:
 
 - `lib/prepared-notes-job.ts` and `lib/tonight-prepared-note.ts` are now
@@ -539,7 +539,7 @@ From the original run, functional surface only. The smoke budget was 300s and
 | Contract | Probe | Expected | Outcome |
 |---|---|---|---|
 | C1: Prepared notes unit suites pass | `corepack pnpm exec vitest run lib/prepared-note.test.ts lib/prepared-notes-job.test.ts lib/prepared-notes-loop.test.ts lib/prepared-label.test.ts lib/prepared-comparison.test.ts app/tonight-screen.test.tsx` | exit 0 | **pass** at `e2ea7bc`: 6 files, 152 tests. `lib/prepared-notes-job.test.ts` has since been deleted (`3d35ac9`), so this probe no longer runs as written. |
-| C2: typecheck of the schema, queries, page, and screen wiring | `corepack pnpm typecheck` | exit 0 | **pass** at `e2ea7bc` ([checkpoint 002](../.gstack/qa-reports/review-2026-10-23/functional/exploration-002.json)) |
+| C2: typecheck of the schema, queries, page, and screen wiring | `corepack pnpm typecheck` | exit 0 | **pass** at `e2ea7bc` ([checkpoint 002](../../.gstack/qa-reports/review-2026-10-23/functional/exploration-002.json)) |
 | DB suites (`*.db.test.ts`) | `corepack pnpm test:db` | exit 0 | not run in this review. The architecture issues 01–03 list `test:db` in their gate. |
 | C1 reproduction (Pick mid-sweep) | DB test with a stub client | note unchanged | now covered by `lib/prepared-notes.db.test.ts:228`, not run in this review |
 | Layout at 1280px and 375px; dev-server freeze check | browser + dev server | per DESIGN.md | not run (moved to architecture issues 05 and 01; both say not run) |

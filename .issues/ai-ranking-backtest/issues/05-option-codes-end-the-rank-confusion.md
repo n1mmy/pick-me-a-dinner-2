@@ -30,7 +30,7 @@ The v10 name column was a patch for this, and brought defects of its own:
 two Options of one name collapsed, a `|` in a name split the row, an
 unmatched name leaked into the rationale, and a four-column row defeated
 the check (the v12 day above). Each new reply shape needed a new parser
-branch. The pre-landing review of 2026-10-28 (`plans/code-review-2026-10-28.md`,
+branch. The pre-landing review of 2026-10-28 (`plans/old/code-review-2026-10-28.md`,
 item 1) proposed a fifth.
 
 ## What changed

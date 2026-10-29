@@ -25,3 +25,7 @@ handoff.md
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# backtest run output stays local — only its README is committed
+/scripts/backtest-runs/*
+!/scripts/backtest-runs/README.md

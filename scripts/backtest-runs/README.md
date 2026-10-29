@@ -13,6 +13,9 @@ Saved output of the AI ranking backtest (`scripts/backtest.ts`, issue
 - `<ranker>-reasoning/<day>.txt` — Strata's reasoning trace per day
   (`--reasoning`).
 
+The run files are git-ignored: they stay on the machine that made them, and
+the run list below records what each one showed.
+
 Compare two runs on the same days with
 `npx tsx scripts/backtest-compare.ts <a.json> <b.json>`: aggregates side by
 side, the Pick's rank per day, top-N overlap, hit flips, top-5 occupancy per
@@ -41,6 +44,22 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   5/6/9, mean / median rank 5.8 / 5, 32/55 never-eaten top-5 slots,
   too-soon days 2 (`2026-10-11`, `2026-10-15`). Every reply used the letter
   codes; none was refused.
+- `strata-v15` — Prepared note prompt v15 on Strata, with traces, over the
+  first ten days (`2026-10-02` … `2026-10-14`) in two `--resume` parts:
+  6/6/6, mean / median rank 6.9 / 2, 30/50 never-eaten top-5 slots. It
+  skipped the brief on `2026-10-08`, `2026-10-09` and `2026-10-10`; the rows
+  scored anyway. Strata cuts the model's thinking at 75% of `max_tokens`
+  (15k of the 20k budget) with "I have thought about this long enough",
+  every day of this run hit that cap, and on those three days it landed
+  before the brief was planned.
+- `strata-v15-xhigh-40k`, `-medium-40k` and `-low-40k` — the same on Strata
+  at each `LOCAL_AI_REASONING_EFFORT`, with `LOCAL_AI_MAX_TOKENS=40000` (a 30k
+  thinking cap), run a day at a time across the three: the three days that
+  lost the brief, then `2026-10-02`, and stopped there. 0/2/4, 1/1/4 and
+  2/3/3, mean rank 7.0, 6.8 and 5.5, against `strata-v15`'s 2/2/2 and 7.0
+  on the same four days. No run hit the cap or skipped the brief. xhigh,
+  the model's default, wrote 24–30k tokens and took ~15 minutes a day;
+  medium 7–15k and ~6 minutes; low 8–16k and ~7 minutes.
 - `prepared-v13-opus-5-5-low` — the Prepared note prompt v13 sent to Opus 5.5
   instead of Strata (`--claude`, effort low): 10/11/17 against v13 AI
   search Opus's 10/12/16, ~22s and ~2k output tokens a day. Its
@@ -62,6 +81,19 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   `2026-10-21` #13 / #33. Averaged per pair, v15 (10.5/13/15.5) is level
   with v14 (10.5/12/15). The #1 is the same on 16 of 20 days. ~20s and
   ~1.7k output tokens a day, thinking on 12 and 9 days.
+- `ai-search-v16-opus-5-5-pithy` and `ai-search-v17-opus-5-5-pithy` —
+  prompts v16 and v17 (the rationale rules as one statement; v17 with the
+  elapsed-time and name rules back as a clause each), Opus 5.5, pithy:
+  10/13/15 and 10/12/18, mean rank 7.8 and 6.0, against v15's 12/12/17 and
+  6.0. The read is on `.issues/ai-ranking-backtest/issues/13`: v16 restated
+  the days-since number in 91 of 200 top-10 rows, v17 in 6; v17 ships.
+- `prepared-v17-opus-5-5-low` — the Prepared note prompt v17 on Opus 5.5
+  (`--claude`, effort low), in two parts (`--resume` for the last two days):
+  11/11/16, mean / median rank 6.5 / 2, too-soon days 1 — level with v15.
+  Elapsed-time rows 3 of 200 and weekday leads down against both v15 runs;
+  rows opening with the name 132 and rows using the snapshot's words (pace,
+  rhythm, spacing) 48, both up, the second from the folded-away vocabulary
+  bullet. ~22s and ~1.9k output tokens a day, thinking on 16 days.
 - `qwen3.8-v13` — Prepared note prompt v13 on Qwen 3.8 dense (27B, Q4_K_M,
   llama.cpp; `.env.backtest.qwen`), with traces, over the first eight days
   (`2026-10-02` … `2026-10-12`): 5/6/7, mean rank 4.8, against Strata v13's
@@ -76,6 +108,24 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   `2026-10-09` it read "back late" with an old "jen not here, save it"
   Rejection and put Mazra at #19. 6–11 minutes a day. Stopped when the
   prompt moved to v15.
+- `qwen3.8-v15` — the same on prompt v15, on all 20 days in four
+  `--resume` parts, at the server's default reasoning effort (`xhigh`):
+  6/8/14, mean rank 9.6, median 7, against v15 Prepared Opus's 11/13/17 and
+  10/13/14; behind its own v14 on the eleven days both ran (4/5/8 and 9.2
+  against 6/7/8 and 6.7). Mazra is its standing miss, #19 on `2026-10-22`
+  in the middle of its usual gap. `2026-10-08` came back unavailable once,
+  at 25k tokens with a well-formed draft in the trace, and scored on the
+  `--resume` retry (#7). 6–12 minutes a day.
+- `qwen3.8-v17-low`, `-medium` and `-xhigh` — the same on prompt v17 at each
+  `LOCAL_AI_REASONING_EFFORT`, on all 20 days, run a day at a time across
+  the three: 11/14/17, 7/8/15 and 9/11/13, mean / median rank 6.8 / 3,
+  9.1 / 7 and 9.6 / 5, against v17 Prepared Opus's 11/11/16 and 6.5. Low is
+  level with Opus at hit@3 and ahead at 5 and 10; xhigh, the default, is
+  ahead of its v15 run (6/8/14). Mazra is no longer the miss: #1–#3 on
+  `2026-10-09` and `2026-10-22` at every effort. The too-soon days are the
+  shared misses (Ninja Sushi `2026-10-18`, Leftovers `2026-10-21`, out of
+  every top 10). No day unavailable or briefless. Low 2.5–4.5 minutes a
+  day, medium 3–5, xhigh 6–10.
 
 Fireworks models, through its Anthropic-compatible endpoint, on the same 20
 days: `ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference`, a Fireworks key
