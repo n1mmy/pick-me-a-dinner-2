@@ -43,7 +43,21 @@ describe("startPreparedNotesLoop", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("logs one line when it starts, naming the model", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    stop = startPreparedNotesLoop(vi.fn(async () => {}));
+
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(log.mock.calls[0][0])).toEqual({
+      event: "prepared_notes_loop_started",
+      model: "qwen",
+      intervalMinutes: 10,
+    });
+  });
+
   it("runs once straight away, then every ten minutes", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
     const run = vi.fn(async () => {});
 
     stop = startPreparedNotesLoop(run);
@@ -58,6 +72,7 @@ describe("startPreparedNotesLoop", () => {
   });
 
   it("skips a tick that lands while the previous sweep is still running", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
     let finish = () => {};
     const run = vi.fn(
       () =>
@@ -77,6 +92,7 @@ describe("startPreparedNotesLoop", () => {
   });
 
   it("keeps going after a sweep fails", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
     const run = vi
       .fn<() => Promise<void>>()

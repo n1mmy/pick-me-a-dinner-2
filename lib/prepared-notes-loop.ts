@@ -4,7 +4,7 @@
  * keeps them from generating the same date.
  */
 
-import { preparedNotesEnabled } from "./prepared-note";
+import { localModel, preparedNotesEnabled } from "./prepared-note";
 
 /** How often the sweep comes round. */
 const INTERVAL_MS = 10 * 60_000;
@@ -21,6 +21,14 @@ export function startPreparedNotesLoop(
   if (process.env.NODE_ENV !== "production" || !preparedNotesEnabled()) {
     return null;
   }
+  // Once per replica at boot, so the pod logs show the sweep is on.
+  console.log(
+    JSON.stringify({
+      event: "prepared_notes_loop_started",
+      model: localModel(),
+      intervalMinutes: INTERVAL_MS / 60_000,
+    }),
+  );
   // A full sweep (an hour or more) can outlast the interval; a tick that lands
   // mid-sweep is skipped rather than starting a second one.
   let running = false;

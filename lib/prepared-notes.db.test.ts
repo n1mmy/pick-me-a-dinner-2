@@ -32,9 +32,11 @@ const FRIDAY = "2026-10-23";
 beforeEach(async () => {
   await truncateAll();
   vi.stubEnv("LOCAL_AI_MODEL", "qwen");
+  vi.spyOn(console, "log").mockImplementation(() => {});
 });
 
 afterEach(async () => {
+  vi.mocked(console.log).mockRestore();
   vi.useRealTimers();
   vi.unstubAllEnvs();
   sharedRules.override = null;
@@ -387,6 +389,99 @@ describe("runSweep", () => {
 
     expect(second.asked).toEqual(WEEK);
     expect((await getPreparedNote("2026-10-22"))?.model).toBe("qwen-next");
+  });
+});
+
+describe("the sweep's log lines", () => {
+  /** Each line the sweep logged, parsed. */
+  const logged = () =>
+    vi.mocked(console.log).mock.calls.map(([line]) => JSON.parse(line as string));
+
+  it("logs each date's generation starting, then the pass done", async () => {
+    await seedPho();
+
+    await sweep(stubClient({ fail: ["2026-10-24"] }).client);
+
+    const lines = logged();
+    expect(lines).toHaveLength(WEEK.length + 1);
+    expect(lines[0]).toEqual({
+      event: "prepared_note_start",
+      date: "2026-10-22 (Thursday)",
+      model: "qwen",
+      candidates: 1,
+      reason: "new",
+    });
+    expect(lines.at(-1)).toEqual({
+      event: "prepared_sweep_done",
+      written: 6,
+      failed: 1,
+      discarded: 0,
+      current: 0,
+      skipped: 0,
+      durationMs: expect.any(Number),
+    });
+  });
+
+  it("marks a rewrite of a changed note as stale", async () => {
+    await seedPho();
+    await sweep(stubClient().client);
+    await addDayNote("2026-10-24");
+    vi.mocked(console.log).mockClear();
+
+    await sweep(stubClient().client);
+
+    expect(logged()[0]).toMatchObject({
+      event: "prepared_note_start",
+      date: "2026-10-22 (Thursday)",
+      reason: "stale",
+    });
+  });
+
+  it("counts the dates whose note was already current", async () => {
+    await seedPho();
+    await sweep(stubClient({ fail: ["2026-10-24"] }).client);
+    vi.mocked(console.log).mockClear();
+
+    await sweep(stubClient().client);
+
+    expect(logged()).toEqual([
+      expect.objectContaining({
+        event: "prepared_note_start",
+        date: "2026-10-24 (Saturday)",
+        reason: "new",
+      }),
+      expect.objectContaining({ event: "prepared_sweep_done", written: 1, current: 6 }),
+    ]);
+  });
+
+  it("says nothing on a pass that finds every note current", async () => {
+    await seedPho();
+    await sweep(stubClient().client);
+    vi.mocked(console.log).mockClear();
+
+    await sweep(stubClient().client);
+
+    expect(console.log).not.toHaveBeenCalled();
+  });
+
+  it("logs a note thrown away because a Pick landed during its generation", async () => {
+    const phoId = await seedPho();
+    const { client } = stubClient({
+      during: async (date) => {
+        if (date === "2026-10-24") {
+          await db.insert(dinnerLog).values({ optionId: phoId, eatenOn: date });
+        }
+      },
+    });
+
+    await sweep(client);
+
+    expect(logged()).toContainEqual({
+      event: "prepared_note_discarded",
+      date: "2026-10-24 (Saturday)",
+      reason: "picked",
+    });
+    expect(logged().at(-1)).toMatchObject({ written: 6, discarded: 1 });
   });
 });
 
