@@ -12,6 +12,7 @@ handoff.md
 
 # next.js build output
 /.next
+/.next-dev
 /out
 
 # local environment — only .env.example and .env.ralph are committed

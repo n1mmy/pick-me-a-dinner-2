@@ -1,6 +1,7 @@
 # Build the image from sources only — never ship local artifacts or secrets.
 node_modules
 .next
+.next-dev
 out
 .git
 .env
