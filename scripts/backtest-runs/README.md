@@ -47,6 +47,21 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   `-reasoning/` files are thinking summaries, on the 11 days it thought. On
   `2026-10-09` and `2026-10-16` it wrote rank positions in the number
   column; every row was resolved by name.
+- `prepared-v14-opus-5-5-low` and `-run2` — the same on prompt v14 (letter
+  codes), two identical runs: 9/11/16 and 12/13/14, mean / median rank
+  6.7 / 4 and 6.5 / 3, too-soon days 3 and 2. They differ by 3 days at hit@3,
+  2 at hit@5 and 2 at hit@10, wider than earlier pairs, and the Pick's rank
+  swings by 15 or more on single days (`2026-10-18` #18 / #3, `2026-10-19`
+  #19 / #2, `2026-10-21` #6 / #21); the #1 is the same on 16 of 20 days.
+  Every reply used the letter codes; none was refused. ~21s and ~1.7k output
+  tokens a day, thinking on 8 days in each.
+- `prepared-v15-opus-5-5-low` and `-run2` — the same on prompt v15 (weekday
+  counts out of the snapshot), two identical runs: 11/13/17 and 10/13/14,
+  mean / median rank 5.0 / 3 and 9.0 / 3, too-soon days 3 and 1. The mean
+  moves on the tail: `2026-10-12` #5 / #20, `2026-10-15` #6 / #22,
+  `2026-10-21` #13 / #33. Averaged per pair, v15 (10.5/13/15.5) is level
+  with v14 (10.5/12/15). The #1 is the same on 16 of 20 days. ~20s and
+  ~1.7k output tokens a day, thinking on 12 and 9 days.
 - `qwen3.8-v13` — Prepared note prompt v13 on Qwen 3.8 dense (27B, Q4_K_M,
   llama.cpp; `.env.backtest.qwen`), with traces, over the first eight days
   (`2026-10-02` … `2026-10-12`): 5/6/7, mean rank 4.8, against Strata v13's
