@@ -45,6 +45,7 @@
  */
 import "./load-env";
 import Anthropic from "@anthropic-ai/sdk";
+import type { AiEffort } from "../lib/ai-search";
 import { isValidSqlDate, shiftSqlDate, today } from "../lib/local-day";
 import {
   buildPreparedSystemPrompt,
@@ -100,8 +101,6 @@ async function captureLogLine<T>(
   }
 }
 
-type ClaudeEffort = "low" | "medium" | "high";
-
 /**
  * A backtest generator that sends the Prepared note prompt to a Claude model:
  * the same system prompt and user message Strata gets, adaptive thinking at
@@ -110,7 +109,7 @@ type ClaudeEffort = "low" | "medium" | "high";
  */
 function claudeGenerator(
   model: string,
-  effort: ClaudeEffort,
+  effort: AiEffort,
 ): (built: BuiltSnapshot) => Promise<Generation> {
   const anthropic = new Anthropic();
   const system = buildPreparedSystemPrompt();

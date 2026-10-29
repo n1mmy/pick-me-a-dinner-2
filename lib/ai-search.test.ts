@@ -1,18 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The Anthropic SDK is mocked so no live call is ever made — the tests drive
-// `messages.create` (the Sonnet/Haiku budget path) and `messages.stream` (the
-// Opus adaptive path) through canned rejections and responses, the way
+// `messages.stream` through canned rejections and responses, the way
 // `places.test.ts` drives the Places client through a stubbed `fetch`.
-const { messagesCreate, messagesStream } = vi.hoisted(() => ({
-  messagesCreate: vi.fn(),
-  messagesStream: vi.fn(),
-}));
+const { messagesStream } = vi.hoisted(() => ({ messagesStream: vi.fn() }));
 vi.mock("@anthropic-ai/sdk", () => ({
   default: class {
-    messages = { create: messagesCreate, stream: messagesStream };
+    messages = { stream: messagesStream };
   },
 }));
+
+/** Answer the next `messages.stream` call with `response`. */
+function streamResolves(response: unknown) {
+  messagesStream.mockReturnValueOnce({ finalMessage: () => Promise.resolve(response) });
+}
+
+/** Fail every `messages.stream` call with `error`. */
+function streamRejects(error: unknown) {
+  messagesStream.mockReturnValue({ finalMessage: () => Promise.reject(error) });
+}
 
 import {
   AI_SEARCH_UNAVAILABLE,
@@ -375,7 +381,6 @@ describe("createAiSearchClient — failure model and fallback", () => {
   }
 
   beforeEach(() => {
-    messagesCreate.mockReset();
     messagesStream.mockReset();
     // Every model call emits a structured log line; silence it and capture it.
     vi.spyOn(console, "log").mockImplementation(() => {});
@@ -396,8 +401,8 @@ describe("createAiSearchClient — failure model and fallback", () => {
     run: (client: ReturnType<typeof createAiSearchClient>) => Promise<unknown>,
   ) {
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
-    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
-    await run(createAiSearchClient("k", { model: "claude-sonnet-4-6" }));
+    streamResolves(rankingResponse("A|fits"));
+    await run(createAiSearchClient("k"));
     const delays = setTimeoutSpy.mock.calls.map((call) => call[1]);
     setTimeoutSpy.mockRestore();
     return delays;
@@ -414,17 +419,17 @@ describe("createAiSearchClient — failure model and fallback", () => {
   }
 
   it("returns the validated ordered result, mapping codes back to ids", async () => {
-    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
-    const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(built);
+    streamResolves(rankingResponse("A|fits"));
+    const result = await createAiSearchClient("k").search(built);
     expect(result).toEqual({
       ok: true,
       results: [{ id: "opt-a", reason: "fits" }],
     });
-    expect(messagesCreate).toHaveBeenCalledTimes(1);
+    expect(messagesStream).toHaveBeenCalledTimes(1);
   });
 
   it("sends the snapshot body with lean Log rows, in the cached block", async () => {
-    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
+    streamResolves(rankingResponse("A|fits"));
     const withLog = buildSnapshot({
       options: [option("opt-a", "Apple")],
       logEntries: [{ optionId: "opt-a", eatenOn: "2026-05-19", note: null }],
@@ -432,8 +437,8 @@ describe("createAiSearchClient — failure model and fallback", () => {
       asOf: TODAY,
       query: "",
     });
-    await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(withLog);
-    const [block] = messagesCreate.mock.calls[0][0].messages[0].content;
+    await createAiSearchClient("k").search(withLog);
+    const [block] = messagesStream.mock.calls[0][0].messages[0].content;
     expect(block.cache_control).toEqual({ type: "ephemeral" });
     const body = JSON.parse(block.text);
     expect(body.log).toEqual([
@@ -444,9 +449,9 @@ describe("createAiSearchClient — failure model and fallback", () => {
   });
 
   it("offers no tool — the prompt alone carries the output contract", async () => {
-    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
-    await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(built);
-    const params = messagesCreate.mock.calls[0][0];
+    streamResolves(rankingResponse("A|fits"));
+    await createAiSearchClient("k").search(built);
+    const params = messagesStream.mock.calls[0][0];
     expect(params.tools).toBeUndefined();
     expect(params.tool_choice).toBeUndefined();
   });
@@ -461,30 +466,30 @@ describe("createAiSearchClient — failure model and fallback", () => {
       new Error("network down"),
     ];
     for (const failure of failures) {
-      messagesCreate.mockReset();
-      messagesCreate.mockRejectedValue(failure);
-      const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(built);
+      messagesStream.mockReset();
+      streamRejects(failure);
+      const result = await createAiSearchClient("k").search(built);
       expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
       // No retry — the model is called exactly once, whatever the failure.
-      expect(messagesCreate).toHaveBeenCalledTimes(1);
+      expect(messagesStream).toHaveBeenCalledTimes(1);
     }
   });
 
   it("collapses a response with no readable ranking to the fallback", async () => {
     // Prose with no rows and no sentinel is unparseable output, which PRD §5
     // treats as a Failure, not an empty result.
-    messagesCreate.mockResolvedValue(rankingResponse("Sorry, I can't."));
-    const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(built);
+    streamResolves(rankingResponse("Sorry, I can't."));
+    const result = await createAiSearchClient("k").search(built);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
-    expect(messagesCreate).toHaveBeenCalledTimes(1);
+    expect(messagesStream).toHaveBeenCalledTimes(1);
   });
 
   it("collapses a response with no text block at all to the fallback", async () => {
-    messagesCreate.mockResolvedValue({
+    streamResolves({
       content: [{ type: "thinking", thinking: "…" }],
       usage: { input_tokens: 12000, output_tokens: 2000 },
     });
-    const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(built);
+    const result = await createAiSearchClient("k").search(built);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
   });
 
@@ -498,26 +503,23 @@ describe("createAiSearchClient — failure model and fallback", () => {
       asOf: TODAY,
       query: "something spicy",
     });
-    messagesCreate.mockResolvedValue(rankingResponse("NONE"));
-    const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(narrowed);
+    streamResolves(rankingResponse("NONE"));
+    const result = await createAiSearchClient("k").search(narrowed);
     expect(result).toEqual({ ok: true, results: [] });
   });
 
   it("emits one structured log line with outcome ok on success", async () => {
-    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
-    await createAiSearchClient("k", {
-      model: "claude-sonnet-4-6",
-      thinking: { type: "budget", budgetTokens: 4000 },
-    }).search(built);
+    streamResolves(rankingResponse("A|fits"));
+    await createAiSearchClient("k", { model: "test-model", effort: "medium" }).search(built);
 
     expect(console.log).toHaveBeenCalledTimes(1);
     const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
     expect(line).toMatchObject({
       event: "ai_search",
       queryLength: 0,
-      model: "claude-sonnet-4-6",
+      model: "test-model",
       tailMode: "pithy",
-      thinking: "budget:4000",
+      thinking: "effort:medium",
       inputTokens: 12000,
       outputTokens: 2000,
       outcome: "ok",
@@ -527,8 +529,8 @@ describe("createAiSearchClient — failure model and fallback", () => {
   });
 
   it("emits one structured log line with a fallback outcome on failure", async () => {
-    messagesCreate.mockRejectedValue({ status: 400 });
-    await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(built);
+    streamRejects({ status: 400 });
+    await createAiSearchClient("k").search(built);
 
     expect(console.log).toHaveBeenCalledTimes(1);
     const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
@@ -539,75 +541,40 @@ describe("createAiSearchClient — failure model and fallback", () => {
     });
   });
 
-  it("runs the Opus path through messages.stream with adaptive thinking", async () => {
-    messagesStream.mockReturnValue({
-      finalMessage: () => Promise.resolve(rankingResponse("A|fits")),
-    });
-    const result = await createAiSearchClient("k", {
-      model: "claude-opus-5",
-      thinking: { type: "effort", effort: "medium" },
-    }).search(built);
+  it("sends adaptive thinking at the overridden effort, streamed", async () => {
+    streamResolves(rankingResponse("A|fits"));
+    await createAiSearchClient("k", { effort: "high" }).search(built);
 
-    expect(result).toEqual({
-      ok: true,
-      results: [{ id: "opt-a", reason: "fits" }],
-    });
-    // Opus must use the streaming method, never plain `create`.
-    expect(messagesStream).toHaveBeenCalledTimes(1);
-    expect(messagesCreate).not.toHaveBeenCalled();
-    // …and with the adaptive request shape Opus requires — a budget-style
-    // `thinking.type: "enabled"` would be rejected by the API.
     const params = messagesStream.mock.calls[0][0];
     expect(params.thinking).toEqual({ type: "adaptive" });
-    expect(params.output_config).toEqual({ effort: "medium" });
+    expect(params.output_config).toEqual({ effort: "high" });
+    expect(params.max_tokens).toBe(32_000);
   });
 
-  it("collapses an Opus streaming failure to the fallback", async () => {
-    messagesStream.mockReturnValue({
-      finalMessage: () => Promise.reject(new Error("stream broke")),
-    });
-    const result = await createAiSearchClient("k", {
-      model: "claude-opus-5",
-      thinking: { type: "effort", effort: "high" },
-    }).search(built);
-
-    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
-    expect(messagesStream).toHaveBeenCalledTimes(1);
+  it("reads each AI_EFFORT level", async () => {
+    for (const level of ["low", "medium", "HIGH "]) {
+      process.env.AI_EFFORT = level;
+      streamResolves(rankingResponse("A|fits"));
+      await createAiSearchClient("k").search(built);
+    }
+    expect(messagesStream.mock.calls.map((call) => call[0].output_config)).toEqual([
+      { effort: "low" },
+      { effort: "medium" },
+      { effort: "high" },
+    ]);
   });
 
-  it("logs the Opus model id and effort thinking descriptor", async () => {
-    messagesStream.mockReturnValue({
-      finalMessage: () => Promise.resolve(rankingResponse("A|fits")),
-    });
-    await createAiSearchClient("k", {
-      model: "claude-opus-5",
-      thinking: { type: "effort", effort: "low" },
-    }).search(built);
-
-    const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
-    expect(line).toMatchObject({
-      model: "claude-opus-5",
-      thinking: "effort:low",
-      outcome: "ok",
-    });
-  });
-
-  it("reads a numeric AI_EFFORT as an explicit budget for a budget model", async () => {
-    process.env.AI_EFFORT = "3000";
-    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
-    await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(built);
-
-    const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
-    expect(line.thinking).toBe("budget:3000");
-  });
-
-  it("throws when a numeric AI_EFFORT is paired with an Opus model", () => {
-    process.env.AI_EFFORT = "3000";
-    // The misconfiguration must fail loudly at client construction, not be
-    // silently swallowed into a default effort.
-    expect(() =>
-      createAiSearchClient("k", { model: "claude-opus-5" }),
-    ).toThrow(/adaptive/i);
+  it("falls back to low for an unrecognised AI_EFFORT, off and numbers included", async () => {
+    // Thinking cannot be turned off on the default model, and a number was a
+    // token budget the adaptive API has no use for: neither is a level.
+    for (const raw of ["off", "0", "3000", "max", ""]) {
+      process.env.AI_EFFORT = raw;
+      streamResolves(rankingResponse("A|fits"));
+      await createAiSearchClient("k").search(built);
+    }
+    for (const [params] of messagesStream.mock.calls) {
+      expect(params.output_config).toEqual({ effort: "low" });
+    }
   });
 
   it("arms the abort timer at the 90s budget with AI_TIMEOUT_MS unset", async () => {
@@ -641,62 +608,11 @@ describe("createAiSearchClient — failure model and fallback", () => {
     expect(delays).toEqual([120_000]);
   });
 
-  it("routes a dated budget-model snapshot id to the budget API", async () => {
-    // `BUDGET_API_MODELS` is matched by prefix precisely so a pinned snapshot
-    // id stays with its family. An exact-match list would send this dated
-    // Haiku the adaptive params it rejects with a 400 — which the fail-safe
-    // path then swallows into a silent fallback on every search.
-    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
-    await createAiSearchClient("k", {
-      model: "claude-haiku-4-5-20251001",
-    }).search(built);
-
-    expect(messagesStream).not.toHaveBeenCalled();
-    const params = messagesCreate.mock.calls[0][0];
-    expect(params.model).toBe("claude-haiku-4-5-20251001");
-    expect(params.thinking).toEqual({ type: "enabled", budget_tokens: 1024 });
-    expect(params.output_config).toBeUndefined();
-  });
-
-  it("sends thinking disabled, not absent, for thinking off", async () => {
-    // Fireworks lets a reasoning model think when `thinking` is left out, and
-    // the thinking eats the whole output cap before the ranking is written.
-    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
-    await createAiSearchClient("k", {
-      model: "accounts/fireworks/models/kimi-k3",
-      thinking: { type: "off" },
-    }).search(built);
-
-    expect(messagesStream).not.toHaveBeenCalled();
-    const params = messagesCreate.mock.calls[0][0];
-    expect(params.thinking).toEqual({ type: "disabled" });
-    expect(params.output_config).toBeUndefined();
-  });
-
-  it("refuses thinking off for a model that cannot turn it off", () => {
-    // `disabled` is a 400 on Opus 5.5, so sending it would fall back on every
-    // search; the misconfiguration fails at client creation instead.
-    expect(() =>
-      createAiSearchClient("k", {
-        model: "claude-opus-5-5",
-        thinking: { type: "off" },
-      }),
-    ).toThrow(/cannot turn thinking off/);
-  });
-
-  it("defaults to a model that takes the adaptive streaming path", async () => {
-    // `MODEL_DEFAULT` and `usesAdaptiveThinking` have to agree: the default is
-    // an Opus, so an unconfigured client must stream with `thinking:
-    // adaptive`. Pointing the default at a budget-API model without changing
-    // the routing would otherwise send Opus-shaped params the API rejects —
-    // and no other test exercises the default at all.
+  it("defaults to the default model at low effort", async () => {
     delete process.env.AI_MODEL;
-    messagesStream.mockReturnValue({
-      finalMessage: () => Promise.resolve(rankingResponse("A|fits")),
-    });
+    streamResolves(rankingResponse("A|fits"));
     await createAiSearchClient("k").search(built);
 
-    expect(messagesCreate).not.toHaveBeenCalled();
     const params = messagesStream.mock.calls[0][0];
     expect(params.model).toBe(resolveModel());
     expect(params.thinking).toEqual({ type: "adaptive" });
@@ -729,18 +645,15 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
       asOf: TODAY,
       query,
     });
-    messagesCreate.mockResolvedValueOnce({
+    streamResolves({
       content: [{ type: "text", text }],
       usage: { input_tokens: 100, output_tokens: 10 },
     });
-    return createAiSearchClient("k", {
-      model: "claude-sonnet-4-6",
-      ...overrides,
-    }).search(built);
+    return createAiSearchClient("k", overrides).search(built);
   }
 
   beforeEach(() => {
-    messagesCreate.mockReset();
+    messagesStream.mockReset();
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
@@ -858,13 +771,11 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
       asOf: TODAY,
       query: "",
     });
-    messagesCreate.mockResolvedValueOnce({
+    streamResolves({
       content: [{ type: "text", text: "NONE" }],
       usage: { input_tokens: 100, output_tokens: 10 },
     });
-    const result = await createAiSearchClient("k", {
-      model: "claude-sonnet-4-6",
-    }).search(built);
+    const result = await createAiSearchClient("k").search(built);
     expect(result).toEqual({
       ok: true,
       results: [{ id: "a1", reason: OMITTED_CANDIDATE_REASON }],

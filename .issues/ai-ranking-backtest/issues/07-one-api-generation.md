@@ -1,6 +1,6 @@
 # 07 — One API generation: delete the model and thinking matrix
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -30,8 +30,12 @@ path. Follow in the tests, `.env.example`, and keep
 
 ## Acceptance
 
-- [ ] `AI_EFFORT=off` falls back to `low` like any unrecognised value, and a
+- [x] `AI_EFFORT=off` falls back to `low` like any unrecognised value, and a
       test says so.
-- [ ] Nothing in `lib/` names a Claude model family other than the default
+- [x] Nothing in `lib/` names a Claude model family other than the default
       model id.
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test` pass.
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test` pass.
+
+## Comments
+
+- Done. `ThinkingChoice` became `AiEffort` (`low` | `medium` | `high`, exported; `prepared-note-eval.ts --claude` uses it for `--effort`), and `overrides.thinking` became `overrides.effort`. Every call streams with `ADAPTIVE_MAX_TOKENS`; the log line reads `effort:<level>`. Review item 2 (`AI_EFFORT=off` throwing on the default model) is closed: `off` falls back to `low`, and a test says so. `app/api/ai-search/route.test.ts` needed no change.
