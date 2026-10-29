@@ -214,7 +214,13 @@ async function main(): Promise<void> {
     }
     await runBacktest({
       args: backtestArgs,
-      meta: { ranker: "prepared note", model, promptVersion: PREPARED_PROMPT_VERSION },
+      meta: {
+        ranker: "prepared note",
+        model,
+        effort: config.reasoningEffort ?? "server default",
+        maxTokens: config.maxTokens ? String(config.maxTokens) : "default",
+        promptVersion: PREPARED_PROMPT_VERSION,
+      },
       saveReasoning: args.includes("--reasoning"),
       generate: async (built) => {
         let reply: RawPreparedReply | undefined;

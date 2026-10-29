@@ -428,6 +428,22 @@ describe("createPreparedNoteClient().prepare", () => {
     });
   });
 
+  it("posts the reasoning effort and token budget when they are configured", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));
+
+    await createPreparedNoteClient({
+      baseUrl: "http://strata.local/v1",
+      model: "qwen3.8-flash",
+      maxTokens: 40000,
+      reasoningEffort: "medium",
+    }).prepare(built);
+
+    const body = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
+    expect(body.max_tokens).toBe(40000);
+    expect(body.reasoning_effort).toBe("medium");
+  });
+
   it("closes the user message with the candidate count and every code, in Catalog order, as a checklist", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));

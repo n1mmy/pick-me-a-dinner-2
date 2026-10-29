@@ -66,18 +66,22 @@ export function localModel(): string {
  * place they are read. Shaped to spread into `createPreparedNoteClient`.
  * `LOCAL_AI_MAX_TOKENS` overrides the completion budget for a model that
  * reasons longer than Strata; unset, it is `MAX_TOKENS`.
+ * `LOCAL_AI_REASONING_EFFORT` is sent as `reasoning_effort` when set; the
+ * Qwen on Strata takes `xhigh`, `medium`, or `low` and defaults to `xhigh`.
  */
 export function localModelConfig(): {
   baseUrl: string;
   apiKey: string | undefined;
   model: string;
   maxTokens: number | undefined;
+  reasoningEffort: string | undefined;
 } {
   return {
     baseUrl: process.env.LOCAL_AI_BASE_URL ?? "",
     apiKey: process.env.LOCAL_AI_API_KEY,
     model: process.env.LOCAL_AI_MODEL ?? "",
     maxTokens: Number(process.env.LOCAL_AI_MAX_TOKENS) || undefined,
+    reasoningEffort: process.env.LOCAL_AI_REASONING_EFFORT || undefined,
   };
 }
 
@@ -408,6 +412,7 @@ export function createPreparedNoteClient(config: {
   apiKey?: string;
   model: string;
   maxTokens?: number;
+  reasoningEffort?: string;
   onReply?: (reply: RawPreparedReply) => void;
 }): PreparedNoteClient {
   const systemPrompt = buildPreparedSystemPrompt();
@@ -436,6 +441,7 @@ export function createPreparedNoteClient(config: {
           body: JSON.stringify({
             model: config.model,
             max_tokens: config.maxTokens ?? MAX_TOKENS,
+            ...(config.reasoningEffort && { reasoning_effort: config.reasoningEffort }),
             stream: true,
             stream_options: { include_usage: true },
             messages: [
