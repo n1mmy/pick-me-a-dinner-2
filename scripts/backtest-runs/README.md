@@ -41,6 +41,22 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   5/6/9, mean / median rank 5.8 / 5, 32/55 never-eaten top-5 slots,
   too-soon days 2 (`2026-10-11`, `2026-10-15`). Every reply used the letter
   codes; none was refused.
+- `strata-v15` — Prepared note prompt v15 on Strata, with traces, over the
+  first ten days (`2026-10-02` … `2026-10-14`) in two `--resume` parts:
+  6/6/6, mean / median rank 6.9 / 2, 30/50 never-eaten top-5 slots. It
+  skipped the brief on `2026-10-08`, `2026-10-09` and `2026-10-10`; the rows
+  scored anyway. Strata cuts the model's thinking at 75% of `max_tokens`
+  (15k of the 20k budget) with "I have thought about this long enough",
+  every day of this run hit that cap, and on those three days it landed
+  before the brief was planned.
+- `strata-v15-xhigh-40k`, `-medium-40k` and `-low-40k` — the same on Strata
+  at each `LOCAL_AI_REASONING_EFFORT`, with `LOCAL_AI_MAX_TOKENS=40000` (a 30k
+  thinking cap), run a day at a time across the three: the three days that
+  lost the brief, then `2026-10-02`, and stopped there. 0/2/4, 1/1/4 and
+  2/3/3, mean rank 7.0, 6.8 and 5.5, against `strata-v15`'s 2/2/2 and 7.0
+  on the same four days. No run hit the cap or skipped the brief. xhigh,
+  the model's default, wrote 24–30k tokens and took ~15 minutes a day;
+  medium 7–15k and ~6 minutes; low 8–16k and ~7 minutes.
 - `prepared-v13-opus-5-5-low` — the Prepared note prompt v13 sent to Opus 5.5
   instead of Strata (`--claude`, effort low): 10/11/17 against v13 AI
   search Opus's 10/12/16, ~22s and ~2k output tokens a day. Its
