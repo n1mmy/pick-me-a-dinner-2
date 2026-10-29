@@ -12,7 +12,6 @@
  *   npx tsx scripts/ai-search-eval.ts --day=2026-10-30     # a Selected day, not today
  *   npx tsx scripts/ai-search-eval.ts --snapshot "guests"  # also dump the
  *                                                            JSON sent to the model
- *   npx tsx scripts/ai-search-eval.ts --mode=drop ""       # force a tail mode
  *   npx tsx scripts/ai-search-eval.ts --backtest --json    # score recent decided days
  *   npx tsx scripts/ai-search-eval.ts --backtest --days=2026-10-20,2026-10-23
  *
@@ -21,12 +20,9 @@
  * Household saw it, and scores the ranking against what was eaten. One billed
  * call per day — state the count and get approval first (`CLAUDE.md`).
  *
- * The `--mode` flag (`full` | `pithy` | `drop`) overrides `AI_TAIL_MODE`
- * for the run, so the three open-query result shapes can be compared on the
- * same data; a plain run prints its input / output / cache token counts.
- *
  * A plain run uses the env-configured model / effort
- * (`AI_MODEL` / `AI_EFFORT`), exactly as the `aiSearchAction` server action.
+ * (`AI_MODEL` / `AI_EFFORT`), exactly as the `aiSearchAction` server action,
+ * and prints its input / output / cache token counts.
  *
  * `DATABASE_URL`, `APP_TZ`, and `ANTHROPIC_API_KEY` are read from `.env`, or
  * from the file `DOTENV_CONFIG_PATH` names (e.g. `.env.k8s`). The
@@ -39,15 +35,11 @@ import {
   AI_SEARCH_PROMPT_VERSION,
   createAiSearchClient,
   resolveModel,
-  resolveTailMode,
   splitUserTurn,
 } from "../lib/ai-search";
 import { isValidSqlDate, today } from "../lib/local-day";
 import { type BuiltSnapshot, snapshotForDay } from "../lib/snapshot";
 import { parseBacktestArgs, runBacktest } from "./backtest";
-
-/** Tail modes accepted by `--mode` — see `resolveTailMode` in `lib/ai-search`. */
-const TAIL_MODES = ["full", "pithy", "drop"] as const;
 
 /**
  * Run `call` with the `ai_search` log line `search` emits captured rather than
@@ -105,7 +97,6 @@ async function runSingle(apiKey: string): Promise<void> {
 
   console.log(`today: ${snapshot.today}`);
   console.log(`query: ${query ? JSON.stringify(query) : "(empty)"}`);
-  console.log(`tail mode: ${process.env.AI_TAIL_MODE ?? "pithy"}`);
   console.log(`model: ${resolveModel()}`);
   console.log(
     `catalog: ${snapshot.options.length} Options   ` +
@@ -169,18 +160,6 @@ async function main(): Promise<void> {
 
   const args = process.argv.slice(2);
 
-  // `--mode=X` overrides the tail mode for this run by setting the env var
-  // `createAiSearchClient` reads, so a `full` / `pithy` / `drop` comparison
-  // needs no `.env` edit between runs.
-  const modeArg = args.find((arg) => arg.startsWith("--mode="))?.slice(7);
-  if (modeArg !== undefined) {
-    if (!(TAIL_MODES as readonly string[]).includes(modeArg)) {
-      console.error(`--mode must be one of: ${TAIL_MODES.join(", ")}`);
-      process.exit(1);
-    }
-    process.env.AI_TAIL_MODE = modeArg;
-  }
-
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.error("ANTHROPIC_API_KEY is not set — add it to .env.");
@@ -189,15 +168,16 @@ async function main(): Promise<void> {
 
   if (args.includes("--backtest")) {
     await runBacktest({
+      // "-pithy" was the tail mode when there were three; it stays in the
+      // name so new runs sort beside the recorded ones.
       args: parseBacktestArgs(
         args,
-        `scripts/backtest-runs/ai-search-v${AI_SEARCH_PROMPT_VERSION}-${resolveModel().replace("claude-", "")}-${resolveTailMode()}.json`,
+        `scripts/backtest-runs/ai-search-v${AI_SEARCH_PROMPT_VERSION}-${resolveModel().replace("claude-", "")}-pithy.json`,
       ),
       meta: {
         ranker: "AI search",
         model: resolveModel(),
         effort: process.env.AI_EFFORT || "default",
-        tailMode: resolveTailMode(),
         promptVersion: AI_SEARCH_PROMPT_VERSION,
       },
       generate: async (built) => {

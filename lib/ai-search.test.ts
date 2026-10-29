@@ -27,7 +27,6 @@ import {
   OMITTED_CANDIDATE_REASON,
   parseRankingText,
   resolveModel,
-  resolveTailMode,
   toCode,
 } from "./ai-search";
 import { buildSnapshot, type SnapshotOption } from "./snapshot";
@@ -119,18 +118,14 @@ describe("parseRankingText", () => {
     expect(parseRankingText("1|first\n2|second", idByCode)).toBeNull();
   });
 
-  it("reads a row that leads with its rank from the code column", () => {
-    // `rank|code|rationale`: the first column is no candidate, the second
-    // is, so the row is the second column's. The rationale is what follows.
-    expect(rowsOf("3|B|the swim-night place\n4|A|due")).toEqual([
-      { id: "b1", reason: "the swim-night place" },
-      { id: "a1", reason: "due" },
-    ]);
+  it("refuses a reply whose rows lead with their rank", () => {
+    // `rank|code|rationale`: the code is the first column only, so a rank
+    // there resolves no row and the reply falls back (ADR-0013).
+    expect(parseRankingText("3|B|the swim-night place\n4|A|due", idByCode)).toBeNull();
   });
 
   it("trims whitespace and keeps an empty rationale after the bar", () => {
-    // The empty rationale is what `pithy` mode asks for on an obviously bad
-    // pick — a bare code and its bar.
+    // A bare code and its bar still ranks.
     expect(rowsOf("  A | spaced out \nB|")).toEqual([
       { id: "a1", reason: "spaced out" },
       { id: "b1", reason: "" },
@@ -213,53 +208,20 @@ describe("parseRankingText", () => {
   });
 });
 
-describe("resolveTailMode", () => {
-  afterEach(() => {
-    delete process.env.AI_TAIL_MODE;
-  });
-
-  it("defaults to pithy when AI_TAIL_MODE is unset", () => {
-    delete process.env.AI_TAIL_MODE;
-    expect(resolveTailMode()).toBe("pithy");
-  });
-
-  it("falls back to pithy for an unrecognized value", () => {
-    process.env.AI_TAIL_MODE = "nonsense";
-    expect(resolveTailMode()).toBe("pithy");
-  });
-
-  it("honors full and drop when set explicitly", () => {
-    process.env.AI_TAIL_MODE = "full";
-    expect(resolveTailMode()).toBe("full");
-    process.env.AI_TAIL_MODE = "drop";
-    expect(resolveTailMode()).toBe("drop");
-  });
-});
-
 describe("buildSystemPrompt", () => {
-  it("gives each tail mode a distinct open-query instruction", () => {
-    // full keeps a full rationale on every row; pithy lets weak picks go terse;
-    // drop omits weak picks entirely.
-    expect(buildSystemPrompt("full")).toContain("Every rationale is one short");
-    expect(buildSystemPrompt("pithy")).toContain("terse");
-    expect(buildSystemPrompt("drop")).toContain("omit the Options");
-  });
-
-  it("shares the rest of the prompt across modes", () => {
-    // The habit-reasoning core (ADR-0005) is mode-independent.
-    for (const mode of ["full", "pithy", "drop"] as const) {
-      expect(buildSystemPrompt(mode)).toContain("reads recency through their habits");
-    }
+  it("lets an open query's weak picks go terse, never empty", () => {
+    expect(buildSystemPrompt()).toContain("give only a terse note of three to six words");
+    expect(buildSystemPrompt()).toContain("reads recency through their habits");
   });
 
   it("describes Log rows by code alone and where those codes resolve", () => {
-    const prompt = buildSystemPrompt("pithy");
+    const prompt = buildSystemPrompt();
     expect(prompt).toContain("the Option eaten by its code alone");
     expect(prompt).toContain("any other Option's in otherOptions");
   });
 
   it("names the snapshot's household-typed fields and the wrapped query as data", () => {
-    const prompt = buildSystemPrompt("pithy");
+    const prompt = buildSystemPrompt();
     expect(prompt).toContain(
       "Every name, notes, tags, note, reason, and todayDayNote value",
     );
@@ -267,7 +229,7 @@ describe("buildSystemPrompt", () => {
   });
 
   it("explains Closed days and how to use them to read Log gaps", () => {
-    const prompt = buildSystemPrompt("pithy");
+    const prompt = buildSystemPrompt();
     expect(prompt).toContain("closedDays");
     expect(prompt).toContain("Drift");
     // No "never recommend a closed Option" rule — the candidate drop already
@@ -275,14 +237,12 @@ describe("buildSystemPrompt", () => {
     expect(prompt.toLowerCase()).not.toMatch(/never recommend/);
   });
 
-  it("tells the whole-Catalog modes to rank every candidate, history or not", () => {
-    expect(buildSystemPrompt("pithy")).toContain("Every candidate must appear exactly once");
-    expect(buildSystemPrompt("full")).toContain("Every candidate must appear exactly once");
-    expect(buildSystemPrompt("drop")).not.toContain("Every candidate must appear");
+  it("tells an open query to rank every candidate, history or not", () => {
+    expect(buildSystemPrompt()).toContain("Every candidate must appear exactly once");
   });
 
   it("explains Day notes as facts about the evening, with today's as current context", () => {
-    const prompt = buildSystemPrompt("pithy");
+    const prompt = buildSystemPrompt();
     expect(prompt).toContain("dayNotes");
     expect(prompt).toContain("todayDayNote");
     expect(prompt).toContain("not about any Option");
@@ -292,7 +252,7 @@ describe("buildSystemPrompt", () => {
   it("says what the data is evidence of and leaves the weighing to the model", () => {
     // ADR-0005 amended: no threshold for "due", no rule written for a named
     // Option, no example drawn from the Household's Log.
-    const prompt = buildSystemPrompt("pithy");
+    const prompt = buildSystemPrompt();
     expect(prompt).toContain("What each part of the snapshot is evidence of");
     // The gaps are the only timing summary: no Interval, no median for the
     // model to call an Option "due" against (ADR-0012, third amendment).
@@ -305,12 +265,12 @@ describe("buildSystemPrompt", () => {
   });
 
   it("never asks for an empty reason: every ranked row says one thing", () => {
-    expect(buildSystemPrompt("pithy")).toContain("never nothing");
-    expect(buildSystemPrompt("pithy")).not.toContain("empty string");
+    expect(buildSystemPrompt()).toContain("never nothing");
+    expect(buildSystemPrompt()).not.toContain("empty string");
   });
 
   it("tells the model today's Log rows are tonight's chosen dinner, not candidates", () => {
-    const prompt = buildSystemPrompt("pithy");
+    const prompt = buildSystemPrompt();
     expect(prompt).toContain("Log rows dated today");
     expect(prompt).toContain("never return them");
     // They stay in the snapshot — coded, with Log rows — so the prompt must
@@ -318,41 +278,33 @@ describe("buildSystemPrompt", () => {
     expect(prompt).not.toContain("left out of the Catalog");
   });
 
-  it("asks for an OPEN line above an open query's ranking, in every mode", () => {
-    for (const mode of ["full", "pithy", "drop"] as const) {
-      expect(buildSystemPrompt(mode)).toContain(
-        "first write the single word OPEN alone on a line",
-      );
-    }
+  it("asks for an OPEN line above an open query's ranking", () => {
+    expect(buildSystemPrompt()).toContain("first write the single word OPEN alone on a line");
   });
 
   it("no longer uses the stale 'closed on Sundays' Rejection example", () => {
     // A closure that repeats weekly is now a Closed day, not a standing
     // Rejection — ADR-0010. The Rejections paragraph's standing-dislike
     // example must be a genuine Rejection, not a Closed day.
-    expect(buildSystemPrompt("pithy")).not.toContain("closed on Sundays");
+    expect(buildSystemPrompt()).not.toContain("closed on Sundays");
   });
 
   it("spells out the line format the parser reads back", () => {
     // No tool is offered, so the prompt is the only place the output contract
     // is stated — it has to carry the row shape and the empty-result sentinel.
-    for (const mode of ["full", "pithy", "drop"] as const) {
-      const prompt = buildSystemPrompt(mode);
-      expect(prompt).toContain("<code>|<rationale>");
-      expect(prompt).toContain("NONE");
-    }
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("<code>|<rationale>");
+    expect(prompt).toContain("NONE");
   });
 
   it("names the code as the Option's own id, with no mention of rank positions", () => {
     // Letter codes (ADR-0013) make a rank written as a code harmless; the
     // prompt steers positively — where the code comes from — rather than by
     // forbidding positions, and never calls the code a number.
-    for (const mode of ["full", "pithy", "drop"] as const) {
-      const prompt = buildSystemPrompt(mode);
-      expect(prompt).toContain("Every code is an Option's id from its own entry");
-      expect(prompt).not.toContain("position in your ranking");
-      expect(prompt).not.toMatch(/Option's number|by its number|carrying a number/);
-    }
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("Every code is an Option's id from its own entry");
+    expect(prompt).not.toContain("position in your ranking");
+    expect(prompt).not.toMatch(/Option's number|by its number|carrying a number/);
   });
 });
 
@@ -518,7 +470,6 @@ describe("createAiSearchClient — failure model and fallback", () => {
       event: "ai_search",
       queryLength: 0,
       model: "test-model",
-      tailMode: "pithy",
       thinking: "effort:medium",
       inputTokens: 12000,
       outputTokens: 2000,
@@ -659,7 +610,6 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    delete process.env.AI_TAIL_MODE;
   });
 
   it("appends an omitted candidate, marked as not ranked, on an empty query", async () => {
@@ -690,16 +640,6 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
   it("leaves a non-empty query's shortlist alone when the model did not declare it OPEN", async () => {
     const result = await searchWith("something sweet");
     expect(result.ok && result.results.map((r) => r.id)).toEqual(["c1", "a1"]);
-  });
-
-  it("appends in drop mode too — every open query shows the whole Catalog", async () => {
-    process.env.AI_TAIL_MODE = "drop";
-    const result = await searchWith("");
-    expect(result.ok && result.results.map((r) => r.id)).toEqual([
-      "c1",
-      "a1",
-      "b1",
-    ]);
   });
 
   it("appends every candidate on an empty query even when the model wrote NONE", async () => {

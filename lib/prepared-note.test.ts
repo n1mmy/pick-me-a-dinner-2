@@ -189,7 +189,9 @@ describe("parsePreparedReply", () => {
     expect(parsePreparedReply(reply, built)).toBeNull();
   });
 
-  it("reads the code from the second column when the first is a rank", () => {
+  it("refuses a reply whose rows lead with their rank", () => {
+    // The code is the first column only (ADR-0013): `rank|code|…` resolves
+    // no row.
     const reply = [
       "1|C|The standing Thursday choice.",
       "2|a|Long cook.",
@@ -197,11 +199,7 @@ describe("parsePreparedReply", () => {
       "brief|A quiet Thursday.",
     ].join("\n");
 
-    expect(parsePreparedReply(reply, built)?.ranking).toEqual([
-      { id: PHO, reason: "The standing Thursday choice." },
-      { id: KATSU, reason: "Long cook." },
-      { id: MAZRA, reason: "Skip it." },
-    ]);
+    expect(parsePreparedReply(reply, built)).toBeNull();
   });
 
   it("keeps a | inside a rationale and in the brief", () => {

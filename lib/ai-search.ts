@@ -19,9 +19,9 @@
  * latency): Options are referred to by a **small integer**, never their UUID —
  * cheap in the snapshot and, above all, in every result row the model writes;
  * the snapshot body is sent in a `cache_control` block so a burst of searches
- * over unchanged data reads the prefix from cache; the empty/open-query
- * result shape is tunable via `AI_TAIL_MODE` (see `resolveTailMode`); and the
- * ranking comes back as compact `<code>|<rationale>` lines rather than a
+ * over unchanged data reads the prefix from cache; an open query's weaker
+ * picks get a terse note rather than a full line (see `OPEN_QUERY_INSTRUCTION`);
+ * and the ranking comes back as compact `<code>|<rationale>` lines rather than a
  * schema-validated tool call, so a result row costs a couple of structural
  * tokens instead of a dozen (see `TEXT_FORMAT_INSTRUCTION`).
  *
@@ -37,7 +37,7 @@
  * nothing.
  *
  * Every model call emits one structured log line — query length, model id,
- * tail mode, thinking config, latency, outcome, result count, how many of
+ * thinking effort, latency, outcome, result count, how many of
  * those `search` appended, and token usage — so the external API stays
  * observable without a separate metrics pipe (PRD §"Observability").
  *
@@ -121,27 +121,20 @@ export function toCode(text: string): string | null {
 /**
  * Read one `<code>|<rationale>` line against the candidates: the row with its
  * real UUID and the rationale as written, or `null` for a line that is not a
- * candidate's row. One tolerance: a model that writes its rank first
- * (`3|G|…`) is read from the second column when the first is no candidate and
- * the second is — a digit column can never be a code, so this is safe. The
- * rationale is the rest of the line, so a `|` inside it is kept.
+ * candidate's row. The code is the first column only: a rank written there
+ * (`3|G|…`) resolves to nothing (ADR-0013). The rationale is the rest of the
+ * line, so a `|` inside it is kept.
  */
 export function readRankingRow(
   line: string,
   idByCode: ReadonlyMap<string, string>,
 ): AiRankingRow | null {
-  const resolve = (text: string, from: number): AiRankingRow | null => {
-    const bar = text.indexOf("|", from);
-    if (bar === -1) return null;
-    const code = toCode(text.slice(from, bar).trim());
-    const id = code === null ? undefined : idByCode.get(code);
-    if (id === undefined) return null;
-    return { id, reason: text.slice(bar + 1).trim() };
-  };
-  const row = resolve(line, 0);
-  if (row !== null) return row;
   const bar = line.indexOf("|");
-  return bar === -1 ? null : resolve(line, bar + 1);
+  if (bar === -1) return null;
+  const code = toCode(line.slice(0, bar).trim());
+  const id = code === null ? undefined : idByCode.get(code);
+  if (id === undefined) return null;
+  return { id, reason: line.slice(bar + 1).trim() };
 }
 
 /**
@@ -199,8 +192,8 @@ export type ParsedRanking = {
  * - A repeated Option is deduped, the **first** occurrence kept — a model that
  *   lists the same Option twice never produces a duplicate result row.
  * - An AI rationale over ~200 characters is truncated (see `truncateRationale`).
- *   An empty rationale — a line ending right after the `|` — is kept as-is: in
- *   `pithy` mode the model deliberately writes one for an obviously bad pick.
+ *   An empty rationale — a line ending right after the `|` — is kept as-is:
+ *   the row still ranks, and the screen shows it without a line.
  *
  * Plain text has no schema to lean on, so the parser is deliberately tolerant
  * where a tool call's validator could be strict: a line that is not a
@@ -247,9 +240,9 @@ export function parseRankingText(
 }
 
 /**
- * The reason an appended candidate carries. Not empty: in `pithy` mode an
- * empty reason is the model's verdict "obviously bad pick", and an Option the
- * model merely skipped — often one never tried at all — must not read as one.
+ * The reason an appended candidate carries. Not empty: an Option the model
+ * merely skipped — often one never tried at all — must not read as one it
+ * ranked and had nothing to say about.
  */
 export const OMITTED_CANDIDATE_REASON = "Not ranked — the AI left this one out";
 
@@ -335,38 +328,6 @@ function resolveEffort(): AiEffort {
  */
 const ADAPTIVE_MAX_TOKENS = 32_000;
 
-/** Which open-query result shape the system prompt asks for (Q2 / ADR-0005). */
-export type TailMode = "full" | "pithy" | "drop";
-
-/**
- * Resolve the tail mode from `AI_TAIL_MODE`. It governs only the
- * empty/open-query branch of the prompt (a narrowing query returns a focused
- * shortlist in every mode):
- *
- * - `full`  — every candidate Option is returned, each with a full one-line
- *   rationale. The pre-pithy baseline.
- * - `pithy` — every candidate Option is returned, but the rationale shrinks
- *   with the pick: a genuine pick gets a short one-line rationale, a clearly
- *   weak pick a terse few-word note, an obviously bad pick an empty string —
- *   no rationale at all. The default — it preserves ADR-0005's whole-Catalog
- *   result while trimming the output the model has to generate.
- * - `drop`  — the model omits Options it judges clearly bad picks and returns
- *   only a short shortlist, which saves output tokens. `search` still appends
- *   the omitted ones, as it does in every mode on an open query, so the screen
- *   shows the shortlist followed by the rest, marked "Not ranked". Every
- *   candidate still reaches the screen, but only the shortlist is ranked: the
- *   rest trails in alphabetical order with no rationale, short of ADR-0005's
- *   whole Catalog ranked by the model. So it is kept behind the env var, not
- *   made the default; making it the default would warrant an ADR-0005
- *   amendment.
- *
- * An unset or unrecognized value resolves to `pithy`.
- */
-export function resolveTailMode(): TailMode {
-  const value = process.env.AI_TAIL_MODE;
-  return value === "full" || value === "drop" ? value : "pithy";
-}
-
 /**
  * What each part of the snapshot is evidence of — shared with the Prepared
  * note prompt (`lib/prepared-note`) so the two models read the data alike.
@@ -445,17 +406,6 @@ export const RECENCY_THROUGH_HABITS =
   "like any other.";
 
 /**
- * Shared by the whole-Catalog tail modes. The model reliably left out the one
- * candidate with no Log history, notes, or Rejections — nothing to say about it
- * read as nothing to rank. This line did not stop that (still omitted in every
- * run of the September comparison); `search` appending the omitted candidates
- * is what fixes it.
- */
-const EVERY_CANDIDATE_INSTRUCTION =
-  " Every candidate must appear exactly once, including an Option with no " +
-  "Log history at all.";
-
-/**
  * How a rationale is written — `CONTEXT.md`'s **AI rationale** rule, shared by
  * both prompts. Only general statements: the v10 version's example leads were
  * lines from this Household's Log.
@@ -489,38 +439,28 @@ export const RATIONALE_RULES = [
     "once in the whole reply. Never write the same rationale twice.",
 ].join("\n");
 
-/** The empty/open-query result instruction, per tail mode (see `resolveTailMode`). */
-const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
-  full:
-    "- If the query is empty or does not narrow the Catalog, return every " +
-    "candidate Option from the snapshot, ranked best first. For an Option " +
-    "high in the ranking the rationale says why it is a strong pick tonight; " +
-    "for an Option low in the ranking it says why it is a weaker pick. Every " +
-    "rationale is one short line, roughly 140 characters at most." +
-    EVERY_CANDIDATE_INSTRUCTION,
-  pithy:
-    "- If the query is empty or does not narrow the Catalog, return every " +
-    "candidate Option from the snapshot, ranked best first, varying how " +
-    "much you write by how strong the pick is. For an Option that is a " +
-    "genuine pick tonight — typically the first few in the ranking — give " +
-    "a one-line rationale of roughly 100 characters (140 at most) naming " +
-    "the strongest reason behind its rank. Say it and stop: do not hedge or " +
-    "pile on further justification once the reason is stated. For an Option " +
-    "you judge a weak pick, give only a terse note of three to six words " +
-    "— never a full sentence, and never nothing: every row says one thing, " +
-    "so the household can see why it sits where it does. You decide which " +
-    "tier each Option falls in; the weaker the pick, the less needs to be " +
-    "said." +
-    EVERY_CANDIDATE_INSTRUCTION,
-  drop:
-    "- If the query is empty or does not narrow the Catalog, return only the " +
-    "Options genuinely worth considering for tonight, ranked best first, and " +
-    "omit the Options you judge clearly bad picks (eaten yesterday or the day " +
-    "before, nowhere near due, a standing reason against them). Do not return " +
-    "the whole Catalog — " +
-    "a short, honest shortlist is the goal, and you decide where the cutoff " +
-    "falls. Each rationale is one short line, roughly 140 characters at most.",
-};
+/**
+ * The empty/open-query result instruction (Q2 / ADR-0005): every candidate,
+ * the rationale shrinking with the pick, which trims the output the model has
+ * to generate while keeping the whole Catalog ranked. Its last sentence did
+ * not stop the model leaving out the one candidate with no Log history, notes,
+ * or Rejections (still omitted in every run of the September comparison);
+ * `search` appending the omitted candidates is what fixes that.
+ */
+const OPEN_QUERY_INSTRUCTION =
+  "- If the query is empty or does not narrow the Catalog, return every " +
+  "candidate Option from the snapshot, ranked best first, varying how " +
+  "much you write by how strong the pick is. For an Option that is a " +
+  "genuine pick tonight — typically the first few in the ranking — give " +
+  "a one-line rationale of roughly 100 characters (140 at most) naming " +
+  "the strongest reason behind its rank. Say it and stop: do not hedge or " +
+  "pile on further justification once the reason is stated. For an Option " +
+  "you judge a weak pick, give only a terse note of three to six words " +
+  "— never a full sentence, and never nothing: every row says one thing, " +
+  "so the household can see why it sits where it does. You decide which " +
+  "tier each Option falls in; the weaker the pick, the less needs to be " +
+  "said. Every candidate must appear exactly once, including an Option " +
+  "with no Log history at all.";
 
 /**
  * The output format spec — the exact shape `parseRankingText` reads back.
@@ -561,12 +501,8 @@ const TEXT_FORMAT_INSTRUCTION = [
  */
 export const AI_SEARCH_PROMPT_VERSION = "14";
 
-/**
- * Build the system prompt for a tail mode. The prompt is identical across
- * modes except for the empty/open-query result instruction — see
- * `OPEN_QUERY_INSTRUCTION` and `resolveTailMode`.
- */
-export function buildSystemPrompt(mode: TailMode): string {
+/** Build the AI search system prompt. */
+export function buildSystemPrompt(): string {
   return [
     "You help one household decide what to eat for dinner tonight.",
     "",
@@ -607,7 +543,7 @@ export function buildSystemPrompt(mode: TailMode): string {
       "that fit it — a focused shortlist, ranked best first, not the whole " +
       "Catalog re-sorted, each rationale a short line naming why that Option " +
       "fits.",
-    OPEN_QUERY_INSTRUCTION[mode],
+    OPEN_QUERY_INSTRUCTION,
     "Every code is an Option's id from its own entry in the snapshot.",
     "",
     RATIONALE_RULES,
@@ -647,7 +583,7 @@ export interface AiSearchClient {
 
 /**
  * Emit one structured log line for a completed model call (PRD §"Observability",
- * user story 27): query length, model id, tail mode, thinking, latency,
+ * user story 27): query length, model id, thinking effort, latency,
  * outcome, result count, how many of those were appended omitted candidates,
  * and — when the call returned a response — its token
  * usage, thinking tokens broken out of the output total. One line
@@ -661,8 +597,6 @@ function logModelCall(fields: {
   /** Length of the Household's query, delimiters excluded. */
   queryLength: number;
   model: string;
-  /** The open-query result shape the prompt asked for. */
-  tailMode: TailMode;
   /** The thinking effort in effect, as `effort:level`. */
   thinking: string;
   latencyMs: number;
@@ -701,8 +635,7 @@ function logModelCall(fields: {
  * env-free.
  *
  * The model is `AI_MODEL` (a current Opus by default), the thinking effort
- * is `AI_EFFORT` (see `AiEffort`), and the open-query result shape is
- * `AI_TAIL_MODE` (see `resolveTailMode`). `overrides` pins the model and the
+ * is `AI_EFFORT` (see `AiEffort`). `overrides` pins the model and the
  * effort, bypassing those env vars, and records the model's raw ranking text
  * via `onResponseText`.
  *
@@ -725,8 +658,7 @@ export function createAiSearchClient(
   const anthropic = new Anthropic({ apiKey });
   const model = overrides?.model || resolveModel();
   const effort = overrides?.effort ?? resolveEffort();
-  const tailMode = resolveTailMode();
-  const systemPrompt = buildSystemPrompt(tailMode);
+  const systemPrompt = buildSystemPrompt();
 
   return {
     async search({ snapshot, idByCode }) {
@@ -797,7 +729,7 @@ export function createAiSearchClient(
         overrides?.onResponseText?.(text);
         const parsed = parseRankingText(text, idByCode);
         if (parsed !== null) {
-          // An open query's result is the whole Catalog, in every tail mode —
+          // An open query's result is the whole Catalog —
           // an empty query is open by definition; a non-empty one is open
           // only if the model said so. That holds even when the model wrote
           // `NONE`: nothing can fail to fit a query that asks for nothing.
@@ -824,7 +756,6 @@ export function createAiSearchClient(
       logModelCall({
         queryLength: queryText.length,
         model,
-        tailMode,
         thinking: `effort:${effort}`,
         latencyMs: Date.now() - startedAt,
         outcome: result.ok ? "ok" : "fallback",

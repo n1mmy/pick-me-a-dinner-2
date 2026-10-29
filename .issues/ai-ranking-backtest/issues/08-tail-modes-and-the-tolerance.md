@@ -1,6 +1,6 @@
 # 08 — Delete the `full` and `drop` tail modes, and the `3|G|` tolerance
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -34,6 +34,10 @@ Two commits; see the plan, step 3.
 
 ## Acceptance
 
-- [ ] No `AI_TAIL_MODE` outside `plans/` and `scripts/backtest-runs/`.
-- [ ] A reply written `3|G|…` on every row is refused by both parsers.
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test` pass.
+- [x] No `AI_TAIL_MODE` outside `plans/` and `scripts/backtest-runs/`.
+- [x] A reply written `3|G|…` on every row is refused by both parsers.
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test` pass.
+
+## Comments
+
+- Done in one commit rather than two, at the user's request (one commit per issue). The pithy prompt is byte-identical (`EVERY_CANDIDATE_INSTRUCTION` folded into `OPEN_QUERY_INSTRUCTION`), so the prompt version did not move. Backtest file names keep the `-pithy` suffix so v15 lands as `ai-search-v15-opus-5-5-pithy`; `backtest-compare` still prints an old file's `meta.tailMode`. The parser doc no longer says an empty rationale is pithy's verdict: the prompt asks for "never nothing".
