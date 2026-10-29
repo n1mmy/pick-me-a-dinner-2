@@ -15,6 +15,7 @@
  *   npx tsx scripts/prepared-note-eval.ts --day=2026-10-25
  *   npx tsx scripts/prepared-note-eval.ts --snapshot    # also dump the JSON sent
  *   npx tsx scripts/prepared-note-eval.ts --no-prompt   # skip the system prompt
+ *   npx tsx scripts/prepared-note-eval.ts --reasoning   # also print the model's reasoning
  *
  * Strata is free to call, so the billed-call rule in `CLAUDE.md` does not
  * apply here (it still applies to `scripts/ai-search-eval.ts`). One run is one
@@ -36,7 +37,7 @@ import {
   type PrepareResult,
   type RawPreparedReply,
 } from "../lib/prepared-note";
-import { snapshotForDay } from "../lib/snapshot";
+import { leanSnapshot, snapshotForDay } from "../lib/snapshot";
 
 /** The brief's target length, from the spec. */
 const BRIEF_WORDS = { min: 40, max: 70 };
@@ -47,7 +48,7 @@ const BRIEF_WORDS = { min: 40, max: 70 };
  * verdict: "every two weeks" is fine and still matches.
  */
 const RHYTHM_CLAIM_SUSPECTS =
-  /\b\d{1,2}\/\d{1,2}\b|\b\d+\s+(?:[Dd]ays?|[Ww]eeks?|[Mm]onths?)\b|\b(?:days?|weeks?|months?)\s+ago\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\b|\b(?:a while|long gap|gone quiet|out of rotation)\b/g;
+  /\b\d{1,2}\/\d{1,2}\b|\b\d+\s+(?:[Dd]ays?|[Ww]eeks?|[Mm]onths?)\b|\b(?:days?|weeks?|months?)\s+ago\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\b|\b(?:a while|long gap)\b/g;
 
 /** `--day=+N`, `--day=YYYY-MM-DD`, or today when absent. */
 function resolveDay(arg: string | undefined): string {
@@ -119,7 +120,7 @@ async function main(): Promise<void> {
   }
   if (args.includes("--snapshot")) {
     console.log("--- snapshot sent to the model ---");
-    console.log(JSON.stringify(snapshot, null, 2));
+    console.log(JSON.stringify(leanSnapshot(snapshot), null, 2));
     console.log("--- end snapshot ---\n");
   }
 
@@ -143,6 +144,12 @@ async function main(): Promise<void> {
       `finish: ${reply?.finishReason ?? "—"}   ` +
       `reasoning: ${reply?.reasoning ? wordCount(reply.reasoning) : 0} words\n`,
   );
+
+  if (args.includes("--reasoning")) {
+    console.log("--- reasoning ---");
+    console.log(reply?.reasoning ?? "(no reasoning)");
+    console.log("--- end reasoning ---\n");
+  }
 
   console.log("--- raw reply (content) ---");
   console.log(reply?.content ?? "(no content)");
