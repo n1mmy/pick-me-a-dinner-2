@@ -1,6 +1,6 @@
 # 06 — Delete the old harness and the backtest's text flags
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -39,7 +39,11 @@ See the plan, step 1, for the line anchors. In short:
 
 ## Acceptance
 
-- [ ] The directory and the scratch script are gone.
-- [ ] `npx tsx scripts/backtest-compare.ts scripts/backtest-runs/ai-search-v12-opus-5-5-pithy.json scripts/backtest-runs/ai-search-v13-opus-5-5-pithy.json`
+- [x] The directory and the scratch script are gone.
+- [x] `npx tsx scripts/backtest-compare.ts scripts/backtest-runs/ai-search-v12-opus-5-5-pithy.json scripts/backtest-runs/ai-search-v13-opus-5-5-pithy.json`
       still runs on the recorded (pre-step) files.
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test` pass.
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test` pass.
+
+## Comments
+
+- Done. `splitUserTurn` had no caller outside `lib/` (the eval's `--snapshot` printed `leanSnapshot`), so `--snapshot` now prints the two blocks through `splitUserTurn` — the export's named caller. `prepared-note-eval.ts`'s single-day "rhythm-claim suspects" line used the deleted regex and went too. `briefSkippedDays` stays: it is not a text flag.

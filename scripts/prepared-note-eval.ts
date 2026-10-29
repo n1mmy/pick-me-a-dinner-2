@@ -57,12 +57,7 @@ import {
   type RawPreparedReply,
 } from "../lib/prepared-note";
 import { type BuiltSnapshot, leanSnapshot, snapshotForDay } from "../lib/snapshot";
-import {
-  type Generation,
-  parseBacktestArgs,
-  RHYTHM_CLAIM_SUSPECTS,
-  runBacktest,
-} from "./backtest";
+import { type Generation, parseBacktestArgs, runBacktest } from "./backtest";
 
 /** The brief's target length, from the spec. */
 const BRIEF_WORDS = { min: 40, max: 70 };
@@ -333,13 +328,6 @@ async function main(): Promise<void> {
       `\nMISSING ${missing.length}: ${missing.map((id) => nameById.get(id) ?? id).join(", ")}`,
     );
   }
-
-  const suspects = [brief, ...ranking.map((row) => row.reason)].flatMap(
-    (text) => text.match(RHYTHM_CLAIM_SUSPECTS) ?? [],
-  );
-  console.log(
-    `\nrhythm-claim suspects: ${suspects.length === 0 ? "none" : suspects.join(" · ")}`,
-  );
 }
 
 main()

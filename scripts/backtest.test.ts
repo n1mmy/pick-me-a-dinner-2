@@ -3,7 +3,6 @@ import { buildSnapshot, type SnapshotOption } from "../lib/snapshot";
 import {
   type BacktestDay,
   parseBacktestArgs,
-  RHYTHM_CLAIM_SUSPECTS,
   sampleAcrossWeekdays,
   scoreDay,
   summarize,
@@ -58,21 +57,6 @@ describe("sampleAcrossWeekdays", () => {
   });
 });
 
-describe("RHYTHM_CLAIM_SUSPECTS", () => {
-  const suspects = (text: string) => text.match(RHYTHM_CLAIM_SUSPECTS) ?? [];
-
-  it("catches relative elapsed-time phrasing", () => {
-    expect(suspects("They just had it last week.")).toEqual(["just had", "last week"]);
-    expect(suspects("Ninja was just this past Sunday")).toEqual(["this past Sunday"]);
-    expect(suspects("eaten Tuesday, so skip")).toEqual(["eaten Tuesday"]);
-    expect(suspects("Last night was pizza")).toEqual(["Last night"]);
-  });
-
-  it("leaves a rhythm claim alone", () => {
-    expect(suspects("The standing Thursday choice, and its stretch is up.")).toEqual([]);
-  });
-});
-
 describe("scoreDay", () => {
   const DAY = "2026-10-20"; // a Tuesday
   const built = buildSnapshot({
@@ -120,24 +104,6 @@ describe("scoreDay", () => {
     expect(record.tooSoonMisses).toEqual([{ rank: 3, name: "Quiche", reason: "too soon" }]);
   });
 
-  it("checks the brief's named Options against the top 3 and its Day note", () => {
-    expect(record.briefNamed).toEqual([
-      { rank: 4, name: "Ninja Sushi" },
-      { rank: 1, name: "Societea Tea House" },
-    ]);
-    expect(record.briefMentionsDayNote).toBe(true);
-  });
-
-  it("prints a weekday claim with the Option's weekday counts", () => {
-    expect(record.flags.weekdayClaims).toEqual([
-      expect.objectContaining({ rank: 1, name: "Societea Tea House", weekdays: { Tuesday: 1 } }),
-    ]);
-  });
-
-  it("flags a top row that says nothing but timing, not one drawing on a Note", () => {
-    expect(record.flags.timingOnly.map((row) => row.name)).toEqual(["Aji Ichi"]);
-  });
-
   it("marks a day unscorable when no Pick is a candidate", () => {
     const archived = scoreDay(
       { ...truth, picks: [{ optionId: "gone", name: "Gone" }] },
@@ -151,8 +117,6 @@ describe("scoreDay", () => {
       unscorable: [DAY],
       hit5: 1,
       daysWithTooSoonMiss: 1,
-      briefNamedOutsideTop3: 1,
-      timingOnlyTopRows: 1,
     });
   });
 
