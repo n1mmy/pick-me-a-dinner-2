@@ -1,11 +1,11 @@
 /**
- * Prepared note evaluation harness — ask the local model (Strata) for one
+ * Prepared note evaluation harness — ask the local model (on Strata) for one
  * date's Prepared note against the real dev database, without the sweep or
  * the Tonight UI (ADR-0011).
  *
  * This is the iteration loop for `buildPreparedSystemPrompt` and the token
  * budget in `lib/prepared-note.ts`: edit them, re-run this, and read the brief
- * and the ranking. It prints the built prompt, Strata's raw reply, and the
+ * and the ranking. It prints the built prompt, the model's raw reply, and the
  * parsed note, plus the numbers issue 03 judges a note by — the brief's word
  * count, how many candidates were ranked, why generation stopped — so they
  * don't have to be counted by eye. Nothing is written to `prepared_notes`.
@@ -45,6 +45,7 @@
  */
 import "./load-env";
 import Anthropic from "@anthropic-ai/sdk";
+import type { AiEffort } from "../lib/ai-search";
 import { isValidSqlDate, shiftSqlDate, today } from "../lib/local-day";
 import {
   buildPreparedSystemPrompt,
@@ -57,12 +58,7 @@ import {
   type RawPreparedReply,
 } from "../lib/prepared-note";
 import { type BuiltSnapshot, leanSnapshot, snapshotForDay } from "../lib/snapshot";
-import {
-  type Generation,
-  parseBacktestArgs,
-  RHYTHM_CLAIM_SUSPECTS,
-  runBacktest,
-} from "./backtest";
+import { type Generation, parseBacktestArgs, runBacktest } from "./backtest";
 
 /** The brief's target length, from the spec. */
 const BRIEF_WORDS = { min: 40, max: 70 };
@@ -105,17 +101,16 @@ async function captureLogLine<T>(
   }
 }
 
-type ClaudeEffort = "low" | "medium" | "high";
-
 /**
  * A backtest generator that sends the Prepared note prompt to a Claude model:
- * the same system prompt and user message Strata gets, adaptive thinking at
- * `effort`, streamed. Read as the Strata path reads in the backtest: a reply
- * that ended on its own is parsed leniently, so a skipped brief still scores.
+ * the same system prompt and user message the local model gets, adaptive
+ * thinking at `effort`, streamed. Read as the local-model path reads in the
+ * backtest: a reply that ended on its own is parsed leniently, so a skipped
+ * brief still scores.
  */
 function claudeGenerator(
   model: string,
-  effort: ClaudeEffort,
+  effort: AiEffort,
 ): (built: BuiltSnapshot) => Promise<Generation> {
   const anthropic = new Anthropic();
   const system = buildPreparedSystemPrompt();
@@ -151,7 +146,6 @@ function claudeGenerator(
       latencyMs: Date.now() - startedAt,
       outputTokens: response.usage.output_tokens,
       reasoning: reasoning || undefined,
-      resolvedByName: note?.resolvedByName,
     };
   };
 }
@@ -247,7 +241,6 @@ async function main(): Promise<void> {
           latencyMs: Number(logLine?.latencyMs) || undefined,
           outputTokens: Number(logLine?.outputTokens) || undefined,
           reasoning: reply?.reasoning ?? undefined,
-          resolvedByName: result.ok ? reply?.resolvedByName : lenient?.resolvedByName,
         };
       },
     });
@@ -255,12 +248,12 @@ async function main(): Promise<void> {
   }
 
   const built = await snapshotForDay({ asOf: day, query: "" });
-  const { snapshot, idByIndex, nameById } = built;
+  const { snapshot, idByCode, nameById } = built;
 
   console.log(`day: ${snapshot.today}`);
   console.log(`model: ${model}   prompt version: ${PREPARED_PROMPT_VERSION}`);
   console.log(
-    `candidates: ${idByIndex.size}   log: ${snapshot.log.length} dinners   ` +
+    `candidates: ${idByCode.size}   log: ${snapshot.log.length} dinners   ` +
       `day note: ${snapshot.todayDayNote ? "yes" : "none"}\n`,
   );
 
@@ -320,9 +313,9 @@ async function main(): Promise<void> {
   console.log(brief);
 
   const ranked = new Set(ranking.map((row) => row.id));
-  const missing = [...idByIndex.values()].filter((id) => !ranked.has(id));
+  const missing = [...idByCode.values()].filter((id) => !ranked.has(id));
   console.log(
-    `\n--- ranking: ${ranking.length}/${idByIndex.size} candidates ranked ---`,
+    `\n--- ranking: ${ranking.length}/${idByCode.size} candidates ranked ---`,
   );
   ranking.forEach((row, index) => {
     console.log(
@@ -335,13 +328,6 @@ async function main(): Promise<void> {
       `\nMISSING ${missing.length}: ${missing.map((id) => nameById.get(id) ?? id).join(", ")}`,
     );
   }
-
-  const suspects = [brief, ...ranking.map((row) => row.reason)].flatMap(
-    (text) => text.match(RHYTHM_CLAIM_SUSPECTS) ?? [],
-  );
-  console.log(
-    `\nrhythm-claim suspects: ${suspects.length === 0 ? "none" : suspects.join(" · ")}`,
-  );
 }
 
 main()

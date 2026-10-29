@@ -31,12 +31,51 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   with traces, over the first ten days only (`2026-10-02` … `2026-10-14`):
   7/8/8 and 5/6/10. Each stopped after its first half because the prompt
   moved on before the `--resume` half could run.
+- `strata-v13` — Prepared note prompt v13 on Strata, with traces, over 18 of
+  the 20 days (stopped during `2026-10-25` when v14 landed; `2026-10-25` and
+  `2026-10-26` missing): 10/10/16, mean rank 5.8, 44/90 never-eaten top-5
+  slots. 138 of its 180 top-10 rows were resolved by name — the rank written
+  as the number — which is the shape v14's letter codes refuse.
+- `strata-v14` — Prepared note prompt v14 on Strata, with traces, over the
+  first 11 days (`2026-10-02` … `2026-10-15`; stopped when v15 landed):
+  5/6/9, mean / median rank 5.8 / 5, 32/55 never-eaten top-5 slots,
+  too-soon days 2 (`2026-10-11`, `2026-10-15`). Every reply used the letter
+  codes; none was refused.
 - `prepared-v13-opus-5-5-low` — the Prepared note prompt v13 sent to Opus 5.5
   instead of Strata (`--claude`, effort low): 10/11/17 against v13 AI
   search Opus's 10/12/16, ~22s and ~2k output tokens a day. Its
   `-reasoning/` files are thinking summaries, on the 11 days it thought. On
   `2026-10-09` and `2026-10-16` it wrote rank positions in the number
   column; every row was resolved by name.
+- `prepared-v14-opus-5-5-low` and `-run2` — the same on prompt v14 (letter
+  codes), two identical runs: 9/11/16 and 12/13/14, mean / median rank
+  6.7 / 4 and 6.5 / 3, too-soon days 3 and 2. They differ by 3 days at hit@3,
+  2 at hit@5 and 2 at hit@10, wider than earlier pairs, and the Pick's rank
+  swings by 15 or more on single days (`2026-10-18` #18 / #3, `2026-10-19`
+  #19 / #2, `2026-10-21` #6 / #21); the #1 is the same on 16 of 20 days.
+  Every reply used the letter codes; none was refused. ~21s and ~1.7k output
+  tokens a day, thinking on 8 days in each.
+- `prepared-v15-opus-5-5-low` and `-run2` — the same on prompt v15 (weekday
+  counts out of the snapshot), two identical runs: 11/13/17 and 10/13/14,
+  mean / median rank 5.0 / 3 and 9.0 / 3, too-soon days 3 and 1. The mean
+  moves on the tail: `2026-10-12` #5 / #20, `2026-10-15` #6 / #22,
+  `2026-10-21` #13 / #33. Averaged per pair, v15 (10.5/13/15.5) is level
+  with v14 (10.5/12/15). The #1 is the same on 16 of 20 days. ~20s and
+  ~1.7k output tokens a day, thinking on 12 and 9 days.
+- `qwen3.8-v13` — Prepared note prompt v13 on Qwen 3.8 dense (27B, Q4_K_M,
+  llama.cpp; `.env.backtest.qwen`), with traces, over the first eight days
+  (`2026-10-02` … `2026-10-12`): 5/6/7, mean rank 4.8, against Strata v13's
+  4/4/6 and 7.3 on the same days. 8–11 minutes a day at ~49 tok/s. It drafts
+  the whole ranking in its reasoning, ~20k tokens, so it needs
+  `LOCAL_AI_MAX_TOKENS=40000`: at Strata's 20k both days tried were cut off
+  before the reply. Stopped when the prompt moved to v14.
+- `qwen3.8-v14` — the same on prompt v14 (letter codes), over the first
+  eleven days (`2026-10-02` … `2026-10-15`), in three `--resume` parts:
+  6/7/8, mean rank 6.7, median 2, against Strata v14's 5/6/9 and 5.8 on the
+  same days. Its misses are deliberate in the traces, not misread codes: on
+  `2026-10-09` it read "back late" with an old "jen not here, save it"
+  Rejection and put Mazra at #19. 6–11 minutes a day. Stopped when the
+  prompt moved to v15.
 
 Fireworks models, through its Anthropic-compatible endpoint, on the same 20
 days: `ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference`, a Fireworks key
@@ -60,3 +99,16 @@ DeepSeek's or GLM's thinking. Hits are hit@3/5/10 out of 20.
   on `2026-10-09`.
 - `.part1.log` / `.part2.log` — a run made in two halves, the second with
   `--resume`.
+
+Three of the hits above are artefacts. Through prompt v13 the snapshot
+numbered Options `1..N`, so a model that wrote its rank position where the
+number belonged produced a valid row, and a ranking written that way read as
+the Catalog in alphabetical order; the Pick scored a hit whenever it sat early
+in the alphabet. `strata-v9` on `2026-10-02`, `strata-v12` on `2026-10-08`
+(every row `rank|number|name|rationale`) and
+`ai-search-v12-glm-5p3-low-pithy` on `2026-10-08` are such days, each counted
+as hit@5; GLM's `2026-10-10` and `strata-v9`'s `2026-10-14` were the same
+shape without the hit. From v14 Options carry letter codes, so a rank written
+as a code resolves to nothing and the reply is refused instead (ADR-0013,
+`.issues/ai-ranking-backtest/issues/05`). The `catalogOrder` flag stays as
+the sentinel.

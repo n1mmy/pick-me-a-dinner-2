@@ -10,7 +10,7 @@
  * the household's eating *habits* — cadence, day-of-week rhythm, streaks, drift
  * — rather than re-sort recency. So the snapshot carries dated history plus
  * timing facts that combine into no sort key (ADR-0012: eat counts, days since,
- * the last few gaps, weekday counts — no median, overdue flag or ratio), and the model is given
+ * the last few gaps — no median, overdue flag or ratio), and the model is given
  * room to think (extended thinking) and works the patterns out itself. A
  * pre-combined "how overdue" number would re-anchor the model on recency and
  * undo the feature — do not add one.
@@ -19,9 +19,9 @@
  * latency): Options are referred to by a **small integer**, never their UUID —
  * cheap in the snapshot and, above all, in every result row the model writes;
  * the snapshot body is sent in a `cache_control` block so a burst of searches
- * over unchanged data reads the prefix from cache; the empty/open-query
- * result shape is tunable via `AI_TAIL_MODE` (see `resolveTailMode`); and the
- * ranking comes back as compact `<number>|<rationale>` lines rather than a
+ * over unchanged data reads the prefix from cache; an open query's weaker
+ * picks get a terse note rather than a full line (see `OPEN_QUERY_INSTRUCTION`);
+ * and the ranking comes back as compact `<code>|<rationale>` lines rather than a
  * schema-validated tool call, so a result row costs a couple of structural
  * tokens instead of a dozen (see `TEXT_FORMAT_INSTRUCTION`).
  *
@@ -37,7 +37,7 @@
  * nothing.
  *
  * Every model call emits one structured log line — query length, model id,
- * tail mode, thinking config, latency, outcome, result count, how many of
+ * thinking effort, latency, outcome, result count, how many of
  * those `search` appended, and token usage — so the external API stays
  * observable without a separate metrics pipe (PRD §"Observability").
  *
@@ -109,12 +109,32 @@ export function truncateRationale(reason: string, maxLength: number): string {
 }
 
 /**
- * Coerce the text before a row's `|` to a snapshot index. Only plain digits
- * count: anything else — a float, a bulleted `1.`, a word — yields `null`, and
- * the row is dropped.
+ * Coerce the text before a row's `|` to an Option code. Only letters count,
+ * in either case: anything else — a number, a bulleted `A.`, a name — yields
+ * `null`, and the row is dropped. A rank position written where the code
+ * belongs is the case this is for (ADR-0013).
  */
-export function toIndex(id: string): number | null {
-  return /^\d+$/.test(id) ? Number(id) : null;
+export function toCode(text: string): string | null {
+  return /^[A-Za-z]+$/.test(text) ? text.toUpperCase() : null;
+}
+
+/**
+ * Read one `<code>|<rationale>` line against the candidates: the row with its
+ * real UUID and the rationale as written, or `null` for a line that is not a
+ * candidate's row. The code is the first column only: a rank written there
+ * (`3|G|…`) resolves to nothing (ADR-0013). The rationale is the rest of the
+ * line, so a `|` inside it is kept.
+ */
+export function readRankingRow(
+  line: string,
+  idByCode: ReadonlyMap<string, string>,
+): AiRankingRow | null {
+  const bar = line.indexOf("|");
+  if (bar === -1) return null;
+  const code = toCode(line.slice(0, bar).trim());
+  const id = code === null ? undefined : idByCode.get(code);
+  if (id === undefined) return null;
+  return { id, reason: line.slice(bar + 1).trim() };
 }
 
 /**
@@ -154,11 +174,11 @@ export type ParsedRanking = {
 
 /**
  * Validate the model's response body into an ordered result, mapping each
- * Option number back to its real UUID. The model writes one
- * `<number>|<rationale>` line per Option, in rank order (see
+ * Option code back to its real UUID. The model writes one
+ * `<code>|<rationale>` line per Option, in rank order (see
  * `TEXT_FORMAT_INSTRUCTION`); that written order *is* the result ranking, and
  * it is preserved. Each returned row carries the real UUID, so callers
- * downstream never see the snapshot integer.
+ * downstream never see the code.
  *
  * The `OPEN` marker counts on any line before the first row, so a preamble
  * the model added against instructions does not hide it; after the first row
@@ -166,23 +186,20 @@ export type ParsedRanking = {
  *
  * Hardening, so a sloppy model response still yields a clean screen:
  *
- * - Any number that is not a candidate is dropped — a hallucinated number, or
- *   an Option Picked, Rejected, or Closed for today that the Household could
- *   not actually Pick (`idByIndex` holds candidates only).
- * - A non-integer number is dropped.
+ * - Any code that is not a candidate's is dropped — a hallucinated code, a
+ *   rank position, or an Option Picked, Rejected, or Closed for today that
+ *   the Household could not actually Pick (`idByCode` holds candidates only).
  * - A repeated Option is deduped, the **first** occurrence kept — a model that
  *   lists the same Option twice never produces a duplicate result row.
  * - An AI rationale over ~200 characters is truncated (see `truncateRationale`).
- *   A caller asking for longer rationales passes its own `maxRationaleLength`
- *   (the Prepared ranking, `lib/prepared-note.ts`).
- *   An empty rationale — a line ending right after the `|` — is kept as-is: in
- *   `pithy` mode the model deliberately writes one for an obviously bad pick.
+ *   An empty rationale — a line ending right after the `|` — is kept as-is:
+ *   the row still ranks, and the screen shows it without a line.
  *
  * Plain text has no schema to lean on, so the parser is deliberately tolerant
- * where a tool call's validator could be strict: a line that does not start
- * with a number and a `|` is skipped rather than failing the response, so a
- * stray preamble or a trailing sign-off the model added against instructions
- * costs nothing. Only the **first** `|` splits, so a rationale may contain one.
+ * where a tool call's validator could be strict: a line that is not a
+ * candidate's row (`readRankingRow`) is skipped rather than failing the
+ * response, so a stray preamble or a trailing sign-off the model added
+ * against instructions costs nothing.
  *
  * Returns `null` for a **malformed** body — no parseable row and no `NONE`
  * sentinel — which is the Failure that falls back to the deterministic list
@@ -191,8 +208,7 @@ export type ParsedRanking = {
  */
 export function parseRankingText(
   text: string,
-  idByIndex: ReadonlyMap<number, string>,
-  maxRationaleLength: number = MAX_RATIONALE_LENGTH,
+  idByCode: ReadonlyMap<string, string>,
 ): ParsedRanking | null {
   const rows: AiRankingRow[] = [];
   const seen = new Set<string>();
@@ -210,18 +226,12 @@ export function parseRankingText(
       open = true;
       continue;
     }
-    const bar = line.indexOf("|");
-    if (bar === -1) continue;
-
-    const index = toIndex(line.slice(0, bar).trim());
-    if (index === null) continue;
-    const optionId = idByIndex.get(index);
-    if (optionId === undefined) continue;
-    if (seen.has(optionId)) continue;
-    seen.add(optionId);
+    const row = readRankingRow(line, idByCode);
+    if (row === null || seen.has(row.id)) continue;
+    seen.add(row.id);
     rows.push({
-      id: optionId,
-      reason: truncateRationale(line.slice(bar + 1).trim(), maxRationaleLength),
+      id: row.id,
+      reason: truncateRationale(row.reason, MAX_RATIONALE_LENGTH),
     });
   }
 
@@ -230,24 +240,24 @@ export function parseRankingText(
 }
 
 /**
- * The reason an appended candidate carries. Not empty: in `pithy` mode an
- * empty reason is the model's verdict "obviously bad pick", and an Option the
- * model merely skipped — often one never tried at all — must not read as one.
+ * The reason an appended candidate carries. Not empty: an Option the model
+ * merely skipped — often one never tried at all — must not read as one it
+ * ranked and had nothing to say about.
  */
 export const OMITTED_CANDIDATE_REASON = "Not ranked — the AI left this one out";
 
 /**
  * Append every candidate the model left out of an open-query ranking, each
  * with `OMITTED_CANDIDATE_REASON`. The screen shows only returned rows in AI
- * view, so an omitted Option would otherwise vanish. Appended in `idByIndex`
+ * view, so an omitted Option would otherwise vanish. Appended in `idByCode`
  * order (alphabetical by name).
  */
 function backfillOmittedCandidates(
   rows: AiRankingRow[],
-  idByIndex: ReadonlyMap<number, string>,
+  idByCode: ReadonlyMap<string, string>,
 ): AiRankingRow[] {
   const returned = new Set(rows.map((row) => row.id));
-  const omitted = [...idByIndex.values()]
+  const omitted = [...idByCode.values()]
     .filter((id) => !returned.has(id))
     .map((id) => ({ id, reason: OMITTED_CANDIDATE_REASON }));
   return [...rows, ...omitted];
@@ -297,220 +307,26 @@ function resolveTimeoutMs(): number {
 /**
  * Extended thinking lets the model reason over the Log — cadence, day-of-week
  * rhythm, streaks, drift — before it ranks (ADR-0005); without it the model can
- * only re-sort recency. How hard it thinks is one knob, `AI_EFFORT`
- * (`off` | `low` | `medium` | `high`), uniform across every supported model.
- * The two API generations take that effort differently (see `planThinking`):
- * the budget-API models (Sonnet 4.6, Haiku 4.5) get a `budget_tokens` cap
- * mapped from the effort level; the adaptive-API models (Opus 5, Sonnet 5)
- * get an `output_config.effort` level directly. For the
- * budget-API models `AI_EFFORT` also accepts a bare integer — used directly
- * as `budget_tokens`, for finer control than the three named levels give (the
- * API floor is 1024; `0` is off). A positive number has no meaning for an
- * adaptive model, which has no token budget, so pairing one with an adaptive
- * model is rejected — `createAiSearchClient` throws.
+ * only re-sort recency. How hard it thinks is one knob, `AI_EFFORT`, sent as
+ * adaptive thinking's `output_config.effort`.
  */
-type AiEffort = "off" | "low" | "medium" | "high";
+export type AiEffort = "low" | "medium" | "high";
 
-/** `AI_EFFORT` when unset — `low`, the lightest thinking level. */
-const EFFORT_DEFAULT: Exclude<AiEffort, "off"> = "low";
+/** `AI_EFFORT` when unset or unrecognised — `low`, the lightest level. */
+const EFFORT_DEFAULT: AiEffort = "low";
 
-/**
- * Effort → `budget_tokens` for the budget-API models. `low` is the API minimum;
- * `medium` (4000) was tuned down from an earlier 6000 that ran calls near the
- * timeout with no quality gain; `high` buys deeper reasoning for more latency.
- * A budget is a cap, not a target — a household-sized Log uses well under it.
- */
-const EFFORT_BUDGETS: Record<Exclude<AiEffort, "off">, number> = {
-  low: 1024,
-  medium: 4000,
-  high: 6144,
-};
-
-/**
- * The models still on the legacy budget scheme — `thinking.type: "enabled"`
- * plus a `budget_tokens` cap. Matched by prefix, so a dated snapshot id like
- * `claude-haiku-4-5-20251001` matches its family.
- */
-const BUDGET_API_MODELS = ["claude-sonnet-4-6", "claude-haiku-4-5"];
-
-/**
- * Whether a model takes the adaptive-thinking API — `thinking.type: "adaptive"`
- * plus an `output_config.effort` level — rather than a `budget_tokens` cap.
- *
- * Model *family* is not the test: adaptive thinking is where the whole model
- * line has gone (Sonnet 5 took it with Opus 5, and both reject a `budget_tokens`
- * call with a 400), so the budget scheme is the shrinking exception and every
- * model not listed in `BUDGET_API_MODELS` is adaptive. A new model id therefore
- * defaults to the adaptive API, which is the correct guess for anything
- * released from here on.
- */
-function usesAdaptiveThinking(model: string): boolean {
-  return !BUDGET_API_MODELS.some((budgetModel) =>
-    model.startsWith(budgetModel),
-  );
-}
-
-/**
- * The models whose thinking cannot be turned off — `thinking.type:
- * "disabled"` is a 400, and leaving `thinking` out runs adaptive anyway.
- * Matched by prefix, like `BUDGET_API_MODELS`.
- */
-const THINKING_ALWAYS_ON_MODELS = [
-  "claude-opus-5-5",
-  "claude-sonnet-5-5",
-  "claude-fable-5",
-  "claude-mythos-5",
-];
-
-/** Whether `thinking off` is a valid choice for `model`. */
-export function canDisableThinking(model: string): boolean {
-  return !THINKING_ALWAYS_ON_MODELS.some((onModel) => model.startsWith(onModel));
-}
-
-/**
- * An explicit thinking choice, bypassing `AI_EFFORT` — for the eval harness
- * (`scripts/ai-search-eval.ts`) sweeping levels. A `budget` choice is valid
- * only for a budget-API model and an `effort` choice only for the adaptive
- * model; the caller pairs the choice to its model.
- */
-export type ThinkingChoice =
-  | { type: "off" }
-  | { type: "budget"; budgetTokens: number }
-  | { type: "effort"; effort: Exclude<AiEffort, "off"> };
-
-/**
- * The thinking choice for `model` derived from `AI_EFFORT`, when the caller
- * gives no explicit override. `AI_EFFORT` accepts `off` / `low` / `medium` /
- * `high`, or — for the budget-API models — a bare integer used directly as
- * `budget_tokens` (the API floor is 1024; `0` is off). A positive number has
- * no meaning for the adaptive-API models — pairing one with an adaptive
- * model is a misconfiguration and throws, rather than silently running at
- * some default.
- * An unset or unrecognized value falls back to the default effort.
- */
-function envThinkingChoice(model: string): ThinkingChoice {
-  const adaptive = usesAdaptiveThinking(model);
+/** Resolve the effort from `AI_EFFORT`; anything but a level falls back to `low`. */
+function resolveEffort(): AiEffort {
   const raw = process.env.AI_EFFORT?.trim().toLowerCase();
-
-  if (raw === "off") return { type: "off" };
-  if (raw === "low" || raw === "medium" || raw === "high") {
-    return adaptive
-      ? { type: "effort", effort: raw }
-      : { type: "budget", budgetTokens: EFFORT_BUDGETS[raw] };
-  }
-  // A bare integer is an explicit `budget_tokens` for the budget-API models.
-  if (raw !== undefined && /^\d+$/.test(raw)) {
-    const budget = Number.parseInt(raw, 10);
-    if (budget === 0) return { type: "off" };
-    if (!adaptive) return { type: "budget", budgetTokens: budget };
-    // A positive numeric AI_EFFORT is a token budget — meaningless for an
-    // adaptive model. Fail loudly on the misconfiguration rather than
-    // silently running at some default effort.
-    throw new Error(
-      `AI_EFFORT=${budget} is a token budget, but AI_MODEL (${model}) uses ` +
-        `the adaptive-thinking API, which has no token budget — set AI_EFFORT ` +
-        `to off/low/medium/high for an adaptive-thinking model.`,
-    );
-  }
-  return adaptive
-    ? { type: "effort", effort: EFFORT_DEFAULT }
-    : { type: "budget", budgetTokens: EFFORT_BUDGETS[EFFORT_DEFAULT] };
+  return raw === "low" || raw === "medium" || raw === "high" ? raw : EFFORT_DEFAULT;
 }
 
-/** A compact descriptor of a thinking choice for the structured log line. */
-function describeThinking(choice: ThinkingChoice): string {
-  if (choice.type === "off") return "off";
-  if (choice.type === "budget") return `budget:${choice.budgetTokens}`;
-  return `effort:${choice.effort}`;
-}
-
-/** Output cap for a no-thinking call — thinking choices size their own below. */
-const MAX_TOKENS = 10_000;
-/** Headroom over a token budget for the ranked tool-use result it precedes. */
-const OUTPUT_HEADROOM_TOKENS = 6_000;
-/** Output cap for an adaptive-thinking call — adaptive spends against this. */
+/**
+ * Output cap for a call — adaptive thinking spends against it. A cap this high
+ * trips the SDK's long-request guard on a plain `create`, so the call is
+ * streamed.
+ */
 const ADAPTIVE_MAX_TOKENS = 32_000;
-
-/**
- * The per-call request fields a thinking choice contributes — the `max_tokens`
- * cap, whether the call must be streamed, and the `thinking` / `output_config`
- * params to merge into the request.
- */
-type ThinkingRequest = {
-  maxTokens: number;
-  /**
-   * Adaptive-thinking calls must be streamed — their high `max_tokens` trips
-   * the SDK's long-request guard on a plain `create`. Budget / off calls do not.
-   */
-  stream: boolean;
-  extra: {
-    thinking?: Anthropic.ThinkingConfigParam;
-    output_config?: Anthropic.OutputConfig;
-  };
-};
-
-/** Turn a thinking choice into its per-call request fields. */
-function planThinking(choice: ThinkingChoice): ThinkingRequest {
-  if (choice.type === "off") {
-    // Said explicitly, not left out: Fireworks's Anthropic-compatible endpoint
-    // lets a reasoning model (Kimi K3, DeepSeek V4.1) think when `thinking` is
-    // absent, and the thinking spends the whole `MAX_TOKENS` before any text.
-    return {
-      maxTokens: MAX_TOKENS,
-      stream: false,
-      extra: { thinking: { type: "disabled" } },
-    };
-  }
-  if (choice.type === "budget") {
-    return {
-      maxTokens: choice.budgetTokens + OUTPUT_HEADROOM_TOKENS,
-      stream: false,
-      extra: {
-        thinking: { type: "enabled", budget_tokens: choice.budgetTokens },
-      },
-    };
-  }
-  return {
-    maxTokens: ADAPTIVE_MAX_TOKENS,
-    stream: true,
-    extra: {
-      thinking: { type: "adaptive" },
-      output_config: { effort: choice.effort },
-    },
-  };
-}
-
-/** Which open-query result shape the system prompt asks for (Q2 / ADR-0005). */
-export type TailMode = "full" | "pithy" | "drop";
-
-/**
- * Resolve the tail mode from `AI_TAIL_MODE`. It governs only the
- * empty/open-query branch of the prompt (a narrowing query returns a focused
- * shortlist in every mode):
- *
- * - `full`  — every candidate Option is returned, each with a full one-line
- *   rationale. The pre-pithy baseline.
- * - `pithy` — every candidate Option is returned, but the rationale shrinks
- *   with the pick: a genuine pick gets a short one-line rationale, a clearly
- *   weak pick a terse few-word note, an obviously bad pick an empty string —
- *   no rationale at all. The default — it preserves ADR-0005's whole-Catalog
- *   result while trimming the output the model has to generate.
- * - `drop`  — the model omits Options it judges clearly bad picks and returns
- *   only a short shortlist, which saves output tokens. `search` still appends
- *   the omitted ones, as it does in every mode on an open query, so the screen
- *   shows the shortlist followed by the rest, marked "Not ranked". Every
- *   candidate still reaches the screen, but only the shortlist is ranked: the
- *   rest trails in alphabetical order with no rationale, short of ADR-0005's
- *   whole Catalog ranked by the model. So it is kept behind the env var, not
- *   made the default; making it the default would warrant an ADR-0005
- *   amendment.
- *
- * An unset or unrecognized value resolves to `pithy`.
- */
-export function resolveTailMode(): TailMode {
-  const value = process.env.AI_TAIL_MODE;
-  return value === "full" || value === "drop" ? value : "pithy";
-}
 
 /**
  * What each part of the snapshot is evidence of — shared with the Prepared
@@ -541,15 +357,13 @@ export const SNAPSHOT_EVIDENCE = [
     "long cook on a weeknight, a restaurant after a run of home-cooked meals, " +
     "a heavy dish after a heavy one.",
   "- The timing facts are counts, not a ranking. Each candidate carries " +
-    "eaten (how many days they have had it), daysSinceLast, recentGaps and " +
-    "weekdays; each Tag carries all but weekdays across every Option carrying " +
-    "it. recentGaps are the days between its last eats, newest first, up to " +
-    "four, given once it has been eaten twice: the pace they keep now, as " +
-    "they keep it. Their gaps vary, so daysSinceLast short of the last gap is " +
-    "ordinary, not ruled out, and a long gap among them is a break they took, " +
-    "not a pace to catch up on. weekdays is how many of its dinners fell on " +
-    "each weekday; anything said about a weekday habit has to be true of " +
-    "those counts.",
+    "eaten (how many days they have had it), daysSinceLast and recentGaps; " +
+    "each Tag carries the same across every Option carrying it. recentGaps " +
+    "are the days between its last eats, newest first, up to four, given " +
+    "once it has been eaten twice: the pace they keep now, as they keep it. " +
+    "Their gaps vary, so daysSinceLast short of the last gap is ordinary, " +
+    "not ruled out, and a long gap among them is a break they took, not a " +
+    "pace to catch up on.",
   "- A Rejection is their verdict on one Option for one night, with an " +
     "optional reason and a date, past or upcoming. A reason can be a " +
     "condition that holds until a Log entry or a later note says otherwise, " +
@@ -575,9 +389,9 @@ export const SNAPSHOT_EVIDENCE = [
 
 /**
  * Recency as one input, read through habits — shared by both prompts. The
- * older "your job is NOT to re-sort by recency" framing made Strata ignore
- * recency altogether: it ranked an Option first a week after the household
- * last had it.
+ * older "your job is NOT to re-sort by recency" framing made the local model
+ * ignore recency altogether: it ranked an Option first a week after the
+ * household last had it.
  */
 export const RECENCY_THROUGH_HABITS =
   "Read the whole history for its rhythms — how often each thing comes " +
@@ -590,17 +404,6 @@ export const RECENCY_THROUGH_HABITS =
   "like any other.";
 
 /**
- * Shared by the whole-Catalog tail modes. Opus 5.5 reliably left out the one
- * candidate with no Log history, notes, or Rejections — nothing to say about it
- * read as nothing to rank. This line did not stop that (README finding 15:
- * still omitted in every run); `search` appending the omitted candidates is
- * what fixes it.
- */
-const EVERY_CANDIDATE_INSTRUCTION =
-  " Every candidate must appear exactly once, including an Option with no " +
-  "Log history at all.";
-
-/**
  * How a rationale is written — `CONTEXT.md`'s **AI rationale** rule, shared by
  * both prompts. Only general statements: the v10 version's example leads were
  * lines from this Household's Log.
@@ -610,7 +413,7 @@ export const RATIONALE_RULES = [
   "- Lead with what the screen cannot show: a note of theirs about how it " +
     "went, a standing reason they once gave, how the Option fits the shape of " +
     "this evening (who is home, what the last few nights were, what the Day " +
-    "note says), or a weekday habit the counts bear out. Timing earns at most " +
+    "note says), or a weekday habit the Log bears out. Timing earns at most " +
     "a clause after that (\"…and its stretch is up\"), never the whole line. " +
     "A row with nothing but timing to say belongs low and says little.",
   "- NEVER state how long it has been since the household last ate " +
@@ -634,38 +437,28 @@ export const RATIONALE_RULES = [
     "once in the whole reply. Never write the same rationale twice.",
 ].join("\n");
 
-/** The empty/open-query result instruction, per tail mode (see `resolveTailMode`). */
-const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
-  full:
-    "- If the query is empty or does not narrow the Catalog, return every " +
-    "candidate Option from the snapshot, ranked best first. For an Option " +
-    "high in the ranking the rationale says why it is a strong pick tonight; " +
-    "for an Option low in the ranking it says why it is a weaker pick. Every " +
-    "rationale is one short line, roughly 140 characters at most." +
-    EVERY_CANDIDATE_INSTRUCTION,
-  pithy:
-    "- If the query is empty or does not narrow the Catalog, return every " +
-    "candidate Option from the snapshot, ranked best first, varying how " +
-    "much you write by how strong the pick is. For an Option that is a " +
-    "genuine pick tonight — typically the first few in the ranking — give " +
-    "a one-line rationale of roughly 100 characters (140 at most) naming " +
-    "the strongest reason behind its rank. Say it and stop: do not hedge or " +
-    "pile on further justification once the reason is stated. For an Option " +
-    "you judge a weak pick, give only a terse note of three to six words " +
-    "— never a full sentence, and never nothing: every row says one thing, " +
-    "so the household can see why it sits where it does. You decide which " +
-    "tier each Option falls in; the weaker the pick, the less needs to be " +
-    "said." +
-    EVERY_CANDIDATE_INSTRUCTION,
-  drop:
-    "- If the query is empty or does not narrow the Catalog, return only the " +
-    "Options genuinely worth considering for tonight, ranked best first, and " +
-    "omit the Options you judge clearly bad picks (eaten yesterday or the day " +
-    "before, nowhere near due, a standing reason against them). Do not return " +
-    "the whole Catalog — " +
-    "a short, honest shortlist is the goal, and you decide where the cutoff " +
-    "falls. Each rationale is one short line, roughly 140 characters at most.",
-};
+/**
+ * The empty/open-query result instruction (Q2 / ADR-0005): every candidate,
+ * the rationale shrinking with the pick, which trims the output the model has
+ * to generate while keeping the whole Catalog ranked. Its last sentence did
+ * not stop the model leaving out the one candidate with no Log history, notes,
+ * or Rejections (still omitted in every run of the September comparison);
+ * `search` appending the omitted candidates is what fixes that.
+ */
+const OPEN_QUERY_INSTRUCTION =
+  "- If the query is empty or does not narrow the Catalog, return every " +
+  "candidate Option from the snapshot, ranked best first, varying how " +
+  "much you write by how strong the pick is. For an Option that is a " +
+  "genuine pick tonight — typically the first few in the ranking — give " +
+  "a one-line rationale of roughly 100 characters (140 at most) naming " +
+  "the strongest reason behind its rank. Say it and stop: do not hedge or " +
+  "pile on further justification once the reason is stated. For an Option " +
+  "you judge a weak pick, give only a terse note of three to six words " +
+  "— never a full sentence, and never nothing: every row says one thing, " +
+  "so the household can see why it sits where it does. You decide which " +
+  "tier each Option falls in; the weaker the pick, the less needs to be " +
+  "said. Every candidate must appear exactly once, including an Option " +
+  "with no Log history at all.";
 
 /**
  * The output format spec — the exact shape `parseRankingText` reads back.
@@ -687,9 +480,10 @@ const TEXT_FORMAT_INSTRUCTION = [
     `narrow the Catalog, first write the single word ${OPEN_QUERY_MARKER} ` +
     "alone on a line; for a query that narrows it, write no such line. Then " +
     "write ONE LINE per Option, in rank order, best first:",
-  "<number>|<rationale>",
-  "That is the Option's number copied exactly from the snapshot, then a " +
-    "single | character, then the rationale as plain text on the same line. " +
+  "<code>|<rationale>",
+  "That is the Option's code — its id in its own options entry, a letter or " +
+    "two like G or AB — then a single | character, then the rationale as " +
+    "plain text on the same line. Each line starts with the code itself. " +
     "Write nothing else at all: no JSON, no bullets or list numbering, no " +
     "blank lines between rows, no headings, and no sentence before or after " +
     "the list. A rationale never contains a " +
@@ -699,18 +493,12 @@ const TEXT_FORMAT_INSTRUCTION = [
 
 /**
  * Bumped whenever the ranking prompt's wording changes, so a backtest run's
- * record says which prompt it measured (`scripts/ai-search-eval.ts`). The
- * Prepared note prompt has its own (`PREPARED_PROMPT_VERSION`); the two move
- * together when a shared bullet changes.
+ * record says which prompt it measured (`scripts/ai-search-eval.ts`).
  */
-export const AI_SEARCH_PROMPT_VERSION = "13";
+export const AI_SEARCH_PROMPT_VERSION = "15";
 
-/**
- * Build the system prompt for a tail mode. The prompt is identical across
- * modes except for the empty/open-query result instruction — see
- * `OPEN_QUERY_INSTRUCTION` and `resolveTailMode`.
- */
-export function buildSystemPrompt(mode: TailMode): string {
+/** Build the AI search system prompt. */
+export function buildSystemPrompt(): string {
   return [
     "You help one household decide what to eat for dinner tonight.",
     "",
@@ -718,11 +506,12 @@ export function buildSystemPrompt(mode: TailMode): string {
       "search on a final line.",
     "",
     "The snapshot is JSON: today's date (with weekday), their Catalog of " +
-      "dinner Options — each Option carrying a number — a tags block, their " +
-      "dinner Log as dated history (newest first), each entry giving the " +
-      "Option eaten by its number alone, a Rejections block — Options the " +
-      "household has turned down, each by its number alone — and their Day " +
-      "notes. Look each Log and Rejection number up to read its name, kind, " +
+      "dinner Options — each Option carrying a code, its id, a letter or two " +
+      "like G or AB — a tags block, their dinner Log as dated history (newest " +
+      "first), each entry giving the Option eaten by its code alone, a " +
+      "Rejections block — Options the household has turned down, each by its " +
+      "code alone — and their Day notes. Look each Log and Rejection code up " +
+      "to read its name, kind, " +
       "and Tags: a candidate's in options, any other Option's in " +
       "otherOptions — Options already Picked, Rejected, or Closed for " +
       "tonight, listed only so their history reads. The Log and the " +
@@ -750,8 +539,8 @@ export function buildSystemPrompt(mode: TailMode): string {
       "that fit it — a focused shortlist, ranked best first, not the whole " +
       "Catalog re-sorted, each rationale a short line naming why that Option " +
       "fits.",
-    OPEN_QUERY_INSTRUCTION[mode],
-    "Every number must be copied exactly from an Option in the snapshot.",
+    OPEN_QUERY_INSTRUCTION,
+    "Every code is an Option's id from its own entry in the snapshot.",
     "",
     RATIONALE_RULES,
     "",
@@ -768,8 +557,8 @@ export function buildSystemPrompt(mode: TailMode): string {
  * that trails it. The snapshot body is stable between searches minutes apart,
  * so `createAiSearchClient` sends it in a `cache_control` block; the query is
  * the one part that varies per search, so it trails uncached. The body is
- * `leanSnapshot`'s, history rows by number alone. Exported so
- * `scripts/model-comparison/show-prompt.mjs` prints exactly what
+ * `leanSnapshot`'s, history rows by code alone. Exported so
+ * `scripts/ai-search-eval.ts --snapshot` prints exactly what
  * `createAiSearchClient` sends, rather than hand-copying the split.
  */
 export function splitUserTurn(snapshot: ModelSnapshot): {
@@ -790,7 +579,7 @@ export interface AiSearchClient {
 
 /**
  * Emit one structured log line for a completed model call (PRD §"Observability",
- * user story 27): query length, model id, tail mode, thinking, latency,
+ * user story 27): query length, model id, thinking effort, latency,
  * outcome, result count, how many of those were appended omitted candidates,
  * and — when the call returned a response — its token
  * usage, thinking tokens broken out of the output total. One line
@@ -804,9 +593,7 @@ function logModelCall(fields: {
   /** Length of the Household's query, delimiters excluded. */
   queryLength: number;
   model: string;
-  /** The open-query result shape the prompt asked for. */
-  tailMode: TailMode;
-  /** The thinking choice in effect — `off`, `budget:N`, or `effort:level`. */
+  /** The thinking effort in effect, as `effort:level`. */
   thinking: string;
   latencyMs: number;
   /** `ok`, or `fallback` when the call yielded no usable result. */
@@ -844,10 +631,9 @@ function logModelCall(fields: {
  * env-free.
  *
  * The model is `AI_MODEL` (a current Opus by default), the thinking effort
- * is `AI_EFFORT` (see `AiEffort`), and the open-query result shape is
- * `AI_TAIL_MODE` (see `resolveTailMode`). `overrides` lets the eval harness
- * pin the model and an explicit `ThinkingChoice`, bypassing those env vars,
- * and record the model's raw ranking text via `onResponseText`.
+ * is `AI_EFFORT` (see `AiEffort`). `overrides` pins the model and the
+ * effort, bypassing those env vars, and records the model's raw ranking text
+ * via `onResponseText`.
  *
  * `search` is fail-safe: the single model call carries an `AbortController`
  * timeout — 90 seconds unless `AI_TIMEOUT_MS` overrides it, which only the eval
@@ -860,28 +646,18 @@ export function createAiSearchClient(
   apiKey: string,
   overrides?: {
     model?: string;
-    thinking?: ThinkingChoice;
+    effort?: AiEffort;
     /** Receives the model's raw ranking text — for the eval harness to record. */
     onResponseText?: (text: string) => void;
   },
 ): AiSearchClient {
   const anthropic = new Anthropic({ apiKey });
   const model = overrides?.model || resolveModel();
-  const choice = overrides?.thinking ?? envThinkingChoice(model);
-  // Sent, `disabled` would 400 every search into the fallback; fail loudly on
-  // the misconfiguration instead, as `envThinkingChoice` does for a budget.
-  if (choice.type === "off" && !canDisableThinking(model)) {
-    throw new Error(
-      `AI_EFFORT=off, but ${model} cannot turn thinking off — set AI_EFFORT ` +
-        `to low/medium/high.`,
-    );
-  }
-  const plan = planThinking(choice);
-  const tailMode = resolveTailMode();
-  const systemPrompt = buildSystemPrompt(tailMode);
+  const effort = overrides?.effort ?? resolveEffort();
+  const systemPrompt = buildSystemPrompt();
 
   return {
-    async search({ snapshot, idByIndex }) {
+    async search({ snapshot, idByCode }) {
       const startedAt = Date.now();
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), resolveTimeoutMs());
@@ -904,9 +680,9 @@ export function createAiSearchClient(
       let result: AiSearchResult = AI_SEARCH_UNAVAILABLE;
       let usage: Anthropic.Usage | undefined;
       try {
-        const params: Anthropic.MessageCreateParamsNonStreaming = {
+        const params: Anthropic.MessageStreamParams = {
           model,
-          max_tokens: plan.maxTokens,
+          max_tokens: ADAPTIVE_MAX_TOKENS,
           system: systemPrompt,
           // No tool is offered: the ranking comes back as the response's own
           // text (see `TEXT_FORMAT_INSTRUCTION`), so a tool schema would only
@@ -928,18 +704,14 @@ export function createAiSearchClient(
               ],
             },
           ],
-          ...plan.extra,
+          thinking: { type: "adaptive" },
+          output_config: { effort },
         };
-        // Adaptive thinking must be streamed (see `ThinkingRequest.stream`);
-        // `finalMessage()` then yields the same assembled Message a plain
-        // `create` would.
-        const response = plan.stream
-          ? await anthropic.messages
-              .stream(params, { signal: controller.signal })
-              .finalMessage()
-          : await anthropic.messages.create(params, {
-              signal: controller.signal,
-            });
+        // Streamed for the cap (see `ADAPTIVE_MAX_TOKENS`); `finalMessage()`
+        // yields the same assembled Message a plain `create` would.
+        const response = await anthropic.messages
+          .stream(params, { signal: controller.signal })
+          .finalMessage();
         usage = response.usage;
         // Thinking blocks precede the answer; only the text blocks carry the
         // ranking, and they are joined in case the model split it across more
@@ -951,9 +723,9 @@ export function createAiSearchClient(
           .map((block) => (block.type === "text" ? block.text : ""))
           .join("\n");
         overrides?.onResponseText?.(text);
-        const parsed = parseRankingText(text, idByIndex);
+        const parsed = parseRankingText(text, idByCode);
         if (parsed !== null) {
-          // An open query's result is the whole Catalog, in every tail mode —
+          // An open query's result is the whole Catalog —
           // an empty query is open by definition; a non-empty one is open
           // only if the model said so. That holds even when the model wrote
           // `NONE`: nothing can fail to fit a query that asks for nothing.
@@ -962,7 +734,7 @@ export function createAiSearchClient(
           const { rows } = parsed;
           const open = queryText.trim() === "" || parsed.open;
           const results = open
-            ? backfillOmittedCandidates(rows, idByIndex)
+            ? backfillOmittedCandidates(rows, idByCode)
             : rows;
           backfilledCount = results.length - rows.length;
           result = { ok: true, results };
@@ -980,8 +752,7 @@ export function createAiSearchClient(
       logModelCall({
         queryLength: queryText.length,
         model,
-        tailMode,
-        thinking: describeThinking(choice),
+        thinking: `effort:${effort}`,
         latencyMs: Date.now() - startedAt,
         outcome: result.ok ? "ok" : "fallback",
         resultCount: result.ok ? result.results.length : 0,

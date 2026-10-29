@@ -1,20 +1,16 @@
 /**
- * The AI ranking backtest, shared by `scripts/prepared-note-eval.ts` (Strata)
- * and `scripts/ai-search-eval.ts` (Claude): run a ranker against recent
- * **decided** days, each built as the Household saw it before deciding
- * (`snapshotForDay`'s backtest mode), and score the ranking against what was
- * actually eaten that day.
+ * The AI ranking backtest, shared by `scripts/prepared-note-eval.ts` (the
+ * local model) and `scripts/ai-search-eval.ts` (Claude): run a ranker
+ * against recent **decided** days, each built as the Household saw it before
+ * deciding (`snapshotForDay`'s backtest mode), and score the ranking against
+ * what was actually eaten that day.
  *
  * Per day and in aggregate: the rank of the Pick, hit@3/5/10, the Pick's
  * daysSinceLast and recent gaps, any Option Rejected that day as too soon
  * that sat in the top 5, top-5 slots spent on Options never eaten in the
- * window, empty top-10 reasons, and a ranking written in snapshot-number
- * order (rank positions where numbers belong). Prepared notes add the brief's
- * consistency — the Options it names sit in the top 3, and it mentions the Day
- * note when there is one — and rows the parser had to resolve by name. Flags
- * are for a reader, not verdicts: elapsed-time phrasing, weekday-habit claims
- * printed next to that Option's weekday counts, and top-10 rationales that
- * say nothing but timing. Every flag counts over the brief and the top 10.
+ * window, empty top-10 reasons, and a ranking written in Option-code
+ * order (rank positions where codes belong). A Prepared note's brief is
+ * recorded for reading, not scored: a prompt change is judged by reading days.
  *
  * Two runs' `--json` files are compared by `scripts/backtest-compare.ts`.
  *
@@ -44,56 +40,13 @@ import {
 } from "../lib/local-day";
 import {
   type BuiltSnapshot,
-  type SnapshotModelOption,
+  codeIndex,
   snapshotForDay,
+  type SnapshotModelOption,
 } from "../lib/snapshot";
 
 const DEFAULT_COUNT = 20;
 const DEFAULT_WINDOW_DAYS = 60;
-
-/**
- * Phrases that usually break the rhythm-claim rule (`CONTEXT.md`: **AI
- * rationale**) — a date, a day or week count, a month, a vague "it has been a
- * while", or a relative "last week" / "just had" / "this past Sunday". A flag
- * to read, not a verdict: "every two weeks" is fine and still matches.
- */
-export const RHYTHM_CLAIM_SUSPECTS =
-  /\b\d{1,2}\/\d{1,2}\b|\b\d+\s+(?:[Dd]ays?|[Ww]eeks?|[Mm]onths?)\b|\b(?:days?|weeks?|months?)\s+ago\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\b|\b(?:a while|long gap)\b|\b[Ll]ast (?:week|night|weekend)\b|\b[Jj]ust (?:had|ate|eaten|been)\b|\b[Tt]his past (?:Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)day\b|\b(?:after|eaten) (?:last )?(?:Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)day\b/g;
-
-/** A weekday named in a rationale — "Tuesday", "Fridays". */
-const WEEKDAY_CLAIM = /\b(?:Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)days?\b/;
-
-/** Timing words: a sentence carrying one talks about cadence or recency. */
-const CADENCE_WORDS =
-  /\b(?:interval|stretch|cadence|rhythm|due|overdue|gap|spacing|spaced|rotation|usual|usually|recent|recently|lately|ready|again|every|since|soon|weeks?|days?|fortnight|turn|repeat)\b/i;
-
-/** Too common to show a rationale drew on the Household's own words. */
-const STOPWORDS = new Set(
-  "about after again also always another around because been before being better could dinner does doesn't each even every first from going good great have having into just keep like make more much night only other over really should since some still than that their them then there these they thing this those tonight usual usually very well were what when which while where will with would your week weeks".split(
-    " ",
-  ),
-);
-
-/** A ≥4-letter word, lowercased, not a stopword or timing word. */
-function contentWords(text: string): Set<string> {
-  return new Set(
-    (text.toLowerCase().match(/[a-z][a-z']{3,}/g) ?? []).filter(
-      (word) => !STOPWORDS.has(word) && !CADENCE_WORDS.test(word),
-    ),
-  );
-}
-
-/**
- * The words of a Day note worth finding in the brief: three letters up, so
- * "No Jen" is read by "jen" (`contentWords` starts at four and missed it).
- */
-function noteWords(text: string): Set<string> {
-  return new Set(
-    (text.toLowerCase().match(/[a-z][a-z']{2,}/g) ?? []).filter(
-      (word) => !STOPWORDS.has(word),
-    ),
-  );
-}
 
 /** One decided day and its ground truth, read from the live tables. */
 export type BacktestDay = {
@@ -113,15 +66,13 @@ export type Generation = {
   brief?: string;
   latencyMs?: number;
   outputTokens?: number;
-  /** Strata's reasoning trace, saved beside the JSON when asked for. */
+  /** The local model's reasoning trace, saved beside the JSON when asked for. */
   reasoning?: string;
-  /** Prepared notes: rows the parser resolved by name over the number. */
-  resolvedByName?: number;
 };
 
 type Ranked = { rank: number; name: string };
 
-/** One day's score and flags — one record in the `--json` file. */
+/** One day's score — one record in the `--json` file. */
 export type DayRecord = {
   day: string;
   weekday: string;
@@ -148,22 +99,12 @@ export type DayRecord = {
   /** Top-10 rows with an empty reason. */
   emptyTop10: number;
   /**
-   * The whole ranking came out in snapshot-number order: the model wrote its
-   * rank positions where the numbers belong, and the "ranking" is the Catalog.
+   * The whole ranking came out in Option-code order: the model wrote its rank
+   * positions where the codes belong, and the "ranking" is the Catalog. With
+   * letter codes such a row resolves to nothing (ADR-0013); kept as a sentinel.
    */
   catalogOrder: boolean;
-  /** Prepared notes: rows the parser resolved by name over the number. */
-  resolvedByName?: number;
   brief?: string;
-  /** Options the brief names — each should be in the top 3. */
-  briefNamed?: Ranked[];
-  /** With a Day note: whether the brief shares a word with it (read it). */
-  briefMentionsDayNote?: boolean;
-  flags: {
-    elapsed: { where: string; text: string }[];
-    weekdayClaims: (Ranked & { weekdays: Record<string, number>; reason: string })[];
-    timingOnly: (Ranked & { reason: string })[];
-  };
   ranking: (Ranked & { reason: string })[];
   latencyMs?: number;
   outputTokens?: number;
@@ -195,8 +136,8 @@ export function scoreDay(
   built: BuiltSnapshot,
   generation: Generation,
 ): DayRecord {
-  const { snapshot, idByIndex, nameById } = built;
-  const candidateIds = new Set(idByIndex.values());
+  const { snapshot, idByCode, nameById } = built;
+  const candidateIds = new Set(idByCode.values());
   const rankById = new Map(generation.ranking.map((row, i) => [row.id, i + 1]));
   const nameOf = (id: string) => nameById.get(id) ?? id;
 
@@ -220,30 +161,13 @@ export function scoreDay(
       : [];
   });
 
-  // The model-facing record of each candidate, for its weekday counts and the
-  // Household's words about it.
-  const optionByNumber = new Map(snapshot.options.map((o) => [o.id, o]));
+  // The model-facing record of each candidate, for the Pick's timing.
+  const optionByCode = new Map(snapshot.options.map((o) => [o.id, o]));
   const modelOption = new Map<string, SnapshotModelOption>();
-  for (const [number, id] of idByIndex) {
-    const option = optionByNumber.get(number);
+  for (const [code, id] of idByCode) {
+    const option = optionByCode.get(code);
     if (option) modelOption.set(id, option);
   }
-  const householdWords = (id: string): Set<string> => {
-    const option = modelOption.get(id);
-    if (!option) return new Set();
-    const texts = [
-      option.notes ?? "",
-      ...option.tags,
-      ...snapshot.log
-        .filter((entry) => entry.optionId === option.id)
-        .map((entry) => entry.note ?? ""),
-      ...snapshot.rejections.notTodayRejections
-        .filter((row) => row.optionId === option.id)
-        .map((row) => row.reason ?? ""),
-      snapshot.todayDayNote ?? "",
-    ];
-    return contentWords(texts.join(" "));
-  };
 
   const ranking = generation.ranking.map((row, i) => ({
     rank: i + 1,
@@ -262,55 +186,17 @@ export function scoreDay(
         : {}),
     }));
 
-  const numberById = new Map([...idByIndex].map(([number, id]) => [id, number]));
-  const numbers = generation.ranking.map((row) => numberById.get(row.id) ?? 0);
+  const codeById = new Map([...idByCode].map(([code, id]) => [id, code]));
+  const positions = generation.ranking.map((row) => codeIndex(codeById.get(row.id) ?? ""));
   const catalogOrder =
-    numbers.length >= 10 && numbers.every((n, i) => i === 0 || n > numbers[i - 1]);
-
-  const elapsed = [
-    ...(generation.brief !== undefined
-      ? [{ where: "brief", text: generation.brief }]
-      : []),
-    ...ranking.slice(0, 10).map((row) => ({ where: `#${row.rank}`, text: row.reason })),
-  ].flatMap(({ where, text }) =>
-    (text.match(RHYTHM_CLAIM_SUSPECTS) ?? []).map((match) => ({ where, text: match })),
-  );
-
-  const weekdayClaims = top10.flatMap((row, i) =>
-    WEEKDAY_CLAIM.test(row.reason)
-      ? [
-          {
-            rank: i + 1,
-            name: nameOf(row.id),
-            weekdays: modelOption.get(row.id)?.weekdays ?? {},
-            reason: row.reason,
-          },
-        ]
-      : [],
-  );
-
-  const timingOnly = top10.flatMap((row, i) => {
-    const sentences = row.reason
-      .split(/(?<=[.!?])\s+/)
-      .filter((sentence) => sentence.trim() !== "");
-    const allTiming =
-      sentences.length > 0 && sentences.every((s) => CADENCE_WORDS.test(s));
-    const words = householdWords(row.id);
-    const sourced =
-      WEEKDAY_CLAIM.test(row.reason) ||
-      /["“”]/.test(row.reason) ||
-      [...contentWords(row.reason)].some((word) => words.has(word));
-    return allTiming && !sourced
-      ? [{ rank: i + 1, name: nameOf(row.id), reason: row.reason }]
-      : [];
-  });
+    positions.length >= 10 && positions.every((n, i) => i === 0 || n > positions[i - 1]);
 
   const record: DayRecord = {
     day: truth.day,
     weekday: weekdayName(truth.day),
     dayNote: truth.dayNote,
     ok: generation.ok,
-    candidates: idByIndex.size,
+    candidates: idByCode.size,
     picks,
     bestRank,
     scorable,
@@ -321,65 +207,13 @@ export function scoreDay(
     tooSoonMisses,
     emptyTop10: top10.filter((row) => row.reason.trim() === "").length,
     catalogOrder,
-    flags: { elapsed, weekdayClaims, timingOnly },
     ranking,
     latencyMs: generation.latencyMs,
     outputTokens: generation.outputTokens,
   };
-  if (generation.resolvedByName !== undefined) {
-    record.resolvedByName = generation.resolvedByName;
-  }
 
-  if (generation.brief !== undefined) {
-    record.brief = generation.brief;
-    record.briefNamed = namedInBrief(generation.brief, built).map((id) => ({
-      rank: rankById.get(id) ?? 0,
-      name: nameOf(id),
-    }));
-    if (truth.dayNote) {
-      const wanted = noteWords(truth.dayNote);
-      record.briefMentionsDayNote = [...noteWords(generation.brief)].some((word) =>
-        wanted.has(word),
-      );
-    }
-  }
+  if (generation.brief !== undefined) record.brief = generation.brief;
   return record;
-}
-
-/** The capitalised words of five letters or more in a name ("Societea", "Ninja", "Stone's"). */
-function nameWords(name: string): string[] {
-  return name.match(/[A-Z][\w'’.-]{4,}/g) ?? [];
-}
-
-/**
- * The candidates a brief names: by full name, case-insensitively, or by a
- * capitalised word of five letters or more that appears in no other
- * candidate's name. Any word of the name, not just the first, and unique
- * across every name: the first-word rule matched "Chicken" in "bb.q Chicken
- * San Bruno" to Chicken and Rice.
- */
-function namedInBrief(brief: string, built: BuiltSnapshot): string[] {
-  const candidates = [...built.idByIndex.values()].map((id) => ({
-    id,
-    name: built.nameById.get(id) ?? "",
-  }));
-  const namesWithWord = new Map<string, number>();
-  for (const { name } of candidates) {
-    for (const word of new Set(nameWords(name))) {
-      namesWithWord.set(word, (namesWithWord.get(word) ?? 0) + 1);
-    }
-  }
-  const lower = brief.toLowerCase();
-  return candidates
-    .filter(({ name }) => {
-      if (name !== "" && lower.includes(name.toLowerCase())) return true;
-      return nameWords(name).some(
-        (word) =>
-          namesWithWord.get(word) === 1 &&
-          new RegExp(`\\b${word.replace(/[^\w]/g, "\\$&")}\\b`).test(brief),
-      );
-    })
-    .map(({ id }) => id);
 }
 
 /** The aggregate over a run's scorable days. */
@@ -421,21 +255,16 @@ export function summarize(records: DayRecord[]) {
     /** Days the Pick came sooner than its shortest recent gap, and how many of those were hit@5. */
     pickUnderIntervalDays: count((r) => r.scorable && underInterval(r)),
     pickUnderIntervalHit5: count((r) => r.scorable && underInterval(r) && r.hit5),
-    neverEatenTop5Slots: sum(
-      (r) => r.ranking.slice(0, 5).filter((row) => !eaten.has(row.name)).length,
+    // Over scored days only, so it reads against `scored * 5`.
+    neverEatenTop5Slots: sum((r) =>
+      r.scorable
+        ? r.ranking.slice(0, 5).filter((row) => !eaten.has(row.name)).length
+        : 0,
     ),
     emptyTop10Rows: sum((r) => r.emptyTop10),
     catalogOrderDays: count((r) => r.catalogOrder === true),
-    rowsResolvedByName: sum((r) => r.resolvedByName),
-    briefNamedOutsideTop3: count(
-      (r) => (r.briefNamed ?? []).some((named) => named.rank === 0 || named.rank > 3),
-    ),
-    briefMissingDayNote: count((r) => r.briefMentionsDayNote === false),
     /** Prepared notes scored on their rows alone: the model skipped the brief. */
     briefSkippedDays: count((r) => r.brief === ""),
-    elapsedSuspects: sum((r) => r.flags.elapsed.length),
-    weekdayClaims: sum((r) => r.flags.weekdayClaims.length),
-    timingOnlyTopRows: sum((r) => r.flags.timingOnly.length),
   };
 }
 
@@ -465,12 +294,21 @@ export function parseBacktestArgs(args: string[], defaultJsonPath: string): Back
     }
     return days;
   };
+  const positive = (name: string, fallback: number) => {
+    const raw = value(name);
+    const n = Number(raw ?? fallback);
+    if (!Number.isInteger(n) || n < 1) {
+      console.error(`--${name} must be a positive integer, got ${raw}`);
+      process.exit(1);
+    }
+    return n;
+  };
   const jsonArg = args.find((arg) => arg === "--json" || arg.startsWith("--json="));
   return {
     days: dayList("days"),
     exclude: dayList("exclude") ?? [],
-    count: Number(value("count") ?? DEFAULT_COUNT),
-    windowDays: Number(value("window") ?? DEFAULT_WINDOW_DAYS),
+    count: positive("count", DEFAULT_COUNT),
+    windowDays: positive("window", DEFAULT_WINDOW_DAYS),
     jsonPath: jsonArg ? (jsonArg.includes("=") ? jsonArg.slice(7) : defaultJsonPath) : undefined,
     resume: args.includes("--resume"),
   };
@@ -621,18 +459,10 @@ function printDay(record: DayRecord): void {
       `${timing ? ` — since ${timing}` : ""} — ${secs}`,
   );
   if (record.dayNote) console.log(`day note: ${record.dayNote}`);
-  if (record.catalogOrder) console.log("CATALOG ORDER: the ranking is the snapshot's numbering");
-  if (record.resolvedByName) console.log(`rows resolved by name: ${record.resolvedByName}`);
+  if (record.catalogOrder) console.log("CATALOG ORDER: the ranking is the snapshot's code order");
   if (record.emptyTop10) console.log(`empty reasons in the top 10: ${record.emptyTop10}`);
   if (record.brief !== undefined) {
     console.log(`brief: ${record.brief || "(SKIPPED by the model — rows scored anyway)"}`);
-    const named = (record.briefNamed ?? [])
-      .map((n) => `${n.name} ${n.rank ? `#${n.rank}` : "unranked"}`)
-      .join(", ");
-    console.log(`brief names: ${named || "none found"}`);
-    if (record.briefMentionsDayNote === false) {
-      console.log("brief: shares no word with the Day note — read it");
-    }
   }
   for (const row of record.ranking.slice(0, 10)) {
     console.log(`${String(row.rank).padStart(2)}. ${row.name}`);
@@ -641,27 +471,13 @@ function printDay(record: DayRecord): void {
   for (const miss of record.tooSoonMisses) {
     console.log(`TOO-SOON MISS: ${miss.name} #${miss.rank} — rejected "${miss.reason}"`);
   }
-  for (const claim of record.flags.weekdayClaims) {
-    const counts = Object.entries(claim.weekdays)
-      .map(([weekday, n]) => `${weekday.slice(0, 3)} ${n}`)
-      .join(" ");
-    console.log(`weekday claim: #${claim.rank} ${claim.name} [${counts || "never eaten"}]`);
-  }
-  for (const row of record.flags.timingOnly) {
-    console.log(`timing-only: #${row.rank} ${row.name}`);
-  }
-  if (record.flags.elapsed.length > 0) {
-    console.log(
-      `elapsed-time suspects: ${record.flags.elapsed.map((e) => `${e.where} "${e.text}"`).join(" · ")}`,
-    );
-  }
   console.log("");
 }
 
 function printTable(records: DayRecord[]): void {
   console.log("--- per day ---");
   console.log(
-    "day         wkday  rank  since/int  @3 @5 @10  too-soon  empty  wkday  timing  elapsed  pick",
+    "day         wkday  rank  since/int  @3 @5 @10  too-soon  empty  pick",
   );
   for (const r of records) {
     const mark = (hit: boolean) => (r.scorable ? (hit ? " ✓" : " ·") : "  ");
@@ -674,9 +490,6 @@ function printTable(records: DayRecord[]): void {
         ` ${mark(r.hit3)} ${mark(r.hit5)} ${mark(r.hit10)} `,
         String(r.tooSoonMisses.length).padStart(8),
         String(r.emptyTop10 ?? 0).padStart(6),
-        String(r.flags.weekdayClaims.length).padStart(6),
-        String(r.flags.timingOnly.length).padStart(7),
-        String(r.flags.elapsed.length).padStart(8),
         ` ${r.picks.map((p) => p.name).join(" + ")}${r.catalogOrder ? "  CATALOG ORDER" : ""}`,
       ].join(" "),
     );
@@ -701,17 +514,7 @@ function printAggregate(summary: ReturnType<typeof summarize>): void {
   console.log(
     `top-5 slots on Options never eaten in the window: ${summary.neverEatenTop5Slots}/${summary.scored * 5}   ` +
       `empty top-10 reasons: ${summary.emptyTop10Rows}   ` +
-      `catalog-order days: ${summary.catalogOrderDays}   ` +
-      `rows resolved by name: ${summary.rowsResolvedByName}`,
+      `catalog-order days: ${summary.catalogOrderDays}`,
   );
-  console.log(
-    `brief names an Option outside the top 3: ${summary.briefNamedOutsideTop3} day(s)   ` +
-      `brief silent on the Day note: ${summary.briefMissingDayNote} day(s)   ` +
-      `brief skipped (rows scored anyway): ${summary.briefSkippedDays} day(s)`,
-  );
-  console.log(
-    `flags over the brief and top 10 — elapsed-time suspects ${summary.elapsedSuspects}   ` +
-      `weekday claims ${summary.weekdayClaims}   ` +
-      `timing-only rows ${summary.timingOnlyTopRows}`,
-  );
+  console.log(`brief skipped (rows scored anyway): ${summary.briefSkippedDays} day(s)`);
 }

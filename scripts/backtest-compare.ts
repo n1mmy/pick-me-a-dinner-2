@@ -1,12 +1,11 @@
 /**
  * Diff two backtest JSON files from scripts/backtest.ts (any ranker) over the
  * same day list. The read comes first: each day's top 10 and brief from both
- * runs, one under the other, with the Pick marked and the flags as markers on
- * the row they belong to — a prompt change is judged by reading days, and the
- * numbers are context (issue 02). Then the aggregates side by side, per-day
- * rank of the Pick and top-N overlap, hit flips, top-5 occupancy per Option,
- * top-5 slots spent on Options never eaten in the window, empty top-10
- * reasons, flag counts per day.
+ * runs, one under the other, with the Pick and any too-soon Rejection marked
+ * on its row — a prompt change is judged by reading days, and the numbers are
+ * context (issue 02). Then the aggregates side by side, per-day rank of the
+ * Pick and top-N overlap, hit flips, top-5 occupancy per Option, top-5 slots
+ * spent on Options never eaten in the window, and empty top-10 reasons.
  *
  *   npx tsx scripts/backtest-compare.ts <a.json> <b.json>
  */
@@ -23,18 +22,11 @@ type Day = {
   hit5: boolean;
   hit10: boolean;
   tooSoonMisses: Array<{ name?: string; optionName?: string; rank?: number; reason?: string }>;
-  flags: {
-    elapsed?: Array<{ where: string; text: string }>;
-    weekdayClaims?: Array<{ rank: number; weekdays?: Record<string, number> }>;
-    timingOnly?: Array<{ rank: number }>;
-    [k: string]: unknown;
-  };
   candidates: number;
   latencyMs: number;
   outputTokens?: number;
   dayNote?: string | null;
   brief?: string;
-  briefNamed?: Array<{ name: string; rank: number }>;
 };
 type Run = { meta: Record<string, string>; aggregate: Record<string, unknown>; results: Day[] };
 
@@ -48,10 +40,6 @@ const B = JSON.parse(readFileSync(bPath, "utf8")) as Run;
 
 const pickName = (p: Day["picks"][number]) => (typeof p === "string" ? p : p.optionName ?? p.name ?? "?");
 const topN = (d: Day, n: number) => d.ranking.filter((r) => r.rank <= n).map((r) => r.name);
-const flagCount = (d: Day, key: string) => {
-  const v = d.flags?.[key];
-  return Array.isArray(v) ? v.length : typeof v === "number" ? v : 0;
-};
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 const fmt = (x: number, digits = 1) => x.toFixed(digits);
 
@@ -70,9 +58,7 @@ console.log(`B: ${bPath}  (${B.meta.model ?? B.meta.ranker}, effort ${B.meta.eff
 
 // The read: both runs' top 10 and brief per day. Markers on a row: ★ the
 // Pick; [too-soon] an Option rejected that day as too soon; [empty] no
-// reason; [wkday Mon 2 Fri 3] a weekday claim with the counts it has to be
-// true of; [timing] a row with nothing but timing to say; [elapsed "…"] an
-// elapsed-time phrase.
+// reason.
 console.log("\n=== the read: top 10 and brief per day, A then B ===");
 const markers = (d: Day, row: Row): string => {
   const picks = new Set(d.picks.map(pickName));
@@ -80,21 +66,12 @@ const markers = (d: Day, row: Row): string => {
   if (picks.has(row.name)) out.push("★");
   if (d.tooSoonMisses.some((m) => (m.name ?? m.optionName) === row.name)) out.push("[too-soon]");
   if (!row.reason?.trim()) out.push("[empty]");
-  const claim = d.flags.weekdayClaims?.find((c) => c.rank === row.rank);
-  if (claim) {
-    const counts = Object.entries(claim.weekdays ?? {}).map(([w, n]) => `${w.slice(0, 3)} ${n}`).join(" ");
-    out.push(`[wkday ${counts || "never eaten"}]`);
-  }
-  if (d.flags.timingOnly?.some((t) => t.rank === row.rank)) out.push("[timing]");
-  for (const e of d.flags.elapsed ?? []) if (e.where === `#${row.rank}`) out.push(`[elapsed "${e.text}"]`);
   return out.length ? ` ${out.join(" ")}` : "";
 };
 const printRun = (label: string, d: Day) => {
   console.log(`  ${label}`);
   if (d.brief !== undefined) {
-    const elapsed = (d.flags.elapsed ?? []).filter((e) => e.where === "brief").map((e) => `[elapsed "${e.text}"]`);
-    const outside = (d.briefNamed ?? []).filter((n) => n.rank === 0 || n.rank > 3).map((n) => `[names #${n.rank || "?"} ${n.name}]`);
-    console.log(`    brief: ${d.brief || "(SKIPPED)"}${[...elapsed, ...outside].map((m) => ` ${m}`).join("")}`);
+    console.log(`    brief: ${d.brief || "(SKIPPED)"}`);
   }
   for (const row of d.ranking.filter((r) => r.rank <= 10)) {
     console.log(`    ${String(row.rank).padStart(2)}. ${row.name}${markers(d, row)}`);
@@ -114,7 +91,7 @@ for (const b of days) {
 }
 
 console.log("\n=== aggregate ===");
-const aggKeys = ["hit3", "hit5", "hit10", "meanRank", "medianRank", "daysWithTooSoonMiss", "elapsedSuspects", "weekdayClaims", "timingOnlyTopRows", "briefNamedOutsideTop3", "briefMissingDayNote"];
+const aggKeys = ["hit3", "hit5", "hit10", "meanRank", "medianRank", "daysWithTooSoonMiss"];
 for (const k of aggKeys) console.log(`${k.padEnd(22)} ${String(A.aggregate[k]).padStart(6)} ${String(B.aggregate[k]).padStart(6)}`);
 console.log(`${"latency s (mean)".padEnd(22)} ${fmt(mean(A.results.map((d) => d.latencyMs)) / 1000).padStart(6)} ${fmt(mean(B.results.map((d) => d.latencyMs)) / 1000).padStart(6)}`);
 console.log(`${"output tokens (mean)".padEnd(22)} ${fmt(mean(A.results.map((d) => d.outputTokens ?? 0)), 0).padStart(6)} ${fmt(mean(B.results.map((d) => d.outputTokens ?? 0)), 0).padStart(6)}`);
@@ -177,12 +154,6 @@ const neverSlots = (run: Run, n: number) => run.results.reduce((acc, d) => acc +
 console.log(`top-5 slots on never-eaten Options: A ${neverSlots(A, 5)}/${days.length * 5}  B ${neverSlots(B, 5)}/${days.length * 5} · top-3: A ${neverSlots(A, 3)}/${days.length * 3}  B ${neverSlots(B, 3)}/${days.length * 3}`);
 const emptyTop10 = (run: Run) => run.results.reduce((acc, d) => acc + d.ranking.filter((r) => r.rank <= 10 && !r.reason?.trim()).length, 0);
 console.log(`empty reasons in the top 10: A ${emptyTop10(A)}  B ${emptyTop10(B)}`);
-
-console.log("\n=== flags per day (elapsed / weekday / timing-only), A vs B ===");
-for (const b of days) {
-  const a = daysA.get(b.day)!;
-  console.log(`${b.day}  ${flagCount(a, "elapsed")}/${flagCount(b, "elapsed")}  ${flagCount(a, "weekdayClaims")}/${flagCount(b, "weekdayClaims")}  ${flagCount(a, "timingOnly")}/${flagCount(b, "timingOnly")}`);
-}
 
 console.log("\n=== the Pick's row in each run ===");
 for (const b of days) {

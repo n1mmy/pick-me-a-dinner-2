@@ -23,7 +23,7 @@ import { appTimeZone, todaySqlDate } from "../../../lib/local-day";
 /** A built snapshot as `snapshotForDay` hands it over — opaque to the route. */
 const BUILT = {
   snapshot: { today: "2026-05-22 (Friday)" },
-  idByIndex: new Map([[1, "o1"]]),
+  idByCode: new Map([["A", "o1"]]),
   nameById: new Map([["o1", "Apple Crumble"]]),
 };
 

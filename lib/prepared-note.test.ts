@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type BuiltSnapshot, leanSnapshot, type ModelSnapshot } from "./snapshot";
+import {
+  type BuiltSnapshot,
+  leanSnapshot,
+  type ModelSnapshot,
+  optionCode,
+} from "./snapshot";
 import {
   BRIEF_ROW,
-  PREPARED_MARKER,
   buildPreparedSystemPrompt,
   createPreparedNoteClient,
   parsePreparedReply,
@@ -107,11 +111,11 @@ const KATSU = "11111111-1111-4111-8111-111111111111";
 const MAZRA = "22222222-2222-4222-8222-222222222222";
 const PHO = "33333333-3333-4333-8333-333333333333";
 
-/** Snapshot numbers back to Option ids, as `buildSnapshot` hands them out. */
-const idByIndex = new Map([
-  [1, KATSU],
-  [2, MAZRA],
-  [3, PHO],
+/** Option codes back to Option ids, as `buildSnapshot` hands them out. */
+const idByCode = new Map([
+  ["A", KATSU],
+  ["B", MAZRA],
+  ["C", PHO],
 ]);
 
 const nameById = new Map([
@@ -121,7 +125,7 @@ const nameById = new Map([
 ]);
 
 /** The built value the client takes: the snapshot and its id maps together. */
-const built: BuiltSnapshot = { snapshot, idByIndex, nameById };
+const built: BuiltSnapshot = { snapshot, idByCode, nameById };
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -152,9 +156,9 @@ describe("parsePreparedReply", () => {
   it("returns the ranking rows in written order and the brief from the last line", () => {
     const reply = [
       "",
-      "3|Pho Saigon|The standing Thursday choice, and it travels well.",
-      "1|Katsu curry|Long cook for a weeknight on your own.",
-      "2|Mazra|Closed Thursdays in practice; skip it.",
+      "C|The standing Thursday choice, and it travels well.",
+      "A|Long cook for a weeknight on your own.",
+      "B|Closed Thursdays in practice; skip it.",
       "Brief|  A quiet Thursday with Jen away, so something easy for one. Pho is the standout: the standing Thursday choice. ",
       "  ",
     ].join("\n");
@@ -168,52 +172,74 @@ describe("parsePreparedReply", () => {
         { id: KATSU, reason: "Long cook for a weeknight on your own." },
         { id: MAZRA, reason: "Closed Thursdays in practice; skip it." },
       ],
-      resolvedByName: 0,
     });
   });
 
-  it("resolves a row by its name when the number names another Option, or no candidate", () => {
-    // Strata wrote its rank position where the number belongs: row 1 is
-    // "1" but names Pho, and row 2 names Katsu under a number that is no
-    // candidate at all.
+  it("is unavailable for a ranking written in rank positions", () => {
+    // The local model and Opus have both written the rank where the code
+    // belongs. With integer ids that read as the Catalog in alphabetical order
+    // (ADR-0013); a digit is no code, so now no row resolves.
     const reply = [
-      "1|Pho Saigon|The standing Thursday choice.",
-      "9|katsu curry|Long cook.",
-      "2|Mazra|Skip it.",
+      "1|The standing Thursday choice.",
+      "2|Long cook.",
+      "3|Skip it.",
       "brief|A quiet Thursday.",
     ].join("\n");
 
-    expect(parsePreparedReply(reply, built)).toEqual({
-      brief: "A quiet Thursday.",
-      ranking: [
-        { id: PHO, reason: "The standing Thursday choice." },
-        { id: KATSU, reason: "Long cook." },
-        { id: MAZRA, reason: "Skip it." },
-      ],
-      resolvedByName: 2,
-    });
+    expect(parsePreparedReply(reply, built)).toBeNull();
   });
 
-  it("reads a row with no name column by its number, and keeps a | inside a rationale", () => {
+  it("refuses a reply whose rows lead with their rank", () => {
+    // The code is the first column only (ADR-0013): `rank|code|…` resolves
+    // no row.
     const reply = [
-      "3|The standing Thursday choice.",
-      "1|Katsu curry|Long cook | fine at the weekend.",
-      "2|Not a name|Skip it.",
+      "1|C|The standing Thursday choice.",
+      "2|a|Long cook.",
+      "3|B|Skip it.",
+      "brief|A quiet Thursday.",
+    ].join("\n");
+
+    expect(parsePreparedReply(reply, built)).toBeNull();
+  });
+
+  it("keeps a | inside a rationale and in the brief", () => {
+    const reply = [
+      "C|The standing Thursday choice.",
+      "A|Long cook | fine at the weekend.",
       "brief|A quiet Thursday | nothing fancy.",
     ].join("\n");
 
-    expect(parsePreparedReply(reply, built)?.ranking).toEqual([
-      { id: PHO, reason: "The standing Thursday choice." },
-      { id: KATSU, reason: "Long cook | fine at the weekend." },
-      { id: MAZRA, reason: "Not a name|Skip it." },
+    expect(parsePreparedReply(reply, built)).toEqual({
+      brief: "A quiet Thursday | nothing fancy.",
+      ranking: [
+        { id: PHO, reason: "The standing Thursday choice." },
+        { id: KATSU, reason: "Long cook | fine at the weekend." },
+      ],
+    });
+  });
+
+  it("ranks two Options of the same name, and one with a | in its name, each by code", () => {
+    const twin = "44444444-4444-4444-8444-444444444444";
+    const barred = "55555555-5555-4555-8555-555555555555";
+    const withTwins: BuiltSnapshot = {
+      snapshot,
+      idByCode: new Map([...idByCode, ["D", twin], ["E", barred]]),
+      nameById: new Map([...nameById, [twin, "Pho Saigon"], [barred, "Fish | Chips"]]),
+    };
+    const reply = "C|The restaurant.\nD|The home version.\nE|Friday.\nbrief|Pho.";
+
+    expect(parsePreparedReply(reply, withTwins)?.ranking).toEqual([
+      { id: PHO, reason: "The restaurant." },
+      { id: twin, reason: "The home version." },
+      { id: barred, reason: "Friday." },
     ]);
   });
 
-  it("keeps the first row when a resolved Option repeats", () => {
+  it("keeps the first row when an Option repeats", () => {
     const reply = [
-      "3|Pho Saigon|First.",
-      "1|Pho Saigon|Again, under Katsu's number.",
-      "1|Katsu curry|Long cook.",
+      "C|First.",
+      "C|Again.",
+      "A|Long cook.",
       "brief|A quiet Thursday.",
     ].join("\n");
 
@@ -223,19 +249,8 @@ describe("parsePreparedReply", () => {
     ]);
   });
 
-  it.each([
-    ["the v9 shape: brief, marker, rows", `A quiet Thursday.\n${PREPARED_MARKER}\n3|Pho Saigon|Standing Thursday choice.`],
-    ["rows, marker, prose brief", `3|Pho Saigon|Standing Thursday choice.\n${PREPARED_MARKER}\nA quiet Thursday.`],
-  ])("still reads %s", (_case, reply) => {
-    expect(parsePreparedReply(reply, built)).toEqual({
-      brief: "A quiet Thursday.",
-      ranking: [{ id: PHO, reason: "Standing Thursday choice." }],
-      resolvedByName: 0,
-    });
-  });
-
   it("scores the rows without a brief only when asked to", () => {
-    const reply = "3|Pho Saigon|Standing Thursday choice.\n1|Katsu curry|Long cook.";
+    const reply = "C|Standing Thursday choice.\nA|Long cook.";
 
     expect(parsePreparedReply(reply, built)).toBeNull();
     expect(parsePreparedReply(reply, built, { requireBrief: false })).toEqual({
@@ -244,7 +259,6 @@ describe("parsePreparedReply", () => {
         { id: PHO, reason: "Standing Thursday choice." },
         { id: KATSU, reason: "Long cook." },
       ],
-      resolvedByName: 0,
     });
   });
 
@@ -257,10 +271,7 @@ describe("parsePreparedReply", () => {
       "so there is no recent disappointment to weigh against it either.";
     expect(reason.length).toBeGreaterThan(300);
 
-    const note = parsePreparedReply(
-      `3|Pho Saigon|${reason}\nbrief|A quiet Thursday.`,
-      built,
-    );
+    const note = parsePreparedReply(`C|${reason}\nbrief|A quiet Thursday.`, built);
 
     expect(note?.ranking).toEqual([{ id: PHO, reason }]);
   });
@@ -268,10 +279,7 @@ describe("parsePreparedReply", () => {
   it("still caps a sprawling rationale, cutting at a word", () => {
     const reason = "Broth ".repeat(150).trim();
 
-    const note = parsePreparedReply(
-      `3|Pho Saigon|${reason}\nbrief|A quiet Thursday.`,
-      built,
-    );
+    const note = parsePreparedReply(`C|${reason}\nbrief|A quiet Thursday.`, built);
 
     const kept = note?.ranking[0].reason ?? "";
     expect(kept.endsWith("Broth…")).toBe(true);
@@ -280,54 +288,52 @@ describe("parsePreparedReply", () => {
   });
 
   it.each([
-    ["the brief line is missing", "3|Pho Saigon|Standing Thursday choice.\nA quiet Thursday."],
-    ["the brief line is empty", "3|Pho Saigon|Standing Thursday choice.\nbrief|  "],
-    ["the brief is empty prose below the marker", `3|Pho Saigon|Standing Thursday choice.\n${PREPARED_MARKER}\n  `],
+    ["the brief line is missing", "C|Standing Thursday choice.\nA quiet Thursday."],
+    ["the brief line is empty", "C|Standing Thursday choice.\nbrief|  "],
     ["no row parses", "Pho, then Katsu, then Mazra.\nbrief|A quiet Thursday."],
     [
-      "the ranking is only rows for unknown numbers and names",
-      "9|Nowhere|Not a candidate.\nbrief|A quiet Thursday.",
+      "the ranking is only rows for unknown codes and names",
+      "Z|Not a candidate.\nPho Saigon|Not a code.\nbrief|A quiet Thursday.",
     ],
     ["the ranking is NONE", "NONE\nbrief|A quiet Thursday."],
     [
       "the brief line runs past its bound",
-      `3|Pho Saigon|Standing Thursday choice.\nbrief|${"x".repeat(1201)}`,
-    ],
-    [
-      "the brief below the marker runs past its bound",
-      `3|Pho Saigon|Standing Thursday choice.\n${PREPARED_MARKER}\n${"x".repeat(1201)}`,
-    ],
-    [
-      "the brief runs past its bound, in the old order",
-      `${"x".repeat(1201)}\n${PREPARED_MARKER}\n3|Pho Saigon|Standing Thursday choice.`,
+      `C|Standing Thursday choice.\nbrief|${"x".repeat(1201)}`,
     ],
   ])("is unavailable when %s", (_case, reply) => {
     expect(parsePreparedReply(reply, built)).toBeNull();
   });
 
-  it("still reads a brief right at its bound, in either order", () => {
+  it("still reads a brief right at its bound", () => {
     const brief = "x".repeat(1200);
-    const row = "3|Pho Saigon|Standing Thursday choice.";
 
-    expect(parsePreparedReply(`${row}\n${PREPARED_MARKER}\n${brief}`, built)?.brief).toBe(brief);
-    expect(parsePreparedReply(`${brief}\n${PREPARED_MARKER}\n${row}`, built)?.brief).toBe(brief);
+    expect(
+      parsePreparedReply(`C|Standing Thursday choice.\nbrief|${brief}`, built)?.brief,
+    ).toBe(brief);
   });
 });
 
 describe("buildPreparedSystemPrompt", () => {
   const prompt = buildPreparedSystemPrompt();
 
-  it("describes the lean Log and where its numbers resolve", () => {
-    expect(prompt).toContain("the Option eaten by its number alone");
+  it("describes the lean Log and where its codes resolve", () => {
+    expect(prompt).toContain("the Option eaten by its code alone");
     expect(prompt).toContain("any other Option's in otherOptions");
   });
 
-  it("asks for a numbered and named row per candidate, then the brief as the last line", () => {
+  it("asks for a coded row per candidate, then the brief as the last line", () => {
     expect(prompt).toContain("the ranking first, then the brief");
-    expect(prompt).toContain("<number>|<name>|<rationale>");
+    expect(prompt).toContain("<code>|<rationale>");
     expect(prompt).toContain(`The last line of the reply is the brief, in the same shape: ${BRIEF_ROW}`);
-    expect(prompt).not.toContain(PREPARED_MARKER);
     expect(prompt).toContain("Every candidate must appear exactly once");
+  });
+
+  it("names the code positively, with no mention of rank positions or numbers", () => {
+    // Steering by prohibition ("never its position in your ranking") kept
+    // the idea of a position in view; the v14 wording says only where the
+    // code comes from (ADR-0013).
+    expect(prompt).toContain("its id in its own options entry");
+    expect(prompt).not.toMatch(/position in your ranking|<number>|Option's number|by its number|candidate numbers/);
   });
 
   it("keeps the snapshot's vocabulary and the weekday out of what the household reads", () => {
@@ -365,7 +371,7 @@ describe("buildPreparedSystemPrompt", () => {
 });
 
 describe("createPreparedNoteClient().prepare", () => {
-  const goodReply = "3|Pho Saigon|Standing Thursday choice.\n1|Katsu curry|Long cook.\n2|Mazra|Skip it.\nbrief|A quiet Thursday.";
+  const goodReply = "C|Standing Thursday choice.\nA|Long cook.\nB|Skip it.\nbrief|A quiet Thursday.";
 
   const goodNote = {
     ok: true,
@@ -422,13 +428,15 @@ describe("createPreparedNoteClient().prepare", () => {
     });
   });
 
-  it("closes the user message with the candidate count and every number, as a checklist", async () => {
+  it("closes the user message with the candidate count and every code, in Catalog order, as a checklist", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));
 
     await client().prepare({
       snapshot,
-      idByIndex: new Map([[1, KATSU], [2, MAZRA], [5, PHO]]),
+      // Out of order, with a two-letter code: the checklist sorts by Catalog
+      // position, so AB comes after E rather than before it.
+      idByCode: new Map([["E", PHO], ["A", KATSU], ["AB", MAZRA]]),
       nameById,
     });
 
@@ -437,7 +445,7 @@ describe("createPreparedNoteClient().prepare", () => {
     expect(userMessage.startsWith(JSON.stringify(leanSnapshot(snapshot)))).toBe(true);
     expect(
       userMessage.endsWith(
-        `Rank all 3 candidates: 1, 2, 5. Then line 4, the last: ${BRIEF_ROW}.`,
+        `Rank all 3 candidates: A, E, AB. Then line 4, the last: ${BRIEF_ROW}.`,
       ),
     ).toBe(true);
   });
@@ -587,37 +595,6 @@ describe("createPreparedNoteClient().prepare", () => {
     expect(await pending).toEqual({ ok: false });
   });
 
-  it("tells onReply how many rows a readable answer resolved by name", async () => {
-    vi.spyOn(console, "log").mockImplementation(() => {});
-    stubFetch(async () =>
-      streamResponse(
-        completion(
-          "1|Pho Saigon|Standing Thursday choice.\n2|Mazra|Skip it.\n1|Katsu curry|Long cook.\nbrief|A quiet Thursday.",
-        ),
-      ),
-    );
-    const onReply = vi.fn();
-
-    const result = await createPreparedNoteClient({
-      baseUrl: "http://strata.local/v1",
-      model: "qwen3.8-flash",
-      onReply,
-    }).prepare(built);
-
-    expect(result).toEqual({
-      ok: true,
-      note: {
-        brief: "A quiet Thursday.",
-        ranking: [
-          { id: PHO, reason: "Standing Thursday choice." },
-          { id: MAZRA, reason: "Skip it." },
-          { id: KATSU, reason: "Long cook." },
-        ],
-      },
-    });
-    expect(onReply).toHaveBeenCalledWith(expect.objectContaining({ resolvedByName: 1 }));
-  });
-
   it("hands the raw answer, reasoning, and stop reason to onReply, even when the answer is unreadable", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     stubFetch(async () =>
@@ -658,20 +635,20 @@ describe("createPreparedNoteClient().prepare", () => {
     });
   });
 
-  /** A built snapshot of `count` candidates, numbered 1…count. */
+  /** A built snapshot of `count` candidates, coded A, B, C…. */
   function candidates(count: number): BuiltSnapshot {
-    const numbers = Array.from({ length: count }, (_, at) => at + 1);
+    const codes = Array.from({ length: count }, (_, at) => optionCode(at));
     return {
       snapshot,
-      idByIndex: new Map(numbers.map((n) => [n, `option-${n}`])),
-      nameById: new Map(numbers.map((n) => [`option-${n}`, `Option ${n}`])),
+      idByCode: new Map(codes.map((code) => [code, `option-${code}`])),
+      nameById: new Map(codes.map((code) => [`option-${code}`, `Option ${code}`])),
     };
   }
 
-  /** A reply ranking candidates 1…`rows`. */
+  /** A reply ranking the first `rows` candidates. */
   const rankingOf = (rows: number) =>
-    Array.from({ length: rows }, (_, at) => `${at + 1}|Option ${at + 1}|Fits.`)
-      .concat(PREPARED_MARKER, "A quiet Thursday.")
+    Array.from({ length: rows }, (_, at) => `${optionCode(at)}|Fits.`)
+      .concat("brief|A quiet Thursday.")
       .join("\n");
 
   it("refuses a ranking naming fewer than nine in ten candidates, logging how many it named", async () => {

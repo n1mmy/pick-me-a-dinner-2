@@ -119,3 +119,12 @@ open points above:
   the two Claude models (hit@3 11/20). Its one real defect is output
   discipline — on 2 of 20 days it wrote rank positions where Option numbers
   belong — which the name column addresses.
+
+## Simplifications (2026-10-29)
+
+After the option-codes round, a grilling asked where else the same shape —
+a tolerant layer grown branch by branch around a model's behaviour — was
+already visible. The decisions and the seven steps are in
+`plans/simplifications-2026-10-29.md`; issues 06 to 12 carry them. Fixed by
+that session: the local model stays, for where it runs (ADR-0011 amended); a
+narrowing search shows its shortlist alone; everything lands on this branch.

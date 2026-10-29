@@ -142,11 +142,12 @@ the model weighs each reason as dated evidence: a reason may be a standing
 dislike, a standing fact about how the Option works ("Jen cooks these only
 when she has ingredients set", "comes in two-packs, suggest the second one
 soon"), a passing state ("none left", "no box this week") that fades rather
-than holding until the Household says otherwise, or a one-off. A reason that
-the Option was too soon speaks for its **Tags** as well as for it: it is the
-Household saying that kind of food is recent, so every Option sharing the Tag
-is as recent as the one turned down. Nothing obliges
-the Household to keep such state current. A Rejection can be edited or deleted at any time from the
+than holding until the Household says otherwise, or a one-off. A too-soon
+reason may be about the kind of food or about that one Option, and its words
+do not always say which ("sushi too recent" on one sushi place, then the other
+sushi place eaten the next day): it is read against the Option's **Tags** as
+one more dated fact, and how far it reaches is a judgement, not a rule.
+Nothing obliges the Household to keep such state current. A Rejection can be edited or deleted at any time from the
 Log screen or the Option detail page. **Bring back** is the narrower
 Selected-day quick-undo on Tonight's "Rejected" disclosure (labelled
 "Rejected tonight" when the Selected day is today). A **Pick** of the Option
@@ -332,6 +333,16 @@ not the whole list.
 _Avoid_: AI ranking (it is search — there is a query, even when empty); AI
 search for a **Prepared note** (that is written ahead, not searched).
 
+**Option code**:
+The short letter label (`A`, `B`, … `AK`) a snapshot gives each Option so a
+model can refer to it, in place of the Option's id. The letters make a code
+unmistakable for a rank position — a model's ranking is a list of places,
+`1`, `2`, `3`, and a place written where a code belongs resolves to no Option
+instead of silently naming the wrong one. A code belongs to one snapshot and
+is never shown to the Household.
+_Avoid_: number, snapshot number, index (a code is not an integer); name (two
+Options may share a name; a code is unique within a snapshot).
+
 **AI rationale**:
 The model-generated line of prose on each AI search result row explaining why
 that Option fits — naming the query intent, the habit the model found in the
@@ -362,8 +373,8 @@ _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).
 
 **Prepared note**:
-What a free local model writes ahead of time for one date, so it is ready when
-Tonight opens (ADR-0011). It has two parts. The **brief** is two or three
+What a local model — one the Household runs at home — writes ahead of time for
+one date, so it is ready when Tonight opens (ADR-0011). It has two parts. The **brief** is two or three
 sentences about that evening, read at a glance: what kind of evening it is
 (the **Day note**, weekday habits, the last few days' eating), and the one or two
 standout suggestions — what to reach for, with what sits low left to the
@@ -413,6 +424,8 @@ single-household — no user accounts, no per-person identity.
 - A **Restaurant** carries zero or more **Closed days**; a **Home meal** never
   carries any.
 - The **Catalog** is the set of all **Options**.
+- Within one snapshot, every **Option** carries exactly one **Option code**,
+  and no two Options share one; two Options may share a name.
 - A **Log entry** records exactly one **Option** on one date.
 - A **Dinner** is one or more **Log entries** sharing the same date.
 - The **Log** is the set of all **Log entries**.

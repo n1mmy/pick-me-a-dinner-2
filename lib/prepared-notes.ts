@@ -14,13 +14,14 @@ import { dinnerLog, preparedNotes } from "../db/schema";
 import type { AiRankingRow } from "./ai-search";
 import { shiftSqlDate, todaySqlDate } from "./local-day";
 import {
+  buildPreparedSystemPrompt,
+  buildPreparedUserMessage,
   localModel,
-  PREPARED_PROMPT_VERSION,
   type PreparedNote,
   type PreparedNoteClient,
   REQUEST_TIMEOUT_MS,
 } from "./prepared-note";
-import { type ModelSnapshot, snapshotForDay } from "./snapshot";
+import { type BuiltSnapshot, snapshotForDay } from "./snapshot";
 
 /** How far ahead notes are written: today through today+6. */
 const DAYS_AHEAD = 6;
@@ -41,15 +42,19 @@ async function eligibleDays(now: Date, timeZone: string): Promise<string[]> {
 }
 
 /**
- * The fingerprint of everything a note is built from: the date's AI snapshot,
- * the model, and the prompt version. A stored note whose hash differs is
- * stale. Any Pick, Rejection, Day note, Note, or Catalog edit reaches the
- * snapshot, so this one comparison is the only change detection there is.
+ * The fingerprint of what the local model is sent for a date: the model, the
+ * system prompt, and the user message built from the date's snapshot. A stored
+ * note whose hash differs is stale. Any Pick, Rejection, Day note, Note, or
+ * Catalog edit reaches the user message, and an edit to a prompt block —
+ * shared with AI search or not — reaches the system prompt, so this one
+ * comparison is the only change detection there is: no version to bump.
  */
-function inputHash(snapshot: ModelSnapshot, model: string): string {
+function inputHash(built: BuiltSnapshot, model: string): string {
   // One JSON array, so no two different inputs can concatenate to the same text.
   return createHash("sha256")
-    .update(JSON.stringify([PREPARED_PROMPT_VERSION, model, snapshot]))
+    .update(
+      JSON.stringify([model, buildPreparedSystemPrompt(), buildPreparedUserMessage(built)]),
+    )
     .digest("hex");
 }
 
@@ -148,17 +153,20 @@ export async function runSweep({
   client: PreparedNoteClient;
 }): Promise<void> {
   const model = localModel();
+  // The eligible dates were read once against `now`, and a pass can run for
+  // hours: read a fresh clock, so a date midnight has frozen is left alone.
+  const passed = (day: string) => day < todaySqlDate(new Date(), timeZone);
   for (const day of await eligibleDays(now, timeZone)) {
-    // The eligible dates were read once, and a generation takes minutes: a
-    // Pick landing meanwhile has frozen this date, so don't generate a note
-    // the store would only refuse.
+    if (passed(day)) continue;
+    // A generation takes minutes: a Pick landing meanwhile has frozen this
+    // date, so don't generate a note the store would only refuse.
     if ((await getDecidedDates(day, day)).length > 0) continue;
     const built = await snapshotForDay({ asOf: day, query: "" });
     // Nothing to rank (an empty Catalog, or every Option Closed or Rejected):
     // the model's empty ranking is always refused, so the date would be
     // regenerated every sweep.
-    if (built.idByIndex.size === 0) continue;
-    const hash = inputHash(built.snapshot, model);
+    if (built.idByCode.size === 0) continue;
+    const hash = inputHash(built, model);
     if ((await getPreparedNote(day))?.inputHash === hash) continue;
 
     const claim = await claimDay(day);
@@ -171,7 +179,8 @@ export async function runSweep({
     }
 
     const result = await client.prepare(built);
-    if (result.ok) {
+    // A generation that ran past midnight would write onto a frozen date.
+    if (result.ok && !passed(day)) {
       await storeNote(day, { note: result.note, inputHash: hash, model });
     } else {
       // No retry: the next pass tries again, and the last good note stays.
@@ -201,7 +210,8 @@ export type TonightPreparedNote = {
  * staleness test — the date's current snapshot hashed against the hash the
  * note was built from — so the marker shows exactly while the sweep would
  * rewrite the note. A frozen note is a record rather than advice: never out of
- * date, and its snapshot (one full-Log read) is never built.
+ * date, and its snapshot (one full-Log read) is never built. A date with no
+ * candidates reads frozen too: the sweep leaves it alone.
  */
 export async function preparedNoteFor({
   day,
@@ -220,11 +230,13 @@ export async function preparedNoteFor({
   if (day < today || (await getDecidedDates(day, day)).length > 0) {
     return { ...note, status: "frozen" };
   }
-  const { snapshot } = await snapshotForDay({ asOf: day, query: "" });
+  const built = await snapshotForDay({ asOf: day, query: "" });
+  // Nothing to rank: the sweep skips the date, so the note stays as it is.
+  if (built.idByCode.size === 0) return { ...note, status: "frozen" };
   return {
     ...note,
     status:
-      inputHash(snapshot, localModel()) === stored.inputHash
+      inputHash(built, localModel()) === stored.inputHash
         ? "current"
         : "out-of-date",
   };

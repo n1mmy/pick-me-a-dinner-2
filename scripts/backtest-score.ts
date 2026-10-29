@@ -34,7 +34,7 @@ async function main(): Promise<void> {
         today: day,
         dayNote: null,
       });
-      const candidates = new Set(built.idByIndex.values());
+      const candidates = new Set(built.idByCode.values());
       return {
         ok: true,
         ranking: view.picker

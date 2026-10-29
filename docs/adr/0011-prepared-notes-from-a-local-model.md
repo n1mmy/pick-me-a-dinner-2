@@ -3,6 +3,11 @@
 _Amended by ADR-0012: the snapshot shared with AI search now carries timing
 facts per Option and per Tag._
 
+_Amended by ADR-0013: the "integer ids" below are now letter Option codes._
+
+_Amended 2026-10-29: the local model is kept for where it runs, not for what
+it costs — see "Pre-generate with Claude" under Considered options._
+
 ADR-0004 added **AI search** as a triggered, additive layer. The deterministic
 ranking was what loaded, and every AI result was a deliberate, uncached,
 one-off call to the metered Anthropic API. That framing came from cost and
@@ -10,8 +15,8 @@ latency: each call costs money and takes 50–90 seconds, so it could never sit
 on the page load, and every token of output had to earn its place (one-line
 rationales, integer ids, compact rows).
 
-The Household now runs a local LLM, Strata (an OpenAI-compatible server), that
-costs nothing per call. It is slow: about 25 tok/s of output, so a long answer
+The Household now runs a local model — a Qwen, served from home on a Strata
+server (OpenAI-compatible) — that costs nothing per call. It is slow: about 25 tok/s of output, so a long answer
 over the full snapshot takes minutes. It is also probably weaker than Claude.
 Being free changes what is worth generating. Being slow changes when it can
 happen. So we are adding the **Prepared note**: for today and each of the next
@@ -26,9 +31,12 @@ the floor, one Clear away, and Claude AI search is untouched.
 - **Keep ADR-0004 as is**, with AI only on demand. Rejected: free tokens can buy
   a written-ahead brief and multi-sentence rationales that a per-call budget
   never could, and the Household's ritual already starts with an AI-ranked list.
-- **Pre-generate with Claude.** Rejected: it costs money every time the inputs
-  change, across seven days, for notes that are mostly never opened. The
-  billed-call rule in `CLAUDE.md` exists to avoid exactly that.
+- **Pre-generate with Claude.** Rejected, and not on cost: the Household wants
+  this work done at home, on its own machine and its own solar power, not in a
+  data centre. A Claude-written note was later measured at about twenty
+  seconds and fourteen cents (`scripts/backtest-runs/prepared-v13-opus-5-5-low`,
+  2026-10-28) and the decision stood. The billed-call rule in `CLAUDE.md`
+  still applies to any such call.
 - **Move live AI search to the local model.** Rejected: minutes per call is far
   too slow for a triggered search, and Claude is likely the better ranker. Both
   the query search and the empty-query search stay on Claude.

@@ -14,14 +14,15 @@ vi.mock("../db/queries", async (importOriginal) => {
   return { ...actual, getPreparedNote: vi.fn(actual.getPreparedNote) };
 });
 
-// The prompt version, overridable per test: bumping it must stale every note.
-const promptVersion = vi.hoisted(() => ({ override: null as string | null }));
-vi.mock("./prepared-note", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./prepared-note")>();
+// A rationale rule shared with AI search, overridable per test: editing it,
+// with no version bump, must stale every note.
+const sharedRules = vi.hoisted(() => ({ override: null as string | null }));
+vi.mock("./ai-search", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./ai-search")>();
   return {
     ...actual,
-    get PREPARED_PROMPT_VERSION() {
-      return promptVersion.override ?? actual.PREPARED_PROMPT_VERSION;
+    get RATIONALE_RULES() {
+      return sharedRules.override ?? actual.RATIONALE_RULES;
     },
   };
 });
@@ -34,8 +35,9 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
-  promptVersion.override = null;
+  sharedRules.override = null;
   const { getPreparedNote: real } =
     await vi.importActual<typeof import("../db/queries")>("../db/queries");
   vi.mocked(getPreparedNote).mockImplementation(real);
@@ -91,7 +93,7 @@ function stubClient({
 } = {}) {
   const asked: string[] = [];
   const client: PreparedNoteClient = {
-    async prepare({ snapshot, idByIndex }) {
+    async prepare({ snapshot, idByCode }) {
       const date = snapshot.today.slice(0, 10);
       asked.push(date);
       await during(date);
@@ -100,7 +102,7 @@ function stubClient({
         ok: true,
         note: {
           brief: `Brief for ${snapshot.today}`,
-          ranking: [...idByIndex.values()].map((id) => ({ id, reason: "Fits." })),
+          ranking: [...idByCode.values()].map((id) => ({ id, reason: "Fits." })),
         },
       };
     },
@@ -108,8 +110,13 @@ function stubClient({
   return { client, asked };
 }
 
-/** One sweep, by default at Thursday noon in Los Angeles. */
+/**
+ * One sweep, by default at Thursday noon in Los Angeles. The clock reads `now`
+ * too, since the sweep rechecks it per date; a test moves it with
+ * `vi.setSystemTime` mid-sweep.
+ */
 function sweep(client: PreparedNoteClient, now = THURSDAY_NOON): Promise<void> {
+  vi.useFakeTimers({ toFake: ["Date"], now });
   return runSweep({ now, timeZone: LA, client });
 }
 
@@ -270,6 +277,37 @@ describe("runSweep", () => {
     });
   });
 
+  it("writes nothing onto a date midnight passed during its generation, and skips it after", async () => {
+    await seedPho();
+    // A pass that started at 23:50 on Wednesday the 21st in Los Angeles: its
+    // first date's generation finishes after midnight.
+    const { client, asked } = stubClient({
+      during: async (date) => {
+        if (date === "2026-10-21") vi.setSystemTime(new Date("2026-10-22T07:10:00Z"));
+      },
+    });
+
+    await sweep(client, new Date("2026-10-22T06:50:00Z"));
+
+    expect(asked).toEqual(["2026-10-21", ...WEEK.slice(0, 6)]);
+    expect(await getPreparedNote("2026-10-21")).toBeNull();
+    expect(await claimDay("2026-10-21")).not.toBeNull();
+    expect(await getPreparedNote("2026-10-22")).not.toBeNull();
+  });
+
+  it("skips a date midnight passed before the pass reached it", async () => {
+    await seedPho();
+    // The eligible dates were read at 23:50; the clock reads 00:10 by the
+    // time the first one comes up.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-22T07:10:00Z") });
+    const { client, asked } = stubClient();
+
+    await runSweep({ now: new Date("2026-10-22T06:50:00Z"), timeZone: LA, client });
+
+    expect(asked).toEqual(WEEK.slice(0, 6));
+    expect(await getPreparedNote("2026-10-21")).toBeNull();
+  });
+
   it("asks nothing for a date with no candidates", async () => {
     // An empty Catalog: the model could only return an empty ranking, which
     // is always refused, so the date would be retried every sweep.
@@ -324,11 +362,11 @@ describe("runSweep", () => {
     }
   });
 
-  it("regenerates the notes when the prompt version changes", async () => {
+  it("regenerates the notes when a shared prompt block changes, with no version bump", async () => {
     await seedPho();
     await sweep(stubClient().client);
     const before = await getPreparedNote("2026-10-24");
-    promptVersion.override = "next";
+    sharedRules.override = "How to write each rationale: briefly.";
     const second = stubClient();
 
     await sweep(second.client);
@@ -376,6 +414,16 @@ describe("preparedNoteFor", () => {
     });
   });
 
+  it("is out of date once a shared prompt block changes, with no version bump", async () => {
+    await seedPho();
+    await sweep(stubClient().client);
+    sharedRules.override = "How to write each rationale: briefly.";
+
+    expect(await preparedNoteFor({ day: SATURDAY, today: THURSDAY })).toMatchObject({
+      status: "out-of-date",
+    });
+  });
+
   it("is out of date once the date's input changes after the note was written", async () => {
     await seedPho();
     await sweep(stubClient().client);
@@ -406,6 +454,18 @@ describe("preparedNoteFor", () => {
     await db.update(options).set({ active: false }).where(eq(options.id, phoId));
 
     expect(await preparedNoteFor({ day: SATURDAY, today: THURSDAY })).toMatchObject({
+      status: "frozen",
+    });
+  });
+
+  it("is frozen when the date has no candidates left", async () => {
+    // The sweep skips such a date, so its note will never be rewritten.
+    const phoId = await seedPho();
+    await sweep(stubClient().client);
+    await db.update(options).set({ active: false }).where(eq(options.id, phoId));
+
+    expect(await preparedNoteFor({ day: SATURDAY, today: THURSDAY })).toMatchObject({
+      brief: "Brief for 2026-10-24 (Saturday)",
       status: "frozen",
     });
   });

@@ -1,9 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildSnapshot, type SnapshotOption } from "../lib/snapshot";
 import {
   type BacktestDay,
   parseBacktestArgs,
-  RHYTHM_CLAIM_SUSPECTS,
   sampleAcrossWeekdays,
   scoreDay,
   summarize,
@@ -20,6 +19,17 @@ describe("parseBacktestArgs", () => {
   it("takes a custom --json path over the default", () => {
     expect(parseBacktestArgs(["--json=out.json"], "x.json").jsonPath).toBe("out.json");
     expect(parseBacktestArgs(["--json"], "x.json").jsonPath).toBe("x.json");
+  });
+
+  it("refuses a --count or --window that is not a positive integer", () => {
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => parseBacktestArgs(["--count=abc"], "x.json")).toThrow("exit");
+    expect(() => parseBacktestArgs(["--window=0"], "x.json")).toThrow("exit");
+    exit.mockRestore();
+    error.mockRestore();
   });
 });
 
@@ -44,21 +54,6 @@ describe("sampleAcrossWeekdays", () => {
       ...twoWeeks.slice(7),
     ]);
     expect(sampleAcrossWeekdays(twoWeeks.slice(0, 3), 20)).toHaveLength(3);
-  });
-});
-
-describe("RHYTHM_CLAIM_SUSPECTS", () => {
-  const suspects = (text: string) => text.match(RHYTHM_CLAIM_SUSPECTS) ?? [];
-
-  it("catches relative elapsed-time phrasing", () => {
-    expect(suspects("They just had it last week.")).toEqual(["just had", "last week"]);
-    expect(suspects("Ninja was just this past Sunday")).toEqual(["this past Sunday"]);
-    expect(suspects("eaten Tuesday, so skip")).toEqual(["eaten Tuesday"]);
-    expect(suspects("Last night was pizza")).toEqual(["Last night"]);
-  });
-
-  it("leaves a rhythm claim alone", () => {
-    expect(suspects("The standing Thursday choice, and its stretch is up.")).toEqual([]);
   });
 });
 
@@ -109,24 +104,6 @@ describe("scoreDay", () => {
     expect(record.tooSoonMisses).toEqual([{ rank: 3, name: "Quiche", reason: "too soon" }]);
   });
 
-  it("checks the brief's named Options against the top 3 and its Day note", () => {
-    expect(record.briefNamed).toEqual([
-      { rank: 4, name: "Ninja Sushi" },
-      { rank: 1, name: "Societea Tea House" },
-    ]);
-    expect(record.briefMentionsDayNote).toBe(true);
-  });
-
-  it("prints a weekday claim with the Option's weekday counts", () => {
-    expect(record.flags.weekdayClaims).toEqual([
-      expect.objectContaining({ rank: 1, name: "Societea Tea House", weekdays: { Tuesday: 1 } }),
-    ]);
-  });
-
-  it("flags a top row that says nothing but timing, not one drawing on a Note", () => {
-    expect(record.flags.timingOnly.map((row) => row.name)).toEqual(["Aji Ichi"]);
-  });
-
   it("marks a day unscorable when no Pick is a candidate", () => {
     const archived = scoreDay(
       { ...truth, picks: [{ optionId: "gone", name: "Gone" }] },
@@ -140,8 +117,16 @@ describe("scoreDay", () => {
       unscorable: [DAY],
       hit5: 1,
       daysWithTooSoonMiss: 1,
-      briefNamedOutsideTop3: 1,
-      timingOnlyTopRows: 1,
     });
+  });
+
+  it("counts never-eaten top-5 slots on scored days only", () => {
+    const archived = scoreDay(
+      { ...truth, picks: [{ optionId: "gone", name: "Gone" }] },
+      built,
+      { ok: true, ranking: [{ id: "a", reason: "Due." }] },
+    );
+    // The scored day's top 5 holds four Options never eaten in the window.
+    expect(summarize([record, archived]).neverEatenTop5Slots).toBe(4);
   });
 });

@@ -17,11 +17,7 @@ import {
   getTonightData,
 } from "../db/queries";
 import { suppressionsOn } from "./day-suppressions";
-import {
-  epochDayFromSqlDate,
-  WEEKDAY_NAMES,
-  weekdayFromSqlDate,
-} from "./local-day";
+import { epochDayFromSqlDate, WEEKDAY_NAMES } from "./local-day";
 import {
   partitionRejections,
   type RejectionRow,
@@ -85,14 +81,14 @@ export type SnapshotTiming = {
 };
 
 /**
- * One Rejection as a Tag's entry lists it: the day, the Option by its number,
+ * One Rejection as a Tag's entry lists it: the day, the Option by its code,
  * the reason. The same row as the Rejections block carries, seen from the Tag.
  */
 export type SnapshotTagRejection = {
   /** The day rejected, with weekday. */
   date: string;
-  /** The rejected Option, by its snapshot number. */
-  optionId: number;
+  /** The rejected Option, by its Option code. */
+  optionId: string;
   /** The Household's reason, or `null` when none was given. */
   reason: string | null;
 };
@@ -114,12 +110,14 @@ export type SnapshotTag = SnapshotTiming & { rejections?: SnapshotTagRejection[]
  */
 export type SnapshotModelOption = SnapshotTiming & {
   /**
-   * The Option's snapshot number — its 1-based position in the Catalog ordered
-   * alphabetically by name. The model sees and returns this integer, never the
-   * UUID; `parseRankingText` maps it back. An integer tokenizes far cheaper
-   * than a UUID — in the snapshot and, above all, in every result row.
+   * The Option's code — `A`, `B`, … `AK`, by its position in the Catalog
+   * ordered alphabetically by name (`optionCode`). The model sees and returns
+   * this code, never the UUID; `parseRankingText` maps it back. A code is a
+   * token or two, far cheaper than a UUID in the snapshot and in every result
+   * row; letters rather than integers so a rank position written in its place
+   * resolves to nothing instead of to another Option (ADR-0013).
    */
-  id: number;
+  id: string;
   /** Household-authored. */
   name: string;
   kind: "home" | "restaurant";
@@ -141,13 +139,6 @@ export type SnapshotModelOption = SnapshotTiming & {
    * Household-authored text.
    */
   closedDays?: string[];
-  /**
-   * How many of its eats fell on each weekday, by weekday name, in week order
-   * from Sunday — omitted when never eaten, and a weekday with none is left
-   * out. Counts, not a "habit" label: the model judges whether one weekday
-   * stands out from an even spread.
-   */
-  weekdays?: Record<string, number>;
 };
 
 /**
@@ -158,8 +149,8 @@ export type SnapshotModelOption = SnapshotTiming & {
 export type SnapshotModelLogEntry = {
   /** The day eaten, with weekday — e.g. `"2026-05-12 (Tuesday)"`. */
   date: string;
-  /** The Option eaten, by its snapshot number — ties this dinner to a candidate. */
-  optionId: number;
+  /** The Option eaten, by its Option code — ties this dinner to a candidate. */
+  optionId: string;
   /** That Option's name — Household-authored. */
   name: string;
   kind: "home" | "restaurant";
@@ -222,7 +213,7 @@ export type ModelSnapshot = {
   dayNotes: SnapshotModelDayNote[];
   /**
    * The anchor day's Day note — current context for this search — or `null`
-   * when it has none. Delimited: Household-authored.
+   * when it has none.
    */
   todayDayNote: string | null;
 };
@@ -241,18 +232,18 @@ export type SnapshotModelDayNote = {
  * never be mismatched.
  */
 export type BuiltSnapshot = {
-  /** The JSON snapshot sent to the model — Option ids are small integers. */
+  /** The JSON snapshot sent to the model — Option ids are letter codes. */
   snapshot: ModelSnapshot;
   /**
-   * Maps each candidate Option's snapshot integer back to its real UUID. The
-   * model only ever sees and returns the integer; `parseRankingText` uses this
-   * both to recover the UUID and to reject any integer that is not a candidate
-   * — a hallucinated number, or an Option Picked, Rejected, or Closed for
-   * today that the model wrongly returned (each keeps a number for its
-   * history rows but is absent from this map, so it can never resurface as a
-   * result).
+   * Maps each candidate Option's code back to its real UUID. The model only
+   * ever sees and returns the code; `parseRankingText` uses this both to
+   * recover the UUID and to reject anything that is not a candidate's code —
+   * a hallucinated code, a rank position, or an Option Picked, Rejected, or
+   * Closed for today that the model wrongly returned (each keeps a code for
+   * its history rows but is absent from this map, so it can never resurface
+   * as a result).
    */
-  idByIndex: Map<number, string>;
+  idByCode: Map<string, string>;
   /**
    * Maps each Catalog Option's id to its Household-facing name — the eval
    * scripts print a result row by name instead of a raw UUID; production has
@@ -262,6 +253,27 @@ export type BuiltSnapshot = {
 };
 
 /**
+ * The Option code for the `index`-th Option (0-based) in the alphabetical
+ * Catalog: `A`…`Z`, then `AA`…`AZ`, `BA`…, as a spreadsheet names columns.
+ * Letters, not integers, so a code can never be mistaken for a rank position
+ * (ADR-0013).
+ */
+export function optionCode(index: number): string {
+  let code = "";
+  for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) {
+    code = String.fromCharCode(64 + ((n - 1) % 26) + 1) + code;
+  }
+  return code;
+}
+
+/** The inverse of `optionCode`: `A` → 0, `Z` → 25, `AA` → 26. Upper-case only. */
+export function codeIndex(code: string): number {
+  let n = 0;
+  for (const char of code) n = n * 26 + (char.charCodeAt(0) - 64);
+  return n - 1;
+}
+
+/**
  * Turn the active Catalog, the full Log, the Rejection history, the **anchor
  * day** (the Selected day from the Tonight screen — today on the standard
  * render), and the query into the model-input JSON. Decisions baked in
@@ -269,24 +281,30 @@ export type BuiltSnapshot = {
  *
  * - Options come out in **alphabetical order by name**, not Score-rank order —
  *   a pre-ranked list would anchor the model toward the existing order.
- * - Every Option is given a **small integer number** — its 1-based position in
- *   that alphabetical order — and the snapshot refers to Options by that number
- *   everywhere (the Log and the Rejections too); the UUID is never sent. The
- *   numbering covers the whole Catalog, so an Option dropped as a candidate
- *   (below) keeps a stable number for its history rows. An integer tokenizes far cheaper than a UUID, and the saving
- *   compounds in every result row the model writes back.
+ * - Every Option is given an **Option code** — a letter or two from its
+ *   position in that alphabetical order (`optionCode`) — and the snapshot
+ *   refers to Options by that code everywhere (the Log and the Rejections
+ *   too); the UUID is never sent. The coding covers the whole Catalog, so an
+ *   Option dropped as a candidate (below) keeps a stable code for its history
+ *   rows. A code tokenizes far cheaper than a UUID, and the saving compounds
+ *   in every result row the model writes back; letters rather than integers
+ *   so a rank position written where a code belongs resolves to no Option
+ *   (ADR-0013).
  * - **Timing facts, not a sort key** (ADR-0012, superseding that part of
  *   ADR-0005). Each candidate carries how often it was eaten, days since its
- *   last eat, its last four gaps, and its weekday counts; the `tags` block
- *   carries all but the weekdays per Tag. Left to work these out from the Log, the model
- *   worked out a different subset each run and judged them inconsistently.
+ *   last eat, and its last four gaps; the `tags` block carries the same per
+ *   Tag. Left to work these out from the Log, the model worked out a
+ *   different subset each run and judged them inconsistently. A weekday habit
+ *   is read from the Log's dates, each carrying its weekday: weekday counts
+ *   gave the model a cheap true sentence about every row, and it read habits
+ *   into flat ones.
  *   Nothing here combines them — no overdue flag, no ratio, no habit label —
  *   so the judgment stays the model's.
  * - The Log is the **full Log — past entries and future-dated ones (Planned
  *   dinners)** — as a flat chronological list, newest dinner first, each entry
  *   carrying its real date + weekday and the eaten Option's name / kind / Tags
  *   inline. The model never sees those copies: `leanSnapshot` cuts each
- *   row to its number and lists a dropped Option's entry in `otherOptions`.
+ *   row to its code and lists a dropped Option's entry in `otherOptions`.
  *   The snapshot carries the anchor day as its `today`, so the model tells a
  *   plan from history itself (ADR-0008); when the Selected day is a future
  *   date the model sees it as "today" and reasons about the day-of-week and
@@ -301,9 +319,9 @@ export type BuiltSnapshot = {
  *   candidacy is removed.
  * - A Restaurant **closed on the anchor day** is dropped from the candidate
  *   `options` exactly the same way — a closed Restaurant cannot resurface as a
- *   result even if the model returns its number; `parseRankingText` drops it
- *   because `idByIndex` never held it. Its number, Log rows, and Rejection
- *   rows are unaffected — the numbering covers the whole Catalog either way
+ *   result even if the model returns its code; `parseRankingText` drops it
+ *   because `idByCode` never held it. Its code, Log rows, and Rejection
+ *   rows are unaffected — the coding covers the whole Catalog either way
  *   (PRD: Closed days, ADR-0010).
  * - Options already **in the Log on the anchor day** (Picked for it) are
  *   dropped from the candidate `options` the same way. The Tonight screen
@@ -380,19 +398,22 @@ export function buildSnapshot(input: {
     (dayNote) => !backtest || dayNote.notedOn <= asOf,
   );
 
-  // Every Option is numbered by its 1-based position in the Catalog ordered
-  // alphabetically by name — the number is what the model sees instead of the
-  // UUID. Numbering covers the *whole* Catalog, not just candidates, so an
+  // Every Option is coded by its position in the Catalog ordered
+  // alphabetically by name — the code is what the model sees instead of the
+  // UUID. Coding covers the *whole* Catalog, not just candidates, so an
   // Option Picked, Rejected, or Closed for the anchor day still has a stable
-  // number for its Log and Rejection rows; the candidate `options` list below
-  // simply omits it, leaving a gap.
-  const byName = [...options].sort((a, b) => a.name.localeCompare(b.name));
-  const indexByOptionId = new Map(byName.map((o, i) => [o.id, i + 1]));
+  // code for its Log and Rejection rows; the candidate `options` list below
+  // simply omits it, leaving a gap. Two Options of the same name are ordered
+  // by id, so their codes don't depend on the order the Catalog was read in.
+  const byName = [...options].sort(
+    (a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
+  );
+  const codeByOptionId = new Map(byName.map((o, i) => [o.id, optionCode(i)]));
 
   const { suppressedForAsOf, block } = partitionRejections(
     rejections,
     asOf,
-    indexByOptionId,
+    codeByOptionId,
   );
 
   // Every Option the Tonight picker suppresses for the anchor day — Picked,
@@ -423,13 +444,12 @@ export function buildSnapshot(input: {
 
   const modelOptions = candidates.map(
     (option): SnapshotModelOption => ({
-      id: indexByOptionId.get(option.id)!,
+      id: codeByOptionId.get(option.id)!,
       name: option.name,
       kind: option.kind,
       notes: option.notes,
       tags: option.tags,
       ...timingOf(eatenDaysByOption.get(option.id)!, asOf),
-      ...weekdayCountsOf(eatenDaysByOption.get(option.id)!),
       // Omitted entirely — not an empty array — when the Restaurant has no
       // Closed days, so an always-open Restaurant and every Home meal cost
       // nothing.
@@ -457,7 +477,7 @@ export function buildSnapshot(input: {
       return [
         {
           date: formatDateWithWeekday(entry.eatenOn),
-          optionId: indexByOptionId.get(entry.optionId)!,
+          optionId: codeByOptionId.get(entry.optionId)!,
           name: option.name,
           kind: option.kind,
           tags: option.tags,
@@ -467,10 +487,10 @@ export function buildSnapshot(input: {
     });
 
   // The map back: only candidates are valid results, so a suppressed
-  // Option's number is deliberately absent — `parseRankingText` drops it, and
+  // Option's code is deliberately absent — `parseRankingText` drops it, and
   // `search` never appends it.
-  const idByIndex = new Map(
-    candidates.map((option) => [indexByOptionId.get(option.id)!, option.id]),
+  const idByCode = new Map(
+    candidates.map((option) => [codeByOptionId.get(option.id)!, option.id]),
   );
 
   // Every Rejection of an active Option, newest first, with the Option's Tags
@@ -480,7 +500,8 @@ export function buildSnapshot(input: {
     .sort(
       (a, b) =>
         b.rejectedOn.localeCompare(a.rejectedOn) ||
-        indexByOptionId.get(a.optionId)! - indexByOptionId.get(b.optionId)!,
+        codeIndex(codeByOptionId.get(a.optionId)!) -
+          codeIndex(codeByOptionId.get(b.optionId)!),
     );
 
   // Each Tag's eat days are the union of its carriers' — a day two carriers
@@ -500,7 +521,7 @@ export function buildSnapshot(input: {
         .map(
           (row): SnapshotTagRejection => ({
             date: formatDateWithWeekday(row.rejectedOn),
-            optionId: indexByOptionId.get(row.optionId)!,
+            optionId: codeByOptionId.get(row.optionId)!,
             reason: row.reason,
           }),
         );
@@ -532,7 +553,7 @@ export function buildSnapshot(input: {
       todayDayNote:
         dayNotes.find((dayNote) => dayNote.notedOn === asOf)?.note ?? null,
     },
-    idByIndex,
+    idByCode,
     nameById: new Map(options.map((option) => [option.id, option.name])),
   };
 }
@@ -571,25 +592,6 @@ const RECENT_GAPS = 4;
  */
 export function recentGapsOf(gaps: number[]): number[] {
   return gaps.slice(-RECENT_GAPS).reverse();
-}
-
-/**
- * How many eat days fell on each weekday, in week order from Sunday, leaving
- * out weekdays with none — and the whole key when there are no eats.
- */
-function weekdayCountsOf(
-  eatenDays: Set<string>,
-): Pick<SnapshotModelOption, "weekdays"> {
-  if (eatenDays.size === 0) return {};
-  const counts = WEEKDAY_NAMES.map(() => 0);
-  for (const day of eatenDays) counts[weekdayFromSqlDate(day)] += 1;
-  return {
-    weekdays: Object.fromEntries(
-      WEEKDAY_NAMES.flatMap((name, weekday) =>
-        counts[weekday] > 0 ? [[name, counts[weekday]]] : [],
-      ),
-    ),
-  };
 }
 
 /**
@@ -665,20 +667,19 @@ export type LeanSnapshot = Omit<ModelSnapshot, "log" | "rejections"> & {
 
 /**
  * The snapshot as a model receives it — AI search and Prepared notes alike:
- * each Log row cut to its date, number, and note, each Rejection row to its
- * date, number, and reason. `buildSnapshot` copies the Option's name, kind,
+ * each Log row cut to its date, code, and note, each Rejection row to its
+ * date, code, and reason. `buildSnapshot` copies the Option's name, kind,
  * and Tags onto every history row; on a 215-dinner, 90-Rejection snapshot
  * those copies were over half the tokens. Candidates already carry them in
  * `options`; an Option dropped for the anchor day (Picked, Rejected, Closed)
  * would leave its rows pointing nowhere, so its entry moves to `otherOptions`.
- * A Prepared note's input hash stays on the full snapshot, which this is
- * derived from.
+ * A Prepared note's input hash covers this, as part of the user message sent.
  */
 export function leanSnapshot(snapshot: ModelSnapshot): LeanSnapshot {
   const { today, query, options, tags, log, rejections, ...rest } = snapshot;
   const { rejectedTonight, notTodayRejections } = rejections;
   const candidates = new Set(options.map((option) => option.id));
-  const others = new Map<number, OtherOption>();
+  const others = new Map<string, OtherOption>();
   for (const { optionId: id, name, kind, tags } of [
     ...log,
     ...rejectedTonight,
@@ -695,7 +696,9 @@ export function leanSnapshot(snapshot: ModelSnapshot): LeanSnapshot {
     query,
     options,
     tags,
-    otherOptions: [...others.values()].sort((a, b) => a.id - b.id),
+    otherOptions: [...others.values()].sort(
+      (a, b) => codeIndex(a.id) - codeIndex(b.id),
+    ),
     log: log.map(({ date, optionId, note }) => ({ date, optionId, note })),
     rejections: {
       rejectedTonight: cut(rejectedTonight),
