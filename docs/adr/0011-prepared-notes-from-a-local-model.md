@@ -1,5 +1,8 @@
 # Prepared notes: a local model writes ahead, and its ranking loads by default
 
+_Amended by ADR-0012: the snapshot shared with AI search now carries timing
+facts per Option and per Tag._
+
 ADR-0004 added **AI search** as a triggered, additive layer. The deterministic
 ranking was what loaded, and every AI result was a deliberate, uncached,
 one-off call to the metered Anthropic API. That framing came from cost and
@@ -38,10 +41,11 @@ the floor, one Clear away, and Claude AI search is untouched.
 ## Decision
 
 - A Prepared note is generated only for an **undecided** date from today through
-  today+6. Its input is the same `snapshotForDay` snapshot Claude AI search uses,
-  with an empty query, so ADR-0005 (no pre-computed recency, the model reasons
-  about habits) applies unchanged. It is regenerated when a hash of that
-  snapshot, the model id, and the prompt version changes.
+  today+6. Its input is the same snapshot Claude AI search uses, with an empty
+  query, so ADR-0005 applies unchanged: the model reasons about habits from
+  dated history and timing facts (ADR-0012), with no sort key. It is
+  regenerated when a hash of that snapshot, the model id, and the prompt
+  version changes.
 - **A note freezes once its date has a Pick.** It keeps the last version written
   before the Household decided, and past dates are never generated. A stored
   note is therefore a record of what the model said before reality happened,
@@ -76,9 +80,9 @@ the floor, one Clear away, and Claude AI search is untouched.
   persisted, which it never was under ADR-0004. Only the latest, or the frozen,
   version per date is kept.
 - A note can lag a change by up to one loop interval plus the generation time.
-  A history edit invalidates all seven dates, and a full sweep takes about an hour
-  (six to ten minutes a date, measured), and well over that when Strata is
-  serving other clients, since a note can then take half an hour. That is accepted: the note is labelled out of date in the meantime,
-  and live Claude search is always available.
+  A history edit invalidates all seven dates, and a full sweep takes on the
+  order of an hour, longer when Strata is serving other clients. That is
+  accepted: the note is labelled out of date in the meantime, and live Claude
+  search is always available.
 - Dev servers don't run the loop, so a dev environment never competes with
   production for the GPU.

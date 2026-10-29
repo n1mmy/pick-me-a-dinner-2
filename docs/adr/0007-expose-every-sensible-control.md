@@ -19,5 +19,5 @@ and explained — full control is the default, the trade-off is the exception.
 - The same control appears in several places by design — this is intentional,
   not duplication to consolidate away.
 - Every control must be safe to invoke from any context. Server actions are
-  already auth-by-default (`authedAction`) and revalidate the affected paths,
-  so a control behaves identically wherever it is placed.
+  auth-by-default and revalidate the affected paths, so a control behaves
+  identically wherever it is placed.

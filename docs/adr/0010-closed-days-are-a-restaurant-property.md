@@ -1,5 +1,8 @@
 # Closed days are a property of the Restaurant, not a recurring Rejection
 
+_Amended 2026-09-23: Google Places autofill of Closed days has landed; see the
+last consequence._
+
 ADR-0006 stored Rejections flat as raw dated history and left it to the AI model
 to decide which ones were standing — its worked example, carried verbatim into
 the system prompt, was `"closed on Sundays"`. ADR-0008 then turned down
@@ -73,11 +76,8 @@ series, and no end condition to edit.
 - ADR-0006's `"closed on Sundays"` example — in its text and in the live system
   prompt — is no longer the right illustration of a standing Rejection and is
   replaced. The Rejections mechanism is otherwise untouched.
-- Google Places can supply `regularOpeningHours`, from which closed days are
-  derivable, but `lib/places.ts` does not request that field and autofill is
-  deliberately deferred: the Catalog that hurts today is already saved, so every
-  one of those Restaurants needs hand entry regardless, and Google's hours are
-  wrong often enough that the field must stay editable in any case.
-  *Amended 2026-09-23:* autofill has since landed (closed-days issue 05) — a
-  Places match now requests `regularOpeningHours` and prefills the toggles,
-  still editable, and still written once at the match rather than kept synced.
+- A Google Places match prefills the Closed day toggles from
+  `regularOpeningHours`. The field stays editable and is written once at the
+  match rather than kept synced: Google's hours are wrong often enough that the
+  Household's hand edits must win, and the Restaurants already in the Catalog
+  needed hand entry regardless.

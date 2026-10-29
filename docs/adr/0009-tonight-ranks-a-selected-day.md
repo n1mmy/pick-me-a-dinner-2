@@ -1,40 +1,79 @@
 # Tonight ranks a Selected day, not only today
 
+_Amended 2026-06-17 (any date is selectable, not only today and the future),
+2026-09-08 (the day name resets to today) and 2026-09-22 (an AI search
+survives a day change). All three are folded in below; git history has the
+narrative._
+
 ADR-0003 anchored the Tonight ranking on `today`, with future Log entries
 (Planned dinners) excluded so planning Friday could not make Friday's dish
-look recently eaten today. ADR-0005 built the AI search snapshot to include
-the household's near future (Planned dinners and Planned rejections) but
-anchored the model on today. ADR-0007 ("expose every sensible control")
-established that every place an item is shown carries every control that
-makes sense for it.
+look recently eaten today. ADR-0008 put the Household's near future (Planned
+dinners and Planned rejections) into the AI search snapshot but anchored the
+model on today. ADR-0007 ("expose every sensible control") established that
+every place an item is shown carries every control that makes sense for it.
 
-We are now generalising Tonight to rank for a **Selected day** that defaults
-to today and can be stepped forward to any future date. The entire screen —
-the deterministic ranked list, AI search, the decided **Dinner** block, and
-the live Reject control with its "Bring back" disclosure — re-points to the
+We generalise Tonight to rank for a **Selected day** that defaults to today
+and can be stepped to any date, past or future. The entire screen — the
+deterministic ranked list, AI search, the decided **Dinner** block, and the
+live Reject control with its "Bring back" disclosure — re-points to the
 Selected day. The navigation entry and the default H1 stay "Tonight" because
 today is the dominant case; the H1 shows the day's name when the Selected
-day is anything else. Picking on Selected day = D creates a Log entry dated
-D — today's Pick is **Tonight's dinner**, a future Pick is a **Planned
-dinner**. The deterministic Score uses every Log entry dated ≤ D, so Planned
-dinners between today and D shape D's ranking (a week of planning will not
-repeat itself); the recency cap and tie-break behaviour are unchanged. The
-Selected day lives in the URL (`?day=YYYY-MM-DD`) so refresh, link-sharing,
-and back/forward navigation preserve it.
+day is anything else. Picking on Selected day D creates a Log entry dated D:
+today's Pick is **Tonight's dinner**, a future Pick is a **Planned dinner**,
+a past Pick backfills that night. The Selected day lives in the URL
+(`?day=YYYY-MM-DD`) so refresh, link-sharing, and back/forward navigation
+preserve it; a missing or malformed value falls back to today.
 
-Three choices are load-bearing:
+Five choices are load-bearing:
 
 - **One screen with a date stepper, not a second screen.** The Tonight
   ranking, AI search, decided block, and live Reject are one set of code
   with one anchor parameter — a second screen would duplicate all four.
-- **Future + today only; past dates are not selectable.** The Selected day
-  is a "what should we eat" anchor, not a history-editing one. Backfilling
-  a forgotten dinner stays a Log job, where dated history already gets full
-  edit and delete. The stepper's `min` is today, with no maximum.
+- **Any date is selectable.** The first version allowed today and the future
+  only, reasoning that backfilling belongs on the Log. That contradicted
+  ADR-0007 the moment the decided block showed a past night: a Pick's note,
+  an accidental Pick to remove, and a forgotten dinner to backfill are all
+  things the Household wants to do where the night's dinner is shown. The
+  Selected day is a single anchor with no clamp: a Pick on a past day
+  backfills a Log entry dated that day rather than silently mis-dating it to
+  today. AI search stays available on a past day — pointless but harmless,
+  and hiding it would be a special case against the single anchor.
 - **The deterministic ranking for day D uses every Log entry dated ≤ D.**
   This generalises ADR-0003's "today" anchor: the "excluded as future"
   filter becomes "excluded as after the anchor day," so Planned dinners
-  between today and D count toward recency for D.
+  between today and D count toward recency for D (a week of planning will
+  not repeat itself), and for a past D the ranking reads as it stood that
+  night. The recency cap and tie-break behaviour are unchanged.
+- **The day name is the reset to today.** Returning to today from a distant
+  Selected day cost as many taps as reaching it, and the common case — a tab
+  left open on a future date — had no one-gesture answer. We add no control:
+  tapping the H1 returns the Selected day to today, always, including when it
+  already reads "Tonight". A dedicated "Today" button was rejected because the
+  phone header's width is already spent by the H1 and the stepper; reusing the
+  H1 costs nothing. The affordance is invisible, which a
+  discoverability-sensitive product could not accept; a single Household
+  learns it once. The day name is nonetheless a real button inside the
+  heading, visually unstyled: invisible to the eye is fine, invisible to the
+  keyboard and to assistive tech is not. The reset **deletes `?day=`** rather
+  than setting today's date: any today value a client control could read is
+  baked in at render, so a tab left open past midnight would reset to the
+  wrong day. Dropping the parameter lets the server resolve today fresh, and a
+  bare `/` was already exactly the today case.
+- **An AI search survives a Selected-day change.** The query, the result, the
+  search error, any search still in flight, and the Search button's elapsed
+  count and done badge all carry over, even when the day change switches
+  Tonight between picker and decided mode. A search that lands after the day
+  changed is shown. Only Cancel, Clear, or a newer search stops one landing.
+  An earlier rule cleared the search on every day change so that Friday's
+  rationales never sat under today's heading; in practice it threw away a
+  50–90 s search, in-flight ones included, while the Household did other
+  things. The result is resolved against the new day's picker rows, so an
+  Option that is Picked, rejected, or closed on that day drops out. Two costs
+  are accepted: the rationales can name the day the search ran under a
+  different heading, and an Option that was not a candidate on the searched
+  day is absent even from an open query's result, and so appears nowhere
+  while the result hides the ranked list. Clearing and re-running covers
+  both. The Tag and kind filters are day-agnostic and never clear.
 
 ## Considered options
 
@@ -47,16 +86,12 @@ Three choices are load-bearing:
   dominant Selected day, and renaming the nav entry pessimises the common
   case for the uncommon one. The H1 shifting to the day's name when the
   Selected day is not today is enough.
-- **Allowing past dates as the Selected day.** Rejected: the ranking has no
-  useful meaning anchored to the past — you cannot Pick a dinner you have
-  already eaten or skipped — and backfilling already lives on the Log,
-  which manages dated history with full edit/delete and is the right home.
 - **Filtering Log entries dated after the Selected day from the AI
-  snapshot.** Rejected: ADR-0005's principle ("only this AI snapshot sees
+  snapshot.** Rejected: ADR-0008's principle ("only the AI snapshot sees
   the future") holds — the snapshot just rotates its anchor. When picking
   Friday with Sunday's pizza already planned, the model should know;
-  filtering > Selected day from the snapshot would weaken AI search the
-  moment the household has any commitments beyond it.
+  filtering rows after the Selected day would weaken AI search the moment
+  the Household has any commitments beyond it.
 - **Storing the Selected day in component or session state rather than the
   URL.** Rejected: a URL query parameter makes refresh, link-sharing, and
   back/forward work for free, and the Tonight route already runs through a
@@ -64,162 +99,36 @@ Three choices are load-bearing:
 
 ## Consequences
 
-- The Tonight page reads `?day=YYYY-MM-DD` from the URL (defaulting to today
-  when missing or invalid), passes it through every Tonight-side query and
-  action that currently takes today, and shifts the H1 when it is not
-  today. The decided block becomes day-aware copy ("Friday's dinner") and
-  surfaces the Planned dinners for the Selected day; the "Rejected tonight"
-  disclosure becomes day-aware ("Rejected for [day]") and "Bring back"
-  undoes the Selected-day Rejection.
-- The ranking engine in `lib/ranking.ts` is already date-pure —
-  `rankTonight(options, entries, today)` is `rankTonight(options, entries,
-  asOf)` in effect, and `lastEaten` / `lastTagUse` already filter `entry
-  .eatenOn > today`. Only the parameter name and its doc comments are
-  honesty work; no math changes. ADR-0003 is amended in spirit, not in
+- The Tonight page reads the Selected day from the URL, passes it through
+  every Tonight-side query and action that once took today, and shifts the
+  H1 when it is not today. The decided block uses day-aware copy ("Friday's
+  dinner"); the "Rejected tonight" disclosure becomes "Rejected for [day]"
+  and "Bring back" undoes the Selected-day Rejection.
+- The ranking engine was already date-pure: its anchor parameter was only
+  ever called `today`. No math changes. ADR-0003 is amended in spirit, not in
   math.
-- The AI snapshot in `lib/ai-search.ts` rotates with the Selected day: its
-  `today` field carries the Selected day so the model knows the target
-  day-of-week, the candidate-drop rule keys on Selected-day Rejections, and
-  the snapshot's Log and Rejections continue to carry the full dated
-  history including rows after the Selected day. ADR-0005 holds.
+- The AI snapshot rotates with the Selected day: its `today` field carries
+  the Selected day so the model knows the target day-of-week, the
+  candidate-drop rule keys on Selected-day Rejections, and the snapshot's Log
+  and Rejections carry the full dated history including rows after the
+  Selected day. ADR-0008 holds.
 - Rejections gain a third creation context: a live Reject on Tonight with a
-  future Selected day dates the Rejection to that future day — previously
-  reachable only by hand on the Log or the Option detail page. Suppression
-  remains purely date-driven (ADR-0008), so the new path lights up no new
-  behaviour beyond what already existed for Planned rejections.
+  non-today Selected day dates the Rejection to that day. Suppression remains
+  purely date-driven (ADR-0008), so this path lights up no new behaviour.
 - No schema change. `dinner_log.eaten_on` and `rejections.rejected_on` were
-  always dated columns; the work is at the page, action, and snapshot
-  layers.
-
-## Amendment (2026-06-17): past dates are now selectable
-
-The original decision made the Selected day **today-or-future only**, reasoning
-that the ranking has no useful meaning anchored to the past and that backfilling
-belongs on the Log. We reverse the "no past dates" choice.
-
-The trigger is the interaction principle (ADR-0007) reaching the decided block:
-a Pick's note, an accidental Pick to Remove, and a forgotten dinner to backfill
-are all things the Household wants to do *to a past night*, and the Tonight
-screen is where a night's dinner is shown. Forcing the user to the Log to edit a
-past night contradicts "expose every sensible control where the item appears."
-
-What changes:
-
-- `parseSelectedDay` honours any valid SQL date; only malformed/missing falls
-  back to today. The `DayStepper` drops its `min=today` and the disabled
-  previous-day button, so it steps freely in both directions (still no maximum).
-- The three Selected-day-anchored writes — `pickTonight`, `rejectOption`, and
-  the AI search action — drop their `>= today` clamp, so the Selected day is a
-  true single anchor: a Pick on a past day backfills a Log entry dated that day
-  rather than silently mis-dating it to today.
-- The original points still hold: the ranking for day D still uses every Log
-  entry dated ≤ D (now meaningful for a past D as "as it stood that night"), the
-  H1 still shows the weekday name off-today (the full date stays visible in the
-  stepper, so a bare weekday is unambiguous), and there is still no schema
-  change. AI search remains available on a past day; it is pointless there but
-  harmless, and hiding it would add a special case against the single-anchor
-  model.
-
-## Amendment (2026-09-08): the day name is the reset to today
-
-Returning to today from a distant Selected day cost as many taps as reaching it,
-or a trip through the native date picker to find today by hand. The common case
-is a tab left open on a future date and come back to later, and it had no
-one-gesture answer.
-
-We add no control for it. The H1 already carries the Selected day's name, so it
-becomes the reset: tapping it returns the Selected day to today. It is always
-tappable, including when it already reads "Tonight."
-
-Three choices are load-bearing:
-
-- **No dedicated "Today" button.** The header's width budget on a phone is
-  already spent — the H1 and the stepper together overflow a narrow viewport
-  before anything is added, clipping the forward arrow. Reusing the H1 costs
-  zero width. The affordance is invisible, which a discoverability-sensitive
-  product could not accept; this one has a single household that learns it once.
-  The day name is nonetheless a real `<button>` inside the `<h1>`, visually
-  unstyled: invisible to the eye is fine, invisible to the keyboard and to
-  assistive tech is not.
-- **The reset deletes `?day=` rather than setting it to today's date.** Any
-  today value a client control could read is a prop baked in at render, so a tab
-  left open past midnight would reset to the wrong day. Dropping the parameter
-  defers the question to the server, which resolves `today()` fresh on the
-  re-render. The URL stays honest for free, since a bare `/` was already exactly
-  the today case.
-- **A Selected-day change clears any open AI search result.** *(Superseded by
-  the 2026-09-22 amendment below: the search now survives a day change.)* An AI result and
-  its rationales are computed against one specific Selected day, so carrying
-  them across a day change puts Friday's reasoning under today's heading. The
-  query, the result, and the search error are cleared on every Selected-day
-  change, the reset included; the deterministic list underneath is correct for
-  each day on its own, so nothing is lost but the search. The Tag and kind
-  filters are deliberately **not** cleared — "show me pasta" means the same
-  thing on any day, so they are day-agnostic in a way an AI result is not.
-  (This reverses the prior behaviour, where the result survived a day change
-  because it is held on `TonightScreen` rather than the picker. That was
-  genuinely useful for comparing two days, and is worth restoring if the
-  re-run cost grates — recent search-latency work is what makes paying it
-  acceptable now.)
-
-The header is re-laid-out to match. On mobile the H1 and the stepper share a
-full-width row with the stepper pinned right, so it holds still as the day name
-changes length instead of sliding with it; the stepper is `shrink-0` and the H1
-`min-w-0`, which makes clipping the forward arrow structurally impossible — a
-long day name shortens the H1 instead. Desktop keeps the previous layout. The
-full date stays visible in the stepper at every breakpoint, so the invariant
-that makes a bare weekday unambiguous is unchanged.
-
-Fitting a *whole* long day name, rather than merely not clipping the arrow, took
-measurement. The native date input turned out to be the space hog — 162px of a
-343px row at 375px, more than both arrows combined — so the header's controls
-drop from 44px to 36px, their gaps from 6px to 4px, and the date input to the
-`meta` type size, which brings the stepper to ~205px. That leaves ~130px for the
-day name, and "Wednesday" needs 122px at a 22px H1 (it needs 134px at 24px and
-154px at 28px, both of which ellipsize). Hence the phone H1 is 22px, and the
-header is the one place in the app where controls sit below the 44px touch
-target — recorded in DESIGN.md so it is not "corrected" later.
-
-The residual risk is that the date input's width is browser- and OS-dependent;
-these numbers are Chromium's. A browser that renders it wider than ~137px will
-ellipsize "Wednesday" rather than clip anything — a graceful failure, and the
-reason the layout is built to degrade that way instead of tuning to fit.
-
-Accepted limitation: a tab left on today and returned to the next day still
-shows the stale day, with the H1 reading "Tonight" when it is no longer tonight.
-A reload fixes it. Detecting the rollover client-side is deliberately not
-attempted — the whole page's data is stale in that case, not just the date.
-
-## Amendment (2026-09-22): an AI search survives a Selected-day change
-
-This reverses the 2026-09-08 rule that a day change clears any open AI search.
-In practice the re-run cost grated, as that amendment predicted: stepping to
-another day threw away a 50–90s search. That included one still in flight,
-which meant waiting for the whole search again. The search takes long enough
-that the Household routinely does other things while it runs, such as picking or
-switching days, and none of that should cost them the search.
-
-A Selected-day change now leaves the AI search alone: the query, the result, the
-search error, and any search still in flight all carry over. A search that lands
-after the day changed is shown, not dropped. Only Cancel, Clear, or a newer
-search stops a search from landing. The Search button's elapsed-seconds count
-and its done badge carry over too, even when the day change switches Tonight
-between picker and decided mode and so remounts the search box.
-
-The result is resolved against the new day's picker rows, so an Option that is
-Picked, rejected, or closed on that day drops out of it, just as it does after a
-Pick. Two costs are accepted:
-
-- **The rationales can name the wrong day.** This is the cost the earlier
-  amendment named: they were written for the day the search ran, so they can
-  mention that day under a different heading.
-- **An Option can be missing from the result.** The search's candidates are the
-  searched day's Options. An Option unavailable that day but available on the
-  new one, such as a Restaurant closed Monday and open Tuesday, was never a
-  candidate. So it is absent even from an open query's result, which otherwise
-  shows every candidate. The ranked list is hidden while the result is on
-  screen, so the Option appears nowhere until the search is cleared. We accept
-  this because searching on one day and stepping to another is not the common
-  path.
-
-The Household can clear the search and run it again when either cost matters.
+  always dated columns; the work is at the page, action, and snapshot layers.
+- The phone header is laid out so the H1 and the stepper share a row with the
+  stepper pinned right: it holds still as the day name changes length, and a
+  long day name shortens the H1 instead of clipping the forward arrow. The
+  full date stays visible in the stepper at every breakpoint, so a bare
+  weekday in the H1 is unambiguous. Fitting a whole day name on a narrow
+  phone makes this header the one place in the app where controls sit below
+  the 44px touch target; the sizes and the rule live in DESIGN.md. The
+  native date input's width is browser- and OS-dependent and was measured in
+  Chromium; a browser that renders it wider ellipsizes the day name rather
+  than clipping anything, the graceful failure the layout is built for.
+- Accepted limitation: a tab left on today and returned to the next day
+  shows the stale day, with the H1 reading "Tonight" when it is no longer
+  tonight. A reload fixes it. Detecting the rollover client-side is
+  deliberately not attempted — the whole page's data is stale in that case,
+  not just the date.
