@@ -4,6 +4,7 @@ import type { RejectionRow } from "./rejections";
 import {
   buildSnapshot,
   leanSnapshot,
+  recentGapsOf,
   type SnapshotLogEntry,
   type SnapshotOption,
 } from "./snapshot";
@@ -83,7 +84,7 @@ describe("buildSnapshot", () => {
   });
 
   it("carries candidate and timing fields — no Places fields", () => {
-    // Eaten once, so no Interval yet.
+    // Eaten once, so no gaps yet.
     expect(Object.keys(snapshot.options[0]).sort()).toEqual(
       ["id", "kind", "name", "notes", "tags", "eaten", "daysSinceLast", "weekdays"].sort(),
     );
@@ -651,6 +652,19 @@ describe("buildSnapshot — Day notes", () => {
   });
 });
 
+describe("recentGapsOf — the pace as it stands, and the only timing summary", () => {
+  it("keeps the last four gaps, newest first", () => {
+    // Twice a week one spring, then a long break, then every two to three
+    // weeks: the break and the pace since both show; no median hides them.
+    expect(recentGapsOf([4, 3, 7, 3, 9, 40, 14, 21, 21])).toEqual([21, 21, 14, 40]);
+  });
+
+  it("gives what there is under four", () => {
+    expect(recentGapsOf([9, 12])).toEqual([12, 9]);
+    expect(recentGapsOf([14])).toEqual([14]);
+  });
+});
+
 describe("buildSnapshot — timing facts (ADR-0012)", () => {
   // TODAY = "2026-05-20", a Wednesday.
   const options = [
@@ -678,22 +692,42 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
   });
   const byName = (name: string) => snapshot.options.find((o) => o.name === name)!;
 
-  it("gives a candidate its eat count, days since, median Interval, and weekday counts", () => {
-    expect(byName("Mazra")).toMatchObject({
+  it("gives a candidate its eat count, days since, recent gaps, and weekday counts", () => {
+    expect(byName("Mazra")).toEqual({
+      id: expect.any(Number),
+      name: "Mazra",
+      kind: "home",
+      notes: null,
+      tags: ["mediterranean", "rice"],
       eaten: 3,
       daysSinceLast: 7,
-      intervalDays: 11, // gaps 9 and 12: the rounded mean of the middle two
+      recentGaps: [12, 9],
       weekdays: { Wednesday: 2, Friday: 1 },
     });
+  });
+
+  it("keeps the last four gaps newest first, and no median over them", () => {
+    const { snapshot: slowed } = buildSnapshot({
+      options: [option("s1", "Slowed")],
+      logEntries: [
+        "2026-01-01", "2026-01-11", "2026-01-21", "2026-01-31", "2026-02-10", "2026-03-03", "2026-03-24",
+      ].map((eatenOn) => ({ optionId: "s1", eatenOn, note: null })),
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+    // Gaps 10, 10, 10, 10, 21, 21: the slowdown is on the row, and nothing says "ten days".
+    expect(slowed.options[0]).toMatchObject({ recentGaps: [21, 21, 10, 10] });
+    expect(slowed.options[0]).not.toHaveProperty("intervalDays");
   });
 
   it("leaves out dinners after the anchor day, Planned or not", () => {
     expect(byName("Mazra").eaten).toBe(3);
   });
 
-  it("omits the Interval under two eats, and every fact but the count when never eaten", () => {
+  it("omits the gaps under two eats, and every fact but the count when never eaten", () => {
     expect(byName("Once")).toMatchObject({ eaten: 1, daysSinceLast: 1 });
-    expect(byName("Once")).not.toHaveProperty("intervalDays");
+    expect(byName("Once")).not.toHaveProperty("recentGaps");
     const never = byName("Never Tried");
     expect(never.eaten).toBe(0);
     expect(never).not.toHaveProperty("daysSinceLast");
@@ -706,8 +740,9 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
 
   it("gives each Tag the timing of every active Option carrying it, a shared day once", () => {
     expect(snapshot.tags).toEqual({
-      mediterranean: { eaten: 4, daysSinceLast: 7, intervalDays: 12 }, // gaps 52, 9, 12
-      rice: { eaten: 3, daysSinceLast: 7, intervalDays: 11 },
+      // gaps 52, 9, 12 across both carriers, newest first
+      mediterranean: { eaten: 4, daysSinceLast: 7, recentGaps: [12, 9, 52] },
+      rice: { eaten: 3, daysSinceLast: 7, recentGaps: [12, 9] },
       single: { eaten: 1, daysSinceLast: 1 },
     });
   });
@@ -732,6 +767,146 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
       "tags",
       "otherOptions",
     ]);
+  });
+});
+
+describe("buildSnapshot — Rejections per Tag (ADR-0006 amended)", () => {
+  // TODAY = "2026-05-20". Mazra and Lotus share a Tag; Never Tried is the
+  // only carrier of its own.
+  const options = [
+    option("m1", "Mazra", ["mediterranean", "rice"]),
+    option("l1", "Lotus Falafel", ["mediterranean"]),
+    option("n1", "Never Tried", ["noodles"]),
+  ];
+  const rejections = [
+    rejection("m1", "2026-05-12", "too recent"),
+    rejection("l1", "2026-05-15", "too heavy that night"),
+    rejection("m1", TODAY, null),
+  ];
+  const { snapshot } = buildSnapshot({
+    options,
+    logEntries: [],
+    rejections,
+    asOf: TODAY,
+    query: "",
+  });
+
+  it("lists under each Tag every Rejection of an Option carrying it, newest first", () => {
+    // Mazra is number 2 (Lotus 1, Never Tried 3). The Tag view carries the
+    // same rows as the Rejections block, so a repeat turned down for one
+    // Option reads as recent for every Option of its kind.
+    expect(snapshot.tags.mediterranean.rejections).toEqual([
+      { date: "2026-05-20 (Wednesday)", optionId: 2, reason: null },
+      { date: "2026-05-15 (Friday)", optionId: 1, reason: "too heavy that night" },
+      { date: "2026-05-12 (Tuesday)", optionId: 2, reason: "too recent" },
+    ]);
+    expect(snapshot.tags.rice.rejections).toEqual([
+      { date: "2026-05-20 (Wednesday)", optionId: 2, reason: null },
+      { date: "2026-05-12 (Tuesday)", optionId: 2, reason: "too recent" },
+    ]);
+  });
+
+  it("omits the key for a Tag with no Rejections", () => {
+    expect(snapshot.tags.noodles).toEqual({ eaten: 0 });
+    expect(snapshot.tags.noodles).not.toHaveProperty("rejections");
+  });
+
+  it("reads the Tags from the Catalog, not from the Rejection row", () => {
+    // The row's own `tags` copy is for the Rejections block; the Tag view is
+    // built from the Option's Tags as the Catalog has them now.
+    const { snapshot: retagged } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [{ ...rejection("m1", "2026-05-12", "too recent"), tags: ["stale"] }],
+      asOf: TODAY,
+      query: "",
+    });
+    expect(retagged.tags).not.toHaveProperty("stale");
+    expect(retagged.tags.rice.rejections).toHaveLength(1);
+  });
+
+  it("keeps the Tag view in the lean snapshot", () => {
+    expect(leanSnapshot(snapshot).tags.mediterranean.rejections).toHaveLength(3);
+  });
+
+  it("cuts the Tag view to Rejections before the anchor day in backtest mode", () => {
+    const { snapshot: back } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections,
+      asOf: TODAY,
+      query: "",
+      backtest: true,
+    });
+    expect(back.tags.rice.rejections?.map((r) => r.reason)).toEqual(["too recent"]);
+  });
+});
+
+describe("buildSnapshot — backtest mode", () => {
+  // TODAY = "2026-05-20", a decided past day: Mazra was eaten on it.
+  const options = [
+    option("m1", "Mazra", ["rice"]),
+    option("q1", "Quiche"),
+    option("t1", "Tacos"),
+  ];
+  const input = {
+    options,
+    logEntries: [
+      { optionId: "m1", eatenOn: "2026-05-10", note: null },
+      { optionId: "m1", eatenOn: TODAY, note: "the answer" },
+      { optionId: "t1", eatenOn: "2026-05-22", note: "eaten after" },
+    ],
+    rejections: [
+      rejection("q1", "2026-05-12", "none left"),
+      rejection("q1", TODAY, "too soon"),
+      rejection("t1", "2026-05-25", "later"),
+    ],
+    dayNotes: [
+      { notedOn: "2026-05-12", note: "Guests over" },
+      { notedOn: TODAY, note: "Swim night" },
+      { notedOn: "2026-05-22", note: "Away" },
+    ],
+    asOf: TODAY,
+    query: "",
+    backtest: true,
+  };
+  const { snapshot, idByIndex } = buildSnapshot(input);
+
+  it("keeps Log entries dated before the anchor day only", () => {
+    expect(snapshot.log.map((entry) => entry.date)).toEqual([
+      "2026-05-10 (Sunday)",
+    ]);
+  });
+
+  it("keeps the anchor day's Pick a candidate, its timing counted from earlier eats", () => {
+    expect(snapshot.options.map((o) => o.name)).toEqual([
+      "Mazra",
+      "Quiche",
+      "Tacos",
+    ]);
+    expect([...idByIndex.values()]).toContain("m1");
+    expect(snapshot.options[0]).toMatchObject({ eaten: 1, daysSinceLast: 10 });
+    expect(snapshot.tags.rice.daysSinceLast).toBe(10);
+  });
+
+  it("carries no anchor-day Rejection and suppresses nothing for it", () => {
+    expect(snapshot.rejections.rejectedTonight).toEqual([]);
+    expect(
+      snapshot.rejections.notTodayRejections.map((row) => row.reason),
+    ).toEqual(["none left"]);
+    expect([...idByIndex.values()]).toContain("q1");
+  });
+
+  it("keeps Day notes on or before the anchor day, its own as todayDayNote", () => {
+    expect(snapshot.todayDayNote).toBe("Swim night");
+    expect(snapshot.dayNotes.map((d) => d.note)).toEqual(["Guests over"]);
+  });
+
+  it("changes nothing when off", () => {
+    const { snapshot: live } = buildSnapshot({ ...input, backtest: false });
+    expect(live.options.map((o) => o.name)).toEqual(["Tacos"]);
+    expect(live.log).toHaveLength(3);
+    expect(live.dayNotes).toHaveLength(2);
   });
 });
 

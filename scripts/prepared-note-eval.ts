@@ -17,6 +17,22 @@
  *   npx tsx scripts/prepared-note-eval.ts --no-prompt   # skip the system prompt
  *   npx tsx scripts/prepared-note-eval.ts --reasoning   # also print the model's reasoning
  *
+ * Backtest (`scripts/backtest.ts`): score notes for recent decided days, each
+ * built as the Household saw it, against what was eaten. ~9 minutes a day, so
+ * the default 20 days is about three hours; `--resume` picks a stopped run up.
+ *
+ *   npx tsx scripts/prepared-note-eval.ts --backtest --json --reasoning
+ *   npx tsx scripts/prepared-note-eval.ts --backtest --days=2026-10-20,2026-10-23 --json=x.json
+ *   npx tsx scripts/prepared-note-eval.ts --backtest --json --reasoning --resume
+ *
+ * `--claude[=model]` sends the backtest's prompt to a Claude model instead
+ * (Opus 5.5 by default) through the Anthropic API, with `ANTHROPIC_API_KEY`,
+ * at `--effort=low|medium|high` (default `low`, as AI search runs). The
+ * reasoning saved is the thinking summary, not a raw trace. This call is
+ * billed, so the billed-call rule in `CLAUDE.md` applies to it.
+ *
+ *   npx tsx scripts/prepared-note-eval.ts --backtest --claude --days=… --json --reasoning
+ *
  * Strata is free to call, so the billed-call rule in `CLAUDE.md` does not
  * apply here (it still applies to `scripts/ai-search-eval.ts`). One run is one
  * generation: six to ten minutes on an idle Strata, up to about 35 under
@@ -28,27 +44,28 @@
  * `.env.local`, never committed. The snapshot is read-only.
  */
 import "./load-env";
+import Anthropic from "@anthropic-ai/sdk";
 import { isValidSqlDate, shiftSqlDate, today } from "../lib/local-day";
 import {
   buildPreparedSystemPrompt,
+  buildPreparedUserMessage,
   createPreparedNoteClient,
   localModelConfig,
+  parsePreparedReply,
   PREPARED_PROMPT_VERSION,
   type PrepareResult,
   type RawPreparedReply,
 } from "../lib/prepared-note";
-import { leanSnapshot, snapshotForDay } from "../lib/snapshot";
+import { type BuiltSnapshot, leanSnapshot, snapshotForDay } from "../lib/snapshot";
+import {
+  type Generation,
+  parseBacktestArgs,
+  RHYTHM_CLAIM_SUSPECTS,
+  runBacktest,
+} from "./backtest";
 
 /** The brief's target length, from the spec. */
 const BRIEF_WORDS = { min: 40, max: 70 };
-
-/**
- * Phrases that usually break the rhythm-claim rule — a date, a day or week
- * count, a month, or a vague "it has been a while". A flag to read, not a
- * verdict: "every two weeks" is fine and still matches.
- */
-const RHYTHM_CLAIM_SUSPECTS =
-  /\b\d{1,2}\/\d{1,2}\b|\b\d+\s+(?:[Dd]ays?|[Ww]eeks?|[Mm]onths?)\b|\b(?:days?|weeks?|months?)\s+ago\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\b|\b(?:a while|long gap)\b/g;
 
 /** `--day=+N`, `--day=YYYY-MM-DD`, or today when absent. */
 function resolveDay(arg: string | undefined): string {
@@ -88,11 +105,100 @@ async function captureLogLine<T>(
   }
 }
 
+type ClaudeEffort = "low" | "medium" | "high";
+
+/**
+ * A backtest generator that sends the Prepared note prompt to a Claude model:
+ * the same system prompt and user message Strata gets, adaptive thinking at
+ * `effort`, streamed. Read as the Strata path reads in the backtest: a reply
+ * that ended on its own is parsed leniently, so a skipped brief still scores.
+ */
+function claudeGenerator(
+  model: string,
+  effort: ClaudeEffort,
+): (built: BuiltSnapshot) => Promise<Generation> {
+  const anthropic = new Anthropic();
+  const system = buildPreparedSystemPrompt();
+  return async (built) => {
+    const startedAt = Date.now();
+    const response = await anthropic.messages
+      .stream({
+        model,
+        max_tokens: 32_000,
+        system,
+        messages: [{ role: "user", content: buildPreparedUserMessage(built) }],
+        thinking: { type: "adaptive", display: "summarized" },
+        output_config: { effort },
+      })
+      .finalMessage();
+    const text = response.content
+      .map((block) => (block.type === "text" ? block.text : ""))
+      .join("");
+    const reasoning = response.content
+      .map((block) => (block.type === "thinking" ? block.thinking : ""))
+      .join("\n");
+    const note =
+      response.stop_reason === "end_turn"
+        ? parsePreparedReply(text, built, { requireBrief: false })
+        : null;
+    if (note === null) {
+      console.error(`  stop: ${response.stop_reason}; reply unread:\n${text.slice(0, 500)}`);
+    }
+    return {
+      ok: note !== null,
+      ranking: note?.ranking ?? [],
+      brief: note?.brief,
+      latencyMs: Date.now() - startedAt,
+      outputTokens: response.usage.output_tokens,
+      reasoning: reasoning || undefined,
+      resolvedByName: note?.resolvedByName,
+    };
+  };
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const day = resolveDay(
     args.find((arg) => arg.startsWith("--day="))?.slice(6),
   );
+
+  const claudeArg = args.find((arg) => arg === "--claude" || arg.startsWith("--claude="));
+  if (claudeArg) {
+    if (!args.includes("--backtest")) {
+      console.error("--claude runs the backtest only — add --backtest.");
+      process.exit(1);
+    }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error("ANTHROPIC_API_KEY is not set — add it to .env.local.");
+      process.exit(1);
+    }
+    const model = claudeArg.includes("=") ? claudeArg.slice(9) : "claude-opus-5-5";
+    const effortArg = args.find((arg) => arg.startsWith("--effort="))?.slice(9) ?? "low";
+    if (effortArg !== "low" && effortArg !== "medium" && effortArg !== "high") {
+      console.error(`--effort must be low, medium or high, got ${effortArg}`);
+      process.exit(1);
+    }
+    const backtestArgs = parseBacktestArgs(
+      args,
+      `scripts/backtest-runs/prepared-v${PREPARED_PROMPT_VERSION}-${model.replace(/^claude-/, "")}-${effortArg}.json`,
+    );
+    if (args.includes("--reasoning") && !backtestArgs.jsonPath) {
+      console.error("--reasoning saves traces beside the JSON — add --json.");
+      process.exit(1);
+    }
+    await runBacktest({
+      args: backtestArgs,
+      meta: {
+        ranker: "prepared note",
+        model,
+        effort: effortArg,
+        promptVersion: PREPARED_PROMPT_VERSION,
+      },
+      saveReasoning: args.includes("--reasoning"),
+      generate: claudeGenerator(model, effortArg),
+    });
+    return;
+  }
 
   const config = localModelConfig();
   const { model } = config;
@@ -101,6 +207,51 @@ async function main(): Promise<void> {
       "LOCAL_AI_BASE_URL and LOCAL_AI_MODEL are not set — add them to .env.local.",
     );
     process.exit(1);
+  }
+
+  if (args.includes("--backtest")) {
+    const backtestArgs = parseBacktestArgs(
+      args,
+      `scripts/backtest-runs/strata-v${PREPARED_PROMPT_VERSION}.json`,
+    );
+    if (args.includes("--reasoning") && !backtestArgs.jsonPath) {
+      console.error("--reasoning saves traces beside the JSON — add --json.");
+      process.exit(1);
+    }
+    await runBacktest({
+      args: backtestArgs,
+      meta: { ranker: "prepared note", model, promptVersion: PREPARED_PROMPT_VERSION },
+      saveReasoning: args.includes("--reasoning"),
+      generate: async (built) => {
+        let reply: RawPreparedReply | undefined;
+        const { value: result, logLine } = await captureLogLine(() =>
+          createPreparedNoteClient({
+            ...config,
+            onReply: (raw) => {
+              reply = raw;
+            },
+          }).prepare(built),
+        );
+        // A whole reply whose brief the model skipped is unavailable to the
+        // app, but its ranking still scores here, with the brief empty — the
+        // aggregate counts those days.
+        const lenient =
+          !result.ok && reply?.content && reply.finishReason === "stop"
+            ? parsePreparedReply(reply.content, built, { requireBrief: false })
+            : null;
+        const note = result.ok ? result.note : lenient;
+        return {
+          ok: note !== null,
+          ranking: note?.ranking ?? [],
+          brief: note?.brief,
+          latencyMs: Number(logLine?.latencyMs) || undefined,
+          outputTokens: Number(logLine?.outputTokens) || undefined,
+          reasoning: reply?.reasoning ?? undefined,
+          resolvedByName: result.ok ? reply?.resolvedByName : lenient?.resolvedByName,
+        };
+      },
+    });
+    return;
   }
 
   const built = await snapshotForDay({ asOf: day, query: "" });

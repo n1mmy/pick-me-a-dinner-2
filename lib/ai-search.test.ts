@@ -211,7 +211,7 @@ describe("buildSystemPrompt", () => {
   it("shares the rest of the prompt across modes", () => {
     // The habit-reasoning core (ADR-0005) is mode-independent.
     for (const mode of ["full", "pithy", "drop"] as const) {
-      expect(buildSystemPrompt(mode)).toContain("READ THEIR EATING HISTORY");
+      expect(buildSystemPrompt(mode)).toContain("reads recency through their habits");
     }
   });
 
@@ -249,7 +249,27 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("dayNotes");
     expect(prompt).toContain("todayDayNote");
     expect(prompt).toContain("not about any Option");
-    expect(prompt).toContain("current context for this search");
+    expect(prompt).toContain("the context for this evening");
+  });
+
+  it("says what the data is evidence of and leaves the weighing to the model", () => {
+    // ADR-0005 amended: no threshold for "due", no rule written for a named
+    // Option, no example drawn from the Household's Log.
+    const prompt = buildSystemPrompt("pithy");
+    expect(prompt).toContain("What each part of the snapshot is evidence of");
+    // The gaps are the only timing summary: no Interval, no median for the
+    // model to call an Option "due" against (ADR-0012, third amendment).
+    expect(prompt).toContain("recentGaps are the days between its last eats, newest first");
+    expect(prompt).toContain("short of the last gap is ordinary");
+    expect(prompt).not.toMatch(/Interval|intervalDays|median|longest break/);
+    expect(prompt).toContain("lists the Rejections of every Option carrying it");
+    expect(prompt).not.toMatch(/two-thirds|below about half|being due is not being wanted/);
+    expect(prompt).not.toMatch(/Jen|roti|salmon|swim|leftovers|Mazra/i);
+  });
+
+  it("never asks for an empty reason: every ranked row says one thing", () => {
+    expect(buildSystemPrompt("pithy")).toContain("never nothing");
+    expect(buildSystemPrompt("pithy")).not.toContain("empty string");
   });
 
   it("tells the model today's Log rows are tonight's chosen dinner, not candidates", () => {
@@ -593,6 +613,32 @@ describe("createAiSearchClient — failure model and fallback", () => {
     expect(params.model).toBe("claude-haiku-4-5-20251001");
     expect(params.thinking).toEqual({ type: "enabled", budget_tokens: 1024 });
     expect(params.output_config).toBeUndefined();
+  });
+
+  it("sends thinking disabled, not absent, for thinking off", async () => {
+    // Fireworks lets a reasoning model think when `thinking` is left out, and
+    // the thinking eats the whole output cap before the ranking is written.
+    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+    await createAiSearchClient("k", {
+      model: "accounts/fireworks/models/kimi-k3",
+      thinking: { type: "off" },
+    }).search(built);
+
+    expect(messagesStream).not.toHaveBeenCalled();
+    const params = messagesCreate.mock.calls[0][0];
+    expect(params.thinking).toEqual({ type: "disabled" });
+    expect(params.output_config).toBeUndefined();
+  });
+
+  it("refuses thinking off for a model that cannot turn it off", () => {
+    // `disabled` is a 400 on Opus 5.5, so sending it would fall back on every
+    // search; the misconfiguration fails at client creation instead.
+    expect(() =>
+      createAiSearchClient("k", {
+        model: "claude-opus-5-5",
+        thinking: { type: "off" },
+      }),
+    ).toThrow(/cannot turn thinking off/);
   });
 
   it("defaults to a model that takes the adaptive streaming path", async () => {

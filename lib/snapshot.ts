@@ -74,11 +74,39 @@ export type SnapshotTiming = {
   /** Days from its last eat to the anchor day — omitted when never eaten. */
   daysSinceLast?: number;
   /**
-   * Its **Interval**: the median gap in days between consecutive eats —
-   * omitted under two eats, where there is no gap to take.
+   * The gaps in days between its last eats, newest first, up to four
+   * (`recentGapsOf`) — the pace the Household keeps now, as they keep it,
+   * with no summary number over it. There used to be one, the Interval, a
+   * median of the gaps; it is gone because a median licensed "due" against a
+   * pace the Household had left behind (ADR-0012, third amendment). Omitted
+   * under two eats, where there is no gap to take.
    */
-  intervalDays?: number;
+  recentGaps?: number[];
 };
+
+/**
+ * One Rejection as a Tag's entry lists it: the day, the Option by its number,
+ * the reason. The same row as the Rejections block carries, seen from the Tag.
+ */
+export type SnapshotTagRejection = {
+  /** The day rejected, with weekday. */
+  date: string;
+  /** The rejected Option, by its snapshot number. */
+  optionId: number;
+  /** The Household's reason, or `null` when none was given. */
+  reason: string | null;
+};
+
+/**
+ * A Tag's entry in the snapshot: its timing facts across every active Option
+ * carrying it, and — when there are any — the Rejections of those Options,
+ * newest first. A Rejection is the Household's verdict on one Option, but a
+ * reason like "too recent" is about the kind of food; listed under the Tag,
+ * it reaches every Option of that kind, which the model did not manage when
+ * the row sat under one Option alone (ADR-0006 amended). Omitted, not empty,
+ * for a Tag with none.
+ */
+export type SnapshotTag = SnapshotTiming & { rejections?: SnapshotTagRejection[] };
 
 /**
  * One Option in the model-input snapshot — a candidate to rank, with its
@@ -166,9 +194,11 @@ export type ModelSnapshot = {
   /**
    * Every Tag on an active Option, by name in alphabetical order, with its
    * timing facts across every active Option carrying it — once here rather
-   * than on each Option that carries it.
+   * than on each Option that carries it — and the Rejections of those
+   * Options, so a reason about the kind of food is read against every
+   * Option of that kind.
    */
-  tags: Record<string, SnapshotTiming>;
+  tags: Record<string, SnapshotTag>;
   /**
    * The full Log as dated history, newest dinner first — past entries *and*
    * future-dated ones (Planned dinners), each carrying its real date so the
@@ -247,8 +277,8 @@ export type BuiltSnapshot = {
  *   compounds in every result row the model writes back.
  * - **Timing facts, not a sort key** (ADR-0012, superseding that part of
  *   ADR-0005). Each candidate carries how often it was eaten, days since its
- *   last eat, its Interval, and its weekday counts; the `tags` block carries
- *   the first three per Tag. Left to work these out from the Log, the model
+ *   last eat, its last four gaps, and its weekday counts; the `tags` block
+ *   carries all but the weekdays per Tag. Left to work these out from the Log, the model
  *   worked out a different subset each run and judged them inconsistently.
  *   Nothing here combines them — no overdue flag, no ratio, no habit label —
  *   so the judgment stays the model's.
@@ -294,6 +324,11 @@ export type BuiltSnapshot = {
  *   not-anchor-day ones — the latter carrying past *and* future-dated (Planned)
  *   Rejections; the model judges from the reasons and dates what is standing
  *   and what was one-off.
+ * - The same Rejections are listed again **per Tag**, under each Tag of the
+ *   rejected Option (ADR-0006 amended). Under one Option alone, a "too
+ *   recent" was read as a fact about that Option, and the next Option of the
+ *   same kind was ranked first the following day. The Tags come from the
+ *   Catalog as it stands, not from the row's own copy.
  * - **Day notes** (PRD: Day notes) ride along as dated history — past and
  *   future, newest first, uncapped like the Log — with the anchor day's own
  *   note lifted out into `todayDayNote` as current context. They are facts
@@ -306,6 +341,12 @@ export type BuiltSnapshot = {
  *   notes — rides as plain JSON string values; each system prompt names those
  *   fields as data, never instructions. Only the query is wrapped in
  *   `<household-text>` delimiters, since it is sent outside the JSON.
+ * - **Backtest mode** (`backtest: true`) builds the snapshot as the Household
+ *   saw the anchor day before deciding it, for scoring a ranking against what
+ *   was eaten: Log entries and Rejections dated before `asOf` only — the
+ *   anchor day's Picks stay candidates and its Rejections suppress nothing,
+ *   both being the scorer's ground truth — and Day notes on or before `asOf`.
+ *   The Catalog is whatever is passed in.
  */
 export function buildSnapshot(input: {
   options: SnapshotOption[];
@@ -325,9 +366,19 @@ export function buildSnapshot(input: {
    */
   asOf: string;
   query: string;
+  /** Cut the history to what was known before deciding `asOf` — see above. */
+  backtest?: boolean;
 }): BuiltSnapshot {
-  const { options, logEntries, rejections, dayNotes = [], asOf, query } =
-    input;
+  const { options, asOf, query, backtest = false } = input;
+  const logEntries = backtest
+    ? input.logEntries.filter((entry) => entry.eatenOn < asOf)
+    : input.logEntries;
+  const rejections = backtest
+    ? input.rejections.filter((row) => row.rejectedOn < asOf)
+    : input.rejections;
+  const dayNotes = (input.dayNotes ?? []).filter(
+    (dayNote) => !backtest || dayNote.notedOn <= asOf,
+  );
 
   // Every Option is numbered by its 1-based position in the Catalog ordered
   // alphabetically by name — the number is what the model sees instead of the
@@ -422,19 +473,44 @@ export function buildSnapshot(input: {
     candidates.map((option) => [indexByOptionId.get(option.id)!, option.id]),
   );
 
+  // Every Rejection of an active Option, newest first, with the Option's Tags
+  // as the Catalog has them — the rows each Tag's entry lists.
+  const rejectionsByDate = [...rejections]
+    .filter((row) => optionById.has(row.optionId))
+    .sort(
+      (a, b) =>
+        b.rejectedOn.localeCompare(a.rejectedOn) ||
+        indexByOptionId.get(a.optionId)! - indexByOptionId.get(b.optionId)!,
+    );
+
   // Each Tag's eat days are the union of its carriers' — a day two carriers
   // share counts once.
   const tagNames = [...new Set(options.flatMap((option) => option.tags))].sort(
     (a, b) => a.localeCompare(b),
   );
   const tags = Object.fromEntries(
-    tagNames.map((tag) => {
+    tagNames.map((tag): [string, SnapshotTag] => {
       const days = new Set(
         options
           .filter((option) => option.tags.includes(tag))
           .flatMap((option) => [...eatenDaysByOption.get(option.id)!]),
       );
-      return [tag, timingOf(days, asOf)];
+      const tagRejections = rejectionsByDate
+        .filter((row) => optionById.get(row.optionId)!.tags.includes(tag))
+        .map(
+          (row): SnapshotTagRejection => ({
+            date: formatDateWithWeekday(row.rejectedOn),
+            optionId: indexByOptionId.get(row.optionId)!,
+            reason: row.reason,
+          }),
+        );
+      return [
+        tag,
+        {
+          ...timingOf(days, asOf),
+          ...(tagRejections.length > 0 ? { rejections: tagRejections } : {}),
+        },
+      ];
     }),
   );
 
@@ -473,17 +549,28 @@ function timingOf(eatenDays: Set<string>, asOf: string): SnapshotTiming {
   return {
     eaten: days.length,
     daysSinceLast: epochDayFromSqlDate(asOf) - days[days.length - 1],
-    ...(gaps.length > 0 ? { intervalDays: median(gaps) } : {}),
+    ...(gaps.length > 0 ? { recentGaps: recentGapsOf(gaps) } : {}),
   };
 }
 
-/** The middle value, or the rounded mean of the middle two. */
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 1
-    ? sorted[mid]
-    : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+/** How many of the latest gaps `recentGapsOf` keeps. */
+const RECENT_GAPS = 4;
+
+/**
+ * The last gaps of a history given as its gaps in days, oldest first —
+ * returned newest first, at most `RECENT_GAPS` of them. One gap is a single
+ * evening's circumstance; a few show a pace, and a one-off long break shows
+ * as what it was instead of vanishing into a median.
+ *
+ * This is the only timing summary the snapshot carries. A median of the gaps
+ * (the Interval) came first, then a median of the "current run" since the
+ * longest break, then the plain median beside these gaps — and each time the
+ * model ranked on the median and called an Option due against a pace the
+ * Household no longer kept, even with the real gaps on the same row. The
+ * gaps alone leave it nothing to be due against but the pace as it stands.
+ */
+export function recentGapsOf(gaps: number[]): number[] {
+  return gaps.slice(-RECENT_GAPS).reverse();
 }
 
 /**
@@ -517,13 +604,19 @@ function weekdayCountsOf(
  * (`getFullLogForSnapshot`), not `getTonightData`'s non-future `logEntries` —
  * the AI snapshot sees the household's near future (ADR-0008); only the
  * Catalog comes from `getTonightData`.
+ *
+ * `backtest` builds a past day as the Household saw it before deciding (see
+ * `buildSnapshot`) — for the eval scripts only. The Catalog is still read as
+ * it is now: an Option archived, added, or re-tagged since `asOf` is off.
  */
 export async function snapshotForDay({
   asOf,
   query,
+  backtest = false,
 }: {
   asOf: string;
   query: string;
+  backtest?: boolean;
 }): Promise<BuiltSnapshot> {
   const [{ options }, logEntries, rejections, dayNotes] = await Promise.all([
     getTonightData(asOf),
@@ -550,6 +643,7 @@ export async function snapshotForDay({
     dayNotes,
     asOf,
     query,
+    backtest,
   });
 }
 

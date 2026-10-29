@@ -3,6 +3,14 @@
 _Amended by ADR-0012: the snapshot now carries timing facts per Option and per
 Tag. It still carries no sort key._
 
+_Amended 2026-10-28: the prompt says what each kind of data in the snapshot is
+evidence of — a Log entry, a note, a Rejection, a Day note, a timing fact — and
+leaves the weighing to the model. No prompt rule, example, or evaluation target
+is written for a named Option. Prompt v10 had carried a weighing rule per
+backtest finding, each with an example from this Household's Log; the model
+quoted the rules and ranked against them, and the examples read as
+instructions rather than patterns to find._
+
 ADR-0004 added AI search as an additive, triggered layer over the
 deterministic ranking. In practice it added little: the model was fed the same
 pre-digested recency integers the deterministic Score already uses and was

@@ -10,7 +10,7 @@
  * the household's eating *habits* — cadence, day-of-week rhythm, streaks, drift
  * — rather than re-sort recency. So the snapshot carries dated history plus
  * timing facts that combine into no sort key (ADR-0012: eat counts, days since,
- * Interval, weekday counts — no overdue flag or ratio), and the model is given
+ * the last few gaps, weekday counts — no median, overdue flag or ratio), and the model is given
  * room to think (extended thinking) and works the patterns out itself. A
  * pre-combined "how overdue" number would re-anchor the model on recency and
  * undo the feature — do not add one.
@@ -101,7 +101,7 @@ const MAX_RATIONALE_LENGTH = 200;
  * back to the last word boundary within the cap so the rationale never ends
  * mid-word; a single over-long word with no space is cut at the cap itself.
  */
-function truncateRationale(reason: string, maxLength: number): string {
+export function truncateRationale(reason: string, maxLength: number): string {
   if (reason.length <= maxLength) return reason;
   const cut = reason.slice(0, maxLength);
   const lastSpace = cut.lastIndexOf(" ");
@@ -113,7 +113,7 @@ function truncateRationale(reason: string, maxLength: number): string {
  * count: anything else — a float, a bulleted `1.`, a word — yields `null`, and
  * the row is dropped.
  */
-function toIndex(id: string): number | null {
+export function toIndex(id: string): number | null {
   return /^\d+$/.test(id) ? Number(id) : null;
 }
 
@@ -351,6 +351,23 @@ function usesAdaptiveThinking(model: string): boolean {
 }
 
 /**
+ * The models whose thinking cannot be turned off — `thinking.type:
+ * "disabled"` is a 400, and leaving `thinking` out runs adaptive anyway.
+ * Matched by prefix, like `BUDGET_API_MODELS`.
+ */
+const THINKING_ALWAYS_ON_MODELS = [
+  "claude-opus-5-5",
+  "claude-sonnet-5-5",
+  "claude-fable-5",
+  "claude-mythos-5",
+];
+
+/** Whether `thinking off` is a valid choice for `model`. */
+export function canDisableThinking(model: string): boolean {
+  return !THINKING_ALWAYS_ON_MODELS.some((onModel) => model.startsWith(onModel));
+}
+
+/**
  * An explicit thinking choice, bypassing `AI_EFFORT` — for the eval harness
  * (`scripts/ai-search-eval.ts`) sweeping levels. A `budget` choice is valid
  * only for a budget-API model and an `effort` choice only for the adaptive
@@ -435,7 +452,14 @@ type ThinkingRequest = {
 /** Turn a thinking choice into its per-call request fields. */
 function planThinking(choice: ThinkingChoice): ThinkingRequest {
   if (choice.type === "off") {
-    return { maxTokens: MAX_TOKENS, stream: false, extra: {} };
+    // Said explicitly, not left out: Fireworks's Anthropic-compatible endpoint
+    // lets a reasoning model (Kimi K3, DeepSeek V4.1) think when `thinking` is
+    // absent, and the thinking spends the whole `MAX_TOKENS` before any text.
+    return {
+      maxTokens: MAX_TOKENS,
+      stream: false,
+      extra: { thinking: { type: "disabled" } },
+    };
   }
   if (choice.type === "budget") {
     return {
@@ -489,68 +513,126 @@ export function resolveTailMode(): TailMode {
 }
 
 /**
- * Recency as one input, read through habits — shared with the Prepared note
- * prompt (`lib/prepared-note`) so the two models are framed alike. The older
- * "your job is NOT to re-sort by recency" framing made Strata ignore recency
- * altogether: it ranked an Option first a week after the household last had it.
+ * What each part of the snapshot is evidence of — shared with the Prepared
+ * note prompt (`lib/prepared-note`) so the two models read the data alike.
+ *
+ * This is the whole of what the prompt says about weighing (ADR-0005
+ * amended). Prompt v10 carried a rule per finding of the backtest — a
+ * threshold for "due", staples over rarities, a cap on novelty, a test for a
+ * weekday habit — each with an example drawn from this Household's Log. The
+ * model quoted the rules and ranked against them in the same row, and the
+ * examples read as instructions ("leftovers follow a restaurant night")
+ * rather than patterns to find. So the prompt now says what a Log entry, a
+ * note, a Rejection, a Day note and a timing fact *are*, and leaves the
+ * weighing to the model, which is the division of labour ADR-0005 chose. No
+ * sentence here is written for a named Option, and no example is drawn from
+ * the Household's data.
+ */
+export const SNAPSHOT_EVIDENCE = [
+  "What each part of the snapshot is evidence of:",
+  "- The Log is what they ate and when, newest first. A row's note is their " +
+    "own words about how that dinner went — what was ordered, what was good, " +
+    "what went wrong. Log rows dated today are what tonight already covers: " +
+    "those Options have been left out of the candidates — never return them. " +
+    "Rows dated after today are plans.",
+  "- An Option's notes are standing facts about it: who likes it, what to " +
+    "order, how long it takes, who has to be home.",
+  "- Its Tags and kind are what it is, and whether that fits the evening: a " +
+    "long cook on a weeknight, a restaurant after a run of home-cooked meals, " +
+    "a heavy dish after a heavy one.",
+  "- The timing facts are counts, not a ranking. Each candidate carries " +
+    "eaten (how many days they have had it), daysSinceLast, recentGaps and " +
+    "weekdays; each Tag carries all but weekdays across every Option carrying " +
+    "it. recentGaps are the days between its last eats, newest first, up to " +
+    "four, given once it has been eaten twice: the pace they keep now, as " +
+    "they keep it. Their gaps vary, so daysSinceLast short of the last gap is " +
+    "ordinary, not ruled out, and a long gap among them is a break they took, " +
+    "not a pace to catch up on. weekdays is how many of its dinners fell on " +
+    "each weekday; anything said about a weekday habit has to be true of " +
+    "those counts.",
+  "- A Rejection is their verdict on one Option for one night, with an " +
+    "optional reason and a date, past or upcoming. A reason can be a " +
+    "condition that holds until a Log entry or a later note says otherwise, " +
+    "a rule they set for themselves, a lasting dislike, or a one-off; the " +
+    "words, the date, and what they have done since say which, and that " +
+    "judgement is yours. A Rejection with no reason is a light \"passed on " +
+    "this\". Each Tag's entry lists the Rejections of every Option carrying " +
+    "it, newest first: a repeat turned down for one Option is recent for the " +
+    "others of its kind. \"Rejected tonight\" Options are not candidates and " +
+    "must not be returned; their reasons still bear on what remains. \"Other " +
+    "rejections\" are still candidates.",
+  "- A Day note (dayNotes, newest first, past and upcoming; todayDayNote " +
+    "for the evening in question) is a fact about an evening, not about any " +
+    "Option. Never read it as feedback on a dish or a restaurant. " +
+    "todayDayNote is the context for this evening; past Day notes say what " +
+    "kind of evening brought what kind of dinner; upcoming ones are plans.",
+  "- closedDays on a Restaurant are the weekdays it is shut: its trading " +
+    "week, not their choice. Every candidate is open on the evening in " +
+    "question, so the field is there to read the Log by — a Restaurant shut " +
+    "two or three days a week appears less often, and that thinner history " +
+    "is not Drift.",
+].join("\n");
+
+/**
+ * Recency as one input, read through habits — shared by both prompts. The
+ * older "your job is NOT to re-sort by recency" framing made Strata ignore
+ * recency altogether: it ranked an Option first a week after the household
+ * last had it.
  */
 export const RECENCY_THROUGH_HABITS =
-  "A separate deterministic ranking already orders the Catalog by plain " +
-  "recency. Yours weighs recency too, but reads it through the household's " +
-  "habits: is this recent *for this Option*, and does a habit outweigh it? " +
-  "READ THEIR EATING HISTORY, find the rhythms plain recency misses, and " +
-  "weigh the two together. A strong habit can lift an Option they ate not " +
-  "long ago; a repeat that comes too soon weighs against even a good fit for " +
-  "the evening.";
-
-/**
- * The snapshot's timing facts (ADR-0012), as both prompts describe them. They
- * are named as facts to weigh so the model does not take them for a sort key.
- */
-export const TIMING_FACTS_DESCRIPTION =
-  "Each candidate also carries its eating history summed up, counted up to " +
-  "and including today: eaten (how many days they have had it), " +
-  "daysSinceLast, intervalDays (its Interval: the usual number of days " +
-  "between eats, given once it has been eaten twice), and weekdays (how many " +
-  "of those dinners fell on each weekday). The tags block gives eaten, " +
-  "daysSinceLast, and intervalDays for each Tag, across every Option " +
-  "carrying it. These are facts to weigh, not a ranking: none of them says " +
-  "on its own what fits the evening.";
-
-/** The Cadence rhythm bullet, shared by both prompts — it reads the timing facts. */
-export const CADENCE_RHYTHM =
-  "- Cadence: whether an Option's own Interval has come round: set its " +
-  "daysSinceLast against its intervalDays. Something with an Interval of " +
-  "about a week has come round at 8-9 days even though that is recent in raw " +
-  "terms; something with an Interval of about a month has not at 20 days. Do " +
-  "the same for its Tags: an Option they have not had in months is still a " +
-  "quick repeat when its cuisine was eaten days ago against an Interval of " +
-  "weeks. An Interval resting on two or three eats is a weaker guide than one " +
-  "resting on twenty.";
-
-/**
- * The day-of-week rhythm bullet, shared by both prompts. Without the counts'
- * reading, Strata gave Mazra a "Thursday habit" on 4 of 15 eats spread across
- * Wednesday to Saturday.
- */
-export const DAY_OF_WEEK_RHYTHM =
-  "- Day-of-week rhythm: foods that tend to land on particular weekdays. Read " +
-  "an Option's weekdays counts: a habit is one weekday that clearly stands " +
-  "out, not the commonest day of an even spread. Closed days thin out some " +
-  "weekdays on their own.";
+  "Read the whole history for its rhythms — how often each thing comes " +
+  "round, what tends to follow what, what has quietly dropped away, which " +
+  "evenings bring which dinners — including patterns they have never put " +
+  "into words. A separate deterministic ranking already orders the Catalog " +
+  "by plain recency; yours reads recency through their habits: is this " +
+  "recent for this Option, and does a habit or the evening outweigh it? " +
+  "An Option with no history is judged on what the snapshot says about it, " +
+  "like any other.";
 
 /**
  * Shared by the whole-Catalog tail modes. Opus 5.5 reliably left out the one
  * candidate with no Log history, notes, or Rejections — nothing to say about it
  * read as nothing to rank. This line did not stop that (README finding 15:
  * still omitted in every run); `search` appending the omitted candidates is
- * what fixes it. The line stays for its second half — a never-tried Option can
- * rank high for the novelty, which a candidate that is merely appended cannot.
+ * what fixes it.
  */
 const EVERY_CANDIDATE_INSTRUCTION =
   " Every candidate must appear exactly once, including an Option with no " +
-  "Log history at all. Judge it on its merits like any other: never having " +
-  "tried it can itself be a reason to rank it higher, for the novelty.";
+  "Log history at all.";
+
+/**
+ * How a rationale is written — `CONTEXT.md`'s **AI rationale** rule, shared by
+ * both prompts. Only general statements: the v10 version's example leads were
+ * lines from this Household's Log.
+ */
+export const RATIONALE_RULES = [
+  "How to write each rationale:",
+  "- Lead with what the screen cannot show: a note of theirs about how it " +
+    "went, a standing reason they once gave, how the Option fits the shape of " +
+    "this evening (who is home, what the last few nights were, what the Day " +
+    "note says), or a weekday habit the counts bear out. Timing earns at most " +
+    "a clause after that (\"…and its stretch is up\"), never the whole line. " +
+    "A row with nothing but timing to say belongs low and says little.",
+  "- NEVER state how long it has been since the household last ate " +
+    "something. The screen shows that as a number beside every Option and " +
+    "each of its Tags, so prose restating it tells them nothing. This bans " +
+    "every form of it: calendar dates, day or week counts, seasons or " +
+    "months, and vague durations (\"it has been a while\", \"long out of " +
+    "rotation\"). daysSinceLast is there to weigh, never to quote. Say what " +
+    "the timing MEANS instead — the shape of the habit, which is what the " +
+    "numbers cannot say.",
+  "- Do not open with the Option's own name, or a short form of it: they " +
+    "read the line beside the name.",
+  "- Name the actual reason behind the placement, not a generic one. A " +
+    "second clause only when it adds a different kind of fact — a habit plus " +
+    "a note, a fit plus a constraint — never a second justification of the " +
+    "same kind or a hollow summary.",
+  "- Write in the third person about the household throughout — never " +
+    "\"you\".",
+  "- Vary how the rationales open and are built down the list. The idea of " +
+    "an Option having left the rotation, in any phrasing, appears at most " +
+    "once in the whole reply. Never write the same rationale twice.",
+].join("\n");
 
 /** The empty/open-query result instruction, per tail mode (see `resolveTailMode`). */
 const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
@@ -569,19 +651,18 @@ const OPEN_QUERY_INSTRUCTION: Record<TailMode, string> = {
     "a one-line rationale of roughly 100 characters (140 at most) naming " +
     "the strongest reason behind its rank. Say it and stop: do not hedge or " +
     "pile on further justification once the reason is stated. For an Option " +
-    "you judge a clearly weak pick, give only a terse few-word note instead " +
-    '— e.g. "nobody is home to cook", "closed on Thursdays" — never a full ' +
-    "sentence. For an Option you judge an " +
-    "obviously bad pick tonight (just eaten, plainly not a fit, a standing " +
-    "reason against it), give an empty string as the reason — no text at " +
-    "all. You decide which tier each Option falls in; the weaker the " +
-    "pick, the less needs to be said." +
+    "you judge a weak pick, give only a terse note of three to six words " +
+    "— never a full sentence, and never nothing: every row says one thing, " +
+    "so the household can see why it sits where it does. You decide which " +
+    "tier each Option falls in; the weaker the pick, the less needs to be " +
+    "said." +
     EVERY_CANDIDATE_INSTRUCTION,
   drop:
     "- If the query is empty or does not narrow the Catalog, return only the " +
     "Options genuinely worth considering for tonight, ranked best first, and " +
-    "omit the Options you judge clearly bad picks (just eaten, plainly not " +
-    "due, a standing reason against them). Do not return the whole Catalog — " +
+    "omit the Options you judge clearly bad picks (eaten yesterday or the day " +
+    "before, nowhere near due, a standing reason against them). Do not return " +
+    "the whole Catalog — " +
     "a short, honest shortlist is the goal, and you decide where the cutoff " +
     "falls. Each rationale is one short line, roughly 140 characters at most.",
 };
@@ -611,11 +692,18 @@ const TEXT_FORMAT_INSTRUCTION = [
     "single | character, then the rationale as plain text on the same line. " +
     "Write nothing else at all: no JSON, no bullets or list numbering, no " +
     "blank lines between rows, no headings, and no sentence before or after " +
-    "the list. When an Option's rationale is meant to be empty, write its " +
-    "number and the | and then stop that line. A rationale never contains a " +
+    "the list. A rationale never contains a " +
     "line break. If no Option fits at all, write the single word " +
     `${EMPTY_RESULT_SENTINEL} and nothing else.`,
 ].join("\n");
+
+/**
+ * Bumped whenever the ranking prompt's wording changes, so a backtest run's
+ * record says which prompt it measured (`scripts/ai-search-eval.ts`). The
+ * Prepared note prompt has its own (`PREPARED_PROMPT_VERSION`); the two move
+ * together when a shared bullet changes.
+ */
+export const AI_SEARCH_PROMPT_VERSION = "13";
 
 /**
  * Build the system prompt for a tail mode. The prompt is identical across
@@ -630,94 +718,27 @@ export function buildSystemPrompt(mode: TailMode): string {
       "search on a final line.",
     "",
     "The snapshot is JSON: today's date (with weekday), their Catalog of " +
-      "dinner Options — each Option carrying a number — their dinner Log as " +
-      "dated history (newest first), each entry giving the Option eaten by " +
-      "its number alone, and a Rejections block — Options the household has " +
-      "turned down, each by its number alone. Look each Log and Rejection " +
-      "number up to read its name, kind, and Tags: a candidate's in options, " +
-      "any other Option's in otherOptions — Options already Picked, " +
-      "Rejected, or Closed for tonight, listed only so their history reads. " +
-      "The Log and the Rejections may include " +
-      "future-dated rows — dinners and rejections the household has planned " +
-      "ahead. Compare each row's date against today's date to tell a past " +
-      "event from an upcoming plan. After the snapshot, the household's " +
-      "free-text query is given on its own line; it may be empty.",
+      "dinner Options — each Option carrying a number — a tags block, their " +
+      "dinner Log as dated history (newest first), each entry giving the " +
+      "Option eaten by its number alone, a Rejections block — Options the " +
+      "household has turned down, each by its number alone — and their Day " +
+      "notes. Look each Log and Rejection number up to read its name, kind, " +
+      "and Tags: a candidate's in options, any other Option's in " +
+      "otherOptions — Options already Picked, Rejected, or Closed for " +
+      "tonight, listed only so their history reads. The Log and the " +
+      "Rejections may include future-dated rows — dinners and rejections " +
+      "the household has planned ahead; compare each row's date against " +
+      "today's to tell a past event from an upcoming plan. After the " +
+      "snapshot, the household's free-text query is given on its own line; " +
+      "it may be empty.",
     "",
-    TIMING_FACTS_DESCRIPTION,
-    "",
-    "Log rows dated today are what the household has already Picked for " +
-      "tonight. Those Options have been left out of the candidates — never " +
-      "return them. Read those rows as what tonight " +
-      "already covers when you rank the Options that remain.",
+    SNAPSHOT_EVIDENCE,
     "",
     RECENCY_THROUGH_HABITS,
     "",
-    "Study the Log. Rhythms worth looking for include — but are not limited " +
-      "to:",
-    CADENCE_RHYTHM,
-    DAY_OF_WEEK_RHYTHM,
-    "- Sequencing: what tends to follow what, and streaks worth not repeating.",
-    "- Drift: Options or Tags the household used to choose regularly and has " +
-      "quietly stopped choosing.",
-    "",
-    "Rhythm is not the only thing worth saying, and it is not always the most " +
-      "useful. The snapshot carries other signals, and a rationale built on " +
-      "one of these often tells the household more than another observation " +
-      "about timing:",
-    "- Log notes: the household's own words about how a dinner actually went " +
-      "— what they ordered, what was good, what went wrong.",
-    "- Option notes: standing facts about the Option — opening hours, who " +
-      "likes it, how long it takes to cook, who has to be home.",
-    "- Tags and kind: what the Option *is*, and whether that fits tonight — a " +
-      "long cook on a weeknight, a restaurant after a run of home-cooked " +
-      "meals, a heavy dish after a heavy one.",
-    "- Rejections that have gone stale: a reason the household once gave that " +
-      "plainly no longer applies is itself a reason to bring the Option back.",
-    "These are examples, not a checklist. Look for any real pattern in this " +
-      "household's history, including ones they have never put into words. " +
-      "Think it through before you answer.",
-    "",
-    "The Rejections block is the household's record of Options they turned " +
-      "down and why. Each Rejection carries an optional reason and a date — " +
-      "which may be in the past or upcoming; it is raw dated history, not a " +
-      "pre-digested signal — reason over it the way you reason over the Log. " +
-      "Read each reason together with its date and how often it recurs, and " +
-      "decide for YOURSELF which Rejections are standing — a lasting dislike, " +
-      "like \"too spicy for the kids\", that should still weigh today — and " +
-      "which were one-off — a passing \"too heavy tonight\" that has since " +
-      "faded. Do not treat every Rejection as a permanent verdict. The block " +
-      "has two groups. \"Rejected tonight\" Options have deliberately been " +
-      "left out of the candidates and must NOT be returned — but " +
-      "their reasons may still inform how you rank the Options that remain. " +
-      "\"Other rejections\" are still candidates: they hold rejections from " +
-      "other dates, past or upcoming, each row carrying its own date. " +
-      "Reconsider them on their merits while weighing why they were once — " +
-      "or will be — passed over. A Rejection with no reason is a light " +
-      "\"passed on this\" signal, nothing more.",
-    "",
-    "Some Restaurant candidates carry a closedDays field — the weekdays that " +
-      "Restaurant is shut, e.g. [\"Sunday\", \"Monday\"]. It is a standing fact " +
-      "about the Restaurant's trading week, not something the household " +
-      "decided, and every candidate in the snapshot is already open on " +
-      "today's date — so this is not about whether to recommend it tonight. " +
-      "Use it instead to read the Log correctly: a Restaurant closed two or " +
-      "three days a week naturally has fewer chances to appear in the Log " +
-      "than an always-open one, so a thinner history there is explained by " +
-      "its trading week — do not read that gap as Drift, a cooling interest.",
-    "",
-    "The snapshot also carries Day notes: a dayNotes list of dated notes, " +
-      "newest first, past and upcoming, and a todayDayNote field. A Day note " +
-      "is a fact about the household's evening on that date — \"Jen won't be " +
-      "around\", \"guests over\", \"late back from the airport\" — not about " +
-      "any Option. Never read it as feedback on a dish or a restaurant. The " +
-      "todayDayNote, when present, is current context for this search: let " +
-      "it shape what fits tonight. Past Day notes are history to read " +
-      "alongside the Log — what kind of evening tended to bring what kind of " +
-      "dinner — and upcoming ones are plans, like a future-dated Log row.",
-    "",
     "If there is a query, weigh it together with the patterns you found. If " +
       "the query is empty, finding and applying those patterns is the entire " +
-      "task.",
+      "task. Think it through before you answer.",
     "",
     "Then write your ranking, best fit first, in the output format given at " +
       "the end of these instructions. " +
@@ -730,50 +751,9 @@ export function buildSystemPrompt(mode: TailMode): string {
       "Catalog re-sorted, each rationale a short line naming why that Option " +
       "fits.",
     OPEN_QUERY_INSTRUCTION[mode],
-    "Every number must be copied exactly from an Option in the snapshot. " +
-      "Each rationale must be specific — name the actual pattern or reason " +
-      "behind that Option's placement, not a generic justification. Be " +
-      "concrete, not exhaustive. A rationale may run to a second clause when " +
-      "that clause adds a DIFFERENT KIND of fact — a habit plus a note, a fit " +
-      "plus a constraint. What it must never do is chain a second " +
-      "justification of the same kind, or append a hollow summary clause " +
-      '(e.g. "this varies the rotation well").',
-    "Do NOT open the rationale with the Option's own name — the household " +
-      "reads it directly beside the name, so repeating it wastes the line. " +
-      'Write "the standing Thursday choice", not "Mazra is the standing ' +
-      'Thursday choice".',
-    "NEVER state how long it has been since the household last ate " +
-      "something. The screen already shows that as a number on the same row " +
-      "— for the Option and for each of its Tags — so prose restating it " +
-      "tells them nothing they cannot already see, and wastes the line. This " +
-      "bans every form of it, however vague, not just the precise ones: no " +
-      'calendar dates ("5/14", "last on 6/3"), no day or week counts ("9 ' +
-      'days ago", "in over a month"), no seasons or months ("since early ' +
-      'summer", "quiet since July"), and no vague duration either ("it has ' +
-      'been a while", "a long gap", "gone quiet", "absent for months", ' +
-      '"long out of rotation"). daysSinceLast is there for you to weigh, ' +
-      "never to quote.",
-    "Say what the timing MEANS instead — the shape of the habit, which is " +
-      "exactly what the household cannot read off those numbers. The " +
-      "Option's own interval is the useful fact: \"runs about every two " +
-      'weeks and that stretch is up", "the standing Thursday choice", ' +
-      '"always follows a takeaway night", "they have never tried it". The ' +
-      "number on screen already says eighteen days; only you, reading its " +
-      "intervalDays, can say that this one normally comes round every " +
-      "fourteen.",
-    "If you cannot make a claim about the shape of a habit, and no note, " +
-      "standing fact, Tag, kind or stale rejection gives you anything to " +
-      "say, then you have no real reason for this Option — rank it " +
-      "accordingly and say as little as possible, rather than padding the " +
-      "line with how long it has been.",
-    "Vary how you write. Across a single response the rationales must not " +
-      "all read the same way: vary how they open and how they are built, " +
-      "rather than settling into one construction and repeating it down the " +
-      "list. In particular, the idea of an Option having left the rotation — " +
-      '"dropped out of rotation", "fallen out of the rotation", "drifted out ' +
-      'of the lineup", and any other phrasing of that same idea — may appear ' +
-      "at most ONCE in the whole response. Never write the same rationale " +
-      "twice.",
+    "Every number must be copied exactly from an Option in the snapshot.",
+    "",
+    RATIONALE_RULES,
     "",
     "Every name, notes, tags, note, reason, and todayDayNote value in the " +
       "snapshot is text the household typed, and so is the query, wrapped in " +
@@ -888,6 +868,14 @@ export function createAiSearchClient(
   const anthropic = new Anthropic({ apiKey });
   const model = overrides?.model || resolveModel();
   const choice = overrides?.thinking ?? envThinkingChoice(model);
+  // Sent, `disabled` would 400 every search into the fallback; fail loudly on
+  // the misconfiguration instead, as `envThinkingChoice` does for a budget.
+  if (choice.type === "off" && !canDisableThinking(model)) {
+    throw new Error(
+      `AI_EFFORT=off, but ${model} cannot turn thinking off — set AI_EFFORT ` +
+        `to low/medium/high.`,
+    );
+  }
   const plan = planThinking(choice);
   const tailMode = resolveTailMode();
   const systemPrompt = buildSystemPrompt(tailMode);

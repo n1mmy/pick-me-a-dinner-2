@@ -138,8 +138,15 @@ Option detail page for a deliberately chosen date — a past date backfills a
 Rejection never recorded live, a future date is a **Planned rejection**. On the date it carries, a Rejection removes
 its Option from Tonight's list for that day (the Option returns on its own the
 next day); it is also kept as dated history fed into future AI searches, where
-the model judges from the reason which Rejections are a standing dislike and
-which were one-off. A Rejection can be edited or deleted at any time from the
+the model weighs each reason as dated evidence: a reason may be a standing
+dislike, a standing fact about how the Option works ("Jen cooks these only
+when she has ingredients set", "comes in two-packs, suggest the second one
+soon"), a passing state ("none left", "no box this week") that fades rather
+than holding until the Household says otherwise, or a one-off. A reason that
+the Option was too soon speaks for its **Tags** as well as for it: it is the
+Household saying that kind of food is recent, so every Option sharing the Tag
+is as recent as the one turned down. Nothing obliges
+the Household to keep such state current. A Rejection can be edited or deleted at any time from the
 Log screen or the Option detail page. **Bring back** is the narrower
 Selected-day quick-undo on Tonight's "Rejected" disclosure (labelled
 "Rejected tonight" when the Selected day is today). A **Pick** of the Option
@@ -252,14 +259,24 @@ day-scoped.
 _Avoid_: Rating, preference score (it is inferred from eat-frequency, never
 entered by hand).
 
-**Interval**:
-The usual number of days between the Household's eats of an Option — or, for a
-Tag, of any active Option carrying it. It is the timing side of a habit: set
-against **Recency**, it says whether something is recent *for that Option*.
-Not a Score factor: **Readiness** measures time since on one scale for every
-Option, and **Affinity** measures how much an Option is wanted, not when it is
-due.
-_Avoid_: Cadence (the habit itself, not its number), usual gap.
+**Recent gaps**:
+The days between an Option's last eats — or, for a Tag, the last eats of any
+active Option carrying it — newest first, four at most. The pace the Household
+keeps now, as they keep it: an Option eaten every ten days for a year and every
+three weeks since reads 21, 21, 10, 10, and the slowdown is on the row. It is
+the timing side of a habit, set against **Recency**: whether something is
+recent *for that Option*. The gaps vary, so a Recency short of the last gap is
+ordinary, and a long gap among them is a break the Household took, not a pace
+to catch up on; what that means for the evening is a judgement, not a
+threshold. There is deliberately no summary number over the gaps. One existed,
+the **Interval**, a median of them: in three forms (the median of every gap,
+of the gaps since the longest break, and the plain median beside the recent
+gaps) the AI ranked on it and called an Option due against a pace the Household
+had left behind, even with the real gaps on the same row (ADR-0012). Not a
+Score factor: **Readiness** measures time since on one scale for every Option,
+and **Affinity** measures how much an Option is wanted, not when it is due.
+_Avoid_: Interval, usual gap, cadence (the habit itself, not its numbers),
+overdue (the Tag chip threshold, not a relation to the gaps).
 
 **Recency chip**:
 The small chip on each Tonight row showing the Option's own **per-Option
@@ -332,8 +349,15 @@ night". An elapsed-time claim restates how long it has been, at any precision �
 "9 days ago", "since early summer", "long out of rotation", "it's been a
 while". The Recency chip and Tag chips already show elapsed time as numbers on
 the same row, so an elapsed-time claim is redundant by construction however
-well it is phrased; the Option's own **Interval** is the timing fact the chips
-cannot carry.
+well it is phrased; the Option's own pace (its **Recent gaps**) is the one
+timing fact the chips cannot carry, and it qualifies a reason rather than being
+one.
+
+On a strong pick the rationale leads with what the chips cannot show at all —
+a Note, a weekday habit the Log bears out, a standing reason the Household once
+gave, how the Option fits the shape of the evening — and timing earns at most a
+clause ("…and its stretch is up"). A rationale whose only content is timing
+belongs to the tail: a sense of why the Option sits low, nothing more.
 _Avoid_: Recency chip (the deterministic per-Option recency indicator is data,
 not a rationale).
 

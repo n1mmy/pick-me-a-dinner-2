@@ -23,6 +23,14 @@
  *     --cells="opus-5 · effort low,opus-5 · effort high,sonnet-5 · effort low,sonnet-5 · effort high"
  *                                                          # two models × two efforts
  *
+ *   npx tsx scripts/ai-search-eval.ts --backtest --json    # score recent decided days
+ *   npx tsx scripts/ai-search-eval.ts --backtest --days=2026-10-20,2026-10-23
+ *
+ * `--backtest` (`scripts/backtest.ts`, shared with the Prepared note eval)
+ * runs an open search for each of about 20 recent decided days, built as the
+ * Household saw it, and scores the ranking against what was eaten. One billed
+ * call per day — state the count and get approval first (`CLAUDE.md`).
+ *
  * The `--mode` flag (`full` | `pithy` | `drop`) overrides `AI_TAIL_MODE`
  * for the run, so the three open-query result shapes can be compared on the
  * same data; a plain run prints its input / output / cache token counts.
@@ -56,7 +64,8 @@
  * A plain run (no `--compare`) uses the env-configured model / effort
  * (`AI_MODEL` / `AI_EFFORT`), exactly as the `aiSearchAction` server action.
  *
- * `DATABASE_URL`, `APP_TZ`, and `ANTHROPIC_API_KEY` are read from `.env`. The
+ * `DATABASE_URL`, `APP_TZ`, and `ANTHROPIC_API_KEY` are read from `.env`, or
+ * from the file `DOTENV_CONFIG_PATH` names (e.g. `.env.k8s`). The
  * snapshot is built exactly as the `aiSearchAction` server action builds it,
  * so what this prints is what the Tonight screen would show.
  */
@@ -64,13 +73,17 @@ import "dotenv/config";
 import { config } from "dotenv";
 import { writeFileSync } from "node:fs";
 import {
+  AI_SEARCH_PROMPT_VERSION,
+  canDisableThinking,
   createAiSearchClient,
   resolveModel,
+  resolveTailMode,
   type AiSearchResult,
   type ThinkingChoice,
 } from "../lib/ai-search";
 import { isValidSqlDate, today } from "../lib/local-day";
 import { type BuiltSnapshot, snapshotForDay } from "../lib/snapshot";
+import { parseBacktestArgs, runBacktest } from "./backtest";
 
 /** Tail modes accepted by `--mode` — see `resolveTailMode` in `lib/ai-search`. */
 const TAIL_MODES = ["full", "pithy", "drop"] as const;
@@ -158,7 +171,9 @@ const COMPARE_CELLS: ComparisonCell[] = [
     ),
   ),
   ...ADAPTIVE_MODELS.flatMap((model) =>
-    ADAPTIVE_EFFORTS.map(
+    ADAPTIVE_EFFORTS.filter(
+      (effort) => effort !== null || canDisableThinking(model),
+    ).map(
       (effort): ComparisonCell => ({
         label: `${model.replace("claude-", "")} · ${
           effort ? `effort ${effort}` : "thinking off"
@@ -504,7 +519,9 @@ async function main(): Promise<void> {
   // `ANTHROPIC_API_KEY` the shell may export (the Claude Code harness does);
   // plain `dotenv/config` above keeps an already-present var, leaving the key
   // blank. By here the DB client has its `DATABASE_URL` from the first load.
-  config({ override: true });
+  // `DOTENV_CONFIG_PATH` (read by `dotenv/config` too) points both loads at
+  // another file, e.g. `.env.k8s`.
+  config({ path: process.env.DOTENV_CONFIG_PATH, override: true });
 
   const args = process.argv.slice(2);
 
@@ -526,7 +543,32 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  if (args.includes("--compare")) {
+  if (args.includes("--backtest")) {
+    await runBacktest({
+      args: parseBacktestArgs(
+        args,
+        `scripts/backtest-runs/ai-search-v${AI_SEARCH_PROMPT_VERSION}-${resolveModel().replace("claude-", "")}-${resolveTailMode()}.json`,
+      ),
+      meta: {
+        ranker: "AI search",
+        model: resolveModel(),
+        effort: process.env.AI_EFFORT || "default",
+        tailMode: resolveTailMode(),
+        promptVersion: AI_SEARCH_PROMPT_VERSION,
+      },
+      generate: async (built) => {
+        const { value: result, modelCall } = await captureModelCall(() =>
+          createAiSearchClient(apiKey).search(built),
+        );
+        return {
+          ok: result.ok,
+          ranking: result.ok ? result.results : [],
+          latencyMs: Number(modelCall?.latencyMs) || undefined,
+          outputTokens: Number(modelCall?.outputTokens) || undefined,
+        };
+      },
+    });
+  } else if (args.includes("--compare")) {
     // `--reps=N` repeats every cell N times (latency is aggregated per cell);
     // `--json` / `--json=path` writes every run's full ranking to a file for
     // programmatic before/after comparison.

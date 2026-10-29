@@ -1,12 +1,36 @@
 # Timing facts in the snapshot, not a sort key
 
+_Amended 2026-10-28, twice. First the Interval became the median gap of the
+"current run" — the gaps since the longest break — because the all-time
+median kept an Option "due" every six days for months after its habit had
+slowed to three weeks (`.issues/ai-ranking-backtest/issues/02`). That caught
+an abrupt change and missed a gradual one: an Option whose gaps had drifted
+from ten days to three weeks with no single long break still read as due from
+day eleven and led the ranking on a third of the evenings of a 40-day run
+(`issues/03`). The second amendment, the same day, withdrew the current-run
+definition: the Interval is the plain median of every gap again, and each
+candidate and Tag also carries its **last three gaps, newest first**
+(`recentGaps`). Two facts, each simple: the habit over the whole history and
+the pace as it stands. Their difference is the Drift, and reading it is the
+model's job (`issues/04`)._
+
+_Amended a third time, 2026-10-28: the Interval is gone from the snapshot
+and the glossary. With the plain median beside the gaps, the model named the
+slowdown and ranked on the median anyway: "a slower recent pace that is due
+again now" at nine days since, against gaps of 21 (`issues/04`, the v12
+read). In every form a median gave the model a pace to be due against that
+the Household no longer kept. The only timing summary now is the **last
+four gaps, newest first** (`recentGaps`), on each candidate and each Tag,
+and the prompt says that falling short of the last gap is ordinary and a
+long gap among them is a break they took, not a pace to catch up on._
+
 ADR-0005 withheld pre-computed recency from the model snapshot, so the model
 would reason about habits instead of re-sorting on a ready-made key, and
 ADR-0011 carried that over to Prepared notes. We now put **timing facts** in the
 snapshot shared by AI search and Prepared notes. Each candidate carries how many
-days it was eaten, days since its last eat, its **Interval** (the median gap
-between eats, from two eats up), and its eats per weekday. A `tags` block
-carries the first three for every Tag. This amends ADR-0005's withheld-recency
+days it was eaten, days since its last eat, its last four gaps newest first
+(from two eats up), and its eats per weekday. A `tags` block carries all but
+the weekdays for every Tag. This amends ADR-0005's withheld-recency
 consequence and ADR-0011's inheritance of it. The rest of ADR-0005 stands: the
 model still reasons over the dated history, and nothing in the snapshot
 combines the facts into a sort key.
