@@ -3,10 +3,8 @@
 Helps decide what's for dinner: a small Next.js + Drizzle/Postgres app. What
 it's for: `PRODUCT.md`. Domain language: `CONTEXT.md`.
 
-This file is the single source of project instructions: it is self-contained
-and does not assume any global `~/.claude/CLAUDE.md` is present. Project
-`CLAUDE.md` is the highest-precedence instruction source — it wins over
-heuristic auto-memory entries when they conflict.
+This file is the single, self-contained source of project instructions. It
+wins over auto-memory entries when they conflict.
 
 ## Skill workflows run end-to-end
 
@@ -51,8 +49,7 @@ Workflow skills (installed globally from `~/.agents/skills/`):
 - Throwaway prototype to flesh out a design before committing → `/prototype`
 - Test-first feature work, red-green-refactor → `/tdd`
 - Hard bug or performance regression, disciplined root-cause loop →
-  `/diagnosing-bugs` (gstack's `/investigate` is the equivalent — prefer
-  whichever the user names)
+  `/diagnosing-bugs` (or `/investigate` — whichever the user names)
 - Module design, deepening, refactor / consolidation → `/codebase-design`
 - Writing a skill, `CLAUDE.md`, or another agent-facing doc →
   `/writing-for-agents`
@@ -77,16 +74,12 @@ skill they mean — don't guess.
 
 ## Billed-call rule
 
-The billed-call rule extends past skills: anything that spends money against
-an external service is user-triggered too. The standing example is
-`scripts/ai-search-eval.ts` — one run sends the full dinner snapshot to the
-metered model API and can burn the whole 90s timeout. State the cost shape
-(one call vs a sweep, rough size) and wait for approval before running. A
-tiny placeholder-body probe (a 64-token curl that never touches the real
-snapshot) is fine without asking; a full run is not. Strata, the local model
-behind `LOCAL_AI_*` and `scripts/prepared-note-eval.ts`, is free: the rule
-doesn't apply to it. `prepared-note-eval.ts --claude` sends the backtest to a
-Claude model instead, and that run is billed.
+Anything that spends money against an external service is user-triggered:
+state the cost shape (one call vs a sweep, rough size) and wait for approval.
+`scripts/ai-search-eval.ts` and `scripts/prepared-note-eval.ts --claude` send
+the full dinner snapshot to a metered Claude model, so they fall under the
+rule; a 64-token placeholder probe that never touches the real snapshot does
+not. Strata, the local model behind `LOCAL_AI_*`, is free and exempt.
 
 ## Browser tooling
 
@@ -96,19 +89,11 @@ tools.
 ## Agents in other models
 
 Consider Paseo (`paseo`, on `$PATH`) whenever an agent in another model would
-help — an outside voice on a review or plan, a cross-model second opinion. For
-OpenAI models go through the omp harness, which holds the login — not the
-`codex` harness, which isn't logged in here:
-`paseo run --provider omp --model openai/<model> --mode write --title "<title>" "<prompt>"`
-(omp modes: `full`, `write`, `ask`). In `write` mode the agent stalls on
-approval prompts (shell commands included) that show only as `OMP select`
-with no detail: `paseo wait` returns while it's still `running`, so check
-`paseo permit ls` and answer with `paseo permit allow|deny <agent> <req>`.
-List omp's models with
-`omp models find <pattern>`; `paseo provider ls` lists the other providers.
-gstack's own `codex exec` can't start its sandbox in this container, so Paseo
-is also the route for a skill's Codex outside-voice step. A run against a
-metered provider falls under the billed-call rule above.
+help — an outside voice on a review or plan, a cross-model second opinion, or
+a skill's Codex step (gstack's own `codex exec` cannot start its sandbox
+here). Running an OpenAI model and answering its approval prompts:
+`docs/agents/paseo.md`. A run against a metered provider falls under the
+billed-call rule.
 
 ## Bash shapes
 
