@@ -21,7 +21,7 @@
  * the snapshot body is sent in a `cache_control` block so a burst of searches
  * over unchanged data reads the prefix from cache; the empty/open-query
  * result shape is tunable via `AI_TAIL_MODE` (see `resolveTailMode`); and the
- * ranking comes back as compact `<number>|<rationale>` lines rather than a
+ * ranking comes back as compact `<code>|<rationale>` lines rather than a
  * schema-validated tool call, so a result row costs a couple of structural
  * tokens instead of a dozen (see `TEXT_FORMAT_INSTRUCTION`).
  *
@@ -109,12 +109,39 @@ export function truncateRationale(reason: string, maxLength: number): string {
 }
 
 /**
- * Coerce the text before a row's `|` to a snapshot index. Only plain digits
- * count: anything else — a float, a bulleted `1.`, a word — yields `null`, and
- * the row is dropped.
+ * Coerce the text before a row's `|` to an Option code. Only letters count,
+ * in either case: anything else — a number, a bulleted `A.`, a name — yields
+ * `null`, and the row is dropped. A rank position written where the code
+ * belongs is the case this is for (ADR-0013).
  */
-export function toIndex(id: string): number | null {
-  return /^\d+$/.test(id) ? Number(id) : null;
+export function toCode(text: string): string | null {
+  return /^[A-Za-z]+$/.test(text) ? text.toUpperCase() : null;
+}
+
+/**
+ * Read one `<code>|<rationale>` line against the candidates: the row with its
+ * real UUID and the rationale as written, or `null` for a line that is not a
+ * candidate's row. One tolerance: a model that writes its rank first
+ * (`3|G|…`) is read from the second column when the first is no candidate and
+ * the second is — a digit column can never be a code, so this is safe. The
+ * rationale is the rest of the line, so a `|` inside it is kept.
+ */
+export function readRankingRow(
+  line: string,
+  idByCode: ReadonlyMap<string, string>,
+): AiRankingRow | null {
+  const resolve = (text: string, from: number): AiRankingRow | null => {
+    const bar = text.indexOf("|", from);
+    if (bar === -1) return null;
+    const code = toCode(text.slice(from, bar).trim());
+    const id = code === null ? undefined : idByCode.get(code);
+    if (id === undefined) return null;
+    return { id, reason: text.slice(bar + 1).trim() };
+  };
+  const row = resolve(line, 0);
+  if (row !== null) return row;
+  const bar = line.indexOf("|");
+  return bar === -1 ? null : resolve(line, bar + 1);
 }
 
 /**
@@ -154,11 +181,11 @@ export type ParsedRanking = {
 
 /**
  * Validate the model's response body into an ordered result, mapping each
- * Option number back to its real UUID. The model writes one
- * `<number>|<rationale>` line per Option, in rank order (see
+ * Option code back to its real UUID. The model writes one
+ * `<code>|<rationale>` line per Option, in rank order (see
  * `TEXT_FORMAT_INSTRUCTION`); that written order *is* the result ranking, and
  * it is preserved. Each returned row carries the real UUID, so callers
- * downstream never see the snapshot integer.
+ * downstream never see the code.
  *
  * The `OPEN` marker counts on any line before the first row, so a preamble
  * the model added against instructions does not hide it; after the first row
@@ -166,10 +193,9 @@ export type ParsedRanking = {
  *
  * Hardening, so a sloppy model response still yields a clean screen:
  *
- * - Any number that is not a candidate is dropped — a hallucinated number, or
- *   an Option Picked, Rejected, or Closed for today that the Household could
- *   not actually Pick (`idByIndex` holds candidates only).
- * - A non-integer number is dropped.
+ * - Any code that is not a candidate's is dropped — a hallucinated code, a
+ *   rank position, or an Option Picked, Rejected, or Closed for today that
+ *   the Household could not actually Pick (`idByCode` holds candidates only).
  * - A repeated Option is deduped, the **first** occurrence kept — a model that
  *   lists the same Option twice never produces a duplicate result row.
  * - An AI rationale over ~200 characters is truncated (see `truncateRationale`).
@@ -177,10 +203,10 @@ export type ParsedRanking = {
  *   `pithy` mode the model deliberately writes one for an obviously bad pick.
  *
  * Plain text has no schema to lean on, so the parser is deliberately tolerant
- * where a tool call's validator could be strict: a line that does not start
- * with a number and a `|` is skipped rather than failing the response, so a
- * stray preamble or a trailing sign-off the model added against instructions
- * costs nothing. Only the **first** `|` splits, so a rationale may contain one.
+ * where a tool call's validator could be strict: a line that is not a
+ * candidate's row (`readRankingRow`) is skipped rather than failing the
+ * response, so a stray preamble or a trailing sign-off the model added
+ * against instructions costs nothing.
  *
  * Returns `null` for a **malformed** body — no parseable row and no `NONE`
  * sentinel — which is the Failure that falls back to the deterministic list
@@ -189,7 +215,7 @@ export type ParsedRanking = {
  */
 export function parseRankingText(
   text: string,
-  idByIndex: ReadonlyMap<number, string>,
+  idByCode: ReadonlyMap<string, string>,
 ): ParsedRanking | null {
   const rows: AiRankingRow[] = [];
   const seen = new Set<string>();
@@ -207,18 +233,12 @@ export function parseRankingText(
       open = true;
       continue;
     }
-    const bar = line.indexOf("|");
-    if (bar === -1) continue;
-
-    const index = toIndex(line.slice(0, bar).trim());
-    if (index === null) continue;
-    const optionId = idByIndex.get(index);
-    if (optionId === undefined) continue;
-    if (seen.has(optionId)) continue;
-    seen.add(optionId);
+    const row = readRankingRow(line, idByCode);
+    if (row === null || seen.has(row.id)) continue;
+    seen.add(row.id);
     rows.push({
-      id: optionId,
-      reason: truncateRationale(line.slice(bar + 1).trim(), MAX_RATIONALE_LENGTH),
+      id: row.id,
+      reason: truncateRationale(row.reason, MAX_RATIONALE_LENGTH),
     });
   }
 
@@ -236,15 +256,15 @@ export const OMITTED_CANDIDATE_REASON = "Not ranked — the AI left this one out
 /**
  * Append every candidate the model left out of an open-query ranking, each
  * with `OMITTED_CANDIDATE_REASON`. The screen shows only returned rows in AI
- * view, so an omitted Option would otherwise vanish. Appended in `idByIndex`
+ * view, so an omitted Option would otherwise vanish. Appended in `idByCode`
  * order (alphabetical by name).
  */
 function backfillOmittedCandidates(
   rows: AiRankingRow[],
-  idByIndex: ReadonlyMap<number, string>,
+  idByCode: ReadonlyMap<string, string>,
 ): AiRankingRow[] {
   const returned = new Set(rows.map((row) => row.id));
-  const omitted = [...idByIndex.values()]
+  const omitted = [...idByCode.values()]
     .filter((id) => !returned.has(id))
     .map((id) => ({ id, reason: OMITTED_CANDIDATE_REASON }));
   return [...rows, ...omitted];
@@ -684,9 +704,10 @@ const TEXT_FORMAT_INSTRUCTION = [
     `narrow the Catalog, first write the single word ${OPEN_QUERY_MARKER} ` +
     "alone on a line; for a query that narrows it, write no such line. Then " +
     "write ONE LINE per Option, in rank order, best first:",
-  "<number>|<rationale>",
-  "That is the Option's number copied exactly from the snapshot, then a " +
-    "single | character, then the rationale as plain text on the same line. " +
+  "<code>|<rationale>",
+  "That is the Option's code — its id in its own options entry, a letter or " +
+    "two like G or AB — then a single | character, then the rationale as " +
+    "plain text on the same line. Each line starts with the code itself. " +
     "Write nothing else at all: no JSON, no bullets or list numbering, no " +
     "blank lines between rows, no headings, and no sentence before or after " +
     "the list. A rationale never contains a " +
@@ -700,7 +721,7 @@ const TEXT_FORMAT_INSTRUCTION = [
  * Prepared note prompt has its own (`PREPARED_PROMPT_VERSION`); the two move
  * together when a shared bullet changes.
  */
-export const AI_SEARCH_PROMPT_VERSION = "13";
+export const AI_SEARCH_PROMPT_VERSION = "14";
 
 /**
  * Build the system prompt for a tail mode. The prompt is identical across
@@ -715,11 +736,12 @@ export function buildSystemPrompt(mode: TailMode): string {
       "search on a final line.",
     "",
     "The snapshot is JSON: today's date (with weekday), their Catalog of " +
-      "dinner Options — each Option carrying a number — a tags block, their " +
-      "dinner Log as dated history (newest first), each entry giving the " +
-      "Option eaten by its number alone, a Rejections block — Options the " +
-      "household has turned down, each by its number alone — and their Day " +
-      "notes. Look each Log and Rejection number up to read its name, kind, " +
+      "dinner Options — each Option carrying a code, its id, a letter or two " +
+      "like G or AB — a tags block, their dinner Log as dated history (newest " +
+      "first), each entry giving the Option eaten by its code alone, a " +
+      "Rejections block — Options the household has turned down, each by its " +
+      "code alone — and their Day notes. Look each Log and Rejection code up " +
+      "to read its name, kind, " +
       "and Tags: a candidate's in options, any other Option's in " +
       "otherOptions — Options already Picked, Rejected, or Closed for " +
       "tonight, listed only so their history reads. The Log and the " +
@@ -748,7 +770,7 @@ export function buildSystemPrompt(mode: TailMode): string {
       "Catalog re-sorted, each rationale a short line naming why that Option " +
       "fits.",
     OPEN_QUERY_INSTRUCTION[mode],
-    "Every number must be copied exactly from an Option in the snapshot.",
+    "Every code is an Option's id from its own entry in the snapshot.",
     "",
     RATIONALE_RULES,
     "",
@@ -765,7 +787,7 @@ export function buildSystemPrompt(mode: TailMode): string {
  * that trails it. The snapshot body is stable between searches minutes apart,
  * so `createAiSearchClient` sends it in a `cache_control` block; the query is
  * the one part that varies per search, so it trails uncached. The body is
- * `leanSnapshot`'s, history rows by number alone. Exported so
+ * `leanSnapshot`'s, history rows by code alone. Exported so
  * `scripts/model-comparison/show-prompt.mjs` prints exactly what
  * `createAiSearchClient` sends, rather than hand-copying the split.
  */
@@ -878,7 +900,7 @@ export function createAiSearchClient(
   const systemPrompt = buildSystemPrompt(tailMode);
 
   return {
-    async search({ snapshot, idByIndex }) {
+    async search({ snapshot, idByCode }) {
       const startedAt = Date.now();
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), resolveTimeoutMs());
@@ -948,7 +970,7 @@ export function createAiSearchClient(
           .map((block) => (block.type === "text" ? block.text : ""))
           .join("\n");
         overrides?.onResponseText?.(text);
-        const parsed = parseRankingText(text, idByIndex);
+        const parsed = parseRankingText(text, idByCode);
         if (parsed !== null) {
           // An open query's result is the whole Catalog, in every tail mode —
           // an empty query is open by definition; a non-empty one is open
@@ -959,7 +981,7 @@ export function createAiSearchClient(
           const { rows } = parsed;
           const open = queryText.trim() === "" || parsed.open;
           const results = open
-            ? backfillOmittedCandidates(rows, idByIndex)
+            ? backfillOmittedCandidates(rows, idByCode)
             : rows;
           backfilledCount = results.length - rows.length;
           result = { ok: true, results };

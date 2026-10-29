@@ -91,7 +91,7 @@ function stubClient({
 } = {}) {
   const asked: string[] = [];
   const client: PreparedNoteClient = {
-    async prepare({ snapshot, idByIndex }) {
+    async prepare({ snapshot, idByCode }) {
       const date = snapshot.today.slice(0, 10);
       asked.push(date);
       await during(date);
@@ -100,7 +100,7 @@ function stubClient({
         ok: true,
         note: {
           brief: `Brief for ${snapshot.today}`,
-          ranking: [...idByIndex.values()].map((id) => ({ id, reason: "Fits." })),
+          ranking: [...idByCode.values()].map((id) => ({ id, reason: "Fits." })),
         },
       };
     },

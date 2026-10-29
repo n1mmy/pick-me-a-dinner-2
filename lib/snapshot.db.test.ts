@@ -40,13 +40,13 @@ describe("snapshotForDay", () => {
       .insert(rejections)
       .values({ optionId: banana, rejectedOn: SATURDAY, reason: "Too sweet" });
 
-    const { snapshot, idByIndex, nameById } = await snapshotForDay({
+    const { snapshot, idByCode, nameById } = await snapshotForDay({
       asOf: SATURDAY,
       query: "",
     });
 
     expect(candidateNames(snapshot)).toEqual(["Carrot Cake"]);
-    expect([...idByIndex.values()]).toEqual([carrot]);
+    expect([...idByCode.values()]).toEqual([carrot]);
     expect(nameById.get(apple)).toBe("Apple Crumble");
   });
 

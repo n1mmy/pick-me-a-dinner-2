@@ -22,6 +22,7 @@ import {
   parseRankingText,
   resolveModel,
   resolveTailMode,
+  toCode,
 } from "./ai-search";
 import { buildSnapshot, type SnapshotOption } from "./snapshot";
 import type { RejectionRow } from "./rejections";
@@ -57,19 +58,31 @@ function rejection(
   return { optionId, reason, rejectedOn, optionName: optionId, kind: "home", tags: [] };
 }
 
+describe("toCode", () => {
+  it("reads letters in either case as an upper-case code, and nothing else", () => {
+    expect(toCode("G")).toBe("G");
+    expect(toCode("ab")).toBe("AB");
+    // A rank position, a bulleted code, a name — none is a code.
+    expect(toCode("3")).toBeNull();
+    expect(toCode("A.")).toBeNull();
+    expect(toCode("Pho Saigon")).toBeNull();
+    expect(toCode("")).toBeNull();
+  });
+});
+
 describe("parseRankingText", () => {
-  const idByIndex = new Map<number, string>([
-    [1, "a1"],
-    [2, "b1"],
+  const idByCode = new Map<string, string>([
+    ["A", "a1"],
+    ["B", "b1"],
   ]);
 
   /** The parsed rows, or `null` for a malformed body. */
   function rowsOf(text: string) {
-    return parseRankingText(text, idByIndex)?.rows ?? null;
+    return parseRankingText(text, idByCode)?.rows ?? null;
   }
 
-  it("reads one number|rationale line per Option, in written order", () => {
-    expect(parseRankingText("2|first\n1|second", idByIndex)).toEqual({
+  it("reads one code|rationale line per Option, in written order", () => {
+    expect(parseRankingText("B|first\nA|second", idByCode)).toEqual({
       rows: [
         { id: "b1", reason: "first" },
         { id: "a1", reason: "second" },
@@ -79,29 +92,47 @@ describe("parseRankingText", () => {
   });
 
   it("applies the same hardening as the tool parser", () => {
-    // A hallucinated number, a repeat, and a non-integer number are each
-    // dropped; the first placement of a repeated Option is the one kept.
+    // A hallucinated code, a repeat, and a bulleted code are each dropped;
+    // the first placement of a repeated Option is the one kept.
     expect(
-      rowsOf(
-        "99|not a real Option\n1|kept\n1|duplicate\n1.5|not an integer\n2|also kept",
-      ),
+      rowsOf("ZZ|not a real Option\nA|kept\nA|duplicate\nA.|bulleted\nB|also kept"),
     ).toEqual([
       { id: "a1", reason: "kept" },
       { id: "b1", reason: "also kept" },
     ]);
   });
 
+  it("resolves a code written in lower case", () => {
+    expect(rowsOf("b|fine")).toEqual([{ id: "b1", reason: "fine" }]);
+  });
+
+  it("refuses a reply written in rank positions", () => {
+    // The whole point of letter codes (ADR-0013): a position is never a code,
+    // so a reply that wrote `1`, `2`, … resolves no row and falls back,
+    // instead of reading as the Catalog in alphabetical order.
+    expect(parseRankingText("1|first\n2|second", idByCode)).toBeNull();
+  });
+
+  it("reads a row that leads with its rank from the code column", () => {
+    // `rank|code|rationale`: the first column is no candidate, the second
+    // is, so the row is the second column's. The rationale is what follows.
+    expect(rowsOf("3|B|the swim-night place\n4|A|due")).toEqual([
+      { id: "b1", reason: "the swim-night place" },
+      { id: "a1", reason: "due" },
+    ]);
+  });
+
   it("trims whitespace and keeps an empty rationale after the bar", () => {
     // The empty rationale is what `pithy` mode asks for on an obviously bad
-    // pick — a bare number and its bar.
-    expect(rowsOf("  1 | spaced out \n2|")).toEqual([
+    // pick — a bare code and its bar.
+    expect(rowsOf("  A | spaced out \nB|")).toEqual([
       { id: "a1", reason: "spaced out" },
       { id: "b1", reason: "" },
     ]);
   });
 
   it("splits on the first bar only, so a rationale may contain one", () => {
-    expect(rowsOf("1|overdue | and cheap")).toEqual([
+    expect(rowsOf("A|overdue | and cheap")).toEqual([
       { id: "a1", reason: "overdue | and cheap" },
     ]);
   });
@@ -109,25 +140,25 @@ describe("parseRankingText", () => {
   it("skips a stray line rather than failing the whole response", () => {
     // The prompt forbids a preamble; a model that writes one anyway should
     // cost the household nothing.
-    expect(rowsOf("Here is my ranking:\n\n1|overdue\n\nHope that helps!")).toEqual([
+    expect(rowsOf("Here is my ranking:\n\nA|overdue\n\nHope that helps!")).toEqual([
       { id: "a1", reason: "overdue" },
     ]);
   });
 
   it("truncates an over-long rationale", () => {
     const long = "x".repeat(250);
-    const [row] = rowsOf(`1|${long}`) ?? [];
+    const [row] = rowsOf(`A|${long}`) ?? [];
     expect(row.reason).toHaveLength(201); // 200 characters plus the ellipsis
     expect(row.reason.endsWith("…")).toBe(true);
   });
 
   it("reads the NONE sentinel as a genuinely empty result", () => {
-    expect(parseRankingText("NONE", idByIndex)).toEqual({ rows: [], open: false });
+    expect(parseRankingText("NONE", idByCode)).toEqual({ rows: [], open: false });
     expect(rowsOf("none\n")).toEqual([]);
   });
 
   it("reads an OPEN first line as the model calling the query open", () => {
-    expect(parseRankingText("OPEN\n1|overdue", idByIndex)).toEqual({
+    expect(parseRankingText("OPEN\nA|overdue", idByCode)).toEqual({
       rows: [{ id: "a1", reason: "overdue" }],
       open: true,
     });
@@ -135,18 +166,18 @@ describe("parseRankingText", () => {
 
   it("finds OPEN behind a stray preamble, in any case or stray punctuation", () => {
     for (const text of [
-      "Here is my ranking:\nOPEN\n1|overdue",
-      "open\n1|overdue",
-      "OPEN:\n1|overdue",
-      "**OPEN**\n1|overdue",
+      "Here is my ranking:\nOPEN\nA|overdue",
+      "open\nA|overdue",
+      "OPEN:\nA|overdue",
+      "**OPEN**\nA|overdue",
     ]) {
-      expect(parseRankingText(text, idByIndex)?.open).toBe(true);
+      expect(parseRankingText(text, idByCode)?.open).toBe(true);
     }
   });
 
   it("ignores OPEN once the rows have started", () => {
     // The prompt asks for it first; a late one is not the model's verdict.
-    expect(parseRankingText("1|overdue\nOPEN\n2|fine", idByIndex)).toEqual({
+    expect(parseRankingText("A|overdue\nOPEN\nB|fine", idByCode)).toEqual({
       rows: [
         { id: "a1", reason: "overdue" },
         { id: "b1", reason: "fine" },
@@ -156,23 +187,23 @@ describe("parseRankingText", () => {
   });
 
   it("never mistakes a row or prose mentioning open for the marker", () => {
-    expect(parseRankingText("1|Open late tonight", idByIndex)).toEqual({
+    expect(parseRankingText("A|Open late tonight", idByCode)).toEqual({
       rows: [{ id: "a1", reason: "Open late tonight" }],
       open: false,
     });
-    expect(parseRankingText("Open to anything.\n1|fine", idByIndex)?.open).toBe(false);
+    expect(parseRankingText("Open to anything.\nA|fine", idByCode)?.open).toBe(false);
   });
 
   it("returns null for an OPEN line with no rows after it", () => {
     // A body cut off after the marker is truncated output, not a ranking.
-    expect(parseRankingText("OPEN", idByIndex)).toBeNull();
+    expect(parseRankingText("OPEN", idByCode)).toBeNull();
   });
 
   it("returns null for a body with no rows and no sentinel", () => {
     // Unparseable output is a Failure (PRD §5), not an empty result — an
     // empty body, and prose with no rows in it, both fall back.
-    expect(parseRankingText("", idByIndex)).toBeNull();
-    expect(parseRankingText("I could not rank these.", idByIndex)).toBeNull();
+    expect(parseRankingText("", idByCode)).toBeNull();
+    expect(parseRankingText("I could not rank these.", idByCode)).toBeNull();
   });
 });
 
@@ -215,9 +246,9 @@ describe("buildSystemPrompt", () => {
     }
   });
 
-  it("describes Log rows by number alone and where those numbers resolve", () => {
+  it("describes Log rows by code alone and where those codes resolve", () => {
     const prompt = buildSystemPrompt("pithy");
-    expect(prompt).toContain("the Option eaten by its number alone");
+    expect(prompt).toContain("the Option eaten by its code alone");
     expect(prompt).toContain("any other Option's in otherOptions");
   });
 
@@ -276,7 +307,7 @@ describe("buildSystemPrompt", () => {
     const prompt = buildSystemPrompt("pithy");
     expect(prompt).toContain("Log rows dated today");
     expect(prompt).toContain("never return them");
-    // They stay in the snapshot — numbered, with Log rows — so the prompt must
+    // They stay in the snapshot — coded, with Log rows — so the prompt must
     // not claim they left the Catalog.
     expect(prompt).not.toContain("left out of the Catalog");
   });
@@ -301,14 +332,26 @@ describe("buildSystemPrompt", () => {
     // is stated — it has to carry the row shape and the empty-result sentinel.
     for (const mode of ["full", "pithy", "drop"] as const) {
       const prompt = buildSystemPrompt(mode);
-      expect(prompt).toContain("<number>|<rationale>");
+      expect(prompt).toContain("<code>|<rationale>");
       expect(prompt).toContain("NONE");
+    }
+  });
+
+  it("names the code as the Option's own id, with no mention of rank positions", () => {
+    // Letter codes (ADR-0013) make a rank written as a code harmless; the
+    // prompt steers positively — where the code comes from — rather than by
+    // forbidding positions, and never calls the code a number.
+    for (const mode of ["full", "pithy", "drop"] as const) {
+      const prompt = buildSystemPrompt(mode);
+      expect(prompt).toContain("Every code is an Option's id from its own entry");
+      expect(prompt).not.toContain("position in your ranking");
+      expect(prompt).not.toMatch(/Option's number|by its number|carrying a number/);
     }
   });
 });
 
 describe("createAiSearchClient — failure model and fallback", () => {
-  // A one-Option snapshot, so `idByIndex` maps number 1 back to a real id.
+  // A one-Option snapshot, so `idByCode` maps code A back to a real id.
   const built = buildSnapshot({
     options: [option("opt-a", "Apple")],
     logEntries: [],
@@ -319,7 +362,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
 
   /**
    * A model response carrying the ranking as text, after a thinking block —
-   * `body` is the raw `<number>|<rationale>` lines the model wrote.
+   * `body` is the raw `<code>|<rationale>` lines the model wrote.
    */
   function rankingResponse(body: string) {
     return {
@@ -353,7 +396,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
     run: (client: ReturnType<typeof createAiSearchClient>) => Promise<unknown>,
   ) {
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
-    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
     await run(createAiSearchClient("k", { model: "claude-sonnet-4-6" }));
     const delays = setTimeoutSpy.mock.calls.map((call) => call[1]);
     setTimeoutSpy.mockRestore();
@@ -370,8 +413,8 @@ describe("createAiSearchClient — failure model and fallback", () => {
     return delays;
   }
 
-  it("returns the validated ordered result, mapping numbers back to ids", async () => {
-    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+  it("returns the validated ordered result, mapping codes back to ids", async () => {
+    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
     const result = await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(built);
     expect(result).toEqual({
       ok: true,
@@ -381,7 +424,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
   });
 
   it("sends the snapshot body with lean Log rows, in the cached block", async () => {
-    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
     const withLog = buildSnapshot({
       options: [option("opt-a", "Apple")],
       logEntries: [{ optionId: "opt-a", eatenOn: "2026-05-19", note: null }],
@@ -394,14 +437,14 @@ describe("createAiSearchClient — failure model and fallback", () => {
     expect(block.cache_control).toEqual({ type: "ephemeral" });
     const body = JSON.parse(block.text);
     expect(body.log).toEqual([
-      { date: "2026-05-19 (Tuesday)", optionId: 1, note: null },
+      { date: "2026-05-19 (Tuesday)", optionId: "A", note: null },
     ]);
     expect(body.otherOptions).toEqual([]);
     expect(body).not.toHaveProperty("query");
   });
 
   it("offers no tool — the prompt alone carries the output contract", async () => {
-    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
     await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(built);
     const params = messagesCreate.mock.calls[0][0];
     expect(params.tools).toBeUndefined();
@@ -461,7 +504,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
   });
 
   it("emits one structured log line with outcome ok on success", async () => {
-    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
     await createAiSearchClient("k", {
       model: "claude-sonnet-4-6",
       thinking: { type: "budget", budgetTokens: 4000 },
@@ -498,7 +541,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
 
   it("runs the Opus path through messages.stream with adaptive thinking", async () => {
     messagesStream.mockReturnValue({
-      finalMessage: () => Promise.resolve(rankingResponse("1|fits")),
+      finalMessage: () => Promise.resolve(rankingResponse("A|fits")),
     });
     const result = await createAiSearchClient("k", {
       model: "claude-opus-5",
@@ -534,7 +577,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
 
   it("logs the Opus model id and effort thinking descriptor", async () => {
     messagesStream.mockReturnValue({
-      finalMessage: () => Promise.resolve(rankingResponse("1|fits")),
+      finalMessage: () => Promise.resolve(rankingResponse("A|fits")),
     });
     await createAiSearchClient("k", {
       model: "claude-opus-5",
@@ -551,7 +594,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
 
   it("reads a numeric AI_EFFORT as an explicit budget for a budget model", async () => {
     process.env.AI_EFFORT = "3000";
-    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
     await createAiSearchClient("k", { model: "claude-sonnet-4-6" }).search(built);
 
     const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
@@ -603,7 +646,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
     // id stays with its family. An exact-match list would send this dated
     // Haiku the adaptive params it rejects with a 400 — which the fail-safe
     // path then swallows into a silent fallback on every search.
-    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
     await createAiSearchClient("k", {
       model: "claude-haiku-4-5-20251001",
     }).search(built);
@@ -618,7 +661,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
   it("sends thinking disabled, not absent, for thinking off", async () => {
     // Fireworks lets a reasoning model think when `thinking` is left out, and
     // the thinking eats the whole output cap before the ranking is written.
-    messagesCreate.mockResolvedValueOnce(rankingResponse("1|fits"));
+    messagesCreate.mockResolvedValueOnce(rankingResponse("A|fits"));
     await createAiSearchClient("k", {
       model: "accounts/fireworks/models/kimi-k3",
       thinking: { type: "off" },
@@ -649,7 +692,7 @@ describe("createAiSearchClient — failure model and fallback", () => {
     // and no other test exercises the default at all.
     delete process.env.AI_MODEL;
     messagesStream.mockReturnValue({
-      finalMessage: () => Promise.resolve(rankingResponse("1|fits")),
+      finalMessage: () => Promise.resolve(rankingResponse("A|fits")),
     });
     await createAiSearchClient("k").search(built);
 
@@ -669,13 +712,13 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
   ];
 
   /**
-   * Search with a response that ranks only Carrot Cake (3), then Apple (1) —
+   * Search with a response that ranks only Carrot Cake (C), then Apple (A) —
    * by default with no `OPEN` line, as a narrowing answer would be written.
    */
   async function searchWith(
     query: string,
     {
-      text = "3|due\n1|fine",
+      text = "C|due\nA|fine",
       ...overrides
     }: { text?: string; onResponseText?: (text: string) => void } = {},
   ) {
@@ -722,7 +765,7 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
 
   it("appends on a non-empty query the model declared OPEN", async () => {
     const result = await searchWith("anything good?", {
-      text: "OPEN\n3|due\n1|fine",
+      text: "OPEN\nC|due\nA|fine",
     });
     expect(result.ok && result.results.map((r) => r.id)).toEqual([
       "c1",
@@ -781,7 +824,7 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
 
   it("appends on an OPEN the model put behind a preamble", async () => {
     const result = await searchWith("anything good?", {
-      text: "Here is my ranking:\nOPEN\n3|due\n1|fine",
+      text: "Here is my ranking:\nOPEN\nC|due\nA|fine",
     });
     expect(result.ok && result.results.map((r) => r.id)).toEqual([
       "c1",
@@ -791,7 +834,7 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
   });
 
   it("appends nothing, and duplicates nothing, when the model ranked every candidate", async () => {
-    const result = await searchWith("", { text: "3|due\n1|fine\n2|ok" });
+    const result = await searchWith("", { text: "C|due\nA|fine\nB|ok" });
     expect(result.ok && result.results.map((r) => r.id)).toEqual([
       "c1",
       "a1",
@@ -829,7 +872,7 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
   });
 
   it("logs a non-empty query's length without its delimiters", async () => {
-    await searchWith("anything good?", { text: "OPEN\n3|due\n1|fine" });
+    await searchWith("anything good?", { text: "OPEN\nC|due\nA|fine" });
     const line = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
     expect(line.queryLength).toBe("anything good?".length);
   });
@@ -838,6 +881,6 @@ describe("createAiSearchClient — backfilling omitted candidates", () => {
     const onResponseText = vi.fn();
     await searchWith("", { onResponseText });
     // The text as the model wrote it — before the backfill appended Banana.
-    expect(onResponseText).toHaveBeenCalledWith("3|due\n1|fine");
+    expect(onResponseText).toHaveBeenCalledWith("C|due\nA|fine");
   });
 });

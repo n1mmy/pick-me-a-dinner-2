@@ -8,8 +8,8 @@
  * Per day and in aggregate: the rank of the Pick, hit@3/5/10, the Pick's
  * daysSinceLast and recent gaps, any Option Rejected that day as too soon
  * that sat in the top 5, top-5 slots spent on Options never eaten in the
- * window, empty top-10 reasons, and a ranking written in snapshot-number
- * order (rank positions where numbers belong). Prepared notes add the brief's
+ * window, empty top-10 reasons, and a ranking written in Option-code
+ * order (rank positions where codes belong). Prepared notes add the brief's
  * consistency — the Options it names sit in the top 3, and it mentions the Day
  * note when there is one — and rows the parser had to resolve by name. Flags
  * are for a reader, not verdicts: elapsed-time phrasing, weekday-habit claims
@@ -44,8 +44,9 @@ import {
 } from "../lib/local-day";
 import {
   type BuiltSnapshot,
-  type SnapshotModelOption,
+  codeIndex,
   snapshotForDay,
+  type SnapshotModelOption,
 } from "../lib/snapshot";
 
 const DEFAULT_COUNT = 20;
@@ -115,8 +116,6 @@ export type Generation = {
   outputTokens?: number;
   /** Strata's reasoning trace, saved beside the JSON when asked for. */
   reasoning?: string;
-  /** Prepared notes: rows the parser resolved by name over the number. */
-  resolvedByName?: number;
 };
 
 type Ranked = { rank: number; name: string };
@@ -148,12 +147,11 @@ export type DayRecord = {
   /** Top-10 rows with an empty reason. */
   emptyTop10: number;
   /**
-   * The whole ranking came out in snapshot-number order: the model wrote its
-   * rank positions where the numbers belong, and the "ranking" is the Catalog.
+   * The whole ranking came out in Option-code order: the model wrote its rank
+   * positions where the codes belong, and the "ranking" is the Catalog. With
+   * letter codes such a row resolves to nothing (ADR-0013); kept as a sentinel.
    */
   catalogOrder: boolean;
-  /** Prepared notes: rows the parser resolved by name over the number. */
-  resolvedByName?: number;
   brief?: string;
   /** Options the brief names — each should be in the top 3. */
   briefNamed?: Ranked[];
@@ -195,8 +193,8 @@ export function scoreDay(
   built: BuiltSnapshot,
   generation: Generation,
 ): DayRecord {
-  const { snapshot, idByIndex, nameById } = built;
-  const candidateIds = new Set(idByIndex.values());
+  const { snapshot, idByCode, nameById } = built;
+  const candidateIds = new Set(idByCode.values());
   const rankById = new Map(generation.ranking.map((row, i) => [row.id, i + 1]));
   const nameOf = (id: string) => nameById.get(id) ?? id;
 
@@ -222,10 +220,10 @@ export function scoreDay(
 
   // The model-facing record of each candidate, for its weekday counts and the
   // Household's words about it.
-  const optionByNumber = new Map(snapshot.options.map((o) => [o.id, o]));
+  const optionByCode = new Map(snapshot.options.map((o) => [o.id, o]));
   const modelOption = new Map<string, SnapshotModelOption>();
-  for (const [number, id] of idByIndex) {
-    const option = optionByNumber.get(number);
+  for (const [code, id] of idByCode) {
+    const option = optionByCode.get(code);
     if (option) modelOption.set(id, option);
   }
   const householdWords = (id: string): Set<string> => {
@@ -262,10 +260,10 @@ export function scoreDay(
         : {}),
     }));
 
-  const numberById = new Map([...idByIndex].map(([number, id]) => [id, number]));
-  const numbers = generation.ranking.map((row) => numberById.get(row.id) ?? 0);
+  const codeById = new Map([...idByCode].map(([code, id]) => [id, code]));
+  const positions = generation.ranking.map((row) => codeIndex(codeById.get(row.id) ?? ""));
   const catalogOrder =
-    numbers.length >= 10 && numbers.every((n, i) => i === 0 || n > numbers[i - 1]);
+    positions.length >= 10 && positions.every((n, i) => i === 0 || n > positions[i - 1]);
 
   const elapsed = [
     ...(generation.brief !== undefined
@@ -310,7 +308,7 @@ export function scoreDay(
     weekday: weekdayName(truth.day),
     dayNote: truth.dayNote,
     ok: generation.ok,
-    candidates: idByIndex.size,
+    candidates: idByCode.size,
     picks,
     bestRank,
     scorable,
@@ -326,9 +324,6 @@ export function scoreDay(
     latencyMs: generation.latencyMs,
     outputTokens: generation.outputTokens,
   };
-  if (generation.resolvedByName !== undefined) {
-    record.resolvedByName = generation.resolvedByName;
-  }
 
   if (generation.brief !== undefined) {
     record.brief = generation.brief;
@@ -359,7 +354,7 @@ function nameWords(name: string): string[] {
  * San Bruno" to Chicken and Rice.
  */
 function namedInBrief(brief: string, built: BuiltSnapshot): string[] {
-  const candidates = [...built.idByIndex.values()].map((id) => ({
+  const candidates = [...built.idByCode.values()].map((id) => ({
     id,
     name: built.nameById.get(id) ?? "",
   }));
@@ -429,7 +424,6 @@ export function summarize(records: DayRecord[]) {
     ),
     emptyTop10Rows: sum((r) => r.emptyTop10),
     catalogOrderDays: count((r) => r.catalogOrder === true),
-    rowsResolvedByName: sum((r) => r.resolvedByName),
     briefNamedOutsideTop3: count(
       (r) => (r.briefNamed ?? []).some((named) => named.rank === 0 || named.rank > 3),
     ),
@@ -633,8 +627,7 @@ function printDay(record: DayRecord): void {
       `${timing ? ` — since ${timing}` : ""} — ${secs}`,
   );
   if (record.dayNote) console.log(`day note: ${record.dayNote}`);
-  if (record.catalogOrder) console.log("CATALOG ORDER: the ranking is the snapshot's numbering");
-  if (record.resolvedByName) console.log(`rows resolved by name: ${record.resolvedByName}`);
+  if (record.catalogOrder) console.log("CATALOG ORDER: the ranking is the snapshot's code order");
   if (record.emptyTop10) console.log(`empty reasons in the top 10: ${record.emptyTop10}`);
   if (record.brief !== undefined) {
     console.log(`brief: ${record.brief || "(SKIPPED by the model — rows scored anyway)"}`);
@@ -713,8 +706,7 @@ function printAggregate(summary: ReturnType<typeof summarize>): void {
   console.log(
     `top-5 slots on Options never eaten in the window: ${summary.neverEatenTop5Slots}/${summary.scored * 5}   ` +
       `empty top-10 reasons: ${summary.emptyTop10Rows}   ` +
-      `catalog-order days: ${summary.catalogOrderDays}   ` +
-      `rows resolved by name: ${summary.rowsResolvedByName}`,
+      `catalog-order days: ${summary.catalogOrderDays}`,
   );
   console.log(
     `brief names an Option outside the top 3: ${summary.briefNamedOutsideTop3} day(s)   ` +

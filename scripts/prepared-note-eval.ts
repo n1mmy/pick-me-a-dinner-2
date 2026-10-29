@@ -151,7 +151,6 @@ function claudeGenerator(
       latencyMs: Date.now() - startedAt,
       outputTokens: response.usage.output_tokens,
       reasoning: reasoning || undefined,
-      resolvedByName: note?.resolvedByName,
     };
   };
 }
@@ -247,7 +246,6 @@ async function main(): Promise<void> {
           latencyMs: Number(logLine?.latencyMs) || undefined,
           outputTokens: Number(logLine?.outputTokens) || undefined,
           reasoning: reply?.reasoning ?? undefined,
-          resolvedByName: result.ok ? reply?.resolvedByName : lenient?.resolvedByName,
         };
       },
     });
@@ -255,12 +253,12 @@ async function main(): Promise<void> {
   }
 
   const built = await snapshotForDay({ asOf: day, query: "" });
-  const { snapshot, idByIndex, nameById } = built;
+  const { snapshot, idByCode, nameById } = built;
 
   console.log(`day: ${snapshot.today}`);
   console.log(`model: ${model}   prompt version: ${PREPARED_PROMPT_VERSION}`);
   console.log(
-    `candidates: ${idByIndex.size}   log: ${snapshot.log.length} dinners   ` +
+    `candidates: ${idByCode.size}   log: ${snapshot.log.length} dinners   ` +
       `day note: ${snapshot.todayDayNote ? "yes" : "none"}\n`,
   );
 
@@ -320,9 +318,9 @@ async function main(): Promise<void> {
   console.log(brief);
 
   const ranked = new Set(ranking.map((row) => row.id));
-  const missing = [...idByIndex.values()].filter((id) => !ranked.has(id));
+  const missing = [...idByCode.values()].filter((id) => !ranked.has(id));
   console.log(
-    `\n--- ranking: ${ranking.length}/${idByIndex.size} candidates ranked ---`,
+    `\n--- ranking: ${ranking.length}/${idByCode.size} candidates ranked ---`,
   );
   ranking.forEach((row, index) => {
     console.log(

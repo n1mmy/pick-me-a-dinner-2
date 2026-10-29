@@ -3,7 +3,9 @@ import { parseRankingText } from "./ai-search";
 import type { RejectionRow } from "./rejections";
 import {
   buildSnapshot,
+  codeIndex,
   leanSnapshot,
+  optionCode,
   recentGapsOf,
   type SnapshotLogEntry,
   type SnapshotOption,
@@ -49,7 +51,7 @@ describe("buildSnapshot", () => {
     { optionId: "a1", eatenOn: "2026-05-10", note: "with cream" }, // Sunday
     { optionId: "b1", eatenOn: "2026-05-15", note: null }, // Friday
   ];
-  const { snapshot, idByIndex } = buildSnapshot({
+  const { snapshot, idByCode } = buildSnapshot({
     options,
     logEntries,
     rejections: [],
@@ -64,23 +66,23 @@ describe("buildSnapshot", () => {
     ]);
   });
 
-  it("numbers candidate Options 1-based by alphabetical position", () => {
-    // The model sees these integers, never the UUID — Apple Crumble is 1.
-    expect(snapshot.options.map((o) => o.id)).toEqual([1, 2]);
+  it("codes candidate Options A, B, … by alphabetical position", () => {
+    // The model sees these codes, never the UUID — Apple Crumble is A.
+    expect(snapshot.options.map((o) => o.id)).toEqual(["A", "B"]);
   });
 
-  it("maps each Option number back to its real id via idByIndex", () => {
-    expect(idByIndex.get(1)).toBe("a1");
-    expect(idByIndex.get(2)).toBe("b1");
-    expect(idByIndex.size).toBe(2);
+  it("maps each Option code back to its real id via idByCode", () => {
+    expect(idByCode.get("A")).toBe("a1");
+    expect(idByCode.get("B")).toBe("b1");
+    expect(idByCode.size).toBe(2);
   });
 
-  it("refers to each Log entry's Option by its number", () => {
-    // a1 is number 1, b1 is number 2 — the Log carries the number, not the id.
+  it("refers to each Log entry's Option by its code", () => {
+    // a1 is A, b1 is B — the Log carries the code, not the id.
     const banana = snapshot.log.find((e) => e.name.includes("Banana Bread"));
-    expect(banana?.optionId).toBe(2);
+    expect(banana?.optionId).toBe("B");
     const apple = snapshot.log.find((e) => e.name.includes("Apple Crumble"));
-    expect(apple?.optionId).toBe(1);
+    expect(apple?.optionId).toBe("A");
   });
 
   it("carries candidate and timing fields — no Places fields", () => {
@@ -159,7 +161,7 @@ describe("buildSnapshot", () => {
   });
 
   it("produces empty option and log arrays for an empty Catalog", () => {
-    const { snapshot: empty, idByIndex: emptyMap } = buildSnapshot({
+    const { snapshot: empty, idByCode: emptyMap } = buildSnapshot({
       options: [],
       logEntries: [],
       rejections: [],
@@ -194,20 +196,20 @@ describe("buildSnapshot — Closed days", () => {
     restaurant("c1", "Curry House", [0, 1]), // closed Sun/Mon — open today
   ];
 
-  it("drops a Restaurant closed on asOf from the candidate options and idByIndex", () => {
-    const { snapshot, idByIndex } = buildSnapshot({
+  it("drops a Restaurant closed on asOf from the candidate options and idByCode", () => {
+    const { snapshot, idByCode } = buildSnapshot({
       options,
       logEntries: [],
       rejections: [],
       asOf: TODAY,
       query: "",
     });
-    // a1=1, b1=2, c1=3; b1 is closed today, so it is absent from both.
-    expect(snapshot.options.map((o) => o.id)).toEqual([1, 3]);
-    expect([...idByIndex.keys()]).toEqual([1, 3]);
+    // a1=A, b1=B, c1=C; b1 is closed today, so it is absent from both.
+    expect(snapshot.options.map((o) => o.id)).toEqual(["A", "C"]);
+    expect([...idByCode.keys()]).toEqual(["A", "C"]);
   });
 
-  it("still assigns a closed Restaurant a number for its Log and Rejection rows", () => {
+  it("still assigns a closed Restaurant a code for its Log and Rejection rows", () => {
     const { snapshot } = buildSnapshot({
       options,
       logEntries: [{ optionId: "b1", eatenOn: "2026-05-13", note: null }],
@@ -216,25 +218,25 @@ describe("buildSnapshot — Closed days", () => {
       query: "",
     });
     // b1 is off the candidate list but its Log and Rejection rows still carry
-    // its number (2) — its history reads as history.
-    expect(snapshot.options.map((o) => o.id)).not.toContain(2);
-    expect(snapshot.log.map((e) => e.optionId)).toContain(2);
+    // its code (B) — its history reads as history.
+    expect(snapshot.options.map((o) => o.id)).not.toContain("B");
+    expect(snapshot.log.map((e) => e.optionId)).toContain("B");
     expect(
       snapshot.rejections.notTodayRejections.map((r) => r.optionId),
-    ).toContain(2);
+    ).toContain("B");
   });
 
-  it("parseRankingText drops a closed Restaurant's number if the model returns it", () => {
-    const { idByIndex } = buildSnapshot({
+  it("parseRankingText drops a closed Restaurant's code if the model returns it", () => {
+    const { idByCode } = buildSnapshot({
       options,
       logEntries: [],
       rejections: [],
       asOf: TODAY,
       query: "",
     });
-    // The model hallucinating or wrongly returning b1's number (2) yields no
-    // result row for it — idByIndex never held a closed Restaurant's number.
-    const parsed = parseRankingText("1|great\n2|nope, closed\n3|also good", idByIndex);
+    // The model hallucinating or wrongly returning b1's code (B) yields no
+    // result row for it — idByCode never held a closed Restaurant's code.
+    const parsed = parseRankingText("A|great\nB|nope, closed\nC|also good", idByCode);
     expect(parsed?.rows.map((r) => r.id)).toEqual(["a1", "c1"]);
   });
 
@@ -294,7 +296,7 @@ describe("buildSnapshot — Closed days", () => {
         query: "",
       }),
     ).not.toThrow();
-    const { snapshot, idByIndex } = buildSnapshot({
+    const { snapshot, idByCode } = buildSnapshot({
       options,
       logEntries: [],
       rejections: [rejection("b1", TODAY, "too tired for it")],
@@ -302,13 +304,13 @@ describe("buildSnapshot — Closed days", () => {
       query: "",
     });
     const ids = snapshot.options.map((o) => o.id);
-    expect(ids).toEqual([1, 3]);
+    expect(ids).toEqual(["A", "C"]);
     // No duplicate entry for b1.
-    expect(ids.filter((id) => id === 2)).toHaveLength(0);
-    expect([...idByIndex.keys()]).toEqual([1, 3]);
+    expect(ids.filter((id) => id === "B")).toHaveLength(0);
+    expect([...idByCode.keys()]).toEqual(["A", "C"]);
     // b1's Rejection still appears once, correctly, in rejectedTonight.
     expect(snapshot.rejections.rejectedTonight.map((r) => r.optionId)).toEqual(
-      [2],
+      ["B"],
     );
   });
 });
@@ -321,7 +323,7 @@ describe("buildSnapshot — Picked on the anchor day", () => {
   ];
 
   it("drops Options logged on asOf from the candidates but keeps their Log rows", () => {
-    const { snapshot, idByIndex } = buildSnapshot({
+    const { snapshot, idByCode } = buildSnapshot({
       options,
       logEntries: [
         { optionId: "b1", eatenOn: TODAY, note: null },
@@ -331,10 +333,10 @@ describe("buildSnapshot — Picked on the anchor day", () => {
       asOf: TODAY,
       query: "",
     });
-    // b1 (2) is tonight's Pick; c1 (3), eaten yesterday, stays a candidate.
-    expect(snapshot.options.map((o) => o.id)).toEqual([1, 3]);
-    expect([...idByIndex.keys()]).toEqual([1, 3]);
-    expect(snapshot.log.map((e) => e.optionId)).toContain(2);
+    // b1 (B) is tonight's Pick; c1 (C), eaten yesterday, stays a candidate.
+    expect(snapshot.options.map((o) => o.id)).toEqual(["A", "C"]);
+    expect([...idByCode.keys()]).toEqual(["A", "C"]);
+    expect(snapshot.log.map((e) => e.optionId)).toContain("B");
   });
 
   it("keeps an Option Planned for a later day as a candidate", () => {
@@ -345,7 +347,7 @@ describe("buildSnapshot — Picked on the anchor day", () => {
       asOf: TODAY,
       query: "",
     });
-    expect(snapshot.options.map((o) => o.id)).toEqual([1, 2, 3]);
+    expect(snapshot.options.map((o) => o.id)).toEqual(["A", "B", "C"]);
   });
 });
 
@@ -356,18 +358,18 @@ describe("buildSnapshot — Rejections", () => {
     option("c1", "Carrot Cake"),
   ];
 
-  it("drops today's-rejected Options, leaving a gap in the candidate numbers", () => {
-    const { snapshot, idByIndex } = buildSnapshot({
+  it("drops today's-rejected Options, leaving a gap in the candidate codes", () => {
+    const { snapshot, idByCode } = buildSnapshot({
       options,
       logEntries: [],
       rejections: [rejection("b1", TODAY, "too heavy tonight")],
       asOf: TODAY,
       query: "",
     });
-    // a1=1, b1=2, c1=3; b1 was rejected today, so the candidates are 1 and 3
-    // — the number 2 is deliberately absent (the AI-result side of suppression).
-    expect(snapshot.options.map((o) => o.id)).toEqual([1, 3]);
-    expect([...idByIndex.keys()]).toEqual([1, 3]);
+    // a1=A, b1=B, c1=C; b1 was rejected today, so the candidates are A and C
+    // — the code B is deliberately absent (the AI-result side of suppression).
+    expect(snapshot.options.map((o) => o.id)).toEqual(["A", "C"]);
+    expect([...idByCode.keys()]).toEqual(["A", "C"]);
   });
 
   it("keeps an earlier-rejected Option in the candidate options", () => {
@@ -378,8 +380,8 @@ describe("buildSnapshot — Rejections", () => {
       asOf: TODAY,
       query: "",
     });
-    // An earlier Rejection does not suppress — b1 (number 2) is still a candidate.
-    expect(snapshot.options.map((o) => o.id)).toContain(2);
+    // An earlier Rejection does not suppress — b1 (code B) is still a candidate.
+    expect(snapshot.options.map((o) => o.id)).toContain("B");
   });
 
   it("attaches a Rejections block split into tonight and not-today groups", () => {
@@ -393,12 +395,12 @@ describe("buildSnapshot — Rejections", () => {
       asOf: TODAY,
       query: "",
     });
-    // b1 is number 2, c1 is number 3 — the Rejections block uses the numbers.
+    // b1 is code B, c1 is code C — the Rejections block uses the codes.
     expect(snapshot.rejections.rejectedTonight.map((r) => r.optionId)).toEqual([
-      2,
+      "B",
     ]);
     expect(snapshot.rejections.notTodayRejections.map((r) => r.optionId)).toEqual(
-      [3],
+      ["C"],
     );
   });
 
@@ -414,7 +416,7 @@ describe("buildSnapshot — Rejections", () => {
     // carrying its real future date (ADR-0008).
     expect(snapshot.rejections.rejectedTonight).toEqual([]);
     const planned = snapshot.rejections.notTodayRejections[0];
-    expect(planned.optionId).toBe(3);
+    expect(planned.optionId).toBe("C");
     expect(planned.date).toBe("2026-05-24 (Sunday)");
   });
 
@@ -426,8 +428,8 @@ describe("buildSnapshot — Rejections", () => {
       asOf: TODAY,
       query: "",
     });
-    // A Planned rejection does not suppress today — c1 (number 3) stays a candidate.
-    expect(snapshot.options.map((o) => o.id)).toContain(3);
+    // A Planned rejection does not suppress today — c1 (code C) stays a candidate.
+    expect(snapshot.options.map((o) => o.id)).toContain("C");
   });
 
   it("carries each Rejection's reason and weekday date", () => {
@@ -472,10 +474,10 @@ describe("buildSnapshot — Rejections", () => {
       asOf: TODAY,
       query: "",
     });
-    // b1 (number 2) is off the candidate list but its dinner stays as Log
-    // history, still carrying its number.
-    expect(snapshot.options.map((o) => o.id)).not.toContain(2);
-    expect(snapshot.log.map((e) => e.optionId)).toContain(2);
+    // b1 (code B) is off the candidate list but its dinner stays as Log
+    // history, still carrying its code.
+    expect(snapshot.options.map((o) => o.id)).not.toContain("B");
+    expect(snapshot.log.map((e) => e.optionId)).toContain("B");
   });
 });
 
@@ -503,7 +505,7 @@ describe("buildSnapshot — Selected day (ADR-0009)", () => {
   });
 
   it("drops the Selected day's-rejected Options from the candidates", () => {
-    const { snapshot, idByIndex } = buildSnapshot({
+    const { snapshot, idByCode } = buildSnapshot({
       options,
       logEntries: [],
       // The same Rejection that was "not-today" against today is now the
@@ -512,10 +514,10 @@ describe("buildSnapshot — Selected day (ADR-0009)", () => {
       asOf: SELECTED,
       query: "",
     });
-    expect(snapshot.options.map((o) => o.id)).toEqual([1, 3]);
-    expect([...idByIndex.keys()]).toEqual([1, 3]);
+    expect(snapshot.options.map((o) => o.id)).toEqual(["A", "C"]);
+    expect([...idByCode.keys()]).toEqual(["A", "C"]);
     expect(snapshot.rejections.rejectedTonight.map((r) => r.optionId)).toEqual(
-      [2],
+      ["B"],
     );
   });
 
@@ -535,12 +537,12 @@ describe("buildSnapshot — Selected day (ADR-0009)", () => {
       });
       // Only the Selected-day Rejection lands in the anchor-day group.
       expect(snapshot.rejections.rejectedTonight.map((r) => r.optionId)).toEqual(
-        [2],
+        ["B"],
       );
       // Today's Rejection — past relative to the Selected day — stays a
       // not-anchor-day candidate carrying its real date.
       const todayRejection = snapshot.rejections.notTodayRejections.find(
-        (r) => r.optionId === 1,
+        (r) => r.optionId === "A",
       );
       expect(todayRejection?.date).toBe("2026-05-20 (Wednesday)");
     },
@@ -630,7 +632,7 @@ describe("buildSnapshot — Day notes", () => {
     expect(snapshot.todayDayNote).toBeNull();
   });
 
-  it("leaves the candidate set and numbering unchanged", () => {
+  it("leaves the candidate set and coding unchanged", () => {
     const base = {
       options,
       logEntries: [{ optionId: "b1", eatenOn: "2026-05-12", note: null }],
@@ -648,7 +650,7 @@ describe("buildSnapshot — Day notes", () => {
     });
     expect(withNotes.snapshot.options).toEqual(without.snapshot.options);
     expect(withNotes.snapshot.log).toEqual(without.snapshot.log);
-    expect([...withNotes.idByIndex]).toEqual([...without.idByIndex]);
+    expect([...withNotes.idByCode]).toEqual([...without.idByCode]);
   });
 });
 
@@ -694,7 +696,7 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
 
   it("gives a candidate its eat count, days since, recent gaps, and weekday counts", () => {
     expect(byName("Mazra")).toEqual({
-      id: expect.any(Number),
+      id: expect.any(String),
       name: "Mazra",
       kind: "home",
       notes: null,
@@ -792,17 +794,17 @@ describe("buildSnapshot — Rejections per Tag (ADR-0006 amended)", () => {
   });
 
   it("lists under each Tag every Rejection of an Option carrying it, newest first", () => {
-    // Mazra is number 2 (Lotus 1, Never Tried 3). The Tag view carries the
+    // Mazra is code B (Lotus A, Never Tried C). The Tag view carries the
     // same rows as the Rejections block, so a repeat turned down for one
     // Option reads as recent for every Option of its kind.
     expect(snapshot.tags.mediterranean.rejections).toEqual([
-      { date: "2026-05-20 (Wednesday)", optionId: 2, reason: null },
-      { date: "2026-05-15 (Friday)", optionId: 1, reason: "too heavy that night" },
-      { date: "2026-05-12 (Tuesday)", optionId: 2, reason: "too recent" },
+      { date: "2026-05-20 (Wednesday)", optionId: "B", reason: null },
+      { date: "2026-05-15 (Friday)", optionId: "A", reason: "too heavy that night" },
+      { date: "2026-05-12 (Tuesday)", optionId: "B", reason: "too recent" },
     ]);
     expect(snapshot.tags.rice.rejections).toEqual([
-      { date: "2026-05-20 (Wednesday)", optionId: 2, reason: null },
-      { date: "2026-05-12 (Tuesday)", optionId: 2, reason: "too recent" },
+      { date: "2026-05-20 (Wednesday)", optionId: "B", reason: null },
+      { date: "2026-05-12 (Tuesday)", optionId: "B", reason: "too recent" },
     ]);
   });
 
@@ -870,7 +872,7 @@ describe("buildSnapshot — backtest mode", () => {
     query: "",
     backtest: true,
   };
-  const { snapshot, idByIndex } = buildSnapshot(input);
+  const { snapshot, idByCode } = buildSnapshot(input);
 
   it("keeps Log entries dated before the anchor day only", () => {
     expect(snapshot.log.map((entry) => entry.date)).toEqual([
@@ -884,7 +886,7 @@ describe("buildSnapshot — backtest mode", () => {
       "Quiche",
       "Tacos",
     ]);
-    expect([...idByIndex.values()]).toContain("m1");
+    expect([...idByCode.values()]).toContain("m1");
     expect(snapshot.options[0]).toMatchObject({ eaten: 1, daysSinceLast: 10 });
     expect(snapshot.tags.rice.daysSinceLast).toBe(10);
   });
@@ -894,7 +896,7 @@ describe("buildSnapshot — backtest mode", () => {
     expect(
       snapshot.rejections.notTodayRejections.map((row) => row.reason),
     ).toEqual(["none left"]);
-    expect([...idByIndex.values()]).toContain("q1");
+    expect([...idByCode.values()]).toContain("q1");
   });
 
   it("keeps Day notes on or before the anchor day, its own as todayDayNote", () => {
@@ -926,13 +928,13 @@ describe("buildSnapshot — canonical order", () => {
     ).toEqual(buildSnapshot({ ...input, logEntries: [banana, apple] }).snapshot);
   });
 
-  it("numbers two Options of the same name the same whichever comes first", () => {
+  it("codes two Options of the same name the same whichever comes first", () => {
     const home = option("h1", "Pizza");
     const out = option("r1", "Pizza");
     const input = { logEntries: [], rejections: [], asOf: TODAY, query: "" };
 
-    expect(buildSnapshot({ ...input, options: [out, home] }).idByIndex).toEqual(
-      buildSnapshot({ ...input, options: [home, out] }).idByIndex,
+    expect(buildSnapshot({ ...input, options: [out, home] }).idByCode).toEqual(
+      buildSnapshot({ ...input, options: [home, out] }).idByCode,
     );
   });
 });
@@ -959,32 +961,59 @@ describe("leanSnapshot", () => {
   });
   const lean = leanSnapshot(snapshot);
 
-  it("cuts each Log row to its date, number, and note", () => {
+  it("cuts each Log row to its date, code, and note", () => {
     expect(lean.log).toEqual([
-      { date: "2026-05-20 (Wednesday)", optionId: 2, note: null },
-      { date: "2026-05-19 (Tuesday)", optionId: 1, note: "too sweet" },
-      { date: "2026-05-12 (Tuesday)", optionId: 2, note: null },
+      { date: "2026-05-20 (Wednesday)", optionId: "B", note: null },
+      { date: "2026-05-19 (Tuesday)", optionId: "A", note: "too sweet" },
+      { date: "2026-05-12 (Tuesday)", optionId: "B", note: null },
     ]);
   });
 
-  it("cuts each Rejection row to its date, number, and reason", () => {
+  it("cuts each Rejection row to its date, code, and reason", () => {
     expect(lean.rejections).toEqual({
       rejectedTonight: [
-        { date: "2026-05-20 (Wednesday)", optionId: 3, reason: "too heavy" },
+        { date: "2026-05-20 (Wednesday)", optionId: "C", reason: "too heavy" },
       ],
       notTodayRejections: [
-        { date: "2026-05-10 (Sunday)", optionId: 1, reason: null },
+        { date: "2026-05-10 (Sunday)", optionId: "A", reason: null },
       ],
     });
   });
 
-  it("lists each non-candidate with history once in otherOptions, so every number resolves", () => {
-    // Banana Bread (2) is tonight's Pick and Carrot Cake (3) tonight's
+  it("lists each non-candidate with history once in otherOptions, so every code resolves", () => {
+    // Banana Bread (B) is tonight's Pick and Carrot Cake (C) tonight's
     // Rejection: neither is a candidate, both still have history rows.
-    expect(lean.options.map((o) => o.id)).toEqual([1]);
+    expect(lean.options.map((o) => o.id)).toEqual(["A"]);
     expect(lean.otherOptions).toEqual([
-      { id: 2, name: "Banana Bread", kind: "home", tags: ["baked", "sweet"] },
-      { id: 3, name: "Carrot Cake", kind: "home", tags: [] },
+      { id: "B", name: "Banana Bread", kind: "home", tags: ["baked", "sweet"] },
+      { id: "C", name: "Carrot Cake", kind: "home", tags: [] },
     ]);
+  });
+});
+
+describe("Option codes", () => {
+  it("runs A…Z, then AA…AZ, BA…, and reads back to the same index", () => {
+    expect([0, 25, 26, 51, 52].map(optionCode)).toEqual(["A", "Z", "AA", "AZ", "BA"]);
+    for (const code of ["A", "Z", "AA", "AZ", "BA"]) {
+      expect(optionCode(codeIndex(code))).toBe(code);
+    }
+  });
+
+  it("orders otherOptions and Tag Rejections by code position, so AA follows Z", () => {
+    // 27 Options named in alphabetical order: the 26th is Z, the 27th AA. Both
+    // are Rejected tonight, so both leave the candidates for otherOptions; a
+    // lexical sort would put AA before Z.
+    const options = Array.from({ length: 27 }, (_, i) =>
+      option(`o${i}`, `Option ${String.fromCharCode(97 + Math.floor(i / 26))}${String.fromCharCode(97 + (i % 26))}`, ["tag"]),
+    );
+    const { snapshot } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [rejection("o26", TODAY, "later"), rejection("o25", TODAY, "sooner")],
+      asOf: TODAY,
+      query: "",
+    });
+    expect(leanSnapshot(snapshot).otherOptions.map((o) => o.id)).toEqual(["Z", "AA"]);
+    expect(snapshot.tags.tag.rejections?.map((r) => r.optionId)).toEqual(["Z", "AA"]);
   });
 });

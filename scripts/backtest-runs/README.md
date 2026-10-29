@@ -60,3 +60,16 @@ DeepSeek's or GLM's thinking. Hits are hit@3/5/10 out of 20.
   on `2026-10-09`.
 - `.part1.log` / `.part2.log` — a run made in two halves, the second with
   `--resume`.
+
+Three of the hits above are artefacts. Through prompt v13 the snapshot
+numbered Options `1..N`, so a model that wrote its rank position where the
+number belonged produced a valid row, and a ranking written that way read as
+the Catalog in alphabetical order; the Pick scored a hit whenever it sat early
+in the alphabet. `strata-v9` on `2026-10-02`, `strata-v12` on `2026-10-08`
+(every row `rank|number|name|rationale`) and
+`ai-search-v12-glm-5p3-low-pithy` on `2026-10-08` are such days, each counted
+as hit@5; GLM's `2026-10-10` and `strata-v9`'s `2026-10-14` were the same
+shape without the hit. From v14 Options carry letter codes, so a rank written
+as a code resolves to nothing and the reply is refused instead (ADR-0013,
+`.issues/ai-ranking-backtest/issues/05`). The `catalogOrder` flag stays as
+the sentinel.

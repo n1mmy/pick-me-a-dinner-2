@@ -332,6 +332,16 @@ not the whole list.
 _Avoid_: AI ranking (it is search — there is a query, even when empty); AI
 search for a **Prepared note** (that is written ahead, not searched).
 
+**Option code**:
+The short letter label (`A`, `B`, … `AK`) a snapshot gives each Option so a
+model can refer to it, in place of the Option's id. The letters make a code
+unmistakable for a rank position — a model's ranking is a list of places,
+`1`, `2`, `3`, and a place written where a code belongs resolves to no Option
+instead of silently naming the wrong one. A code belongs to one snapshot and
+is never shown to the Household.
+_Avoid_: number, snapshot number, index (a code is not an integer); name (two
+Options may share a name; a code is unique within a snapshot).
+
 **AI rationale**:
 The model-generated line of prose on each AI search result row explaining why
 that Option fits — naming the query intent, the habit the model found in the
@@ -413,6 +423,8 @@ single-household — no user accounts, no per-person identity.
 - A **Restaurant** carries zero or more **Closed days**; a **Home meal** never
   carries any.
 - The **Catalog** is the set of all **Options**.
+- Within one snapshot, every **Option** carries exactly one **Option code**,
+  and no two Options share one; two Options may share a name.
 - A **Log entry** records exactly one **Option** on one date.
 - A **Dinner** is one or more **Log entries** sharing the same date.
 - The **Log** is the set of all **Log entries**.

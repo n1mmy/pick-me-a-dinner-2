@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { partitionRejections, type RejectionRow } from "./rejections";
+import { optionCode } from "./snapshot";
 
 const TODAY = "2026-05-20"; // a Wednesday
 
@@ -18,15 +19,15 @@ function rejection(
 }
 
 /**
- * Call `partitionRejections`, numbering the Options 1.. in first-seen order —
- * the snapshot-number map the real `buildSnapshot` derives. Tests assert on the
- * Option name (which carries the string id), so the exact numbers do not
+ * Call `partitionRejections`, coding the Options A.. in first-seen order —
+ * the Option-code map the real `buildSnapshot` derives. Tests assert on the
+ * Option name (which carries the string id), so the exact codes do not
  * matter here, only that every row resolves to one.
  */
 function partition(rows: RejectionRow[], today: string) {
   const distinct = [...new Set(rows.map((r) => r.optionId))];
-  const indexByOptionId = new Map(distinct.map((id, i) => [id, i + 1]));
-  return partitionRejections(rows, today, indexByOptionId);
+  const codeByOptionId = new Map(distinct.map((id, i) => [id, optionCode(i)]));
+  return partitionRejections(rows, today, codeByOptionId);
 }
 
 /** Read the string id back off each snapshot row's Option name. */
@@ -186,11 +187,11 @@ describe("partitionRejections — snapshot block shape", () => {
     expect(ids(block.notTodayRejections)).toEqual(["newest", "mid", "oldest"]);
   });
 
-  it("carries the Option number through so it ties to a candidate", () => {
-    // `partition` numbers the single Option 1 — the snapshot integer the model
-    // sees in place of the UUID.
+  it("carries the Option code through so it ties to a candidate", () => {
+    // `partition` codes the single Option A — the Option code the model sees
+    // in place of the UUID.
     const { block } = partition([rejection("a", "2026-05-19")], TODAY);
-    expect(block.notTodayRejections[0].optionId).toBe(1);
+    expect(block.notTodayRejections[0].optionId).toBe("A");
     expect(block.notTodayRejections[0].kind).toBe("home");
   });
 });

@@ -3,6 +3,8 @@
 _Amended by ADR-0012: the snapshot shared with AI search now carries timing
 facts per Option and per Tag._
 
+_Amended by ADR-0013: the "integer ids" below are now letter Option codes._
+
 ADR-0004 added **AI search** as a triggered, additive layer. The deterministic
 ranking was what loaded, and every AI result was a deliberate, uncached,
 one-off call to the metered Anthropic API. That framing came from cost and

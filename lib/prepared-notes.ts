@@ -157,7 +157,7 @@ export async function runSweep({
     // Nothing to rank (an empty Catalog, or every Option Closed or Rejected):
     // the model's empty ranking is always refused, so the date would be
     // regenerated every sweep.
-    if (built.idByIndex.size === 0) continue;
+    if (built.idByCode.size === 0) continue;
     const hash = inputHash(built.snapshot, model);
     if ((await getPreparedNote(day))?.inputHash === hash) continue;
 
