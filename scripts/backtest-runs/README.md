@@ -13,6 +13,9 @@ Saved output of the AI ranking backtest (`scripts/backtest.ts`, issue
 - `<ranker>-reasoning/<day>.txt` — Strata's reasoning trace per day
   (`--reasoning`).
 
+The run files are git-ignored: they stay on the machine that made them, and
+the run list below records what each one showed.
+
 Compare two runs on the same days with
 `npx tsx scripts/backtest-compare.ts <a.json> <b.json>`: aggregates side by
 side, the Pick's rank per day, top-N overlap, hit flips, top-5 occupancy per
