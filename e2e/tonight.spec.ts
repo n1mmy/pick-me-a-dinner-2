@@ -41,5 +41,5 @@ test("Tonight tomorrow shows the Planned dinner decided, with the brief beneath 
 test("Tonight today is legible in the dark theme", { tag: "@dark" }, async ({ page }, testInfo) => {
   await visit(page, testInfo, { path: "/", screen: "tonight-today" });
 
-  await expectDarkAndLegible(page.locator("ol").first().getByRole("listitem").first());
+  await expectDarkAndLegible(page.locator("ol").first().getByRole("listitem").first(), "bar");
 });

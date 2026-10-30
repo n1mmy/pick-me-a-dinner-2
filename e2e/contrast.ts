@@ -6,10 +6,17 @@ const DARK_LUMINANCE = 0.05;
 /**
  * The dark theme is on and legible: the page background is dark by
  * luminance, body text and the `h1` clear WCAG's 4.5:1 against what they sit
- * on, and `row`'s kind bar clears 3:1 against the row's own background.
+ * on, and each kind mark clears 3:1. A `bar` is a row's 3px left border,
+ * measured against the row's own tint or wash; a `fill` is a kind-hued
+ * control (the Catalog's add buttons), measured against what it sits on.
  */
-export async function expectDarkAndLegible(row: Locator): Promise<void> {
-  const measured = await row.evaluate((rowElement) => {
+export async function expectDarkAndLegible(
+  kindMarks: Locator,
+  mark: "bar" | "fill",
+): Promise<void> {
+  // `evaluateAll` does not wait for its elements; this does.
+  await expect(kindMarks.first()).toBeVisible();
+  const measured = await kindMarks.evaluateAll((markElements, mark) => {
     type Rgb = [number, number, number];
     const parse = (css: string): [...Rgb, number] => {
       const match = css.match(/^rgba?\(([^)]+)\)$/);
@@ -49,12 +56,19 @@ export async function expectDarkAndLegible(row: Locator): Promise<void> {
       pageLuminance: luminance(backgroundOf(document.body)),
       body: against(getComputedStyle(document.body).color, document.body),
       h1: against(getComputedStyle(h1).color, h1),
-      kindBar: against(getComputedStyle(rowElement).borderLeftColor, rowElement),
+      kinds: markElements.map((element) =>
+        mark === "bar"
+          ? against(getComputedStyle(element).borderLeftColor, element)
+          : against(getComputedStyle(element).backgroundColor, element.parentElement!),
+      ),
     };
-  });
+  }, mark);
 
   expect(measured.pageLuminance, "page background luminance").toBeLessThan(DARK_LUMINANCE);
   expect(measured.body, "body text contrast").toBeGreaterThanOrEqual(4.5);
   expect(measured.h1, "h1 contrast").toBeGreaterThanOrEqual(4.5);
-  expect(measured.kindBar, "kind bar contrast").toBeGreaterThanOrEqual(3);
+  expect(measured.kinds.length, "kind marks measured").toBeGreaterThan(0);
+  for (const kind of measured.kinds) {
+    expect(kind, `kind ${mark} contrast`).toBeGreaterThanOrEqual(3);
+  }
 }

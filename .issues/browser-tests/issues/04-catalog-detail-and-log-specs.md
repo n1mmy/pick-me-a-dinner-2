@@ -1,6 +1,6 @@
 # 04 — Catalog, Option detail page, and Log specs
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -24,13 +24,23 @@ entries newest first.
 
 ## Acceptance criteria
 
-- [ ] Catalog passes at phone and desktop with every fixture Option and its kind bar
-- [ ] The `@dark` Catalog test passes under `phone-dark`
-- [ ] The Option detail page passes at phone and desktop with the name in Fraunces and its Log entries listed
-- [ ] The Log passes at phone and desktop with entries newest first
-- [ ] Screenshots for Catalog (phone, desktop, phone-dark), the detail page, and the Log exist
+- [x] Catalog passes at phone and desktop with every fixture Option and its kind bar
+- [x] The `@dark` Catalog test passes under `phone-dark`
+- [x] The Option detail page passes at phone and desktop with the name in Fraunces and its Log entries listed
+- [x] The Log passes at phone and desktop with entries newest first
+- [x] Screenshots for Catalog (phone, desktop, phone-dark), the detail page, and the Log exist
 
 ## Blocked by
 
 - [02 — Playwright scaffolding, the fixture, and the Login tracer bullet](02-playwright-scaffolding-and-login.md)
 - [03 — Tonight specs, today and tomorrow, light and dark](03-tonight-specs-light-and-dark.md) (for the dark project and contrast helper)
+
+## Comments
+
+- Done, with one reading of the ticket changed to match `DESIGN.md`: Catalog
+  rows have no kind bar by design ("Untinted rows on plain `bg` (Catalog
+  lists…)"). The Catalog spec asserts each fixture Option under its kind's
+  section ("Home meals" / "Restaurants"), and the `@dark` Catalog test
+  measures the kind-hued "Add a meal" / "Add a restaurant" fills against the
+  page at the 3:1 floor. Giving Catalog rows a kind bar would be a design
+  change, so it isn't made here.
