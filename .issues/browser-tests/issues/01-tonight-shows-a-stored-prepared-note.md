@@ -1,6 +1,6 @@
 # 01 — Tonight shows a stored Prepared note whenever one exists
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -35,12 +35,18 @@ Tonight spec in ticket 03 proves it.
 
 ## Acceptance criteria
 
-- [ ] Tonight shows the Selected day's stored note with no `LOCAL_AI_*` set
-- [ ] A stored note reads current while `LOCAL_AI_MODEL` names a model other than the one recorded on it, and while it is unset
-- [ ] An input change still flips a note out of date; decided and past dates still read frozen
-- [ ] The read's doc comment states the new meaning of out of date
-- [ ] Unit and DB suites green, typecheck and lint clean
+- [x] Tonight shows the Selected day's stored note with no `LOCAL_AI_*` set
+- [x] A stored note reads current while `LOCAL_AI_MODEL` names a model other than the one recorded on it, and while it is unset
+- [x] An input change still flips a note out of date; decided and past dates still read frozen
+- [x] The read's doc comment states the new meaning of out of date
+- [x] Unit and DB suites green, typecheck and lint clean
 
 ## Blocked by
 
 None (can start immediately).
+
+## Comments
+
+- Done. Two new `preparedNoteFor` cases went red against the configured-model
+  hash and green once the read hashed with `stored.model`. The page-level
+  guard removal is proven by ticket 03's Tonight spec.
