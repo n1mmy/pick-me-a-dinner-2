@@ -359,9 +359,9 @@ identical row for row; what tells them apart is one line above the list.
   Picked, Rejected, or Closed since the note was written leaves a gap
   rather than renumbering the rows below it, so the list agrees with the
   decided-day line that quotes the note's rank. A candidate the note never
-  named is appended **unnumbered** — the rank gutter empty — with the one
-  rationale "The note left this one out", so a row the model forgot never
-  reads as one it ranked last. Claude AI search rows are numbered by their
+  named is appended **unnumbered** — the rank gutter empty — and with no
+  rationale, so a row the model forgot never reads as one it ranked last.
+  The empty gutter says enough; a stock line on every such row was noise. Claude AI search rows are numbered by their
   place on screen; nothing is filtered out of them after they arrive.
 - **Screen-reader status.** The polite status region says "Showing the
   prepared ranking." when that layer comes into view (Claude result cleared,

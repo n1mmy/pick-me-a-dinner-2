@@ -2188,7 +2188,7 @@ describe("TonightScreen — Prepared note", () => {
     expect(rankShown("Apple Crumble")).toBe("2");
   });
 
-  it("leaves a candidate the note didn't name unnumbered, saying the note left it out", () => {
+  it("leaves a candidate the note didn't name unnumbered and without a rationale", () => {
     render(
       <TonightScreen
         view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
@@ -2200,7 +2200,9 @@ describe("TonightScreen — Prepared note", () => {
     expect(rankShown("Banana Bread")).toBe("1");
     expect(rankShown("Cherry Pie")).toBe("");
     const cherry = screen.getByText("Cherry Pie").closest("li") as HTMLElement;
-    expect(within(cherry).getByText("The note left this one out")).toBeTruthy();
+    expect(within(cherry).queryByText("The note left this one out")).toBeNull();
+    const banana = screen.getByText("Banana Bread").closest("li") as HTMLElement;
+    expect(within(banana).getByText(NOTE.ranking[0].reason)).toBeTruthy();
   });
 
   it("keeps the filter chips over the Prepared ranking; a filtered row keeps the note's rank", () => {
