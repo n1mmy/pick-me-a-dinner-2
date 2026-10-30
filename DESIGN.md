@@ -274,8 +274,8 @@ component (`DayNoteLine`) on both screens.
   with the H1. The open editor stays in normal flow, 8px under the header.
   On the Log the line sits directly above interactive rows, so it keeps
   plain flow there.
-- **With a note:** `muted` body text, upright — it is today's context, not
-  reported speech, so it does not borrow the Last note's italic. The text
+- **With a note:** `muted` body text, italic — set apart from the H1 as an
+  aside on the evening, without another size or color step. The text
   itself is the tap target (44px floor) that opens the editor; no separate
   edit button.
 - **Without one:** a borderless, unfilled `chip`-size button, the Log's

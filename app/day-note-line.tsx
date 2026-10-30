@@ -20,10 +20,11 @@ const addButtonClass =
  * only its wording — `addLabel` for the absent state's add button, `label` for
  * the editor's field.
  *
- * The note shows as muted body text; tapping it edits it in place, as does
- * the add button when there is none. Saving goes through `setDayNote`, which
- * revalidates both screens, so a save simply closes the editor and the new
- * note arrives with the refreshed props. Saving empty text clears the note.
+ * The note shows as muted italic body text; tapping it edits it in place, as
+ * does the add button when there is none. Saving goes through `setDayNote`,
+ * which revalidates both screens, so a save simply closes the editor and the
+ * new note arrives with the refreshed props. Saving empty text clears the
+ * note.
  *
  * `placement="header"` is Tonight's: the line reads as a subtitle under the
  * H1. Its resting 44px tap area keeps the floor but bleeds 22px down into the
@@ -78,7 +79,7 @@ export function DayNoteLine({
       type="button"
       onClick={() => setEditing(true)}
       className={`min-h-11 self-start rounded-control text-left text-body
-        text-muted transition-colors duration-short hover:text-ink ${focusRing} ${bleed}`}
+        text-muted italic transition-colors duration-short hover:text-ink ${focusRing} ${bleed}`}
     >
       {note}
     </button>
