@@ -1,6 +1,6 @@
 # 04 — The spread script and the averaged ranking
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -55,19 +55,27 @@ tested in `scripts/backtest-spread.test.ts` on small in-memory records.
 
 ## Acceptance criteria
 
-- [ ] Kendall tau-b tested on identical, reversed and partly overlapping
+- [x] Kendall tau-b tested on identical, reversed and partly overlapping
       rankings.
-- [ ] Top-k overlap and #1 agreement tested.
-- [ ] Arm grouping tested with an old file and a new one.
-- [ ] Averaged order tested: mean rank, the missing-Option rank, both
+- [x] Top-k overlap and #1 agreement tested.
+- [x] Arm grouping tested with an old file and a new one.
+- [x] Averaged order tested: mean rank, the missing-Option rank, both
       tie-breaks, and its hits from the Picks.
-- [ ] On the saved `prepared-v14-opus-5-5-low` and `-run2` it reports
+- [x] On the saved `prepared-v14-opus-5-5-low` and `-run2` it reports
       the same #1 on 16/20 days and a top-5 overlap of 3.95, matching
       the plan.
-- [ ] `backtest-compare.ts` opens an averaged file without error.
-- [ ] The gate passes.
+- [x] `backtest-compare.ts` opens an averaged file without error.
+- [x] The gate passes.
 
 ## Blocked by
 
 None. It reads existing run files, so it can start immediately. Ticket
 03's `meta` fields only add to the grouping.
+
+## Comments
+
+- 2026-10-30: On the saved Opus v14 pair it reports the same #1 on 16/20
+  days and a top-5 overlap of 3.95, and on the v15 pair 16/20 and 4.20, as
+  the plan measured. `backtest-compare.ts` opens an averaged file with
+  latency `NaN` and the text counters at zero. `qwen3.8-v19-low-run2.json`
+  records `promptVersion: "20"`, so it groups apart from the other v19 runs.
