@@ -55,8 +55,9 @@ export function preparedNotesEnabled(): boolean {
 }
 
 /**
- * The local model's id, `LOCAL_AI_MODEL`. A note's input hash includes it, so
- * the sweep and Tonight's read must agree on it.
+ * The local model's id, `LOCAL_AI_MODEL`. The sweep writes it onto each note
+ * and into the note's input hash; Tonight's read hashes with the model the
+ * note records, so a switch here regenerates notes without marking them.
  */
 export function localModel(): string {
   return localModelConfig().model;

@@ -15,8 +15,10 @@ import type { PreparedNoteView } from "./tonight-screen";
  * pushes the list off a small screen, and the label rides on the toggle's
  * row — inside the clamp it would be cut off. From the 720px `desktop:` step
  * the brief shows in full, the toggle is gone, and the label floats into the
- * brief's last line. The caller remounts this per Selected day, so an
- * expanded brief collapses again on a day change.
+ * brief's last line; `flow-root` there makes the `<p>` contain its float, so
+ * when the last line is full the label drops to a line of its own *inside*
+ * the surface rather than hanging below it. The caller remounts this per
+ * Selected day, so an expanded brief collapses again on a day change.
  */
 export function PreparedBrief({ note }: { note: PreparedNoteView }) {
   const [expanded, setExpanded] = useState(false);
@@ -27,7 +29,7 @@ export function PreparedBrief({ note }: { note: PreparedNoteView }) {
       <p
         id={briefId}
         className={`whitespace-pre-line rounded-badge bg-raised px-2 py-1
-          text-chip text-muted desktop:line-clamp-none
+          text-chip text-muted desktop:line-clamp-none desktop:flow-root
           ${expanded ? "" : "line-clamp-2"}`}
       >
         {note.brief}

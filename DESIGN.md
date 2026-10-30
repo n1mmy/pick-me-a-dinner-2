@@ -296,8 +296,9 @@ line), before the main content; on a decided date it sits directly under
 the decided block, above the picker's divider — once the night is settled
 the picked dinners are what the Household came to see, so they lead. Like
 the Day note it is context for the whole evening, so it is never inside a
-row or the decided block. With no note, or
-the feature off, nothing renders — not even an empty frame.
+row or the decided block. With no note, nothing renders — not even an
+empty frame. The `LOCAL_AI_*` variables control generation only, so a note
+written before the feature was turned off still shows.
 
 - **Styled as the AI rationale line**, not a new treatment: `chip` size,
   `muted`, on a `raised` surface with `rounded-badge` and the same padding.

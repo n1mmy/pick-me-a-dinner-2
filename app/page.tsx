@@ -8,7 +8,6 @@ import { aiSearchEnabled } from "../lib/ai-search";
 import { appTimeZone, parseSelectedDay, today } from "../lib/local-day";
 import { placesEnabled } from "../lib/places";
 import { preparedLabel } from "../lib/prepared-label";
-import { preparedNotesEnabled } from "../lib/prepared-note";
 import { preparedNoteFor } from "../lib/prepared-notes";
 import { tonightForDay } from "../lib/tonight-day";
 import { TonightScreen } from "./tonight-screen";
@@ -65,11 +64,10 @@ export default async function TonightPage({
     dayNote,
   });
 
-  // The Selected day's Prepared note (ADR-0011), read only when the local model
-  // is configured; without it, or with no note yet, Tonight is as before.
-  const stored = preparedNotesEnabled()
-    ? await preparedNoteFor({ day: selectedDay, today: todaySql })
-    : null;
+  // The Selected day's Prepared note (ADR-0011). The `LOCAL_AI_*` variables
+  // control generation only: a stored note shows whether or not the local
+  // model is configured now. With no note yet, Tonight is as before.
+  const stored = await preparedNoteFor({ day: selectedDay, today: todaySql });
   const preparedNote = stored && {
     brief: stored.brief,
     ranking: stored.ranking,

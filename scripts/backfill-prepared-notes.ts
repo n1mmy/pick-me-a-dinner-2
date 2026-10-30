@@ -1,10 +1,12 @@
 /**
- * Backfill **Prepared notes** for past dates: today first, then each day
+ * Backfill **Prepared notes** for past dates: yesterday first, then each day
  * before it back to the first Logged dinner, one note per date that has none.
  * Each snapshot is built in backtest mode (`snapshotForDay`), as the Household
  * saw the date before deciding it: no Log entry or Rejection dated on or
  * after it, so neither the Pick nor any later dinner is in the note's input.
- * The Catalog is read as it is now.
+ * The Catalog is read as it is now. Today and later are the sweep's: its
+ * snapshots are built in normal mode, so a note written here for today would
+ * only read out of date and be generated again.
  *
  * A date that already has a note is left alone, so a stopped run picks up by
  * running again; a row the sweep claimed and never wrote a note into is
@@ -12,10 +14,14 @@
  * and is listed at the end.
  *
  *   npx tsx scripts/backfill-prepared-notes.ts --dry-run       # list the dates
- *   npx tsx scripts/backfill-prepared-notes.ts --concurrency=3 --limit=30
+ *   npx tsx scripts/backfill-prepared-notes.ts --limit=30
  *
- * `--concurrency` is how many requests are in flight at once (default 1);
- * `--limit` caps the dates generated this run. Env is as for
+ * `--concurrency` is how many requests are in flight at once (default 1 — the
+ * local server has one slot, so more only queue, and a queued request can
+ * wait longer than the client timeout); `--limit` caps the dates generated
+ * this run. The whole range is hundreds of generations on the shared local
+ * model, hours in which the production sweep's notes wait: `CLAUDE.md`'s
+ * billed-call rule applies, so agree the shape of a run before starting it. Env is as for
  * `scripts/prepared-note-eval.ts`: `DATABASE_URL`, `APP_TZ`, and the
  * `LOCAL_AI_*` variables, which `--env-file` flags ahead of `.env.local` win.
  */
@@ -68,7 +74,7 @@ async function main() {
   });
 
   const [{ first }] = await db.select({ first: min(dinnerLog.eatenOn) }).from(dinnerLog);
-  const last = today();
+  const last = shiftSqlDate(today(), -1);
   if (first === null) {
     log("backfill_done", { reason: "empty Log" });
     return;
