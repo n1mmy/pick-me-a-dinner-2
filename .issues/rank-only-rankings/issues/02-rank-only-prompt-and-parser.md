@@ -1,6 +1,6 @@
 # 02 — The rank-only prompt and its parser
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -41,18 +41,18 @@ ticket 03 wires them into the eval.
 
 ## Acceptance criteria
 
-- [ ] The rank-only system prompt contains every shared block verbatim,
+- [x] The rank-only system prompt contains every shared block verbatim,
       and none of the brief, rationale or `RATIONALE_RULES` text.
-- [ ] The rank-only user message ends with the code list, with no brief
+- [x] The rank-only user message ends with the code list, with no brief
       line.
-- [ ] The parser:
-  - [ ] reads bare codes;
-  - [ ] reads `G|…`;
-  - [ ] skips a line that isn't a row;
-  - [ ] keeps the first of a repeat;
-  - [ ] returns `null` for `NONE` and for an empty reply.
-- [ ] The pinned Prepared prompt snapshots from 01 are unchanged.
-- [ ] The gate passes.
+- [x] The parser:
+  - [x] reads bare codes;
+  - [x] reads `G|…`;
+  - [x] skips a line that isn't a row;
+  - [x] keeps the first of a repeat;
+  - [x] returns `null` for `NONE` and for an empty reply.
+- [x] The pinned Prepared prompt snapshots from 01 are unchanged.
+- [x] The gate passes.
 
 ## Blocked by
 

@@ -12,6 +12,7 @@ import {
   readRankingRow,
   RECENCY_THROUGH_HABITS,
   SNAPSHOT_EVIDENCE,
+  toCode,
   truncateRationale,
 } from "./ai-search";
 import { type BuiltSnapshot, codeIndex, leanSnapshot } from "./snapshot";
@@ -89,6 +90,7 @@ export function localModelConfig(): {
 /**
  * Bumped whenever the prompt's wording changes, so a backtest run's file name
  * and record say which prompt it measured (`scripts/prepared-note-eval.ts`).
+ * It covers the rank-only prompt too: a wording change to either bumps it.
  * Not part of the input hash: that covers the prompt text itself
  * (`lib/prepared-notes.ts`).
  */
@@ -216,6 +218,37 @@ export function buildPreparedSystemPrompt(): string {
   ].join("\n");
 }
 
+/** The rank-only reply's lines: a code per Option, and nothing else. */
+const RANK_OUTPUT_FORMAT =
+  "Output format — follow it exactly. The reply is a list of lines: one " +
+  "per Option, in rank order, best first. Each line is the Option's code " +
+  "alone — its id in its own options entry, a letter or two like G or AB. " +
+  "Nothing else on the line: no | character, no list numbering or " +
+  "bullets, no blank lines. Nothing before the first line or after the last.";
+
+/**
+ * Build the rank-only system prompt, a backtest ranker: the Prepared
+ * prompt's framing, evidence and ranking paragraphs, word for word, with the
+ * brief and the rationales taken out, so the model returns codes alone.
+ */
+export function buildRankSystemPrompt(): string {
+  return [
+    OPENING,
+    "",
+    SNAPSHOT_DESCRIPTION,
+    "",
+    SNAPSHOT_EVIDENCE,
+    "",
+    RECENCY_THROUGH_HABITS,
+    "",
+    "Rank the candidates: " + RANKING_BODY,
+    "",
+    DATA_NOT_INSTRUCTIONS,
+    "",
+    RANK_OUTPUT_FORMAT,
+  ].join("\n");
+}
+
 /**
  * The Prepared rationale cap. A strong pick's three sentences run to
  * 300–450 characters, past AI search's ~200 line cap, so this path passes its
@@ -273,6 +306,29 @@ export function parsePreparedReply(
   if (brief === "" && requireBrief) return null;
   if (brief.length > MAX_PREPARED_BRIEF_LENGTH) return null;
   return { brief, ranking };
+}
+
+/**
+ * Read a rank-only reply into ranking rows, each with an empty rationale.
+ * Each line is read as a code; a `<code>|<text>` line, the Prepared shape, is
+ * tolerated and its code read. As in `parsePreparedReply`, a line that is
+ * not a candidate's code is skipped, a repeated Option keeps its first row,
+ * and no rows at all — `NONE` included — returns `null`.
+ */
+export function parseRankReply(
+  text: string,
+  { idByCode }: Pick<BuiltSnapshot, "idByCode">,
+): AiRankingRow[] | null {
+  const ranking: AiRankingRow[] = [];
+  const seen = new Set<string>();
+  for (const rawLine of text.split("\n")) {
+    const code = toCode(rawLine.split("|")[0].trim());
+    const id = code === null ? undefined : idByCode.get(code);
+    if (id === undefined || seen.has(id)) continue;
+    seen.add(id);
+    ranking.push({ id, reason: "" });
+  }
+  return ranking.length > 0 ? ranking : null;
 }
 
 /**
@@ -443,6 +499,14 @@ export function buildPreparedUserMessage({
   idByCode,
 }: Pick<BuiltSnapshot, "snapshot" | "idByCode">): string {
   return `${JSON.stringify(leanSnapshot(snapshot))}\n\n${candidateChecklist(idByCode, { briefFollows: true })}`;
+}
+
+/** The rank-only user message: the lean snapshot, then the codes to rank. */
+export function buildRankUserMessage({
+  snapshot,
+  idByCode,
+}: Pick<BuiltSnapshot, "snapshot" | "idByCode">): string {
+  return `${JSON.stringify(leanSnapshot(snapshot))}\n\n${candidateChecklist(idByCode, { briefFollows: false })}`;
 }
 
 /**

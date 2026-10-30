@@ -1,5 +1,6 @@
 import { Agent } from "undici";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { RATIONALE_RULES } from "./ai-search";
 import {
   type BuiltSnapshot,
   leanSnapshot,
@@ -10,8 +11,11 @@ import {
   BRIEF_ROW,
   buildPreparedSystemPrompt,
   buildPreparedUserMessage,
+  buildRankSystemPrompt,
+  buildRankUserMessage,
   createPreparedNoteClient,
   parsePreparedReply,
+  parseRankReply,
   preparedNotesEnabled,
 } from "./prepared-note";
 
@@ -330,6 +334,78 @@ describe("the production Prepared prompt", () => {
     await expect(buildPreparedUserMessage(built)).toMatchFileSnapshot(
       "__snapshots__/prepared-user-message.txt",
     );
+  });
+});
+
+describe("buildRankSystemPrompt", () => {
+  const prompt = buildRankSystemPrompt();
+  // The Prepared prompt's paragraphs: opening, snapshot description,
+  // evidence, recency, "two things", ranking + rationale length, brief,
+  // rationale rules, data-not-instructions, output format.
+  const prepared = buildPreparedSystemPrompt().split("\n\n");
+
+  it("shares the Prepared prompt's framing, evidence and ranking paragraphs verbatim", () => {
+    for (const shared of [prepared[0], prepared[1], prepared[2], prepared[3], prepared[8]]) {
+      expect(prompt).toContain(shared);
+    }
+    const rankingBody = prepared[5].split("\n")[0].replace("First, the ranking: ", "");
+    expect(prompt).toContain(`Rank the candidates: ${rankingBody}`);
+  });
+
+  it("asks for nothing but the codes, with no brief or rationale", () => {
+    expect(prompt).not.toContain(prepared[4]);
+    expect(prompt).not.toContain(prepared[5].split("\n")[1]);
+    expect(prompt).not.toContain(prepared[6]);
+    expect(prompt).not.toContain(RATIONALE_RULES);
+    expect(prompt).not.toMatch(/brief|rationale|<code>\|/i);
+    expect(prompt).toContain("the Option's code alone");
+  });
+});
+
+describe("buildRankUserMessage", () => {
+  it("is the lean snapshot, then the candidate checklist with no brief line", () => {
+    expect(buildRankUserMessage(built)).toBe(
+      `${JSON.stringify(leanSnapshot(snapshot))}\n\nRank all 3 candidates: A, B, C.`,
+    );
+  });
+});
+
+describe("parseRankReply", () => {
+  it("reads bare codes in written order, with no rationale", () => {
+    expect(parseRankReply("C\nA\nB", built)).toEqual([
+      { id: PHO, reason: "" },
+      { id: KATSU, reason: "" },
+      { id: MAZRA, reason: "" },
+    ]);
+  });
+
+  it("reads the code of a line written as a Prepared row, dropping its text", () => {
+    expect(parseRankReply("C|Standing Thursday choice.\nA", built)).toEqual([
+      { id: PHO, reason: "" },
+      { id: KATSU, reason: "" },
+    ]);
+  });
+
+  it("skips a line that is not a candidate's code", () => {
+    const reply = "Here is the ranking:\n\n1. C\n3|A\nZ\nC\n- B\nB";
+    expect(parseRankReply(reply, built)).toEqual([
+      { id: PHO, reason: "" },
+      { id: MAZRA, reason: "" },
+    ]);
+  });
+
+  it("keeps the first place of an Option written twice", () => {
+    expect(parseRankReply("C\nA\nc\nB", built)).toEqual([
+      { id: PHO, reason: "" },
+      { id: KATSU, reason: "" },
+      { id: MAZRA, reason: "" },
+    ]);
+  });
+
+  it("is no answer for NONE, an empty reply, or one with no candidate's code", () => {
+    expect(parseRankReply("NONE", built)).toBeNull();
+    expect(parseRankReply("", built)).toBeNull();
+    expect(parseRankReply("I can't rank these.\n1. Pho", built)).toBeNull();
   });
 });
 
