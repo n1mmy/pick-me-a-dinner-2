@@ -434,7 +434,7 @@ describe("createPreparedNoteClient().prepare", () => {
     );
     expect(JSON.parse(String(init?.body))).toEqual({
       model: "qwen3.8-flash",
-      max_tokens: 20000,
+      max_tokens: 40000,
       stream: true,
       stream_options: { include_usage: true },
       messages: [
@@ -602,8 +602,8 @@ describe("createPreparedNoteClient().prepare", () => {
         settled = true;
       });
 
-    // A note takes six to ten minutes on an idle Strata, but a full 20k-token
-    // budget at the 10 tok/s measured under another client's load runs past
+    // A note takes six to ten minutes on an idle Strata, but a 20k-token note
+    // at the 10 tok/s measured under another client's load runs past
     // half an hour; it must not be cut short.
     await vi.advanceTimersByTimeAsync(38 * 60_000);
     expect(settled).toBe(false);

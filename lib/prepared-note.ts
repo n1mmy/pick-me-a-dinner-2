@@ -242,18 +242,20 @@ export function parsePreparedReply(
  * The completion budget. The local model reasons: `reasoning_content` is
  * written before `content` and both count against `max_tokens`, so this has to
  * cover the reasoning as well as the brief and a whole-Catalog ranking. Over
- * ~37 candidates a note was measured at 13–17k tokens, nearly all of it
- * reasoning; 20k leaves room for an evening with more to weigh.
+ * ~37 candidates a note was measured at 13–17k tokens on Strata, nearly all
+ * of it reasoning, and Qwen 3.8 drafts the whole ranking in its reasoning at
+ * ~20k; at a 20k budget both were cut off before the reply. 40k leaves room.
  */
-const MAX_TOKENS = 20_000;
+const MAX_TOKENS = 40_000;
 
 /**
  * A whole-Catalog note was measured at six to ten minutes on an idle Strata:
  * 13–17k output tokens at ~35 tok/s, after up to ~70s reading the snapshot.
  * Strata is shared, though, and under another client's load decoding fell to
  * ~10 tok/s; two notes cut off at 18 minutes were 15–16k tokens in. The bound
- * covers a full 20k-token budget at that speed (~35 minutes). The sweep's
- * claim lease is derived from this, so it always outlasts it.
+ * covers a 20k-token note at that speed (~35 minutes), and the full 40k
+ * budget down to ~17 tok/s. The sweep's claim lease is derived from this, so
+ * it always outlasts it.
  */
 export const REQUEST_TIMEOUT_MS = 40 * 60_000;
 
