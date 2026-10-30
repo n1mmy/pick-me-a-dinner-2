@@ -9,6 +9,7 @@ import {
 import {
   BRIEF_ROW,
   buildPreparedSystemPrompt,
+  buildPreparedUserMessage,
   createPreparedNoteClient,
   parsePreparedReply,
   preparedNotesEnabled,
@@ -311,6 +312,24 @@ describe("parsePreparedReply", () => {
     expect(
       parsePreparedReply(`C|Standing Thursday choice.\nbrief|${brief}`, built)?.brief,
     ).toBe(brief);
+  });
+});
+
+describe("the production Prepared prompt", () => {
+  // A stored note's input hash covers both texts (`lib/prepared-notes.ts`):
+  // a changed byte makes every unfrozen note out of date. A deliberate change
+  // shows here as a snapshot diff, named in its commit, with
+  // `PREPARED_PROMPT_VERSION` bumped.
+  it("keeps the system prompt byte for byte", async () => {
+    await expect(buildPreparedSystemPrompt()).toMatchFileSnapshot(
+      "__snapshots__/prepared-system-prompt.txt",
+    );
+  });
+
+  it("keeps the user message byte for byte", async () => {
+    await expect(buildPreparedUserMessage(built)).toMatchFileSnapshot(
+      "__snapshots__/prepared-user-message.txt",
+    );
   });
 });
 
