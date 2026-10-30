@@ -262,10 +262,15 @@ export const REQUEST_TIMEOUT_MS = 40 * 60_000;
  * up after 300s without response headers or between body chunks, and the
  * server has one slot: a request queued behind another client's note waits
  * silently and failed at ~301s, long before `REQUEST_TIMEOUT_MS`.
+ *
+ * `pipelining: 0` turns keep-alive off, so each note opens a new connection
+ * rather than reusing one that sat idle between notes. A connection costs
+ * nothing next to a note that takes six to ten minutes.
  */
 const dispatcher = new Agent({
   headersTimeout: REQUEST_TIMEOUT_MS,
   bodyTimeout: REQUEST_TIMEOUT_MS,
+  pipelining: 0,
 });
 
 /**
