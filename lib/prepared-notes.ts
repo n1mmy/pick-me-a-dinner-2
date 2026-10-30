@@ -48,8 +48,9 @@ async function eligibleDays(now: Date, timeZone: string): Promise<string[]> {
  * Catalog edit reaches the user message, and an edit to a prompt block —
  * shared with AI search or not — reaches the system prompt, so this one
  * comparison is the only change detection there is: no version to bump.
+ * Exported for `scripts/backfill-prepared-notes.ts`, which writes past dates.
  */
-function inputHash(built: BuiltSnapshot, model: string): string {
+export function inputHash(built: BuiltSnapshot, model: string): string {
   // One JSON array, so no two different inputs can concatenate to the same text.
   return createHash("sha256")
     .update(
