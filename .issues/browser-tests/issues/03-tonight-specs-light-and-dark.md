@@ -1,6 +1,6 @@
 # 03 — Tonight specs, today and tomorrow, light and dark
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -28,13 +28,20 @@ with the brief beneath it. Tonight today is also checked in the dark theme.
 
 ## Acceptance criteria
 
-- [ ] Tonight today passes at phone and desktop with brief, rationale, and Day note visible and no AI search control
-- [ ] Tonight tomorrow passes at phone and desktop with the Planned dinner decided and the brief beneath
-- [ ] The `@dark` Tonight today test runs only under `phone-dark` and passes the luminance and contrast floors
-- [ ] Light projects never run `@dark` tests
-- [ ] Screenshots for Tonight today (phone, desktop, phone-dark) and Tonight tomorrow (phone, desktop) exist
+- [x] Tonight today passes at phone and desktop with brief, rationale, and Day note visible and no AI search control
+- [x] Tonight tomorrow passes at phone and desktop with the Planned dinner decided and the brief beneath
+- [x] The `@dark` Tonight today test runs only under `phone-dark` and passes the luminance and contrast floors
+- [x] Light projects never run `@dark` tests
+- [x] Screenshots for Tonight today (phone, desktop, phone-dark) and Tonight tomorrow (phone, desktop) exist
 
 ## Blocked by
 
 - [01 — Tonight shows a stored Prepared note whenever one exists](01-tonight-shows-a-stored-prepared-note.md)
 - [02 — Playwright scaffolding, the fixture, and the Login tracer bullet](02-playwright-scaffolding-and-login.md)
+
+## Comments
+
+- Done. Seen to fail when it should: Tonight today against the old guarded
+  page (no Prepared note region), and the `@dark` test under the light
+  scheme (page luminance 0.90). The fixture's data moved to `e2e/fixture.ts`
+  so the specs assert the literals the seed inserts.

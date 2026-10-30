@@ -40,5 +40,16 @@ export default defineConfig({
       grepInvert: /@dark/,
       use: { viewport: { width: 1280, height: 800 }, storageState: STORAGE_STATE },
     },
+    {
+      // Phone only: the dark theme at desktop width is out of scope.
+      name: "phone-dark",
+      dependencies: ["setup"],
+      grep: /@dark/,
+      use: {
+        viewport: { width: 375, height: 812 },
+        colorScheme: "dark",
+        storageState: STORAGE_STATE,
+      },
+    },
   ],
 });

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { parse } from "dotenv";
+import { shiftSqlDate, todaySqlDate } from "../lib/local-day";
 import { testDatabaseUrl } from "../vitest.test-db";
 
 /**
@@ -40,3 +41,8 @@ export const APP_PASSWORD = defaults.APP_PASSWORD;
 
 /** Where `setup` saves the logged-in session for every other project. */
 export const STORAGE_STATE = "e2e/.auth/household.json";
+
+/** The Household's calendar day `offset` days from today, as the server reads it. */
+export function householdDay(offset = 0): string {
+  return shiftSqlDate(todaySqlDate(new Date(), serverEnv.APP_TZ), offset);
+}
