@@ -12,7 +12,7 @@ Type: AFK
 Seven v17 Prepared runs on the same 20 days — Opus 5.5 low, Qwen 3.8 dense
 at low / medium / xhigh, Strata (`qwen3.8-flash-next`) at the same three
 efforts with a 40k budget (xhigh stopped at 14 days) — and AI search v17 on
-Opus, read in `plans/prompt-tweaks-v18.md`. Counted over the top-10 rows
+Opus, read in `plans/old/prompt-tweaks-v18.md`. Counted over the top-10 rows
 with the harness this issue adds to `backtest-compare` (so the numbers
 differ a little from issue 13's hand counts: this definition also catches
 spelled-out counts, gap lists and gap ranges):
@@ -133,7 +133,7 @@ the shorter rows lose material reasons, restore the quota and keep the rest.
 - 2026-10-29, later: v18 ran free on Strata (low all 20 days, medium 12)
   and Qwen low, and billed on Opus (Prepared and AI search). Its timing
   premise was then reversed: the count is wanted, with the usual stretch
-  beside it (`plans/prompt-tweaks-v19.md`, ADR-0005 fifth amendment). The
+  beside it (`plans/old/prompt-tweaks-v19.md`, ADR-0005 fifth amendment). The
   elapsed-time bars above are superseded by issue 15; the name-opener,
   leak and quota bars carry over there, and the v18 runs are its baseline.
   Closed as superseded.

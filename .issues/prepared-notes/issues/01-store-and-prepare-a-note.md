@@ -47,7 +47,7 @@ model for one. Nothing calls it yet; issue 02 adds the sweep and the loop.
   `.env.example` with comments in the style of the `AI_*` block. Do **not** add
   them to `lib/check-env.ts`: they're optional.
 - **Domain docs.** The `CONTEXT.md` edits, the ADR-0004 amendment, and ADR-0011
-  already exist on the branch (along with `plans/prepared-notes.md` and this
+  already exist on the branch (along with `plans/old/prepared-notes.md` and this
   PRD). Commit them with this issue if they aren't committed yet.
 
 **Don't touch** `lib/ranking.ts`, `buildSnapshot`, `snapshotForDay`,

@@ -36,7 +36,7 @@ item 1) proposed a fifth.
 ## What changed
 
 Decision: ADR-0013. Term: **Option code** in `CONTEXT.md`. Plan:
-`plans/option-codes.md`.
+`plans/old/option-codes.md`.
 
 - `lib/snapshot.ts`: Options are coded `A`…`Z`, `AA`… by alphabetical
   position (`optionCode`, `codeIndex`); `idByCode` replaces `idByIndex`;

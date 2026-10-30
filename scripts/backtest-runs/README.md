@@ -166,7 +166,7 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   `prepared-v18-opus-5-5-low` — v18 on Opus 5.5 low: 12/13/16, 6.6 / 3.
   `ai-search-v18-opus-5-5-pithy` — AI search v18 on Opus pithy: 9/11/15,
   6.7 / 4. The text counts of all of them against v17, with the issue 15
-  counters, are the baseline table in `plans/prompt-tweaks-v19.md`: v18 cut
+  counters, are the baseline table in `plans/old/prompt-tweaks-v19.md`: v18 cut
   the leaks (gap lists, Log dates, tag syntax, codes, lowercase names) and
   halved the quotes, with every row shorter.
 - `strata-v19-low-40k` — Prepared note prompt v19 (the count and the usual

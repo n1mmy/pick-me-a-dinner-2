@@ -12,7 +12,7 @@ which amends
 the AI search snapshot, so
 [`docs/adr/0005-ai-search-reasons-about-habits.md`](../../docs/adr/0005-ai-search-reasons-about-habits.md) (no pre-computed
 recency) applies unchanged. The build plan, with files per slice, is
-[`plans/prepared-notes.md`](../../plans/prepared-notes.md).
+[`plans/old/prepared-notes.md`](../../plans/old/prepared-notes.md).
 
 ---
 
