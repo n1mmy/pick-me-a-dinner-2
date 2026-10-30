@@ -73,3 +73,11 @@ when it should.
      has them untinted; the specs follow `DESIGN.md` (see ticket 04).
 - Fixed in the fixture: tomorrow's note said "tomorrow" on its own day and
   reused today's rationales ("Two nights ago" beside a 3d chip).
+- Eye-check findings 1–3 fixed. Login: the rail's `padding-left` now applies
+  only when the nav renders (`body:has(> nav[aria-label="Primary"])`), and
+  the Login spec checks the `h1` centres on the viewport. Catalog: below
+  720px a row's four actions take their own line under the name. Log and
+  Option-detail History entry rows carry the kind bar over their wash, and
+  the Log spec checks every row's 3px bar. Rejection rows stay on
+  `danger-wash` with no bar; `DESIGN.md` "Row lists" now says so. Finding 4
+  needs no change: `DESIGN.md` and the specs agree.

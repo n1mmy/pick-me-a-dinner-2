@@ -17,7 +17,9 @@ const actionButton =
  * Edit expands the row in place into the form, and the destructive actions use
  * the §17 inline-confirm pattern — the armed `ConfirmPair` ("Cancel · Archive"
  * / "Cancel · Delete"). `PickButton` pins to the row's right edge either way,
- * so the pair's last child lands where rest-state Delete already was.
+ * so the pair's last child lands where rest-state Delete already was. Under
+ * 720px the four actions take their own line beneath the name: beside it they
+ * squeezed names onto three lines at 375px.
  */
 export function OptionRow({
   option,
@@ -70,7 +72,10 @@ export function OptionRow({
 
   return (
     <li className="flex flex-col gap-1 border-b border-divider py-3">
-      <div className="flex items-center justify-between gap-3">
+      <div
+        className="flex flex-col gap-1 desktop:flex-row desktop:items-center
+          desktop:justify-between desktop:gap-3"
+      >
         <Link
           href={`/catalog/${option.id}`}
           className="font-display text-name font-name text-ink underline-offset-2
@@ -79,7 +84,7 @@ export function OptionRow({
         >
           {option.name}
         </Link>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1 self-end desktop:self-auto">
           {confirm === null ? (
             <>
               <button

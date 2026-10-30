@@ -198,14 +198,20 @@ circular.
   - **Mobile (<720px):** one centered column, max-width 560px; bottom tab
     bar Tonight / Log / Catalog.
   - **Desktop (≥720px):** a persistent ~200px left rail holds the same nav;
-    content column max-width 900px.
-- **Row lists.** Rows with a kind tint or wash background (Tonight picker,
-  Closed disclosure, decided block, Log entry/rejection rows on the Log and
-  the Option detail page's History) are separated by a 2px sliver of `bg`
-  (`gap-[2px]`), because the background plus kind bar already edge the row.
+    content column max-width 900px. Login has no nav, so its column centres
+    on the full viewport rather than beside an empty rail.
+- **Row lists.** Rows with a background of their own are separated by a 2px
+  sliver of `bg` (`gap-[2px]`), because the background already edges the
+  row: the kind tint or wash under a kind bar (Tonight picker, Closed
+  disclosure, decided block, Log entries on the Log and the Option detail
+  page's History), and the `danger-wash` of Rejection rows beside them.
   Untinted rows on plain `bg` (Catalog lists, Rejected disclosure, the
   detail page's Field list) keep a 1px `divider` rule. Section rules (e.g.
   the Log's day separator) are 1px `divider`.
+- **Catalog rows** put Edit / Archive / Delete / Pick on their own line
+  under the name, right-aligned, below 720px; from 720px they sit on the
+  name's line at the right edge. Beside the name at 375px, the four actions
+  squeezed names onto three lines.
 
 ### Tonight row anatomy
 

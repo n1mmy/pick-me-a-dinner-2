@@ -67,8 +67,8 @@ with Read and check it against `DESIGN.md`:
 - Fraunces only on titles and Option names.
 - Numerals in Geist Mono, aligned down a column.
 - The 3px kind bar over the kind tint on Tonight's rows, and over the wash
-  on the decided block. Catalog rows are untinted on plain `bg` with a
-  divider.
+  on the decided block and the Log's entry rows. Catalog rows are untinted
+  on plain `bg` with a divider.
 - Heatmap chips spread across green, tan, and red.
 - Nothing cramped, clipped, or ellipsised where it should fit at 375px. The
   Last note line and the phone brief are ellipsised by design.

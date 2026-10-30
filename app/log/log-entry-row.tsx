@@ -5,6 +5,7 @@ import { type FormEvent, useId, useState, useTransition } from "react";
 import type { LogEntryRow, OptionChoice } from "../../db/queries";
 import { escapeToCancel } from "../escape-to-cancel";
 import { fieldFocusRing, focusRing } from "../focus-ring";
+import { kindBarClass, kindWashClass } from "../kind-bar";
 import { OptionCombobox } from "../option-combobox";
 import { PickButton } from "../pick-button";
 import { pressFeedback } from "../press-feedback";
@@ -43,8 +44,7 @@ export function EntryRow({
   const [saved, setSaved] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const kindBg =
-    entry.kind === "restaurant" ? "bg-kind-restaurant-wash" : "bg-kind-home-wash";
+  const kindRow = `${kindWashClass(entry.kind)} ${kindBarClass(entry.kind)}`;
 
   function runDelete() {
     setDeleteError(null);
@@ -62,7 +62,7 @@ export function EntryRow({
 
   if (editing) {
     return (
-      <li className={`${kindBg} px-3 py-3`}>
+      <li className={`${kindRow} py-3 pr-3`}>
         <EntryEditForm
           entry={entry}
           optionChoices={optionChoices}
@@ -74,7 +74,7 @@ export function EntryRow({
   }
 
   return (
-    <li className={`flex flex-col gap-1 ${kindBg} px-3 py-3`}>
+    <li className={`flex flex-col gap-1 ${kindRow} py-3 pr-3`}>
       <div className="flex items-center justify-between gap-3">
         <Link
           href={`/catalog/${entry.optionId}`}

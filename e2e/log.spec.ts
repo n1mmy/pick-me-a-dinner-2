@@ -16,4 +16,11 @@ test("The Log lists the fixture's entries newest first", async ({ page }, testIn
     items.map((item) => item.querySelector("a")?.textContent),
   );
   expect(names).toEqual(newestFirst);
+
+  // Every entry row carries the 3px kind bar over its wash (DESIGN.md, "Two
+  // color channels").
+  const bars = await rows.evaluateAll((items) =>
+    items.map((item) => getComputedStyle(item).borderLeftWidth),
+  );
+  expect(bars).toEqual(newestFirst.map(() => "3px"));
 });
