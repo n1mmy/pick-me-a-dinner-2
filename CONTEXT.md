@@ -26,6 +26,13 @@ _Avoid_: Place, venue.
 **Catalog**:
 The full set of Options the household maintains.
 
+**No Shared Dinner**:
+The Option Picked for a night nobody ate together — out at an event, or an
+otherwise abnormal schedule. Logged like any Option, so the night is
+decided, but never recommended: Tonight lists it last whatever its Score,
+and it is never an AI snapshot candidate, so no model ranks it. Its nights
+stay in the snapshot's Log. Known by name.
+
 **Option detail page**:
 The screen showing everything about one Option — its fields, Score and
 recency, Log history, and Rejections — reached by tapping the Option's name

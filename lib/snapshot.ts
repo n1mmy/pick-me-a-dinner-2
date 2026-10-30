@@ -18,6 +18,7 @@ import {
 } from "../db/queries";
 import { suppressionsOn } from "./day-suppressions";
 import { epochDayFromSqlDate, WEEKDAY_NAMES } from "./local-day";
+import { isNoSharedDinner } from "./no-shared-dinner";
 import {
   partitionRejections,
   type RejectionRow,
@@ -429,7 +430,11 @@ export function buildSnapshot(input: {
     rejectedOptionIds: suppressedForAsOf,
     day: asOf,
   });
-  const candidates = byName.filter((o) => !suppressions.has(o.id));
+  // No Shared Dinner is never a candidate either, so no model ranks it; its
+  // nights stay in the Log, coded like any Option's.
+  const candidates = byName.filter(
+    (o) => !suppressions.has(o.id) && !isNoSharedDinner(o.name),
+  );
 
   // The days each active Option was eaten, on or before the anchor day — the
   // source of every timing fact. An entry for an Option outside `options`

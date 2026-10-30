@@ -33,7 +33,8 @@
  *      rather than a meaningless "0d";
  *   4. `splitTonight` → `tonightsDinner` + `picker`;
  *   5. `suppressionsOn` → drop every suppressed row from the picker, keeping
- *      each aside in `suppressed`, tagged picked / rejected / closed;
+ *      each aside in `suppressed`, tagged picked / rejected / closed, and
+ *      move No Shared Dinner (`./no-shared-dinner`) to the picker's end;
  *   6. `lastNotesByOption` for every row type;
  *   7. `allFiltered` — the picker had rows before step 5 and none after, so
  *      the screen can tell "filtered empty" from "genuinely empty Catalog".
@@ -51,6 +52,7 @@ import {
   type NotedLogEntry,
 } from "./last-note";
 import { epochDayFromSqlDate, weekdayName } from "./local-day";
+import { isNoSharedDinner } from "./no-shared-dinner";
 import {
   rankTonight,
   type LogEntry,
@@ -220,16 +222,20 @@ export function tonightForDay({
 
   // 5. drop every suppressed row. `splitTonight` already took the Picked ones
   // out, so passing them here changes nothing on Tonight — it keeps the call
-  // the same full rule set AI search applies. The picker keeps rank order.
+  // the same full rule set AI search applies. The picker keeps rank order,
+  // except that No Shared Dinner goes last whatever its Score: it is not a
+  // dinner to recommend, only one to reach.
   const suppressions = suppressionsOn({
     options,
     pickedOptionIds: dayEntries.map((entry) => entry.optionId),
     rejectedOptionIds: rejections.map((r) => r.optionId),
     day: selectedDay,
   });
-  const visiblePicker = picker.filter(
-    (row) => !suppressions.has(row.option.id),
-  );
+  const choosable = picker.filter((row) => !suppressions.has(row.option.id));
+  const visiblePicker = [
+    ...choosable.filter((row) => !isNoSharedDinner(row.option.name)),
+    ...choosable.filter((row) => isNoSharedDinner(row.option.name)),
+  ];
   const pickerById = new Map(picker.map((row) => [row.option.id, row]));
   const suppressed: SuppressedRow[] = [
     ...tonightsDinner.map(

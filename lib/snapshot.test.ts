@@ -315,6 +315,42 @@ describe("buildSnapshot — Closed days", () => {
   });
 });
 
+describe("buildSnapshot — No Shared Dinner", () => {
+  const options = [
+    option("a1", "Apple Crumble"),
+    option("n1", "No Shared Dinner"),
+    option("c1", "Carrot Cake"),
+  ];
+
+  it("leaves No Shared Dinner out of the candidates but keeps its nights in the Log", () => {
+    const { snapshot, idByCode } = buildSnapshot({
+      options,
+      logEntries: [{ optionId: "n1", eatenOn: "2026-05-16", note: null }],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+
+    // n1 keeps its code, C, for the Log; the candidates skip it.
+    expect(snapshot.options.map((o) => o.id)).toEqual(["A", "B"]);
+    expect([...idByCode.keys()]).toEqual(["A", "B"]);
+    expect(snapshot.log.map((e) => e.optionId)).toEqual(["C"]);
+  });
+
+  it("drops No Shared Dinner's code if the model returns it", () => {
+    const { idByCode } = buildSnapshot({
+      options,
+      logEntries: [],
+      rejections: [],
+      asOf: TODAY,
+      query: "",
+    });
+
+    const parsed = parseRankingText("C|Nobody home\nA|Sweet", idByCode);
+    expect(parsed?.rows.map((r) => r.id)).toEqual(["a1"]);
+  });
+});
+
 describe("buildSnapshot — Picked on the anchor day", () => {
   const options = [
     option("a1", "Apple Crumble"),
