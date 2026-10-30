@@ -21,6 +21,9 @@ export default defineConfig({
       "**/.claude/worktrees/**",
       // Database integration tests — run via `pnpm test:db`.
       "**/*.db.test.ts",
+      // Browser tests — run via `pnpm test:e2e` under Playwright. Plain unit
+      // tests of the suite's own setup (`*.test.ts`) still run here.
+      "e2e/**/*.spec.ts",
     ],
   },
 });

@@ -15,7 +15,7 @@ export default async function setup(): Promise<void> {
   const base = process.env.DATABASE_URL;
   if (!base) throw new Error("DATABASE_URL is not set");
 
-  const testName = testDatabaseName(base);
+  const testName = testDatabaseName(base, "test");
 
   const adminUrl = new URL(base);
   adminUrl.pathname = "/postgres";

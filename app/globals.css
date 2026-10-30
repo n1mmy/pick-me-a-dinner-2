@@ -217,7 +217,9 @@
     --scroll-reserve-bottom: 0px;
   }
 
-  body {
+  /* Only where the rail renders: Login has no nav, so its column centres on
+   * the full viewport. */
+  body:has(> nav[aria-label="Primary"]) {
     padding-left: var(--rail-width);
   }
 }

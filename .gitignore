@@ -10,6 +10,12 @@ handoff.md
 # dependencies
 /node_modules
 
+# browser suite output — screenshots, the saved login, Playwright's results
+/e2e/screenshots/
+/e2e/.auth/
+/test-results/
+/playwright-report/
+
 # next.js build output
 /.next
 /.next-dev

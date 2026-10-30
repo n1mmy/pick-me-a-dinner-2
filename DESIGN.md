@@ -198,14 +198,20 @@ circular.
   - **Mobile (<720px):** one centered column, max-width 560px; bottom tab
     bar Tonight / Log / Catalog.
   - **Desktop (≥720px):** a persistent ~200px left rail holds the same nav;
-    content column max-width 900px.
-- **Row lists.** Rows with a kind tint or wash background (Tonight picker,
-  Closed disclosure, decided block, Log entry/rejection rows on the Log and
-  the Option detail page's History) are separated by a 2px sliver of `bg`
-  (`gap-[2px]`), because the background plus kind bar already edge the row.
+    content column max-width 900px. Login has no nav, so its column centres
+    on the full viewport rather than beside an empty rail.
+- **Row lists.** Rows with a background of their own are separated by a 2px
+  sliver of `bg` (`gap-[2px]`), because the background already edges the
+  row: the kind tint or wash under a kind bar (Tonight picker, Closed
+  disclosure, decided block, Log entries on the Log and the Option detail
+  page's History), and the `danger-wash` of Rejection rows beside them.
   Untinted rows on plain `bg` (Catalog lists, Rejected disclosure, the
   detail page's Field list) keep a 1px `divider` rule. Section rules (e.g.
   the Log's day separator) are 1px `divider`.
+- **Catalog rows** put Edit / Archive / Delete / Pick on their own line
+  under the name, right-aligned, below 720px; from 720px they sit on the
+  name's line at the right edge. Beside the name at 375px, the four actions
+  squeezed names onto three lines.
 
 ### Tonight row anatomy
 
@@ -313,10 +319,12 @@ written before the feature was turned off still shows.
   two-line clamp would cut it off inside the brief. A note not prepared
   today names the weekday — `Prepared Mon 9:40pm` — because a bare time
   would read as today's.
-- **Out of date** (undecided dates only) appends `· out of date, updating` to
-  the label, same `meta` `muted`, no color. The loop rewrites the note on its
-  own; the marker tells the Household to read with care, not to act, so it
-  doesn't earn a warning color. A frozen note is never marked.
+- **Out of date** (undecided dates only) appends `· out of date` to the
+  label, same `meta` `muted`, no color. There is nothing for the Household
+  to do about it, so the marker tells them to read with care, not to act,
+  and doesn't earn a warning color. It promises no update: with the
+  `LOCAL_AI_*` variables unset nothing rewrites the note, and a label that
+  said "updating" would then be false. A frozen note is never marked.
 - **Phones (<720px) clamp to two lines** (`line-clamp-2` — the brief is a
   `<p>`, not a `<button>`, so the clamp holds) with a borderless `chip`-size
   "Read more" button on its own line under the surface, which toggles to
