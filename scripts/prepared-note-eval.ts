@@ -1,7 +1,7 @@
 /**
- * Prepared note evaluation harness — ask the local model (on Strata) for one
- * date's Prepared note against the real dev database, without the sweep or
- * the Tonight UI (ADR-0011).
+ * Prepared note evaluation harness — ask the local model for one date's
+ * Prepared note against the real dev database, without the sweep or the
+ * Tonight UI (ADR-0011).
  *
  * This is the iteration loop for `buildPreparedSystemPrompt` and the token
  * budget in `lib/prepared-note.ts`: edit them, re-run this, and read the brief
@@ -18,30 +18,37 @@
  *   npx tsx scripts/prepared-note-eval.ts --reasoning   # also print the model's reasoning
  *
  * Backtest (`scripts/backtest.ts`): score notes for recent decided days, each
- * built as the Household saw it, against what was eaten. ~9 minutes a day, so
- * the default 20 days is about three hours; `--resume` picks a stopped run up.
+ * built as the Household saw it, against what was eaten. A with-text note
+ * takes 4–6 minutes a day on the local model, so the default 20 days is
+ * about two hours; `--resume` picks a stopped run up, and `--repeat=N` runs
+ * the days N times into `-r1` … `-rN` files.
  *
  *   npx tsx scripts/prepared-note-eval.ts --backtest --json --reasoning
  *   npx tsx scripts/prepared-note-eval.ts --backtest --days=2026-10-20,2026-10-23 --json=x.json
  *   npx tsx scripts/prepared-note-eval.ts --backtest --json --reasoning --resume
  *
+ * `--thinking=off` turns thinking off, overriding LOCAL_AI_REASONING_EFFORT.
+ * The default `--json` file is
+ * `scripts/backtest-runs/prepared-v<version>-<model>-<thinking>.json`.
+ *
  * `--claude[=model]` sends the backtest's prompt to a Claude model instead
  * (Opus 5.5 by default) through the Anthropic API, with `ANTHROPIC_API_KEY`,
  * at `--effort=low|medium|high` (default `low`, as AI search runs). The
- * reasoning saved is the thinking summary, not a raw trace. This call is
- * billed, so the billed-call rule in `CLAUDE.md` applies to it.
+ * reasoning saved is the thinking summary, not a raw trace. `--thinking=off`
+ * sends thinking disabled, which Opus 5.5 refuses.
  *
  *   npx tsx scripts/prepared-note-eval.ts --backtest --claude --days=… --json --reasoning
  *
- * Strata is free to call, so the billed-call rule in `CLAUDE.md` does not
- * apply here (it still applies to `scripts/ai-search-eval.ts`). One run is one
- * generation: six to ten minutes on an idle Strata, up to about 35 under
- * another client's load (see `REQUEST_TIMEOUT_MS` in `lib/prepared-note.ts`).
+ * Both are under the billed-call rule in `CLAUDE.md`: Claude is billed, and
+ * the local model is a shared resource. A single call is a probe; a sweep
+ * waits for approval. One with-text generation on the local model takes
+ * minutes, up to about 35 under another client's load (see
+ * `REQUEST_TIMEOUT_MS` in `lib/prepared-note.ts`).
  *
  * Env comes from `.env.local` then `.env`, as under Next.js (`./load-env`):
  * `DATABASE_URL` and `APP_TZ` for the snapshot, and `LOCAL_AI_BASE_URL`,
- * `LOCAL_AI_API_KEY`, and `LOCAL_AI_MODEL` for Strata — the key only ever in
- * `.env.local`, never committed. The snapshot is read-only.
+ * `LOCAL_AI_API_KEY`, and `LOCAL_AI_MODEL` for the local model — the key
+ * only ever in `.env.local`, never committed. The snapshot is read-only.
  */
 import "./load-env";
 import Anthropic from "@anthropic-ai/sdk";
@@ -58,7 +65,13 @@ import {
   type RawPreparedReply,
 } from "../lib/prepared-note";
 import { type BuiltSnapshot, leanSnapshot, snapshotForDay } from "../lib/snapshot";
-import { type Generation, parseBacktestArgs, runBacktest } from "./backtest";
+import {
+  defaultRunPath,
+  type Generation,
+  parseBacktestArgs,
+  parseThinkingOff,
+  runBacktest,
+} from "./backtest";
 
 /** The brief's target length, from the spec. */
 const BRIEF_WORDS = { min: 40, max: 70 };
@@ -104,13 +117,14 @@ async function captureLogLine<T>(
 /**
  * A backtest generator that sends the Prepared note prompt to a Claude model:
  * the same system prompt and user message the local model gets, adaptive
- * thinking at `effort`, streamed. Read as the local-model path reads in the
- * backtest: a reply that ended on its own is parsed leniently, so a skipped
- * brief still scores.
+ * thinking at `effort` (or thinking disabled), streamed. Read as the
+ * local-model path reads in the backtest: a reply that ended on its own is
+ * parsed leniently, so a skipped brief still scores.
  */
 function claudeGenerator(
   model: string,
   effort: AiEffort,
+  { thinkingOff }: { thinkingOff: boolean },
 ): (built: BuiltSnapshot) => Promise<Generation> {
   const anthropic = new Anthropic();
   const system = buildPreparedSystemPrompt();
@@ -122,8 +136,12 @@ function claudeGenerator(
         max_tokens: 32_000,
         system,
         messages: [{ role: "user", content: buildPreparedUserMessage(built) }],
-        thinking: { type: "adaptive", display: "summarized" },
-        output_config: { effort },
+        ...(thinkingOff
+          ? { thinking: { type: "disabled" as const } }
+          : {
+              thinking: { type: "adaptive" as const, display: "summarized" as const },
+              output_config: { effort },
+            }),
       })
       .finalMessage();
     const text = response.content
@@ -172,9 +190,11 @@ async function main(): Promise<void> {
       console.error(`--effort must be low, medium or high, got ${effortArg}`);
       process.exit(1);
     }
+    const thinkingOff = parseThinkingOff(args);
+    const thinking = thinkingOff ? "off" : effortArg;
     const backtestArgs = parseBacktestArgs(
       args,
-      `scripts/backtest-runs/prepared-v${PREPARED_PROMPT_VERSION}-${model.replace(/^claude-/, "")}-${effortArg}.json`,
+      defaultRunPath({ version: PREPARED_PROMPT_VERSION, model, thinking }),
     );
     if (args.includes("--reasoning") && !backtestArgs.jsonPath) {
       console.error("--reasoning saves traces beside the JSON — add --json.");
@@ -185,11 +205,12 @@ async function main(): Promise<void> {
       meta: {
         ranker: "prepared note",
         model,
-        effort: effortArg,
+        ...(!thinkingOff && { effort: effortArg }),
+        thinking,
         promptVersion: PREPARED_PROMPT_VERSION,
       },
       saveReasoning: args.includes("--reasoning"),
-      generate: claudeGenerator(model, effortArg),
+      generate: claudeGenerator(model, effortArg, { thinkingOff }),
     });
     return;
   }
@@ -204,9 +225,12 @@ async function main(): Promise<void> {
   }
 
   if (args.includes("--backtest")) {
+    const thinkingOff = parseThinkingOff(args);
+    const effort = config.reasoningEffort ?? "server default";
+    const thinking = thinkingOff ? "off" : effort;
     const backtestArgs = parseBacktestArgs(
       args,
-      `scripts/backtest-runs/strata-v${PREPARED_PROMPT_VERSION}.json`,
+      defaultRunPath({ version: PREPARED_PROMPT_VERSION, model, thinking }),
     );
     if (args.includes("--reasoning") && !backtestArgs.jsonPath) {
       console.error("--reasoning saves traces beside the JSON — add --json.");
@@ -217,7 +241,8 @@ async function main(): Promise<void> {
       meta: {
         ranker: "prepared note",
         model,
-        effort: config.reasoningEffort ?? "server default",
+        ...(!thinkingOff && { effort }),
+        thinking,
         maxTokens: config.maxTokens ? String(config.maxTokens) : "default",
         promptVersion: PREPARED_PROMPT_VERSION,
       },
@@ -227,14 +252,14 @@ async function main(): Promise<void> {
         const { value: result, logLine } = await captureLogLine(() =>
           createPreparedNoteClient({
             ...config,
+            ...(thinkingOff && { thinking: false as const }),
             onReply: (raw) => {
               reply = raw;
             },
           }).prepare(built),
         );
-        // A whole reply whose brief the model skipped is unavailable to the
-        // app, but its ranking still scores here, with the brief empty — the
-        // aggregate counts those days.
+        // A whole reply the app refuses — a skipped brief, a thin ranking —
+        // still scores here: the aggregate counts the skipped briefs.
         const lenient =
           !result.ok && reply?.content && reply.finishReason === "stop"
             ? parsePreparedReply(reply.content, built, { requireBrief: false })

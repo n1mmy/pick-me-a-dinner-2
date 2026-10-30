@@ -341,4 +341,41 @@ describe("resolveRanking", () => {
       ["pasta-rest", undefined],
     ]);
   });
+
+  describe("No Shared Dinner", () => {
+    const nsd = row("No Shared Dinner", "home");
+    const rows = [ROWS[0], nsd, ...ROWS.slice(1)];
+
+    it("puts it last, with no place or rationale, even when the ranking names it", () => {
+      // A Prepared ranking stored before the snapshot left it out.
+      const ranking = [
+        { id: "fish-home", reason: "Fish is overdue." },
+        { id: "No Shared Dinner", reason: "The catch-all night." },
+        { id: "plain-rest", reason: "Nothing to cook." },
+      ];
+
+      const ranked = resolveRanking(ranking, rows, { appendUnnamed: true });
+
+      expect(
+        ranked.map(({ row, reason, rank }) => [row.option.id, reason, rank]),
+      ).toEqual([
+        ["fish-home", "Fish is overdue.", 1],
+        ["plain-rest", "Nothing to cook.", 3],
+        ["pasta-home", undefined, undefined],
+        ["pasta-rest", undefined, undefined],
+        ["No Shared Dinner", undefined, undefined],
+      ]);
+    });
+
+    it("leaves it out of a ranking shown without the unnamed rows", () => {
+      const ranking = [
+        { id: "No Shared Dinner", reason: "The catch-all night." },
+        { id: "fish-home", reason: "Fish is overdue." },
+      ];
+
+      expect(
+        resolved(resolveRanking(ranking, rows, { appendUnnamed: false })),
+      ).toEqual([["fish-home", "Fish is overdue."]]);
+    });
+  });
 });

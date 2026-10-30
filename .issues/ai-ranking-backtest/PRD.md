@@ -128,3 +128,24 @@ already visible. The decisions and the seven steps are in
 `plans/old/simplifications-2026-10-29.md`; issues 06 to 12 carry them. Fixed by
 that session: the local model stays, for where it runs (ADR-0011 amended); a
 narrowing search shows its shortlist alone; everything lands on this branch.
+
+## Capped mean rank (2026-10-30)
+
+A grilling asked whether a Pick made for reasons the snapshot never held
+should count against a ranker. The cases differ: West Coast Cafe is a real
+Option the Household would want recommended but rarely chooses, so the
+ranker is right to keep it out of the top rows; No Shared Dinner and a
+school fundraiser night are no choice at all. Settled:
+
+- **The mean rank caps each day at #15.** The tail's order already does not
+  matter (above), so a Pick at #32 is the same miss as one at #16. On the
+  v19 runs the cap moves Opus Prepared from 5.5 to 5.2 and Strata low from
+  7.5 to 5.8. `RANK_CAP` in `scripts/backtest.ts`; `backtest-compare.ts`
+  recomputes it for saved runs.
+- **Hits and the median stay as they are.** A rarely chosen Pick is a miss
+  for whichever ranker missed it; every ranker faces the same Picks, so it is
+  a shared floor and never a difference between them.
+- **No flag, no heuristic, no new term.** Marking a night as unpredictable,
+  in stored data or by a rule over its history or Notes, was considered and
+  dropped: each needs a tuning constant or a pattern, and the cap covers the
+  case that hurt.

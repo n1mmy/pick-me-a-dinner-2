@@ -84,6 +84,21 @@ function suppressedIds(
 }
 
 describe("tonightForDay", () => {
+  it("lists No Shared Dinner last in the picker, whatever its Score", () => {
+    // Never eaten, No Shared Dinner would otherwise rank above both Options
+    // eaten recently.
+    const result = view({
+      options: [
+        option("a", "Alpha"),
+        option("n", "No Shared Dinner"),
+        option("b", "Beta"),
+      ],
+      logEntries: [logEntry("a", "2026-05-16"), logEntry("b", "2026-05-15")],
+    });
+
+    expect(result.picker.map((row) => row.option.id)).toEqual(["b", "a", "n"]);
+  });
+
   it("is decided when the day's only Log entry is of an Option since Archived", () => {
     // "gone" is not in the active Catalog, so no decided-block row renders.
     const result = view({

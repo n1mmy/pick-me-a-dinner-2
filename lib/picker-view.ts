@@ -13,6 +13,7 @@
 import type { OptionChoice } from "../db/queries";
 import type { AiRankingRow } from "./ai-search";
 import type { Suppression } from "./day-suppressions";
+import { isNoSharedDinner } from "./no-shared-dinner";
 import type { TonightRow } from "./ranking";
 import type { SuppressedRow } from "./tonight-day";
 
@@ -192,6 +193,11 @@ export type RankedRow = { row: TonightRow; reason?: string; rank?: number };
  * in `ranking`, so a skipped row leaves a gap rather than renumbering the
  * rest. With `appendUnnamed`, the rows the ranking didn't name follow in
  * their existing order, with no rationale and no place, so none goes missing.
+ *
+ * No Shared Dinner is never taken from the ranking, even when it names it (a
+ * Prepared ranking stored before the snapshot left it out): it is not a
+ * dinner to recommend, so it gets no place and no rationale, and with
+ * `appendUnnamed` it goes last, as on the deterministic list.
  */
 export function resolveRanking(
   ranking: AiRankingRow[],
@@ -203,13 +209,17 @@ export function resolveRanking(
   const ranked: RankedRow[] = [];
   ranking.forEach(({ id, reason }, index) => {
     const row = byId.get(id);
-    if (!row || named.has(id)) return;
+    if (!row || named.has(id) || isNoSharedDinner(row.option.name)) return;
     named.add(id);
     ranked.push({ row, reason, rank: index + 1 });
   });
   if (appendUnnamed) {
-    for (const row of rows) {
-      if (!named.has(row.option.id)) ranked.push({ row });
+    const unnamed = rows.filter((row) => !named.has(row.option.id));
+    for (const row of [
+      ...unnamed.filter((row) => !isNoSharedDinner(row.option.name)),
+      ...unnamed.filter((row) => isNoSharedDinner(row.option.name)),
+    ]) {
+      ranked.push({ row });
     }
   }
   return ranked;

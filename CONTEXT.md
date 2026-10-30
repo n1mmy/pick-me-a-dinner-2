@@ -26,6 +26,13 @@ _Avoid_: Place, venue.
 **Catalog**:
 The full set of Options the household maintains.
 
+**No Shared Dinner**:
+The Option Picked for a night nobody ate together — out at an event, or an
+otherwise abnormal schedule. Logged like any Option, so the night is
+decided, but never recommended: Tonight lists it last whatever its Score,
+and it is never an AI snapshot candidate, so no model ranks it. Its nights
+stay in the snapshot's Log. Known by name.
+
 **Option detail page**:
 The screen showing everything about one Option — its fields, Score and
 recency, Log history, and Rejections — reached by tapping the Option's name
@@ -56,8 +63,27 @@ _Avoid_: "Dinner" for a single row.
 
 **Dinner**:
 A whole evening's eating: one calendar date with one or more Log entries
-(takeout plus some home cooking). Never stored as a row. The Log screen groups
-by date and shows each date's Dinner with that date's Rejections.
+(takeout plus some home cooking), all of them eaten. Never stored as a row. The
+Log screen groups by date and shows each date's Dinner with that date's
+Rejections. Two or more Picks on today or a future date are a **Shortlist**,
+not a Dinner of all of them.
+
+**Shortlist**:
+Two or more Picks on today or a future date: the Options the Household is
+choosing between for that night: its likeliest dinners, though the night may
+still go another way. The date decides the reading, with no mark to set: on
+today or ahead, several Picks are alternatives; once the date has passed, every
+Pick left on it was eaten. So the
+Household trims a Shortlist to what it ate on the night, and an untrimmed one
+becomes a Dinner of all of them at midnight. A planned combination (pizza plus
+a salad) reads as a Shortlist until its night passes. A single future Pick is
+a **Planned dinner**, never a Shortlist. The distinction is in how the AI reads
+the Log: another night's **Prepared note** or **AI search** takes a Shortlist
+as that night's likeliest dinners, not as a meal of all of them. To
+everything else a Shortlist's date is **decided** like any Picked date, and
+Tonight shows it as that day's Dinner.
+_Avoid_: Spread, options (an **Option** is a Catalog entry), candidates (the
+AI snapshot's term).
 
 **Note**:
 The optional free-text line on a Log entry — what the Household recorded about
@@ -316,7 +342,8 @@ accounts, no per-person identity (ADR-0002).
 - Within one snapshot every **Option** carries exactly one **Option code**.
 - A **Log entry** records one **Option** on one date and carries zero or one
   **Note**; a **Dinner** is the Log entries sharing a date; the **Log** is all
-  of them.
+  of them. Two or more Picks on today or a later date are a **Shortlist**, read
+  by the AI as that night's likeliest dinners, not a meal of all of them.
 - A date carries zero or one **Day note** and zero or one **Prepared note**.
 - An **Option** has at most one **Day decision** per date — a **Pick** or a
   **Rejection** — and a Pick wins.

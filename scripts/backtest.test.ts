@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { buildSnapshot, type SnapshotOption } from "../lib/snapshot";
 import {
   type BacktestDay,
+  defaultRunPath,
   parseBacktestArgs,
+  parseThinkingOff,
+  resumeConflict,
   sampleAcrossWeekdays,
   scoreDay,
   summarize,
@@ -21,6 +24,22 @@ describe("parseBacktestArgs", () => {
     expect(parseBacktestArgs(["--json"], "x.json").jsonPath).toBe("x.json");
   });
 
+  it("reads --repeat, one run by default", () => {
+    expect(parseBacktestArgs([], "x.json").repeat).toBe(1);
+    expect(parseBacktestArgs(["--repeat=5"], "x.json").repeat).toBe(5);
+  });
+
+  it("refuses a --repeat that is not a positive integer", () => {
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => parseBacktestArgs(["--repeat=0"], "x.json")).toThrow("exit");
+    expect(() => parseBacktestArgs(["--repeat=2.5"], "x.json")).toThrow("exit");
+    exit.mockRestore();
+    error.mockRestore();
+  });
+
   it("refuses a --count or --window that is not a positive integer", () => {
     const exit = vi.spyOn(process, "exit").mockImplementation((() => {
       throw new Error("exit");
@@ -30,6 +49,58 @@ describe("parseBacktestArgs", () => {
     expect(() => parseBacktestArgs(["--window=0"], "x.json")).toThrow("exit");
     exit.mockRestore();
     error.mockRestore();
+  });
+});
+
+describe("parseThinkingOff", () => {
+  it("reads --thinking=off, thinking on by default", () => {
+    expect(parseThinkingOff([])).toBe(false);
+    expect(parseThinkingOff(["--thinking=off"])).toBe(true);
+  });
+
+  it("refuses any other --thinking value", () => {
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => parseThinkingOff(["--thinking=none"])).toThrow("exit");
+    expect(error).toHaveBeenLastCalledWith(expect.stringContaining("--thinking"));
+    exit.mockRestore();
+    error.mockRestore();
+  });
+});
+
+describe("resumeConflict", () => {
+  const saved = { ranker: "prepared note", model: "qwen3.8", effort: "low", promptVersion: "19" };
+
+  it("lets a run resume under the setup it was saved with", () => {
+    expect(resumeConflict(saved, { ...saved, window: "fixed day list" })).toBeNull();
+  });
+
+  it("names a setup field that changed since the file was saved", () => {
+    expect(resumeConflict(saved, { ...saved, promptVersion: "20" })).toBe(
+      "promptVersion 19 → 20",
+    );
+    expect(
+      resumeConflict({ ...saved, thinking: "low" }, { ...saved, thinking: "off" }),
+    ).toBe("thinking low → off");
+  });
+
+  it("reads a field an old file never recorded as no conflict", () => {
+    expect(
+      resumeConflict(saved, { ...saved, thinking: "low", maxTokens: "default" }),
+    ).toBeNull();
+  });
+});
+
+describe("defaultRunPath", () => {
+  it("names a run by prompt version, model and thinking", () => {
+    expect(defaultRunPath({ version: "20", model: "qwen3.8", thinking: "low" })).toBe(
+      "scripts/backtest-runs/prepared-v20-qwen3.8-low.json",
+    );
+    expect(defaultRunPath({ version: "20", model: "claude-opus-5-5", thinking: "off" })).toBe(
+      "scripts/backtest-runs/prepared-v20-opus-5-5-off.json",
+    );
   });
 });
 
@@ -117,6 +188,16 @@ describe("scoreDay", () => {
       unscorable: [DAY],
       hit5: 1,
       daysWithTooSoonMiss: 1,
+    });
+  });
+
+  it("caps the mean rank at 15 for a deep or unranked Pick, and leaves the median raw", () => {
+    const deep = { ...record, day: "2026-10-03", bestRank: 32 };
+    const unranked = { ...record, day: "2026-10-04", bestRank: null, candidates: 39 };
+    // (4 + 15 + 15) / 3; uncapped it would read (4 + 32 + 40) / 3.
+    expect(summarize([record, deep, unranked])).toMatchObject({
+      meanRank: 11.3,
+      medianRank: 32,
     });
   });
 

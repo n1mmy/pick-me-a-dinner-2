@@ -10,7 +10,7 @@ Type: AFK
 ## Why
 
 Issue 14's v18 rested on a premise read in production as wrong
-(`plans/prompt-tweaks-v19.md`). v17 and v18 forbade the count ("never how
+(`plans/old/prompt-tweaks-v19.md`). v17 and v18 forbade the count ("never how
 long it has been, in any form") because the Recency chip shows it. Read on
 Tonight, a line that gives the count is skimmed faster than the chip is
 found and parsed, and the stretch the line sets it against — "inside the

@@ -9,6 +9,7 @@ import {
 import {
   BRIEF_ROW,
   buildPreparedSystemPrompt,
+  buildPreparedUserMessage,
   createPreparedNoteClient,
   parsePreparedReply,
   preparedNotesEnabled,
@@ -314,6 +315,24 @@ describe("parsePreparedReply", () => {
   });
 });
 
+describe("the production Prepared prompt", () => {
+  // A stored note's input hash covers both texts (`lib/prepared-notes.ts`):
+  // a changed byte makes every unfrozen note out of date. A deliberate change
+  // shows here as a snapshot diff, named in its commit, with
+  // `PREPARED_PROMPT_VERSION` bumped.
+  it("keeps the system prompt byte for byte", async () => {
+    await expect(buildPreparedSystemPrompt()).toMatchFileSnapshot(
+      "__snapshots__/prepared-system-prompt.txt",
+    );
+  });
+
+  it("keeps the user message byte for byte", async () => {
+    await expect(buildPreparedUserMessage(built)).toMatchFileSnapshot(
+      "__snapshots__/prepared-user-message.txt",
+    );
+  });
+});
+
 describe("buildPreparedSystemPrompt", () => {
   const prompt = buildPreparedSystemPrompt();
 
@@ -434,7 +453,7 @@ describe("createPreparedNoteClient().prepare", () => {
     );
     expect(JSON.parse(String(init?.body))).toEqual({
       model: "qwen3.8-flash",
-      max_tokens: 20000,
+      max_tokens: 40000,
       stream: true,
       stream_options: { include_usage: true },
       messages: [
@@ -468,6 +487,24 @@ describe("createPreparedNoteClient().prepare", () => {
     const body = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
     expect(body.max_tokens).toBe(40000);
     expect(body.reasoning_effort).toBe("medium");
+  });
+
+  /** The request body a client built with `settings` posts. */
+  async function postedBody(settings: Partial<Parameters<typeof createPreparedNoteClient>[0]>) {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));
+    await createPreparedNoteClient({
+      baseUrl: "http://strata.local/v1",
+      model: "qwen3.8-flash",
+      ...settings,
+    }).prepare(built);
+    return JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
+  }
+
+  it("turns thinking off through the chat template, sending no reasoning effort", async () => {
+    const plain = await postedBody({});
+    const off = await postedBody({ thinking: false, reasoningEffort: "low" });
+    expect(off).toEqual({ ...plain, chat_template_kwargs: { enable_thinking: false } });
   });
 
   it("closes the user message with the candidate count and every code, in Catalog order, as a checklist", async () => {
@@ -602,8 +639,8 @@ describe("createPreparedNoteClient().prepare", () => {
         settled = true;
       });
 
-    // A note takes six to ten minutes on an idle Strata, but a full 20k-token
-    // budget at the 10 tok/s measured under another client's load runs past
+    // A note takes six to ten minutes on an idle Strata, but a 20k-token note
+    // at the 10 tok/s measured under another client's load runs past
     // half an hour; it must not be cut short.
     await vi.advanceTimersByTimeAsync(38 * 60_000);
     expect(settled).toBe(false);

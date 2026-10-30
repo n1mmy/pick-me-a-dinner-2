@@ -343,6 +343,13 @@ const ADAPTIVE_MAX_TOKENS = 32_000;
  * weighing to the model, which is the division of labour ADR-0005 chose. No
  * sentence here is written for a named Option, and no example is drawn from
  * the Household's data.
+ *
+ * v20 added the shortlist flag. Without it, three Picks on a coming Friday,
+ * left as alternatives, read as a three-restaurant spread in every later
+ * night's note. v20 also said "never all of them together" and "none counts
+ * as eaten", and with the timing facts blind to that night, Sunday's note
+ * erased Friday and ranked one of its sushi alternatives first. v21 says
+ * only what the rows are and that the counts leave them out.
  */
 export const SNAPSHOT_EVIDENCE = [
   "What each part of the snapshot is evidence of:",
@@ -350,7 +357,9 @@ export const SNAPSHOT_EVIDENCE = [
     "own words about how that dinner went — what was ordered, what was good, " +
     "what went wrong. Log rows dated today are what tonight already covers: " +
     "those Options have been left out of the candidates — never return them. " +
-    "Rows dated after today are plans.",
+    "Rows dated after today are plans. Rows marked shortlist are " +
+    "alternatives for one night still ahead, whatever its date: its dinner " +
+    "will most likely be one of them. The timing facts leave those rows out.",
   "- An Option's notes are standing facts about it: who likes it, what to " +
     "order, how long it takes, who has to be home.",
   "- Its Tags and kind are what it is, and whether that fits the evening: a " +
@@ -508,7 +517,7 @@ const TEXT_FORMAT_INSTRUCTION = [
  * Bumped whenever the ranking prompt's wording changes, so a backtest run's
  * record says which prompt it measured (`scripts/ai-search-eval.ts`).
  */
-export const AI_SEARCH_PROMPT_VERSION = "19";
+export const AI_SEARCH_PROMPT_VERSION = "21";
 
 /** Build the AI search system prompt. */
 export function buildSystemPrompt(): string {

@@ -250,7 +250,7 @@ the chip row: age then text (`18d · got the katsu curry`).
   visibly taller than a note-free one is a regression.
 - **Italic**, age and text alike, wherever Tonight shows it: reported speech
   from another night, marked as an aside without another size or color step.
-  The one place a mono numeral slants.
+  The Prepared brief's label is the only other place a mono numeral slants.
 - **Claude AI search rows omit it** — the rationale line is already the
   row's aside, and the search is a deliberate, one-off look.
 - **Prepared ranking rows keep it**, in its usual place under the chip row,
@@ -274,8 +274,8 @@ component (`DayNoteLine`) on both screens.
   with the H1. The open editor stays in normal flow, 8px under the header.
   On the Log the line sits directly above interactive rows, so it keeps
   plain flow there.
-- **With a note:** `muted` body text, upright — it is today's context, not
-  reported speech, so it does not borrow the Last note's italic. The text
+- **With a note:** `muted` body text, italic — set apart from the H1 as an
+  aside on the evening, without another size or color step. The text
   itself is the tap target (44px floor) that opens the editor; no separate
   edit button.
 - **Without one:** a borderless, unfilled `chip`-size button, the Log's
@@ -290,20 +290,29 @@ component (`DayNoteLine`) on both screens.
 
 ### Prepared brief
 
-The Selected day's Prepared note brief is its own section directly after
-Tonight's heading block (H1, stepper, Day note line), before the main
-content, in every mode. Like the Day note it is context for the whole
-evening, so it is never inside a row or the decided block. With no note, or
-the feature off, nothing renders — not even an empty frame.
+The Selected day's Prepared note brief is its own section. On an undecided
+date it sits directly after Tonight's heading block (H1, stepper, Day note
+line), before the main content; on a decided date it sits directly under
+the decided block, above the picker's divider — once the night is settled
+the picked dinners are what the Household came to see, so they lead. Like
+the Day note it is context for the whole evening, so it is never inside a
+row or the decided block. With no note, nothing renders — not even an
+empty frame. The `LOCAL_AI_*` variables control generation only, so a note
+written before the feature was turned off still shows.
 
 - **Styled as the AI rationale line**, not a new treatment: `chip` size,
   `muted`, on a `raised` surface with `rounded-badge` and the same padding.
   It is model prose, so it borrows the one look the app already gives model
   prose; a second AI-text style would be a new concern to keep in step.
   Paragraph breaks in the brief are kept.
-- **Label line** above the surface, `meta` `muted`: `Prepared 2:14pm`, the
-  time in Geist Mono. A note not prepared today names the weekday —
-  `Prepared Mon 9:40pm` — because a bare time would read as today's.
+- **Label at the brief's lower right**, `meta` `muted` italic:
+  `Prepared 2:14pm`, the time in Geist Mono. It is a byline, not a heading,
+  so it costs no line of its own: from 720px it floats right into the
+  brief's last line (dropping to a line of its own only when that line is
+  full); on phones it sits right-aligned on the "Read more" row, since the
+  two-line clamp would cut it off inside the brief. A note not prepared
+  today names the weekday — `Prepared Mon 9:40pm` — because a bare time
+  would read as today's.
 - **Out of date** (undecided dates only) appends `· out of date, updating` to
   the label, same `meta` `muted`, no color. The loop rewrites the note on its
   own; the marker tells the Household to read with care, not to act, so it
@@ -314,9 +323,9 @@ the feature off, nothing renders — not even an empty frame.
   "Show less". Expanded state resets on a Selected-day change. At ≥720px the
   brief shows in full with no toggle — there the list starts on screen
   anyway, and on a phone it would not.
-- **Decided dates** show the frozen brief exactly as an undecided date shows
-  its brief: same label, same clamp and "Read more" on phones, in full from
-  720px. The note is still worth reading once the night is settled, and a
+- **Decided dates** show the frozen brief, below the decided block, exactly
+  as an undecided date shows its brief: same label, same clamp and "Read
+  more" on phones, in full from 720px. The note is still worth reading once the night is settled, and a
   line scoring the note against what was eaten told the Household nothing
   they wanted.
 
@@ -351,9 +360,9 @@ identical row for row; what tells them apart is one line above the list.
   Picked, Rejected, or Closed since the note was written leaves a gap
   rather than renumbering the rows below it, so the list agrees with the
   decided-day line that quotes the note's rank. A candidate the note never
-  named is appended **unnumbered** — the rank gutter empty — with the one
-  rationale "The note left this one out", so a row the model forgot never
-  reads as one it ranked last. Claude AI search rows are numbered by their
+  named is appended **unnumbered** — the rank gutter empty — and with no
+  rationale, so a row the model forgot never reads as one it ranked last.
+  The empty gutter says enough; a stock line on every such row was noise. Claude AI search rows are numbered by their
   place on screen; nothing is filtered out of them after they arrive.
 - **Screen-reader status.** The polite status region says "Showing the
   prepared ranking." when that layer comes into view (Claude result cleared,

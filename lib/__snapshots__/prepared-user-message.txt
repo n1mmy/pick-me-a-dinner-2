@@ -1,0 +1,3 @@
+{"today":"2026-10-22 (Thursday)","query":"","options":[],"tags":{},"otherOptions":[],"log":[],"rejections":{"rejectedTonight":[],"notTodayRejections":[]},"dayNotes":[],"todayDayNote":null}
+
+Rank all 3 candidates: A, B, C. Then line 4, the last: brief|<the brief>.

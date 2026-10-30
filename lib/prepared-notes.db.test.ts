@@ -509,6 +509,28 @@ describe("preparedNoteFor", () => {
     });
   });
 
+  it("stays current when the configured model changes: the note's own model is what counts", async () => {
+    await seedPho();
+    await sweep(stubClient().client);
+    vi.stubEnv("LOCAL_AI_MODEL", "qwen-next");
+
+    expect(await preparedNoteFor({ day: SATURDAY, today: THURSDAY })).toMatchObject({
+      status: "current",
+    });
+  });
+
+  it("still reads a stored note once the local model is unconfigured", async () => {
+    await seedPho();
+    await sweep(stubClient().client);
+    vi.stubEnv("LOCAL_AI_MODEL", "");
+    vi.stubEnv("LOCAL_AI_BASE_URL", "");
+
+    expect(await preparedNoteFor({ day: SATURDAY, today: THURSDAY })).toMatchObject({
+      brief: "Brief for 2026-10-24 (Saturday)",
+      status: "current",
+    });
+  });
+
   it("is out of date once a shared prompt block changes, with no version bump", async () => {
     await seedPho();
     await sweep(stubClient().client);

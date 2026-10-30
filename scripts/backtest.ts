@@ -5,7 +5,8 @@
  * deciding (`snapshotForDay`'s backtest mode), and score the ranking against
  * what was actually eaten that day.
  *
- * Per day and in aggregate: the rank of the Pick, hit@3/5/10, the Pick's
+ * Per day and in aggregate: the rank of the Pick (its mean capped at
+ * `RANK_CAP`), hit@3/5/10, the Pick's
  * daysSinceLast and recent gaps, any Option Rejected that day as too soon
  * that sat in the top 5, top-5 slots spent on Options never eaten in the
  * window, empty top-10 reasons, and a ranking written in Option-code
@@ -22,6 +23,8 @@
  *                           days that shares none with a saved run
  *   --json[=path]           write every day's record, rewritten as each lands
  *   --resume                with --json: keep the days already in the file
+ *   --repeat=N              run the day list N times, into -r1 … -rN files;
+ *                           with --resume, a finished file is skipped
  *
  * The Catalog is read as it is now, so the window stays recent: an Option
  * archived, added, or re-tagged since a day is off for that day.
@@ -244,9 +247,34 @@ export function scoreDay(
   return record;
 }
 
+/**
+ * How deep a miss counts in the mean rank: a Pick ranked past it, or left
+ * unranked, counts as this rank. The order of the tail does not matter (the
+ * backtest PRD), so a Pick at #32 is the same miss as one at #16, and one
+ * unlikely Pick ranked deep cannot outweigh a run's top rows.
+ */
+export const RANK_CAP = 15;
+
+/**
+ * The mean rank of the Pick over a run's scorable days, each day's best rank
+ * capped at `RANK_CAP` — `null` with no scorable day. Shared with
+ * `scripts/backtest-compare.ts`, which recomputes it for saved runs.
+ */
+export function meanRank(
+  records: Pick<DayRecord, "scorable" | "bestRank" | "candidates">[],
+): number | null {
+  const ranks = records
+    .filter((record) => record.scorable)
+    .map((record) => Math.min(record.bestRank ?? record.candidates + 1, RANK_CAP));
+  return ranks.length > 0
+    ? Number((ranks.reduce((a, b) => a + b, 0) / ranks.length).toFixed(1))
+    : null;
+}
+
 /** The aggregate over a run's scorable days. */
 export function summarize(records: DayRecord[]) {
   const scored = records.filter((record) => record.scorable);
+  // Uncapped: the median is already blind to how deep a miss sits.
   const ranks = scored
     .map((record) => record.bestRank ?? record.candidates + 1)
     .sort((a, b) => a - b);
@@ -271,10 +299,7 @@ export function summarize(records: DayRecord[]) {
     days: records.length,
     scored: scored.length,
     unscorable: records.filter((record) => !record.scorable).map((r) => r.day),
-    meanRank:
-      ranks.length > 0
-        ? Number((ranks.reduce((a, b) => a + b, 0) / ranks.length).toFixed(1))
-        : null,
+    meanRank: meanRank(records),
     medianRank: ranks.length > 0 ? ranks[Math.floor((ranks.length - 1) / 2)] : null,
     hit3: count((r) => r.hit3),
     hit5: count((r) => r.hit5),
@@ -305,6 +330,8 @@ export type BacktestArgs = {
   windowDays: number;
   jsonPath?: string;
   resume: boolean;
+  /** Whole runs over the same days, one after another (`-r1` … `-rN`). */
+  repeat: number;
 };
 
 export function parseBacktestArgs(args: string[], defaultJsonPath: string): BacktestArgs {
@@ -339,7 +366,63 @@ export function parseBacktestArgs(args: string[], defaultJsonPath: string): Back
     windowDays: positive("window", DEFAULT_WINDOW_DAYS),
     jsonPath: jsonArg ? (jsonArg.includes("=") ? jsonArg.slice(7) : defaultJsonPath) : undefined,
     resume: args.includes("--resume"),
+    repeat: positive("repeat", 1),
   };
+}
+
+/**
+ * Whether `--thinking=off` is set, read from argv for
+ * `scripts/prepared-note-eval.ts`; any other `--thinking` value is refused.
+ * Opus 5.5 refuses thinking off, which the API reports; a later local or
+ * Claude model may take it.
+ */
+export function parseThinkingOff(args: string[]): boolean {
+  const thinking = args.find((arg) => arg.startsWith("--thinking="))?.slice("--thinking=".length);
+  if (thinking !== undefined && thinking !== "off") {
+    console.error(`--thinking takes only off, got ${thinking}`);
+    process.exit(1);
+  }
+  return thinking === "off";
+}
+
+/**
+ * A Prepared note backtest's default `--json` path:
+ * `prepared-v<version>-<model>-<thinking>.json`, the model without a leading
+ * `claude-`.
+ */
+export function defaultRunPath(run: {
+  version: string;
+  model: string;
+  /** The reasoning effort, or `off`. */
+  thinking: string;
+}): string {
+  const name = [
+    "prepared",
+    `v${run.version}`,
+    run.model.replace(/^claude-/, ""),
+    run.thinking.replace(/\s+/g, "-"),
+  ].join("-");
+  return `scripts/backtest-runs/${name}.json`;
+}
+
+/** The `meta` fields that make two runs the same setup. */
+const SETUP_FIELDS = ["model", "effort", "thinking", "promptVersion"];
+
+/**
+ * How a saved run's setup differs from the one about to resume it — as
+ * `promptVersion 19 → 20` — or `null` when it doesn't. A field the saved
+ * file never recorded is no conflict: old files predate it.
+ */
+export function resumeConflict(
+  saved: Record<string, string>,
+  current: Record<string, string>,
+): string | null {
+  const changed = SETUP_FIELDS.filter(
+    (field) => saved[field] !== undefined && current[field] !== undefined && saved[field] !== current[field],
+  );
+  return changed.length > 0
+    ? changed.map((field) => `${field} ${saved[field]} → ${current[field]}`).join(", ")
+    : null;
 }
 
 /** The ground truth for each day, from the Log, Rejections, and Day notes. */
@@ -372,8 +455,10 @@ async function loadTruth(days: string[]): Promise<Map<string, BacktestDay>> {
 
 /**
  * Run `generate` over the backtest days, printing each as it lands and
- * rewriting the `--json` file after every day, so a long Strata run is
- * readable while it runs and survives being stopped (`--resume`).
+ * rewriting the `--json` file after every day, so a long run on the local
+ * model is readable while it runs and survives being stopped (`--resume`).
+ * With `--repeat=N` the day list runs N times, one whole run after another,
+ * each into its own `-r<i>` file; `--resume` skips a finished one.
  */
 export async function runBacktest(opts: {
   args: BacktestArgs;
@@ -383,7 +468,7 @@ export async function runBacktest(opts: {
   /** Save each day's reasoning trace beside the JSON. */
   saveReasoning?: boolean;
 }): Promise<void> {
-  const { args, meta, generate } = opts;
+  const { args } = opts;
   const lastDay = shiftSqlDate(today(), -1);
   const firstDay = shiftSqlDate(today(), -args.windowDays);
   const excluded = new Set(args.exclude);
@@ -394,12 +479,60 @@ export async function runBacktest(opts: {
       args.count,
     );
   const truth = await loadTruth(days);
+  const window = args.days
+    ? "fixed day list"
+    : `${firstDay} – ${lastDay}${excluded.size > 0 ? `, ${excluded.size} days excluded` : ""}`;
 
+  if (args.repeat === 1) {
+    await runOnce({ ...opts, days, truth, window, jsonPath: args.jsonPath });
+    return;
+  }
+  for (let i = 1; i <= args.repeat; i++) {
+    // A path without `.json` still gets its own file per repeat.
+    const jsonPath = args.jsonPath && `${args.jsonPath.replace(/\.json$/, "")}-r${i}.json`;
+    if (args.resume && jsonPath && existsSync(jsonPath)) {
+      const previous = JSON.parse(readFileSync(jsonPath, "utf8")) as {
+        meta?: Record<string, string>;
+        results: DayRecord[];
+      };
+      const conflict = resumeConflict(previous.meta ?? {}, opts.meta);
+      if (conflict !== null) {
+        console.error(`${jsonPath} was saved under another setup (${conflict}): not resuming it.`);
+        process.exit(1);
+      }
+      if (days.every((day) => previous.results.some((r) => r.day === day && r.ok))) {
+        console.log(`repeat ${i}/${args.repeat}: finished in ${jsonPath}, skipped\n`);
+        continue;
+      }
+    }
+    console.log(`=== repeat ${i}/${args.repeat} ===`);
+    await runOnce({
+      ...opts,
+      meta: { ...opts.meta, repeat: `${i}/${args.repeat}` },
+      days,
+      truth,
+      window,
+      jsonPath,
+    });
+    console.log("");
+  }
+}
+
+/** One whole run over `days`, into `jsonPath` when given. */
+async function runOnce(opts: {
+  args: BacktestArgs;
+  meta: Record<string, string>;
+  generate: (built: BuiltSnapshot) => Promise<Generation>;
+  saveReasoning?: boolean;
+  days: string[];
+  truth: Map<string, BacktestDay>;
+  window: string;
+  jsonPath: string | undefined;
+}): Promise<void> {
+  const { args, meta, generate, days, truth, jsonPath } = opts;
   const header = {
     ...meta,
-    window: args.days
-      ? "fixed day list"
-      : `${firstDay} – ${lastDay}${excluded.size > 0 ? `, ${excluded.size} days excluded` : ""}`,
+    window: opts.window,
     catalog: "read as it is now: Options archived, added, or re-tagged since a day are off",
     days: days.join(","),
   };
@@ -407,21 +540,29 @@ export async function runBacktest(opts: {
   console.log("");
 
   const records: DayRecord[] = [];
-  if (args.resume && args.jsonPath && existsSync(args.jsonPath)) {
-    const previous = JSON.parse(readFileSync(args.jsonPath, "utf8")) as {
+  if (args.resume && jsonPath && existsSync(jsonPath)) {
+    const previous = JSON.parse(readFileSync(jsonPath, "utf8")) as {
+      meta?: Record<string, string>;
       results: DayRecord[];
     };
+    // Resuming rewrites the file's meta, so a changed setup would be stamped
+    // over days generated under the old one.
+    const conflict = resumeConflict(previous.meta ?? {}, header);
+    if (conflict !== null) {
+      console.error(`${jsonPath} was saved under another setup (${conflict}): not resuming it.`);
+      process.exit(1);
+    }
     records.push(...previous.results.filter((r) => r.ok && days.includes(r.day)));
-    console.log(`resuming: ${records.length} day(s) already in ${args.jsonPath}\n`);
+    console.log(`resuming: ${records.length} day(s) already in ${jsonPath}\n`);
   }
 
-  const reasoningDir = args.jsonPath?.replace(/\.json$/, "") + "-reasoning";
+  const reasoningDir = jsonPath?.replace(/\.json$/, "") + "-reasoning";
   const writeJson = () => {
-    if (!args.jsonPath) return;
-    mkdirSync(dirname(args.jsonPath), { recursive: true });
+    if (!jsonPath) return;
+    mkdirSync(dirname(jsonPath), { recursive: true });
     const results = [...records].sort((a, b) => a.day.localeCompare(b.day));
     writeFileSync(
-      args.jsonPath,
+      jsonPath,
       JSON.stringify(
         {
           meta: header,
@@ -443,7 +584,7 @@ export async function runBacktest(opts: {
     const record = scoreDay(truth.get(day)!, built, generation);
     records.push(record);
     printDay(record);
-    if (opts.saveReasoning && args.jsonPath && generation.reasoning) {
+    if (opts.saveReasoning && jsonPath && generation.reasoning) {
       mkdirSync(reasoningDir, { recursive: true });
       writeFileSync(`${reasoningDir}/${day}.txt`, generation.reasoning);
     }
@@ -454,7 +595,7 @@ export async function runBacktest(opts: {
   printTable(records);
   printAggregate(summarize(records));
   writeJson();
-  if (args.jsonPath) console.log(`\nrecorded → ${args.jsonPath}`);
+  if (jsonPath) console.log(`\nrecorded → ${jsonPath}`);
 }
 
 function rankCell(rank: number | null): string {
@@ -532,7 +673,7 @@ function printAggregate(summary: ReturnType<typeof summarize>): void {
   if (summary.unscorable.length > 0) {
     console.log(`unscorable (no candidate Pick, or the run failed): ${summary.unscorable.join(", ")}`);
   }
-  console.log(`rank of the Pick: mean ${summary.meanRank ?? "—"}   median ${summary.medianRank ?? "—"}`);
+  console.log(`rank of the Pick: mean ${summary.meanRank ?? "—"} (capped at ${RANK_CAP})   median ${summary.medianRank ?? "—"}`);
   console.log(`hit@3 ${pct(summary.hit3)}   hit@5 ${pct(summary.hit5)}   hit@10 ${pct(summary.hit10)}`);
   console.log(`days with a too-soon Rejection in the top 5: ${summary.daysWithTooSoonMiss}`);
   console.log(

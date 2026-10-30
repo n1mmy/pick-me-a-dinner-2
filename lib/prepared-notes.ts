@@ -48,8 +48,9 @@ async function eligibleDays(now: Date, timeZone: string): Promise<string[]> {
  * Catalog edit reaches the user message, and an edit to a prompt block —
  * shared with AI search or not — reaches the system prompt, so this one
  * comparison is the only change detection there is: no version to bump.
+ * Exported for `scripts/backfill-prepared-notes.ts`, which writes past dates.
  */
-function inputHash(built: BuiltSnapshot, model: string): string {
+export function inputHash(built: BuiltSnapshot, model: string): string {
   // One JSON array, so no two different inputs can concatenate to the same text.
   return createHash("sha256")
     .update(
@@ -268,10 +269,11 @@ export type TonightPreparedNote = {
 
 /**
  * Tonight's read of `day`'s note, or `null` when none has been written.
- * `today` is the Household's calendar day. Out of date is the sweep's own
- * staleness test — the date's current snapshot hashed against the hash the
- * note was built from — so the marker shows exactly while the sweep would
- * rewrite the note. A frozen note is a record rather than advice: never out of
+ * `today` is the Household's calendar day. Reads whether or not the local
+ * model is configured: `LOCAL_AI_*` controls generation only, so turning it
+ * off leaves the notes already written on Tonight. Out of date is the date's
+ * current snapshot hashed against the hash the note was built from, under the
+ * note's own model. A frozen note is a record rather than advice: never out of
  * date, and its snapshot (one full-Log read) is never built. A date with no
  * candidates reads frozen too: the sweep leaves it alone.
  */
@@ -295,10 +297,14 @@ export async function preparedNoteFor({
   const built = await snapshotForDay({ asOf: day, query: "" });
   // Nothing to rank: the sweep skips the date, so the note stays as it is.
   if (built.idByCode.size === 0) return { ...note, status: "frozen" };
+  // Hashed with the model recorded on the note, not the configured one: a
+  // model switch leaves the note reading current until the sweep rewrites it.
+  // Out of date means the Household's history moved on, not that the writer
+  // changed (ADR-0011).
   return {
     ...note,
     status:
-      inputHash(built, localModel()) === stored.inputHash
+      inputHash(built, stored.model) === stored.inputHash
         ? "current"
         : "out-of-date",
   };

@@ -79,14 +79,6 @@ const NO_QUICK_ADD_SOURCES: QuickAddSources = {
 };
 
 /**
- * The rationale on a candidate the Prepared ranking didn't name, which the
- * list appends unnumbered. Said outright, as AI search's
- * `OMITTED_CANDIDATE_REASON` is, so a row the note forgot never reads as one
- * it ranked low.
- */
-const PREPARED_OMITTED_REASON = "The note left this one out";
-
-/**
  * The Selected day's **Prepared note** (ADR-0011) as the screen shows it: the
  * brief, the Prepared ranking, the server-formatted "Prepared 2:14pm" label
  * (its words and its time apart), and whether the note's input has changed
@@ -356,6 +348,12 @@ export function TonightScreen({
     />
   );
 
+  // The Prepared note brief opens the screen under the heading block; once
+  // the night is decided it steps below the picked dinners, which are then
+  // what the Household came to see (DESIGN.md, "Prepared brief").
+  const brief = preparedNote !== null && (
+    <PreparedBrief key={day.date} note={preparedNote} />
+  );
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
       {/* The H1 and the stepper share a full-width row with the stepper
@@ -384,9 +382,7 @@ export function TonightScreen({
           placement="header"
         />
       </div>
-      {preparedNote !== null && (
-        <PreparedBrief key={day.date} note={preparedNote} />
-      )}
+      {!decided && brief}
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}
       </p>
@@ -422,6 +418,7 @@ export function TonightScreen({
             heading={day.heading}
             eatenOn={day.date}
           />
+          {brief}
           {pickerRows.length === 0 ? (
             <p className="border-t border-divider pt-5.5 text-body text-muted">
               {allFiltered
@@ -796,17 +793,17 @@ function Picker({
   // Rejected, or Closed is absent from `rows`, so the note can never offer
   // it. A named row's number is its place in the stored ranking, so a
   // Rejection doesn't renumber the rest and a filtered row keeps the note's
-  // rank; a row the note left out has no number (DESIGN.md, "AI layers").
+  // rank; a row the note left out has no number and no rationale (DESIGN.md,
+  // "AI layers").
   const prepared = useMemo(() => {
     if (preparedRanking === null) return null;
     const ranked = resolveRanking(preparedRanking, rows, { appendUnnamed: true });
     return {
       rows: ranked.map(({ row }) => row),
       reasons: new Map(
-        ranked.map(({ row, reason, rank }) => [
-          row.option.id,
-          rank === undefined ? PREPARED_OMITTED_REASON : reason,
-        ]),
+        ranked.flatMap(({ row, reason, rank }) =>
+          rank === undefined ? [] : [[row.option.id, reason] as const],
+        ),
       ),
       ranks: new Map(
         ranked.flatMap(({ row, rank }) =>
