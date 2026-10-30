@@ -437,6 +437,26 @@ export function defaultRunPath(run: {
   return `scripts/backtest-runs/${name}.json`;
 }
 
+/** The `meta` fields that make two runs the same setup. */
+const SETUP_FIELDS = ["output", "model", "effort", "thinking", "temperature", "promptVersion"];
+
+/**
+ * How a saved run's setup differs from the one about to resume it — as
+ * `promptVersion 19 → 20` — or `null` when it doesn't. A field the saved
+ * file never recorded is no conflict: old files predate it.
+ */
+export function resumeConflict(
+  saved: Record<string, string>,
+  current: Record<string, string>,
+): string | null {
+  const changed = SETUP_FIELDS.filter(
+    (field) => saved[field] !== undefined && current[field] !== undefined && saved[field] !== current[field],
+  );
+  return changed.length > 0
+    ? changed.map((field) => `${field} ${saved[field]} → ${current[field]}`).join(", ")
+    : null;
+}
+
 /** The ground truth for each day, from the Log, Rejections, and Day notes. */
 async function loadTruth(days: string[]): Promise<Map<string, BacktestDay>> {
   const [log, rejections, dayNotes] = await Promise.all([
@@ -505,7 +525,15 @@ export async function runBacktest(opts: {
   for (let i = 1; i <= args.repeat; i++) {
     const jsonPath = args.jsonPath?.replace(/\.json$/, `-r${i}.json`);
     if (args.resume && jsonPath && existsSync(jsonPath)) {
-      const previous = JSON.parse(readFileSync(jsonPath, "utf8")) as { results: DayRecord[] };
+      const previous = JSON.parse(readFileSync(jsonPath, "utf8")) as {
+        meta?: Record<string, string>;
+        results: DayRecord[];
+      };
+      const conflict = resumeConflict(previous.meta ?? {}, opts.meta);
+      if (conflict !== null) {
+        console.error(`${jsonPath} was saved under another setup (${conflict}): not resuming it.`);
+        process.exit(1);
+      }
       if (days.every((day) => previous.results.some((r) => r.day === day && r.ok))) {
         console.log(`repeat ${i}/${args.repeat}: finished in ${jsonPath}, skipped\n`);
         continue;
@@ -549,8 +577,16 @@ async function runOnce(opts: {
   const records: DayRecord[] = [];
   if (args.resume && jsonPath && existsSync(jsonPath)) {
     const previous = JSON.parse(readFileSync(jsonPath, "utf8")) as {
+      meta?: Record<string, string>;
       results: DayRecord[];
     };
+    // Resuming rewrites the file's meta, so a changed setup would be stamped
+    // over days generated under the old one.
+    const conflict = resumeConflict(previous.meta ?? {}, header);
+    if (conflict !== null) {
+      console.error(`${jsonPath} was saved under another setup (${conflict}): not resuming it.`);
+      process.exit(1);
+    }
     records.push(...previous.results.filter((r) => r.ok && days.includes(r.day)));
     console.log(`resuming: ${records.length} day(s) already in ${jsonPath}\n`);
   }

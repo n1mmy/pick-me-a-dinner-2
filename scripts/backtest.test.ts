@@ -5,6 +5,7 @@ import {
   defaultRunPath,
   parseBacktestArgs,
   parseEvalFlags,
+  resumeConflict,
   sampleAcrossWeekdays,
   scoreDay,
   summarize,
@@ -78,6 +79,32 @@ describe("parseEvalFlags", () => {
     expect(parseEvalFlags(["--temperature=0.6"], { claude: false }).temperature).toBe(0.6);
     exit.mockRestore();
     error.mockRestore();
+  });
+});
+
+describe("resumeConflict", () => {
+  const saved = { ranker: "prepared note", model: "qwen3.8", effort: "low", promptVersion: "19" };
+
+  it("lets a run resume under the setup it was saved with", () => {
+    expect(resumeConflict(saved, { ...saved, window: "fixed day list" })).toBeNull();
+  });
+
+  it("names a setup field that changed since the file was saved", () => {
+    expect(resumeConflict(saved, { ...saved, promptVersion: "20" })).toBe(
+      "promptVersion 19 → 20",
+    );
+    expect(
+      resumeConflict(
+        { ...saved, output: "rank", thinking: "off", temperature: "0" },
+        { ...saved, output: "rank", thinking: "off", temperature: "0.7" },
+      ),
+    ).toBe("temperature 0 → 0.7");
+  });
+
+  it("reads a field an old file never recorded as no conflict", () => {
+    expect(
+      resumeConflict(saved, { ...saved, output: "note", thinking: "low", temperature: "default" }),
+    ).toBeNull();
   });
 });
 
