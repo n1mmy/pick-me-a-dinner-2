@@ -1,6 +1,6 @@
 # 02 — Playwright scaffolding, the fixture, and the Login tracer bullet
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -56,13 +56,21 @@ spec reuses them.
 
 ## Acceptance criteria
 
-- [ ] `corepack pnpm test:e2e` builds, seeds, boots, logs in, and passes the Login spec at phone and desktop
-- [ ] The server's environment has every AI and Places variable blank and the per-worktree database URL
-- [ ] A second run re-seeds and passes again
-- [ ] `pnpm test` and the verification gate pass without Postgres and never pick the specs up
-- [ ] The database-name helper has a suffix parameter and the DB suite still passes
-- [ ] Two screenshots exist under the gitignored screenshots directory
+- [x] `corepack pnpm test:e2e` builds, seeds, boots, logs in, and passes the Login spec at phone and desktop
+- [x] The server's environment has every AI and Places variable blank and the per-worktree database URL
+- [x] A second run re-seeds and passes again
+- [x] `pnpm test` and the verification gate pass without Postgres and never pick the specs up
+- [x] The database-name helper has a suffix parameter and the DB suite still passes
+- [x] Two screenshots exist under the gitignored screenshots directory
 
 ## Blocked by
 
 None (can start immediately).
+
+## Comments
+
+- Done. The installed runner (1.64.1) wanted Chromium revision 1248 against
+  the cache's 1234, so `npx playwright install chromium` ran once. The
+  loaded-face check asks for each face first: Login sets no numerals, so
+  Geist Mono stayed `unloaded` there. `next start` warns that it does not
+  suit `output: standalone`; it serves fine.

@@ -9,5 +9,5 @@ import { testDatabaseUrl } from "./vitest.test-db";
  */
 const base = process.env.DATABASE_URL;
 if (base) {
-  process.env.DATABASE_URL = testDatabaseUrl(base);
+  process.env.DATABASE_URL = testDatabaseUrl(base, "test");
 }
