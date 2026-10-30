@@ -23,6 +23,8 @@
  *                           days that shares none with a saved run
  *   --json[=path]           write every day's record, rewritten as each lands
  *   --resume                with --json: keep the days already in the file
+ *   --repeat=N              run the day list N times, into -r1 … -rN files;
+ *                           with --resume, a finished file is skipped
  *
  * The Catalog is read as it is now, so the window stays recent: an Option
  * archived, added, or re-tagged since a day is off for that day.
@@ -145,11 +147,15 @@ export function sampleAcrossWeekdays(decided: string[], count: number): string[]
   return picked.sort();
 }
 
-/** Score one day's ranking against what was eaten and rejected. */
+/**
+ * Score one day's ranking against what was eaten and rejected. A `rankOnly`
+ * run's rows carry no reason by design, so its empty reasons aren't counted.
+ */
 export function scoreDay(
   truth: BacktestDay,
   built: BuiltSnapshot,
   generation: Generation,
+  { rankOnly = false }: { rankOnly?: boolean } = {},
 ): DayRecord {
   const { snapshot, idByCode, nameById } = built;
   const candidateIds = new Set(idByCode.values());
@@ -234,7 +240,7 @@ export function scoreDay(
     hit10: scorable && within(10),
     pickTiming,
     tooSoonMisses,
-    emptyTop10: top10.filter((row) => row.reason.trim() === "").length,
+    emptyTop10: rankOnly ? 0 : top10.filter((row) => row.reason.trim() === "").length,
     catalogOrder,
     ranking,
     latencyMs: generation.latencyMs,
@@ -328,6 +334,8 @@ export type BacktestArgs = {
   windowDays: number;
   jsonPath?: string;
   resume: boolean;
+  /** Whole runs over the same days, one after another (`-r1` … `-rN`). */
+  repeat: number;
 };
 
 export function parseBacktestArgs(args: string[], defaultJsonPath: string): BacktestArgs {
@@ -362,7 +370,71 @@ export function parseBacktestArgs(args: string[], defaultJsonPath: string): Back
     windowDays: positive("window", DEFAULT_WINDOW_DAYS),
     jsonPath: jsonArg ? (jsonArg.includes("=") ? jsonArg.slice(7) : defaultJsonPath) : undefined,
     resume: args.includes("--resume"),
+    repeat: positive("repeat", 1),
   };
+}
+
+/** The Prepared note eval's sampling flags. */
+export type EvalFlags = {
+  output: "note" | "rank";
+  /** Unset: the server's or the API's default. */
+  temperature?: number;
+  thinkingOff: boolean;
+};
+
+/**
+ * `--output=rank|note`, `--temperature=<n>` and `--thinking=off`, read from
+ * argv for `scripts/prepared-note-eval.ts`. A temperature is for the local
+ * model only: current Claude models refuse a sampling temperature, thinking
+ * or not (and Opus 5.5 refuses thinking off too, which the API reports).
+ */
+export function parseEvalFlags(args: string[], { claude }: { claude: boolean }): EvalFlags {
+  const value = (name: string) =>
+    args.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
+  const refuse = (message: string): never => {
+    console.error(message);
+    process.exit(1);
+  };
+  const output = value("output") ?? "note";
+  if (output !== "note" && output !== "rank") refuse(`--output must be note or rank, got ${output}`);
+  const thinking = value("thinking");
+  if (thinking !== undefined && thinking !== "off") refuse(`--thinking takes only off, got ${thinking}`);
+  const rawTemperature = value("temperature");
+  const temperature = rawTemperature === undefined ? undefined : Number(rawTemperature);
+  if (temperature !== undefined && (rawTemperature!.trim() === "" || !Number.isFinite(temperature))) {
+    refuse(`--temperature must be a number, got ${rawTemperature}`);
+  }
+  if (claude && temperature !== undefined) {
+    refuse("--temperature is for the local model: current Claude models refuse a sampling temperature.");
+  }
+  return {
+    output: output as EvalFlags["output"],
+    ...(temperature !== undefined && { temperature }),
+    thinkingOff: thinking === "off",
+  };
+}
+
+/**
+ * A Prepared note backtest's default `--json` path:
+ * `<prepared|rank>-v<version>-<model>-<thinking>[-t<temp>].json`, the model
+ * without a leading `claude-`.
+ */
+export function defaultRunPath(run: {
+  output: "note" | "rank";
+  version: string;
+  model: string;
+  /** The reasoning effort, or `off`. */
+  thinking: string;
+  temperature?: number;
+}): string {
+  const name = [
+    run.output === "rank" ? "rank" : "prepared",
+    `v${run.version}`,
+    run.model.replace(/^claude-/, ""),
+    run.thinking.replace(/\s+/g, "-"),
+    ...(run.temperature === undefined ? [] : [`t${run.temperature}`]),
+  ].join("-");
+  return `scripts/backtest-runs/${name}.json`;
 }
 
 /** The ground truth for each day, from the Log, Rejections, and Day notes. */
@@ -395,18 +467,23 @@ async function loadTruth(days: string[]): Promise<Map<string, BacktestDay>> {
 
 /**
  * Run `generate` over the backtest days, printing each as it lands and
- * rewriting the `--json` file after every day, so a long Strata run is
- * readable while it runs and survives being stopped (`--resume`).
+ * rewriting the `--json` file after every day, so a long run on the local
+ * model is readable while it runs and survives being stopped (`--resume`).
+ * With `--repeat=N` the day list runs N times, one whole run after another,
+ * each into its own `-r<i>` file; `--resume` skips a finished one.
  */
 export async function runBacktest(opts: {
   args: BacktestArgs;
-  /** Model, prompt version, mode — recorded in the JSON and the header. */
+  /**
+   * Model, prompt version, mode — recorded in the JSON and the header. An
+   * `output` of `rank` marks a rank-only run, whose rows carry no reason.
+   */
   meta: Record<string, string>;
   generate: (built: BuiltSnapshot) => Promise<Generation>;
   /** Save each day's reasoning trace beside the JSON. */
   saveReasoning?: boolean;
 }): Promise<void> {
-  const { args, meta, generate } = opts;
+  const { args } = opts;
   const lastDay = shiftSqlDate(today(), -1);
   const firstDay = shiftSqlDate(today(), -args.windowDays);
   const excluded = new Set(args.exclude);
@@ -417,12 +494,52 @@ export async function runBacktest(opts: {
       args.count,
     );
   const truth = await loadTruth(days);
+  const window = args.days
+    ? "fixed day list"
+    : `${firstDay} – ${lastDay}${excluded.size > 0 ? `, ${excluded.size} days excluded` : ""}`;
 
+  if (args.repeat === 1) {
+    await runOnce({ ...opts, days, truth, window, jsonPath: args.jsonPath });
+    return;
+  }
+  for (let i = 1; i <= args.repeat; i++) {
+    const jsonPath = args.jsonPath?.replace(/\.json$/, `-r${i}.json`);
+    if (args.resume && jsonPath && existsSync(jsonPath)) {
+      const previous = JSON.parse(readFileSync(jsonPath, "utf8")) as { results: DayRecord[] };
+      if (days.every((day) => previous.results.some((r) => r.day === day && r.ok))) {
+        console.log(`repeat ${i}/${args.repeat}: finished in ${jsonPath}, skipped\n`);
+        continue;
+      }
+    }
+    console.log(`=== repeat ${i}/${args.repeat} ===`);
+    await runOnce({
+      ...opts,
+      meta: { ...opts.meta, repeat: `${i}/${args.repeat}` },
+      days,
+      truth,
+      window,
+      jsonPath,
+    });
+    console.log("");
+  }
+}
+
+/** One whole run over `days`, into `jsonPath` when given. */
+async function runOnce(opts: {
+  args: BacktestArgs;
+  meta: Record<string, string>;
+  generate: (built: BuiltSnapshot) => Promise<Generation>;
+  saveReasoning?: boolean;
+  days: string[];
+  truth: Map<string, BacktestDay>;
+  window: string;
+  jsonPath: string | undefined;
+}): Promise<void> {
+  const { args, meta, generate, days, truth, jsonPath } = opts;
+  const rankOnly = meta.output === "rank";
   const header = {
     ...meta,
-    window: args.days
-      ? "fixed day list"
-      : `${firstDay} – ${lastDay}${excluded.size > 0 ? `, ${excluded.size} days excluded` : ""}`,
+    window: opts.window,
     catalog: "read as it is now: Options archived, added, or re-tagged since a day are off",
     days: days.join(","),
   };
@@ -430,21 +547,21 @@ export async function runBacktest(opts: {
   console.log("");
 
   const records: DayRecord[] = [];
-  if (args.resume && args.jsonPath && existsSync(args.jsonPath)) {
-    const previous = JSON.parse(readFileSync(args.jsonPath, "utf8")) as {
+  if (args.resume && jsonPath && existsSync(jsonPath)) {
+    const previous = JSON.parse(readFileSync(jsonPath, "utf8")) as {
       results: DayRecord[];
     };
     records.push(...previous.results.filter((r) => r.ok && days.includes(r.day)));
-    console.log(`resuming: ${records.length} day(s) already in ${args.jsonPath}\n`);
+    console.log(`resuming: ${records.length} day(s) already in ${jsonPath}\n`);
   }
 
-  const reasoningDir = args.jsonPath?.replace(/\.json$/, "") + "-reasoning";
+  const reasoningDir = jsonPath?.replace(/\.json$/, "") + "-reasoning";
   const writeJson = () => {
-    if (!args.jsonPath) return;
-    mkdirSync(dirname(args.jsonPath), { recursive: true });
+    if (!jsonPath) return;
+    mkdirSync(dirname(jsonPath), { recursive: true });
     const results = [...records].sort((a, b) => a.day.localeCompare(b.day));
     writeFileSync(
-      args.jsonPath,
+      jsonPath,
       JSON.stringify(
         {
           meta: header,
@@ -463,10 +580,10 @@ export async function runBacktest(opts: {
     console.log(`→ ${day} (${weekdayName(day)}) …`);
     const built = await snapshotForDay({ asOf: day, query: "", backtest: true });
     const generation = await generate(built);
-    const record = scoreDay(truth.get(day)!, built, generation);
+    const record = scoreDay(truth.get(day)!, built, generation, { rankOnly });
     records.push(record);
-    printDay(record);
-    if (opts.saveReasoning && args.jsonPath && generation.reasoning) {
+    printDay(record, { rankOnly });
+    if (opts.saveReasoning && jsonPath && generation.reasoning) {
       mkdirSync(reasoningDir, { recursive: true });
       writeFileSync(`${reasoningDir}/${day}.txt`, generation.reasoning);
     }
@@ -477,7 +594,7 @@ export async function runBacktest(opts: {
   printTable(records);
   printAggregate(summarize(records));
   writeJson();
-  if (args.jsonPath) console.log(`\nrecorded → ${args.jsonPath}`);
+  if (jsonPath) console.log(`\nrecorded → ${jsonPath}`);
 }
 
 function rankCell(rank: number | null): string {
@@ -498,7 +615,7 @@ function timingCell(record: DayRecord): string {
     .join(" ");
 }
 
-function printDay(record: DayRecord): void {
+function printDay(record: DayRecord, { rankOnly }: { rankOnly: boolean }): void {
   const secs =
     record.latencyMs !== undefined ? `${(record.latencyMs / 1000).toFixed(0)}s` : "—";
   const picks = record.picks
@@ -517,7 +634,7 @@ function printDay(record: DayRecord): void {
   }
   for (const row of record.ranking.slice(0, 10)) {
     console.log(`${String(row.rank).padStart(2)}. ${row.name}`);
-    console.log(`    ${row.reason}`);
+    if (!rankOnly) console.log(`    ${row.reason}`);
   }
   for (const miss of record.tooSoonMisses) {
     console.log(`TOO-SOON MISS: ${miss.name} #${miss.rank} — rejected "${miss.reason}"`);

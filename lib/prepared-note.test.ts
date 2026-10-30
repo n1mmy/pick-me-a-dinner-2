@@ -565,6 +565,61 @@ describe("createPreparedNoteClient().prepare", () => {
     expect(body.reasoning_effort).toBe("medium");
   });
 
+  /** The request body a client built with `settings` posts. */
+  async function postedBody(settings: Partial<Parameters<typeof createPreparedNoteClient>[0]>) {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));
+    await createPreparedNoteClient({
+      baseUrl: "http://strata.local/v1",
+      model: "qwen3.8-flash",
+      ...settings,
+    }).prepare(built);
+    return JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
+  }
+
+  it("turns thinking off through the chat template, sending no reasoning effort", async () => {
+    const plain = await postedBody({});
+    const off = await postedBody({ thinking: false, reasoningEffort: "low" });
+    expect(off).toEqual({ ...plain, chat_template_kwargs: { enable_thinking: false } });
+  });
+
+  it("asks for a rank-only reply and reads it as a ranking with an empty brief", async () => {
+    const plain = await postedBody({});
+    const fetchSpy = stubFetch(async () => streamResponse(completion("C\nA\nB")));
+
+    const result = await createPreparedNoteClient({
+      baseUrl: "http://strata.local/v1",
+      model: "qwen3.8-flash",
+      output: "rank",
+    }).prepare(built);
+
+    expect(result).toEqual({
+      ok: true,
+      note: {
+        brief: "",
+        ranking: [
+          { id: PHO, reason: "" },
+          { id: KATSU, reason: "" },
+          { id: MAZRA, reason: "" },
+        ],
+      },
+    });
+    expect(JSON.parse(String(fetchSpy.mock.calls[0][1]?.body))).toEqual({
+      ...plain,
+      messages: [
+        { role: "system", content: buildRankSystemPrompt() },
+        { role: "user", content: buildRankUserMessage(built) },
+      ],
+    });
+  });
+
+  it("sends a temperature only when one is set, zero included, and never a seed", async () => {
+    const plain = await postedBody({});
+    expect(plain).not.toHaveProperty("temperature");
+    expect(await postedBody({ temperature: 0 })).toEqual({ ...plain, temperature: 0 });
+    expect(await postedBody({ temperature: 0.7 })).toEqual({ ...plain, temperature: 0.7 });
+  });
+
   it("closes the user message with the candidate count and every code, in Catalog order, as a checklist", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     const fetchSpy = stubFetch(async () => streamResponse(completion(goodReply)));
@@ -797,6 +852,26 @@ describe("createPreparedNoteClient().prepare", () => {
       outcome: "fallback",
       rowCount: 8,
     });
+  });
+
+  it("refuses a thin rank-only ranking too, and reads only a natural stop", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const codesOf = (rows: number) =>
+      Array.from({ length: rows }, (_, at) => optionCode(at)).join("\n");
+    const rankClient = createPreparedNoteClient({
+      baseUrl: "http://strata.local/v1",
+      model: "qwen3.8-flash",
+      output: "rank",
+    });
+
+    stubFetch(async () => streamResponse(completion(codesOf(8))));
+    expect(await rankClient.prepare(candidates(10))).toEqual({ ok: false });
+
+    stubFetch(async () => streamResponse(completion(codesOf(10), { finishReason: "length" })));
+    expect(await rankClient.prepare(candidates(10))).toEqual({ ok: false });
+
+    stubFetch(async () => streamResponse(completion(codesOf(9))));
+    expect(await rankClient.prepare(candidates(10))).toMatchObject({ ok: true });
   });
 
   it("keeps a ranking naming nine in ten candidates", async () => {

@@ -531,9 +531,28 @@ export function createPreparedNoteClient(config: {
   model: string;
   maxTokens?: number;
   reasoningEffort?: string;
+  /**
+   * `false` turns thinking off through the chat template, and no
+   * `reasoningEffort` is sent. Backtest only: production passes none.
+   */
+  thinking?: false;
+  /** Sent as `temperature` when set. No seed is ever sent: repeats differ. */
+  temperature?: number;
+  /**
+   * `rank` asks for the rank-only reply and returns its ranking with an
+   * empty brief. Backtest only; the default is `note`.
+   */
+  output?: "note" | "rank";
   onReply?: (reply: RawPreparedReply) => void;
 }): PreparedNoteClient {
-  const systemPrompt = buildPreparedSystemPrompt();
+  const rankOnly = config.output === "rank";
+  const systemPrompt = rankOnly ? buildRankSystemPrompt() : buildPreparedSystemPrompt();
+  const userMessage = rankOnly ? buildRankUserMessage : buildPreparedUserMessage;
+  const parse = (content: string, built: Pick<BuiltSnapshot, "idByCode">): PreparedNote | null => {
+    if (!rankOnly) return parsePreparedReply(content, built);
+    const ranking = parseRankReply(content, built);
+    return ranking === null ? null : { brief: "", ranking };
+  };
 
   return {
     async prepare({ snapshot, idByCode }) {
@@ -561,12 +580,15 @@ export function createPreparedNoteClient(config: {
           body: JSON.stringify({
             model: config.model,
             max_tokens: config.maxTokens ?? MAX_TOKENS,
-            ...(config.reasoningEffort && { reasoning_effort: config.reasoningEffort }),
+            ...(config.thinking === false
+              ? { chat_template_kwargs: { enable_thinking: false } }
+              : config.reasoningEffort && { reasoning_effort: config.reasoningEffort }),
+            ...(config.temperature !== undefined && { temperature: config.temperature }),
             stream: true,
             stream_options: { include_usage: true },
             messages: [
               { role: "system", content: systemPrompt },
-              { role: "user", content: buildPreparedUserMessage({ snapshot, idByCode }) },
+              { role: "user", content: userMessage({ snapshot, idByCode }) },
             ],
           }),
         });
@@ -580,7 +602,7 @@ export function createPreparedNoteClient(config: {
           // no stop reason at all (the stream dropped) can end in half a row.
           const note =
             reply.content !== null && reply.finishReason === "stop"
-              ? parsePreparedReply(reply.content, { idByCode })
+              ? parse(reply.content, { idByCode })
               : null;
           if (note !== null) {
             rowCount = note.ranking.length;

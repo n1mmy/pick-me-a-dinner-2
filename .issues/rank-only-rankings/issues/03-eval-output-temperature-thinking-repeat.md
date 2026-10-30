@@ -1,6 +1,6 @@
 # 03 — Rank output, temperature, thinking off and repeats in the eval
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -60,20 +60,29 @@ passes none, so its request body is unchanged:
 
 ## Acceptance criteria
 
-- [ ] The client's request body with no new settings equals today's, in a
+- [x] The client's request body with no new settings equals today's, in a
       mocked-`fetch` test.
-- [ ] `output: "rank"`, `temperature` and `thinking: false` each add only
+- [x] `output: "rank"`, `temperature` and `thinking: false` each add only
       their own field.
-- [ ] A rank reply is parsed into a ranking with an empty brief, and a
+- [x] A rank reply is parsed into a ranking with an empty brief, and a
       thin one is refused.
-- [ ] `--temperature` on `--claude` without `--thinking=off` exits with a
+- [x] `--temperature` on `--claude` without `--thinking=off` exits with a
       message.
-- [ ] `--repeat` is parsed and validated, which is tested beside the
+- [x] `--repeat` is parsed and validated, which is tested beside the
       existing `parseBacktestArgs` cases.
-- [ ] The default file names come out as the plan's examples.
-- [ ] Old run files without the new `meta` fields still load (`--resume`).
-- [ ] The gate passes. No model is called in this ticket.
+- [x] The default file names come out as the plan's examples.
+- [x] Old run files without the new `meta` fields still load (`--resume`).
+- [x] The gate passes. No model is called in this ticket.
 
 ## Blocked by
 
 02.
+
+## Comments
+
+- 2026-10-30: The Claude API reference says current Claude models refuse
+  `temperature` whether thinking is on or off, and Opus 5.5 refuses
+  `thinking: disabled` at every effort. So `--temperature` on `--claude` is
+  refused outright, not only with thinking on. `--thinking=off` still sends
+  `disabled`, which Opus 5.5 answers with a 400. Old run files resume as
+  before: `--resume` reads only `results`.

@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { buildSnapshot, type SnapshotOption } from "../lib/snapshot";
 import {
   type BacktestDay,
+  defaultRunPath,
   parseBacktestArgs,
+  parseEvalFlags,
   sampleAcrossWeekdays,
   scoreDay,
   summarize,
@@ -21,6 +23,22 @@ describe("parseBacktestArgs", () => {
     expect(parseBacktestArgs(["--json"], "x.json").jsonPath).toBe("x.json");
   });
 
+  it("reads --repeat, one run by default", () => {
+    expect(parseBacktestArgs([], "x.json").repeat).toBe(1);
+    expect(parseBacktestArgs(["--repeat=5"], "x.json").repeat).toBe(5);
+  });
+
+  it("refuses a --repeat that is not a positive integer", () => {
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => parseBacktestArgs(["--repeat=0"], "x.json")).toThrow("exit");
+    expect(() => parseBacktestArgs(["--repeat=2.5"], "x.json")).toThrow("exit");
+    exit.mockRestore();
+    error.mockRestore();
+  });
+
   it("refuses a --count or --window that is not a positive integer", () => {
     const exit = vi.spyOn(process, "exit").mockImplementation((() => {
       throw new Error("exit");
@@ -30,6 +48,51 @@ describe("parseBacktestArgs", () => {
     expect(() => parseBacktestArgs(["--window=0"], "x.json")).toThrow("exit");
     exit.mockRestore();
     error.mockRestore();
+  });
+});
+
+describe("parseEvalFlags", () => {
+  it("reads the output, temperature and thinking, defaulting to a with-text run as the server samples", () => {
+    expect(parseEvalFlags([], { claude: false })).toEqual({ output: "note", thinkingOff: false });
+    expect(
+      parseEvalFlags(["--output=rank", "--temperature=0", "--thinking=off"], { claude: false }),
+    ).toEqual({ output: "rank", temperature: 0, thinkingOff: true });
+    expect(parseEvalFlags(["--temperature=0.7"], { claude: false }).temperature).toBe(0.7);
+  });
+
+  it("refuses an unknown output or thinking, a temperature that is not a number, and any temperature for Claude", () => {
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => parseEvalFlags(["--output=brief"], { claude: false })).toThrow("exit");
+    expect(() => parseEvalFlags(["--thinking=none"], { claude: false })).toThrow("exit");
+    expect(() => parseEvalFlags(["--temperature=warm"], { claude: false })).toThrow("exit");
+    expect(() => parseEvalFlags(["--temperature="], { claude: false })).toThrow("exit");
+    // Current Claude models refuse a sampling temperature, thinking or not.
+    expect(() => parseEvalFlags(["--temperature=0"], { claude: true })).toThrow("exit");
+    expect(() => parseEvalFlags(["--temperature=0", "--thinking=off"], { claude: true })).toThrow("exit");
+    expect(error).toHaveBeenLastCalledWith(expect.stringContaining("--temperature"));
+    expect(parseEvalFlags(["--thinking=off"], { claude: true })).toMatchObject({ thinkingOff: true });
+    // The local model takes a temperature while it thinks.
+    expect(parseEvalFlags(["--temperature=0.6"], { claude: false }).temperature).toBe(0.6);
+    exit.mockRestore();
+    error.mockRestore();
+  });
+});
+
+describe("defaultRunPath", () => {
+  it("names a run by output, prompt version, model, thinking and any temperature", () => {
+    const run = { version: "20" };
+    expect(defaultRunPath({ ...run, output: "rank", model: "qwen3.8", thinking: "low" })).toBe(
+      "scripts/backtest-runs/rank-v20-qwen3.8-low.json",
+    );
+    expect(
+      defaultRunPath({ ...run, output: "rank", model: "claude-opus-5-5", thinking: "off", temperature: 0 }),
+    ).toBe("scripts/backtest-runs/rank-v20-opus-5-5-off-t0.json");
+    expect(defaultRunPath({ ...run, output: "note", model: "qwen3.8", thinking: "low" })).toBe(
+      "scripts/backtest-runs/prepared-v20-qwen3.8-low.json",
+    );
   });
 });
 
@@ -98,6 +161,16 @@ describe("scoreDay", () => {
   it("ranks the Pick and scores the hits", () => {
     expect(record.picks).toEqual([{ name: "Ninja Sushi", rank: 4, candidate: true }]);
     expect(record).toMatchObject({ bestRank: 4, scorable: true, hit3: false, hit5: true, hit10: true });
+  });
+
+  it("counts empty top-10 reasons, except on a rank-only run, whose rows have none by design", () => {
+    const codesOnly = { ok: true, ranking: ["s", "a", "q", "n", "t"].map((id) => ({ id, reason: "" })) };
+    expect(scoreDay(truth, built, codesOnly).emptyTop10).toBe(5);
+    expect(scoreDay(truth, built, codesOnly, { rankOnly: true })).toMatchObject({
+      emptyTop10: 0,
+      bestRank: 4,
+      hit5: true,
+    });
   });
 
   it("flags a too-soon Rejection ranked in the top 5", () => {
