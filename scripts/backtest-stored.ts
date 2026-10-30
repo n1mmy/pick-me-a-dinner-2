@@ -44,9 +44,15 @@ async function main(): Promise<void> {
     meta: { ranker: "stored Prepared notes" },
     generate: async (built) => {
       const note = await getPreparedNote(built.snapshot.today.slice(0, 10));
-      return note === null
-        ? { ok: false, ranking: [] }
-        : { ok: true, ranking: note.ranking, brief: note.brief };
+      if (note === null) return { ok: false, ranking: [] };
+      // Only today's candidates hold a place, as on Tonight: a note written
+      // before No Shared Dinner left the candidates may still rank it.
+      const candidates = new Set(built.idByCode.values());
+      return {
+        ok: true,
+        ranking: note.ranking.filter((row) => candidates.has(row.id)),
+        brief: note.brief,
+      };
     },
   });
   process.exit(0);
