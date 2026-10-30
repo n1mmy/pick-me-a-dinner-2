@@ -88,8 +88,9 @@ fixture's hand-written note shows up with no local model configured.
 12. As the Household, I want a decided day to show the Planned dinner as
     decided with the brief beneath it, so that the note reads as a record
     under the decision.
-13. As the Household, I want the Catalog to list every Option with its kind
-    bar, so that I can tell a Home meal from a Restaurant at a glance.
+13. As the Household, I want the Catalog to list every Option under its
+    kind's section, so that I can tell a Home meal from a Restaurant at a
+    glance.
 14. As the Household, I want an Option detail page to show the Option's
     name in the display face and list its Log entries, so that the page
     reads as that Option's record.
@@ -239,14 +240,16 @@ Screen-specific assertions:
   which proves the keys stayed blank.
 - Tonight, tomorrow: the Planned dinner row is shown decided and the brief
   sits under it.
-- Catalog: every fixture Option is listed with its kind bar.
+- Catalog: every fixture Option is listed under its kind's section. Catalog
+  rows are untinted on plain `bg` (`DESIGN.md`), so there is no kind bar.
 - Option detail page, of an eaten Option: the name is in Fraunces and its
   Log entries are listed.
 - Log: the fixture entries are listed, newest first.
 - Dark, phone only, Tonight today and Catalog: the computed page
-  background is dark by luminance, and body text, the `h1`, and a row's
-  kind bar each clear a contrast floor against what they sit on: 4.5:1
-  for text, 3:1 for the bar.
+  background is dark by luminance, and body text, the `h1`, and each kind
+  mark (a Tonight row's kind bar, the Catalog's kind-hued add buttons)
+  clear a contrast floor against what they sit on: 4.5:1 for text, 3:1 for
+  the mark.
 
 ### The README
 
@@ -257,7 +260,8 @@ own directory. What the fixture holds and that it is wiped every run. The
 agent eye-check: open the PNGs and check them against a short list drawn
 from `DESIGN.md`: flat surfaces with no shadows, cards, or nested surfaces;
 Fraunces only on titles and Option names; numerals in Geist Mono, aligned
-down a column; the 3px kind bar and its tint or wash on every Option row;
+down a column; the 3px kind bar and its tint or wash on Tonight's rows,
+and untinted Catalog rows;
 heatmap chips across green, tan, and red; nothing cramped, clipped, or
 ellipsised where it should fit at 375px; in dark, nothing reading as a
 light-theme leftover. Roughly 1–1.5k tokens per image, so on request, not

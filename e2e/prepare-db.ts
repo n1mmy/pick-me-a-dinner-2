@@ -44,12 +44,14 @@ import {
 
 /**
  * The instant that reads `hour`:00 on `day` in `timeZone`: the UTC guess
- * corrected by the zone's offset at that guess.
+ * corrected by the zone's offset at the first estimate, not at the guess. On a
+ * DST change day the guess sits near local midnight, on the other side of the
+ * change from `hour`.
  */
 function atLocalHour(day: string, hour: number, timeZone: string): Date {
   const [year, month, date] = day.split("-").map(Number);
   const guess = Date.UTC(year, month - 1, date, hour);
-  const parts = new Intl.DateTimeFormat("en-US", {
+  const format = new Intl.DateTimeFormat("en-US", {
     timeZone,
     hourCycle: "h23",
     year: "numeric",
@@ -57,16 +59,21 @@ function atLocalHour(day: string, hour: number, timeZone: string): Date {
     day: "numeric",
     hour: "numeric",
     minute: "numeric",
-  }).formatToParts(new Date(guess));
-  const part = (type: string) => Number(parts.find((p) => p.type === type)?.value);
-  const shown = Date.UTC(
-    part("year"),
-    part("month") - 1,
-    part("day"),
-    part("hour"),
-    part("minute"),
-  );
-  return new Date(guess - (shown - guess));
+  });
+  // How far the zone's wall clock runs from UTC at `instant`.
+  const offsetAt = (instant: number): number => {
+    const parts = format.formatToParts(new Date(instant));
+    const part = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+    const shown = Date.UTC(
+      part("year"),
+      part("month") - 1,
+      part("day"),
+      part("hour"),
+      part("minute"),
+    );
+    return shown - instant;
+  };
+  return new Date(guess - offsetAt(guess - offsetAt(guess)));
 }
 
 async function createAndMigrate(databaseUrl: string): Promise<void> {
