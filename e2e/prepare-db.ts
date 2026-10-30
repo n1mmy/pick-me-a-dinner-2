@@ -174,6 +174,13 @@ async function seed(): Promise<void> {
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is not set");
+  // This wipes the database. Under Playwright the URL is always the
+  // browser-test database (`server-env.ts`); run by hand, a shell's dev or
+  // production URL must not reach `truncateAll`.
+  const name = new URL(databaseUrl).pathname.slice(1);
+  if (!name.includes("_e2e_")) {
+    throw new Error(`Refusing to wipe ${name}: not a browser-test database`);
+  }
   await createAndMigrate(databaseUrl);
   await truncateAll();
   await seed();

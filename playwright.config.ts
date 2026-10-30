@@ -9,6 +9,8 @@ import { serverEnv, STORAGE_STATE } from "./e2e/server-env";
  */
 export default defineConfig({
   testDir: "e2e",
+  // `*.test.ts` here are vitest unit tests of the suite's setup.
+  testIgnore: /\.test\.ts$/,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     // `localhost`, not a loopback IP: the session cookie is Secure outside

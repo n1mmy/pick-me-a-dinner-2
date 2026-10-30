@@ -319,10 +319,12 @@ written before the feature was turned off still shows.
   two-line clamp would cut it off inside the brief. A note not prepared
   today names the weekday — `Prepared Mon 9:40pm` — because a bare time
   would read as today's.
-- **Out of date** (undecided dates only) appends `· out of date, updating` to
-  the label, same `meta` `muted`, no color. The loop rewrites the note on its
-  own; the marker tells the Household to read with care, not to act, so it
-  doesn't earn a warning color. A frozen note is never marked.
+- **Out of date** (undecided dates only) appends `· out of date` to the
+  label, same `meta` `muted`, no color. There is nothing for the Household
+  to do about it, so the marker tells them to read with care, not to act,
+  and doesn't earn a warning color. It promises no update: with the
+  `LOCAL_AI_*` variables unset nothing rewrites the note, and a label that
+  said "updating" would then be false. A frozen note is never marked.
 - **Phones (<720px) clamp to two lines** (`line-clamp-2` — the brief is a
   `<p>`, not a `<button>`, so the clamp holds) with a borderless `chip`-size
   "Read more" button on its own line under the surface, which toggles to

@@ -2375,7 +2375,7 @@ describe("TonightScreen — Prepared note", () => {
       />,
     );
 
-    expect(briefLabel()).toBe("Prepared 2:14pm · out of date, updating");
+    expect(briefLabel()).toBe("Prepared 2:14pm · out of date");
   });
 
   it("expands the clamped brief on Read more, and collapses it again on a day change", () => {

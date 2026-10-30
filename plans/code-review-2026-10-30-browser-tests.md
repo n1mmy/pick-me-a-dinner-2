@@ -133,6 +133,9 @@ whether or not they are set." Finding 3 changes the same section.
 
 ### 3. "out of date, updating" is false once the sweep is off
 
+**Fixed:** the label always reads just "out of date", and `DESIGN.md`'s
+Out of date rule says it promises no update.
+
 INFORMATIONAL, confidence 8. Found by the red team.
 
 `app/prepared-brief.tsx:76` appends `" · out of date, updating"` to an
@@ -236,6 +239,11 @@ already had this.
 
 ### 6. The blanked-variable list is kept by hand
 
+**Fixed** by the second option: `e2e/server-env.test.ts`, a unit test that
+fails when the server reads a `process.env` name `serverEnv` does not set.
+The allowlist option would not work on its own: Playwright always merges
+the shell's `process.env`, and Next still fills undefined names from `.env`.
+
 INFORMATIONAL, confidence 5. Found by the adversarial pass.
 
 `e2e/server-env.ts:20-31`. `next start` still loads `.env`, `.env.local`
@@ -266,6 +274,9 @@ Fix options:
   `lib/` is in neither `.env.ralph` nor `BLANKED`.
 
 ### 7. A bare `npx playwright test` tests whatever `.next` was built last
+
+**Fixed**, the README part only: `e2e/README.md` says a bare run serves the
+last build. The `BUILD_ID` check and the standalone server were not done.
 
 INFORMATIONAL, confidence 5. Found by the adversarial pass.
 
@@ -364,7 +375,8 @@ against simply fixing finding 4 in place.
 
 These stay out of the main count.
 
-- **`prepare-db.ts` truncates whatever `DATABASE_URL` names** (security,
+- **Fixed: `prepare-db.ts` truncates whatever `DATABASE_URL` names**
+  (security; it now refuses a database without `_e2e_` in its name;
   confidence 4). Under Playwright this is safe: Playwright 1.64.1 merges
   `process.env` first and `webServer.env` last
   (`runner/index.js:872-876`), so `serverEnv.DATABASE_URL` always wins. The
@@ -411,12 +423,9 @@ These stay out of the main count.
 
 ## Totals
 
-9 findings, all INFORMATIONAL. Findings 1, 2, 4, 8 and 9 are fixed; 3, 5,
-6 and 7 are open. There are 2 advisory items and 5 appendix items. The
+9 findings, all INFORMATIONAL. Findings 1–4 and 6–9 are fixed; 5 is
+open. There are 2 advisory items and 5 appendix items. The
 review is incomplete only because the deliberate breaks were not re-run
 here.
 
-Suggested order for what remains:
-
-1. Finding 3, a copy decision.
-2. Leave 5–7 as follow-ups.
+What remains: finding 5, left as a follow-up.

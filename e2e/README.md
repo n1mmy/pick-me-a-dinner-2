@@ -18,6 +18,10 @@ wipes and re-seeds it, and starts `next start` on port 3100. A dev server in
 the same worktree can keep running: it uses port 3000 and builds into
 `.next-dev`, not `.next`.
 
+A bare `npx playwright test` builds nothing: it serves whatever `.next` was
+built last. After a code change or a branch switch, build again first, or
+the run tests the old code.
+
 If Playwright reports a missing browser, run `npx playwright install chromium`
 once.
 

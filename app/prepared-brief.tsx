@@ -61,8 +61,9 @@ export function PreparedBrief({ note }: { note: PreparedNoteView }) {
 
 /**
  * "Prepared 2:14pm", time in Geist Mono. Out of date is told, not alarmed:
- * the sweep rewrites the note on its own, so the marker asks for care, not
- * action — no color step.
+ * there is nothing for the Household to do about it, so the marker asks for
+ * care, not action — no color step. It promises no update: with generation
+ * off, nothing rewrites the note (ADR-0011).
  */
 function PreparedLabel({
   note,
@@ -75,7 +76,7 @@ function PreparedLabel({
     <span className={`text-meta text-muted italic ${className}`}>
       {note.label.prefix}{" "}
       <span className="font-mono tabular-nums">{note.label.time}</span>
-      {note.outOfDate && " · out of date, updating"}
+      {note.outOfDate && " · out of date"}
     </span>
   );
 }
