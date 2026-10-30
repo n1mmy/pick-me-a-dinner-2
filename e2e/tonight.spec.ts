@@ -7,10 +7,9 @@ import { visit } from "./visit";
 test("Tonight today shows the brief, the first row's rationale, and the Day note, with no AI search", async ({
   page,
 }, testInfo) => {
-  await visit(page, testInfo, { path: "/", screen: "tonight-today" });
-
   const brief = page.getByRole("region", { name: "Prepared note" });
-  await expect(brief).toBeVisible();
+  await visit(page, testInfo, { path: "/", screen: "tonight-today", ready: brief });
+
   await expect(brief).toContainText(TODAY_BRIEF);
 
   const [firstName, firstReason] = TODAY_RANKING[0];
@@ -26,9 +25,13 @@ test("Tonight today shows the brief, the first row's rationale, and the Day note
 test("Tonight tomorrow shows the Planned dinner decided, with the brief beneath it", async ({
   page,
 }, testInfo) => {
-  await visit(page, testInfo, { path: `/?day=${householdDay(1)}`, screen: "tonight-tomorrow" });
-
   const decided = page.getByRole("region", { name: /'s dinner$/ });
+  await visit(page, testInfo, {
+    path: `/?day=${householdDay(1)}`,
+    screen: "tonight-tomorrow",
+    ready: decided,
+  });
+
   await expect(decided).toContainText(PLANNED.name);
   const brief = page.getByRole("region", { name: "Prepared note" });
   await expect(brief).toContainText(TOMORROW_BRIEF);
@@ -39,7 +42,8 @@ test("Tonight tomorrow shows the Planned dinner decided, with the brief beneath 
 });
 
 test("Tonight today is legible in the dark theme", { tag: "@dark" }, async ({ page }, testInfo) => {
-  await visit(page, testInfo, { path: "/", screen: "tonight-today" });
+  const firstRow = page.locator("ol").first().getByRole("listitem").first();
+  await visit(page, testInfo, { path: "/", screen: "tonight-today", ready: firstRow });
 
-  await expectDarkAndLegible(page.locator("ol").first().getByRole("listitem").first(), "bar");
+  await expectDarkAndLegible(firstRow, "bar");
 });

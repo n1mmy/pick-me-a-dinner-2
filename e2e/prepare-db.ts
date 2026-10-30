@@ -39,6 +39,7 @@ import {
   TODAY_BRIEF,
   TODAY_RANKING,
   TOMORROW_BRIEF,
+  TOMORROW_RANKING,
 } from "./fixture";
 
 /**
@@ -155,7 +156,7 @@ async function seed(): Promise<void> {
       // Decided, so the note reads frozen and its hash never matters.
       preparedFor: tomorrow,
       brief: TOMORROW_BRIEF,
-      ranking: ranking.filter((row) => row.id !== idOf(PLANNED.name)),
+      ranking: TOMORROW_RANKING.map(([name, reason]) => ({ id: idOf(name), reason })),
       inputHash: "frozen",
       model: FIXTURE_MODEL,
       preparedAt,

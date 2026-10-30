@@ -72,5 +72,15 @@ export const TODAY_RANKING: [string, string][] = [
 ];
 
 export const TOMORROW_BRIEF =
-  "Thai Basil is planned, so tomorrow is settled. If plans change, the tacos " +
+  "Thai Basil is planned, so tonight is settled. If plans change, the tacos " +
   "still haven't had their turn.";
+
+/** Tomorrow's Prepared ranking, written as the sweep would have the day before. */
+export const TOMORROW_RANKING: [string, string][] = [
+  ["Black Bean Tacos", "Overdue, and quick if the takeout plan falls through."],
+  ["Miso Salmon Bowls", "Still untried."],
+  ["Pho Saigon", "Fine, though it was only a few nights ago."],
+  ["Lemon Chicken Traybake", "Good, if there's time for the oven."],
+  ["Luigi's Pizzeria", "A long wait on a busy night."],
+  ["Mushroom Risotto", "Too much stirring."],
+];

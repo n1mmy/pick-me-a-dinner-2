@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { expect, type Page, type TestInfo } from "@playwright/test";
+import { expect, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 /** The width at which the bottom tab bar gives way to the left rail (DESIGN.md). */
 const DESKTOP_MIN_WIDTH = 720;
@@ -9,7 +9,9 @@ const FACES = ["Fraunces", "GeistSans", "GeistMono"];
 
 /**
  * Visit `path` and run the checks every screen shares: a 2xx response and a
- * visible `h1`; the web fonts loaded and in use; nothing past the right edge;
+ * visible `h1`; `ready`, an element only the finished screen has, visible
+ * before anything is measured, since a screen's `loading.tsx` skeleton
+ * streams in first with an `h1` of its own; the web fonts loaded and in use; nothing past the right edge;
  * the nav that fits the width (none on Login); a viewport screenshot to
  * `e2e/screenshots/<screen>-<project>.png`; and, last, no console error or
  * uncaught exception since the visit began. Screen-specific assertions follow
@@ -18,7 +20,12 @@ const FACES = ["Fraunces", "GeistSans", "GeistMono"];
 export async function visit(
   page: Page,
   testInfo: TestInfo,
-  { path, screen, nav = true }: { path: string; screen: string; nav?: boolean },
+  {
+    path,
+    screen,
+    ready,
+    nav = true,
+  }: { path: string; screen: string; ready: Locator; nav?: boolean },
 ): Promise<void> {
   const errors: string[] = [];
   page.on("console", (message) => {
@@ -29,6 +36,7 @@ export async function visit(
   const response = await page.goto(path);
   expect(response?.ok(), `${path} responded ${response?.status()}`).toBe(true);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(ready).toBeVisible();
 
   await expectFontsLoaded(page);
   await expectNoOverflow(page);

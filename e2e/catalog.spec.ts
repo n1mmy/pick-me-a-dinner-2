@@ -11,7 +11,11 @@ function section(page: Page, title: string) {
 // Catalog rows are untinted on plain `bg` (DESIGN.md, "Row lists"): kind is
 // stated by the section an Option sits in and by the kind-hued add buttons.
 test("Catalog lists every fixture Option under its kind", async ({ page }, testInfo) => {
-  await visit(page, testInfo, { path: "/catalog", screen: "catalog" });
+  await visit(page, testInfo, {
+    path: "/catalog",
+    screen: "catalog",
+    ready: section(page, "Home meals"),
+  });
 
   for (const [kind, title] of [
     ["home", "Home meals"],
@@ -27,7 +31,11 @@ test("Catalog lists every fixture Option under its kind", async ({ page }, testI
 });
 
 test("Catalog is legible in the dark theme", { tag: "@dark" }, async ({ page }, testInfo) => {
-  await visit(page, testInfo, { path: "/catalog", screen: "catalog" });
+  await visit(page, testInfo, {
+    path: "/catalog",
+    screen: "catalog",
+    ready: section(page, "Home meals"),
+  });
 
   await expectDarkAndLegible(
     page.getByRole("button", { name: /^Add a (meal|restaurant)$/ }),

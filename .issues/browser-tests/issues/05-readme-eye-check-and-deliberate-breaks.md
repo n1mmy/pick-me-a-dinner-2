@@ -1,6 +1,6 @@
 # 05 — README, the eye-check, and the deliberate breaks
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -33,14 +33,43 @@ when it should.
 
 ## Acceptance criteria
 
-- [ ] The README covers how to run, the fixture, and the eye-check list
-- [ ] Two consecutive green runs
-- [ ] Every screenshot opened once; findings, if any, noted under Comments
-- [ ] The overflow check fails on a deliberate 1000px-wide element, then passes once reverted
-- [ ] The font check fails on a renamed face, then passes once reverted
-- [ ] The verification gate still passes without Postgres
+- [x] The README covers how to run, the fixture, and the eye-check list
+- [x] Two consecutive green runs
+- [x] Every screenshot opened once; findings, if any, noted under Comments
+- [x] The overflow check fails on a deliberate 1000px-wide element, then passes once reverted
+- [x] The font check fails on a renamed face, then passes once reverted
+- [x] The verification gate still passes without Postgres
 
 ## Blocked by
 
 - [03 — Tonight specs, today and tomorrow, light and dark](03-tonight-specs-light-and-dark.md)
 - [04 — Catalog, Option detail page, and Log specs](04-catalog-detail-and-log-specs.md)
+
+## Comments
+
+- Deliberate breaks. The renamed face (`Geist Mono` for `GeistMono`) failed
+  Login at both widths with no FontFace found, and passed once reverted. The
+  first 1000px element passed: it sat in a flex row, where it shrank. Moved
+  into `<main>`'s column it failed in only some runs, which exposed a real
+  hole in the shared checks. Each screen's `loading.tsx` skeleton streams in
+  first with its own `h1`, so the overflow, font, and nav checks and the
+  screenshot often measured the skeleton (6 of 8 repeats). Every visit now
+  waits for a `ready` element only the finished screen has. After that the
+  break failed 12 of 12 at every width (scroll width 1016 / 1306), and it
+  passed once reverted.
+- Two consecutive green runs (15/15 each). The gate passes, and nothing in it
+  reaches Postgres.
+- Eye-check, all 14 PNGs. Findings, not fixed here:
+  1. Login on desktop is off-centre by 100px. `body` keeps
+     `padding-left: var(--rail-width)` at 720px and up, though Login has no
+     rail (`app/globals.css`).
+  2. Catalog at 375px: the four row actions (Edit, Archive, Delete, Pick)
+     squeeze Option names onto two or three lines ("Lemon / Chicken /
+     Traybake").
+  3. Log and Option-detail History rows carry the kind wash but no 3px kind
+     bar. `DESIGN.md` "Row lists" says "the background plus kind bar already
+     edge the row" for them, so the code or the doc is stale.
+  4. Ticket 04 and the plan describe a kind bar on Catalog rows. `DESIGN.md`
+     has them untinted; the specs follow `DESIGN.md` (see ticket 04).
+- Fixed in the fixture: tomorrow's note said "tomorrow" on its own day and
+  reused today's rationales ("Two nights ago" beside a 3d chip).
