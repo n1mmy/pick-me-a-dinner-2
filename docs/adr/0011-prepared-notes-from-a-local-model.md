@@ -80,6 +80,13 @@ the floor, one Clear away, and Claude AI search is untouched.
 - A second model provider and three optional env vars enter the system:
   `LOCAL_AI_BASE_URL`, `LOCAL_AI_API_KEY`, and `LOCAL_AI_MODEL`. As with
   `ANTHROPIC_API_KEY`, the feature is absent, not broken, when they are unset.
+  They control generation only: Tonight shows a stored note whenever one
+  exists, judging current against out of date by the model recorded on the
+  note, not the configured one. Turned off, the feature stops writing and the
+  notes already written stay, labelled out of date as the inputs move on. A
+  model switch therefore leaves an existing note reading current until the
+  sweep rewrites it: out of date means the Household's history moved on, not
+  that the writer changed.
 - The token discipline of ADR-0004 and `lib/ai-search.ts` does not carry over to
   the local path. Output length is limited only by readability, so the strong
   picks get two or three sentences. The **rhythm claim** rule for an **AI
