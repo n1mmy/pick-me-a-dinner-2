@@ -17,7 +17,7 @@ import {
   getTonightData,
 } from "../db/queries";
 import { suppressionsOn } from "./day-suppressions";
-import { epochDayFromSqlDate, WEEKDAY_NAMES } from "./local-day";
+import { epochDayFromSqlDate, today, WEEKDAY_NAMES } from "./local-day";
 import { isNoSharedDinner } from "./no-shared-dinner";
 import {
   partitionRejections,
@@ -63,7 +63,9 @@ export type SnapshotLogEntry = {
  * (ADR-0012), so every run reads the same timing facts instead of whichever
  * ones the model works out. Counted like **Recency**: Log entries of active
  * Options dated on or before the anchor day, Planned dinners before it
- * included; a day counts once however many entries share it.
+ * included; a day counts once however many entries share it. A
+ * **Shortlist**'s entries never count: only one of them will be eaten, and
+ * which is not yet known.
  */
 export type SnapshotTiming = {
   /** How many days it was eaten. */
@@ -159,6 +161,12 @@ export type SnapshotModelLogEntry = {
   tags: string[];
   /** Household-authored, or `null` when the entry has no note. */
   note: string | null;
+  /**
+   * `true` on a **Shortlist**'s rows — two or more Picks on a date from the
+   * current day on, the Options the Household is choosing between, one of
+   * which it expects to eat. Omitted on every other row.
+   */
+  shortlist?: true;
 };
 
 /** The model-input JSON the snapshot builder produces. */
@@ -360,6 +368,11 @@ export function codeIndex(code: string): number {
  *   notes — rides as plain JSON string values; each system prompt names those
  *   fields as data, never instructions. Only the query is wrapped in
  *   `<household-text>` delimiters, since it is sent outside the JSON.
+ * - A **Shortlist** — two or more Picks on a date from `currentDay` on — is
+ *   flagged on its Log rows and left out of every timing fact. Its date is
+ *   judged against the real day, not the anchor: a Sunday note written on
+ *   Thursday reads Friday's two Picks as alternatives, though Friday falls
+ *   before its `today`. Once that date has passed, its entries read as eaten.
  * - **Backtest mode** (`backtest: true`) builds the snapshot as the Household
  *   saw the anchor day before deciding it, for scoring a ranking against what
  *   was eaten: Log entries and Rejections dated before `asOf` only — the
@@ -384,11 +397,18 @@ export function buildSnapshot(input: {
    * is today; on a stepped Tonight it is the Selected day.
    */
   asOf: string;
+  /**
+   * The Household's real calendar day as the snapshot is built — what tells
+   * a Shortlist (this day or later) from a Dinner already eaten. Defaults to
+   * `asOf`, the standard Tonight render.
+   */
+  currentDay?: string;
   query: string;
   /** Cut the history to what was known before deciding `asOf` — see above. */
   backtest?: boolean;
 }): BuiltSnapshot {
   const { options, asOf, query, backtest = false } = input;
+  const currentDay = input.currentDay ?? asOf;
   const logEntries = backtest
     ? input.logEntries.filter((entry) => entry.eatenOn < asOf)
     : input.logEntries;
@@ -436,14 +456,25 @@ export function buildSnapshot(input: {
     (o) => !suppressions.has(o.id) && !isNoSharedDinner(o.name),
   );
 
+  const optionById = new Map(options.map((option) => [option.id, option]));
+
+  // The dates holding a Shortlist: two or more Picks of active Options from
+  // the current day on.
+  const picksByDate = new Map<string, number>();
+  for (const entry of logEntries) {
+    if (entry.eatenOn < currentDay || !optionById.has(entry.optionId)) continue;
+    picksByDate.set(entry.eatenOn, (picksByDate.get(entry.eatenOn) ?? 0) + 1);
+  }
+  const isShortlisted = (eatenOn: string) => (picksByDate.get(eatenOn) ?? 0) > 1;
+
   // The days each active Option was eaten, on or before the anchor day — the
   // source of every timing fact. An entry for an Option outside `options`
-  // (archived) never counts, as for Recency.
+  // (archived) never counts, as for Recency; nor does a Shortlist's.
   const eatenDaysByOption = new Map<string, Set<string>>(
     options.map((option) => [option.id, new Set()]),
   );
   for (const entry of logEntries) {
-    if (entry.eatenOn > asOf) continue;
+    if (entry.eatenOn > asOf || isShortlisted(entry.eatenOn)) continue;
     eatenDaysByOption.get(entry.optionId)?.add(entry.eatenOn);
   }
 
@@ -466,7 +497,6 @@ export function buildSnapshot(input: {
 
   // Each Log entry is enriched with the eaten Option's name / kind / Tags —
   // the source `leanSnapshot` draws a dropped Option's entry from.
-  const optionById = new Map(options.map((option) => [option.id, option]));
   const log = [...logEntries]
     // Newest dinner first — the most recent history reads at the top. Same-
     // date dinners tie-break on Option id, so the snapshot (and a Prepared
@@ -487,6 +517,7 @@ export function buildSnapshot(input: {
           kind: option.kind,
           tags: option.tags,
           note: entry.note,
+          ...(isShortlisted(entry.eatenOn) ? { shortlist: true as const } : {}),
         },
       ];
     });
@@ -649,6 +680,8 @@ export async function snapshotForDay({
     rejections,
     dayNotes,
     asOf,
+    // A backtest sees the anchor day as it stood before deciding it.
+    currentDay: backtest ? asOf : today(),
     query,
     backtest,
   });
@@ -663,7 +696,7 @@ type LeanRejection = Pick<SnapshotRejection, "date" | "optionId" | "reason">;
 /** The snapshot with lean Log and Rejection rows — see `leanSnapshot`. */
 export type LeanSnapshot = Omit<ModelSnapshot, "log" | "rejections"> & {
   otherOptions: OtherOption[];
-  log: Pick<SnapshotModelLogEntry, "date" | "optionId" | "note">[];
+  log: Pick<SnapshotModelLogEntry, "date" | "optionId" | "note" | "shortlist">[];
   rejections: {
     rejectedTonight: LeanRejection[];
     notTodayRejections: LeanRejection[];
@@ -672,8 +705,8 @@ export type LeanSnapshot = Omit<ModelSnapshot, "log" | "rejections"> & {
 
 /**
  * The snapshot as a model receives it — AI search and Prepared notes alike:
- * each Log row cut to its date, code, and note, each Rejection row to its
- * date, code, and reason. `buildSnapshot` copies the Option's name, kind,
+ * each Log row cut to its date, code, note, and Shortlist flag, each
+ * Rejection row to its date, code, and reason. `buildSnapshot` copies the Option's name, kind,
  * and Tags onto every history row; on a 215-dinner, 90-Rejection snapshot
  * those copies were over half the tokens. Candidates already carry them in
  * `options`; an Option dropped for the anchor day (Picked, Rejected, Closed)
@@ -704,7 +737,12 @@ export function leanSnapshot(snapshot: ModelSnapshot): LeanSnapshot {
     otherOptions: [...others.values()].sort(
       (a, b) => codeIndex(a.id) - codeIndex(b.id),
     ),
-    log: log.map(({ date, optionId, note }) => ({ date, optionId, note })),
+    log: log.map(({ date, optionId, note, shortlist }) => ({
+      date,
+      optionId,
+      note,
+      ...(shortlist ? { shortlist } : {}),
+    })),
     rejections: {
       rejectedTonight: cut(rejectedTonight),
       notTodayRejections: cut(notTodayRejections),

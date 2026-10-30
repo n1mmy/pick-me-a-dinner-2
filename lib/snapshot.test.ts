@@ -802,6 +802,84 @@ describe("buildSnapshot — timing facts (ADR-0012)", () => {
   });
 });
 
+describe("buildSnapshot — Shortlists", () => {
+  // A Sunday note written on Wednesday TODAY. Friday holds a Shortlist of
+  // Mazra and Lotus; Saturday a single Planned dinner; Tuesday, already past,
+  // two dinners eaten together.
+  const SUNDAY = "2026-05-24";
+  const options = [
+    option("m1", "Mazra", ["mediterranean"]),
+    option("l1", "Lotus Falafel", ["mediterranean"]),
+    option("p1", "Pasta", ["pasta"]),
+    option("s1", "Salad", ["greens"]),
+  ];
+  const logEntries: SnapshotLogEntry[] = [
+    { optionId: "m1", eatenOn: "2026-05-01", note: null },
+    { optionId: "m1", eatenOn: "2026-05-22", note: null }, // Friday Shortlist
+    { optionId: "l1", eatenOn: "2026-05-22", note: null }, // Friday Shortlist
+    { optionId: "p1", eatenOn: "2026-05-23", note: null }, // Saturday, Planned
+    { optionId: "p1", eatenOn: "2026-05-19", note: null }, // Tuesday, eaten
+    { optionId: "s1", eatenOn: "2026-05-19", note: null }, // Tuesday, eaten
+  ];
+  const build = (currentDay: string, asOf = SUNDAY) =>
+    buildSnapshot({
+      options,
+      logEntries,
+      rejections: [],
+      asOf,
+      currentDay,
+      query: "",
+    }).snapshot;
+  const shortlisted = (snapshot: ReturnType<typeof build>) =>
+    snapshot.log.filter((row) => row.shortlist).map((row) => `${row.date} ${row.name}`);
+
+  it("flags each row of two or more Picks on today or later, and only those", () => {
+    const snapshot = build(TODAY);
+    expect(shortlisted(snapshot)).toEqual([
+      "2026-05-22 (Friday) Lotus Falafel",
+      "2026-05-22 (Friday) Mazra",
+    ]);
+    // Flagged rows carry the key; every other row omits it.
+    expect(snapshot.log.filter((row) => "shortlist" in row)).toHaveLength(2);
+  });
+
+  it("leaves a Shortlist out of the timing facts, and counts a single Planned dinner", () => {
+    const snapshot = build(TODAY);
+    const byName = (name: string) => snapshot.options.find((o) => o.name === name)!;
+    expect(byName("Mazra")).toMatchObject({ eaten: 1, daysSinceLast: 23 });
+    expect(byName("Lotus Falafel")).toMatchObject({ eaten: 0 });
+    expect(snapshot.tags.mediterranean).toEqual({ eaten: 1, daysSinceLast: 23 });
+    expect(byName("Pasta")).toMatchObject({ eaten: 2, daysSinceLast: 1 });
+  });
+
+  it("reads the same night as eaten, all of it, once it has passed", () => {
+    const snapshot = build("2026-05-23");
+    expect(shortlisted(snapshot)).toEqual([]);
+    expect(snapshot.tags.mediterranean).toMatchObject({ eaten: 2, daysSinceLast: 2 });
+  });
+
+  it("flags a Shortlist on the anchor day itself, when that day is today", () => {
+    const snapshot = build("2026-05-22", "2026-05-22");
+    expect(shortlisted(snapshot)).toHaveLength(2);
+    expect(snapshot.tags.mediterranean).toEqual({ eaten: 1, daysSinceLast: 21 });
+  });
+
+  it("takes today as the anchor day when no current day is given", () => {
+    const { snapshot } = buildSnapshot({
+      options,
+      logEntries,
+      rejections: [],
+      asOf: "2026-05-22",
+      query: "",
+    });
+    expect(shortlisted(snapshot)).toHaveLength(2);
+  });
+
+  it("keeps the flag in the lean snapshot", () => {
+    expect(leanSnapshot(build(TODAY)).log.filter((row) => row.shortlist)).toHaveLength(2);
+  });
+});
+
 describe("buildSnapshot — Rejections per Tag (ADR-0006 amended)", () => {
   // TODAY = "2026-05-20". Mazra and Lotus share a Tag; Never Tried is the
   // only carrier of its own.
