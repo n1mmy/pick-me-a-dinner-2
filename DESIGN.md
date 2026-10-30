@@ -250,7 +250,7 @@ the chip row: age then text (`18d · got the katsu curry`).
   visibly taller than a note-free one is a regression.
 - **Italic**, age and text alike, wherever Tonight shows it: reported speech
   from another night, marked as an aside without another size or color step.
-  The one place a mono numeral slants.
+  The Prepared brief's label is the only other place a mono numeral slants.
 - **Claude AI search rows omit it** — the rationale line is already the
   row's aside, and the search is a deliberate, one-off look.
 - **Prepared ranking rows keep it**, in its usual place under the chip row,
@@ -301,9 +301,14 @@ the feature off, nothing renders — not even an empty frame.
   It is model prose, so it borrows the one look the app already gives model
   prose; a second AI-text style would be a new concern to keep in step.
   Paragraph breaks in the brief are kept.
-- **Label line** above the surface, `meta` `muted`: `Prepared 2:14pm`, the
-  time in Geist Mono. A note not prepared today names the weekday —
-  `Prepared Mon 9:40pm` — because a bare time would read as today's.
+- **Label at the brief's lower right**, `meta` `muted` italic:
+  `Prepared 2:14pm`, the time in Geist Mono. It is a byline, not a heading,
+  so it costs no line of its own: from 720px it floats right into the
+  brief's last line (dropping to a line of its own only when that line is
+  full); on phones it sits right-aligned on the "Read more" row, since the
+  two-line clamp would cut it off inside the brief. A note not prepared
+  today names the weekday — `Prepared Mon 9:40pm` — because a bare time
+  would read as today's.
 - **Out of date** (undecided dates only) appends `· out of date, updating` to
   the label, same `meta` `muted`, no color. The loop rewrites the note on its
   own; the marker tells the Household to read with care, not to act, so it

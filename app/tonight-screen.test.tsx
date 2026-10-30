@@ -2247,7 +2247,7 @@ describe("TonightScreen — Prepared note", () => {
     );
 
     expect(screen.getByText(NOTE.brief)).toBeTruthy();
-    expect(briefLines()).toContain("Prepared 2:14pm");
+    expect(briefLabel()).toBe("Prepared 2:14pm");
   });
 
   it("sets the label's time in Geist Mono, apart from its words", () => {
@@ -2259,17 +2259,49 @@ describe("TonightScreen — Prepared note", () => {
       />,
     );
 
-    expect(briefLines()).toContain("Prepared Mon 9:40pm");
-    const time = screen.getByText("9:40pm");
-    expect(time.className).toMatch(/font-mono/);
-    expect(time.className).toMatch(/tabular-nums/);
+    expect(briefLabel()).toBe("Prepared Mon 9:40pm");
+    for (const time of screen.getAllByText("9:40pm")) {
+      expect(time.className).toMatch(/font-mono/);
+      expect(time.className).toMatch(/tabular-nums/);
+    }
   });
 
-  /** The Prepared note section's text lines, in screen order. */
-  function briefLines(): string[] {
-    return Array.from(
-      screen.getByRole("region", { name: "Prepared note" }).querySelectorAll("p"),
-    ).map((line) => line.textContent ?? "");
+  it("sets the label in italics at the brief's lower right, not on a line of its own", () => {
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    // jsdom has no layout: this pins the placement classes, and the result
+    // is checked by eye on the dev server. From 720px the label floats into
+    // the brief's last line; under it, it rides the "Read more" row, since
+    // the two-line clamp would cut it off inside the brief.
+    const region = screen.getByRole("region", { name: "Prepared note" });
+    expect(region.querySelectorAll("p")).toHaveLength(1);
+    const [inBrief, onToggleRow] = labelCopies();
+    expect(inBrief.closest("p")).toBe(screen.getByText(NOTE.brief));
+    expect(inBrief.className).toMatch(/\bhidden\b.*desktop:float-right/);
+    expect(onToggleRow.parentElement?.className).toMatch(/desktop:hidden/);
+    expect(onToggleRow.parentElement?.className).toMatch(/justify-between/);
+    for (const copy of [inBrief, onToggleRow]) expect(copy.className).toMatch(/\bitalic\b/);
+  });
+
+  /** Both copies of the label: floated in the brief, and on the toggle row. */
+  function labelCopies(): HTMLElement[] {
+    const region = screen.getByRole("region", { name: "Prepared note" });
+    const copies = Array.from(region.querySelectorAll<HTMLElement>(":scope span.italic"));
+    expect(copies).toHaveLength(2);
+    return copies;
+  }
+
+  /** The label's text, once both copies are known to agree. */
+  function briefLabel(): string {
+    const [first, second] = labelCopies().map((copy) => copy.textContent ?? "");
+    expect(second).toBe(first);
+    return first;
   }
 
   it.each([
@@ -2285,9 +2317,10 @@ describe("TonightScreen — Prepared note", () => {
     );
 
     expect(screen.getByText("Tonight's dinner is decided.")).toBeTruthy();
-    expect(briefLines()).toEqual(["Prepared 2:14pm", NOTE.brief]);
+    expect(screen.getByText(NOTE.brief)).toBeTruthy();
+    expect(briefLabel()).toBe("Prepared 2:14pm");
     expect(screen.queryByText(/The note (ranked|didn't rank)/)).toBeNull();
-    expect(screen.getByRole("button", { name: "Read more" }).className).toMatch(/desktop:hidden/);
+    expect(screen.getByRole("button", { name: "Read more" }).parentElement?.className).toMatch(/desktop:hidden/);
   });
 
   it("marks an out-of-date note on its label, and only then", () => {
@@ -2308,7 +2341,7 @@ describe("TonightScreen — Prepared note", () => {
       />,
     );
 
-    expect(briefLines()).toContain("Prepared 2:14pm · out of date, updating");
+    expect(briefLabel()).toBe("Prepared 2:14pm · out of date, updating");
   });
 
   it("expands the clamped brief on Read more, and collapses it again on a day change", () => {
