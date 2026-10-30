@@ -6,7 +6,7 @@ Type: AFK
 ## Parent
 
 [Spec: Rank-only rankings and run-to-run spread](../PRD.md) ·
-[Plan](../../../plans/rank-only-rankings.md), step 1
+[Plan](../../../plans/old/rank-only-rankings.md), step 1
 
 ## What to build
 

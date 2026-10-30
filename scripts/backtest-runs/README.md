@@ -34,6 +34,12 @@ names), and the tag-nearer counter needs the per-row timing facts run files
 carry from issue 15 on (older files print n/a); the compare prints their
 rows for the eye.
 
+Measure how far repeats of one setup differ with
+`npx tsx scripts/backtest-spread.ts <run.json>…`: it groups the files by
+model, thinking and prompt version, and reports per day and per arm the #1
+agreement, top-3 and top-5 overlap, Kendall tau, the Pick's rank range, and
+hits with their range across runs, counted on the days every run has.
+
 The mean rank caps each day's rank at 15 (`RANK_CAP` in
 `scripts/backtest.ts`): a Pick ranked past #15, or left unranked, counts as
 #15. The tail's order does not matter, so one unlikely Pick ranked deep (West
@@ -173,6 +179,24 @@ Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
   issue 15's comment: the count-and-stretch line is the norm (144 and 115
   timing lines of 200, 85 and 56 with a yardstick), leaks at zero, rows
   longer, ranking within noise of v18.
+- `prepared-v21-qwen3.8-low-r1` … `-r5` — Prepared note prompt v21 on Qwen
+  3.8 dense at low, five repeats (`--repeat=5`), ~230s and ~9.5k tokens a
+  day. Read with `backtest-spread.ts`: 7.8 / 10.0 / 16.0 (runs 7–9, 9–12,
+  15–17), capped mean rank 6.2 (5.5–6.6); run pairs agree on the #1 on 7.0
+  of 20 days, share 3.0 of their top 5, tau 0.57. That spread is the noise
+  floor: a prompt change has to move more than about 2 hits, or a place of
+  mean rank, to show on one run.
+- `rank-v21-qwen3.8-low-r1` … `-r5`, `rank-v21-qwen3.8-off-r1` … `-r5`,
+  `rank-v21-qwen3.8-off-t0-r1` and `-r2` — the rank-only ranker (prompt v21
+  with the brief and rationales taken out, codes alone), since removed
+  (`plans/old/remove-rank-only.md`). At low: ~220s and ~9.1k tokens a day,
+  no cheaper, since reasoning is the cost; 8.4 / 10.6 / 14.2, mean rank 6.6,
+  #1 agreement 7.9, top-5 3.1, tau 0.54, so no steadier or better than with
+  text. Thinking off: ~40s a day but 6.0 / 8.0 / 13.0, 8.0, tau 0.40.
+  Thinking off at temperature 0: steady (#1 on 19 of 20, tau 0.98) and worst,
+  5.5 / 8.0 / 10.0, 9.0, so the spread is not just sampling. The `-day22`
+  and `-probe` files, and five Opus 5.5 rank-only repeats of `2026-10-22`
+  (2–3s, 91 tokens), were single-day probes. All are in `removed-setups/`.
 
 Fireworks models, through its Anthropic-compatible endpoint, on the same 20
 days: `ANTHROPIC_BASE_URL=https://api.fireworks.ai/inference`, a Fireworks key

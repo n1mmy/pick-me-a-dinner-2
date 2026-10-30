@@ -1,6 +1,5 @@
 import { Agent } from "undici";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RATIONALE_RULES } from "./ai-search";
 import {
   type BuiltSnapshot,
   leanSnapshot,
@@ -11,11 +10,8 @@ import {
   BRIEF_ROW,
   buildPreparedSystemPrompt,
   buildPreparedUserMessage,
-  buildRankSystemPrompt,
-  buildRankUserMessage,
   createPreparedNoteClient,
   parsePreparedReply,
-  parseRankReply,
   preparedNotesEnabled,
 } from "./prepared-note";
 
@@ -337,78 +333,6 @@ describe("the production Prepared prompt", () => {
   });
 });
 
-describe("buildRankSystemPrompt", () => {
-  const prompt = buildRankSystemPrompt();
-  // The Prepared prompt's paragraphs: opening, snapshot description,
-  // evidence, recency, "two things", ranking + rationale length, brief,
-  // rationale rules, data-not-instructions, output format.
-  const prepared = buildPreparedSystemPrompt().split("\n\n");
-
-  it("shares the Prepared prompt's framing, evidence and ranking paragraphs verbatim", () => {
-    for (const shared of [prepared[0], prepared[1], prepared[2], prepared[3], prepared[8]]) {
-      expect(prompt).toContain(shared);
-    }
-    const rankingBody = prepared[5].split("\n")[0].replace("First, the ranking: ", "");
-    expect(prompt).toContain(`Rank the candidates: ${rankingBody}`);
-  });
-
-  it("asks for nothing but the codes, with no brief or rationale", () => {
-    expect(prompt).not.toContain(prepared[4]);
-    expect(prompt).not.toContain(prepared[5].split("\n")[1]);
-    expect(prompt).not.toContain(prepared[6]);
-    expect(prompt).not.toContain(RATIONALE_RULES);
-    expect(prompt).not.toMatch(/brief|rationale|<code>\|/i);
-    expect(prompt).toContain("the Option's code alone");
-  });
-});
-
-describe("buildRankUserMessage", () => {
-  it("is the lean snapshot, then the candidate checklist with no brief line", () => {
-    expect(buildRankUserMessage(built)).toBe(
-      `${JSON.stringify(leanSnapshot(snapshot))}\n\nRank all 3 candidates: A, B, C.`,
-    );
-  });
-});
-
-describe("parseRankReply", () => {
-  it("reads bare codes in written order, with no rationale", () => {
-    expect(parseRankReply("C\nA\nB", built)).toEqual([
-      { id: PHO, reason: "" },
-      { id: KATSU, reason: "" },
-      { id: MAZRA, reason: "" },
-    ]);
-  });
-
-  it("reads the code of a line written as a Prepared row, dropping its text", () => {
-    expect(parseRankReply("C|Standing Thursday choice.\nA", built)).toEqual([
-      { id: PHO, reason: "" },
-      { id: KATSU, reason: "" },
-    ]);
-  });
-
-  it("skips a line that is not a candidate's code", () => {
-    const reply = "Here is the ranking:\n\n1. C\n3|A\nZ\nC\n- B\nB";
-    expect(parseRankReply(reply, built)).toEqual([
-      { id: PHO, reason: "" },
-      { id: MAZRA, reason: "" },
-    ]);
-  });
-
-  it("keeps the first place of an Option written twice", () => {
-    expect(parseRankReply("C\nA\nc\nB", built)).toEqual([
-      { id: PHO, reason: "" },
-      { id: KATSU, reason: "" },
-      { id: MAZRA, reason: "" },
-    ]);
-  });
-
-  it("is no answer for NONE, an empty reply, or one with no candidate's code", () => {
-    expect(parseRankReply("NONE", built)).toBeNull();
-    expect(parseRankReply("", built)).toBeNull();
-    expect(parseRankReply("I can't rank these.\n1. Pho", built)).toBeNull();
-  });
-});
-
 describe("buildPreparedSystemPrompt", () => {
   const prompt = buildPreparedSystemPrompt();
 
@@ -581,43 +505,6 @@ describe("createPreparedNoteClient().prepare", () => {
     const plain = await postedBody({});
     const off = await postedBody({ thinking: false, reasoningEffort: "low" });
     expect(off).toEqual({ ...plain, chat_template_kwargs: { enable_thinking: false } });
-  });
-
-  it("asks for a rank-only reply and reads it as a ranking with an empty brief", async () => {
-    const plain = await postedBody({});
-    const fetchSpy = stubFetch(async () => streamResponse(completion("C\nA\nB")));
-
-    const result = await createPreparedNoteClient({
-      baseUrl: "http://strata.local/v1",
-      model: "qwen3.8-flash",
-      output: "rank",
-    }).prepare(built);
-
-    expect(result).toEqual({
-      ok: true,
-      note: {
-        brief: "",
-        ranking: [
-          { id: PHO, reason: "" },
-          { id: KATSU, reason: "" },
-          { id: MAZRA, reason: "" },
-        ],
-      },
-    });
-    expect(JSON.parse(String(fetchSpy.mock.calls[0][1]?.body))).toEqual({
-      ...plain,
-      messages: [
-        { role: "system", content: buildRankSystemPrompt() },
-        { role: "user", content: buildRankUserMessage(built) },
-      ],
-    });
-  });
-
-  it("sends a temperature only when one is set, zero included, and never a seed", async () => {
-    const plain = await postedBody({});
-    expect(plain).not.toHaveProperty("temperature");
-    expect(await postedBody({ temperature: 0 })).toEqual({ ...plain, temperature: 0 });
-    expect(await postedBody({ temperature: 0.7 })).toEqual({ ...plain, temperature: 0.7 });
   });
 
   it("closes the user message with the candidate count and every code, in Catalog order, as a checklist", async () => {
@@ -852,26 +739,6 @@ describe("createPreparedNoteClient().prepare", () => {
       outcome: "fallback",
       rowCount: 8,
     });
-  });
-
-  it("refuses a thin rank-only ranking too, and reads only a natural stop", async () => {
-    vi.spyOn(console, "log").mockImplementation(() => {});
-    const codesOf = (rows: number) =>
-      Array.from({ length: rows }, (_, at) => optionCode(at)).join("\n");
-    const rankClient = createPreparedNoteClient({
-      baseUrl: "http://strata.local/v1",
-      model: "qwen3.8-flash",
-      output: "rank",
-    });
-
-    stubFetch(async () => streamResponse(completion(codesOf(8))));
-    expect(await rankClient.prepare(candidates(10))).toEqual({ ok: false });
-
-    stubFetch(async () => streamResponse(completion(codesOf(10), { finishReason: "length" })));
-    expect(await rankClient.prepare(candidates(10))).toEqual({ ok: false });
-
-    stubFetch(async () => streamResponse(completion(codesOf(9))));
-    expect(await rankClient.prepare(candidates(10))).toMatchObject({ ok: true });
   });
 
   it("keeps a ranking naming nine in ten candidates", async () => {

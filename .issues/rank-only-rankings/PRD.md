@@ -1,6 +1,6 @@
 # Spec: Rank-only rankings and run-to-run spread
 
-Status: ready-for-agent
+Status: done
 
 **Vocabulary.** The terms in [`CONTEXT.md`](../../CONTEXT.md) govern this
 spec: **Option**, **Option code**, **Pick**, **decided**, **Score**,
@@ -13,7 +13,7 @@ is named only beside a measurement taken on it.
 run files are described in
 [`scripts/backtest-runs/README.md`](../../scripts/backtest-runs/README.md).
 The build plan, with files listed per step, is
-[`plans/rank-only-rankings.md`](../../plans/rank-only-rankings.md).
+[`plans/old/rank-only-rankings.md`](../../plans/old/rank-only-rankings.md).
 
 ---
 
@@ -228,3 +228,17 @@ tooling is in:
 is whether the Prepared note should become two calls: a rank-only call,
 then rationales and brief written for that fixed order. That is a change
 to ADR-0011, and it isn't decided here.
+
+## Comments
+
+- 2026-10-30: The sweep ran (five repeats each of rank-only at low and with
+  thinking off, two at temperature 0, five with-text at low, all on prompt
+  v21 and Qwen 3.8 dense). Rank-only took as long as a full note (~220s,
+  ~9k tokens a day: reasoning is the cost) and was no steadier or better
+  than with text; thinking off was fast and worse; temperature 0 was steady
+  and worst. The rank-only ranker, `--output`, `--temperature` and
+  `--averaged` are removed; `--repeat`, `--thinking=off`, the resume guard,
+  the pinned snapshots and the spread report stay. The production two-call
+  note has nothing to build on. Numbers and the removal:
+  [`plans/old/remove-rank-only.md`](../../plans/old/remove-rank-only.md),
+  and the run list in `scripts/backtest-runs/README.md`.

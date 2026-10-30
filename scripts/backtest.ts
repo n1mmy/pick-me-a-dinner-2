@@ -147,15 +147,11 @@ export function sampleAcrossWeekdays(decided: string[], count: number): string[]
   return picked.sort();
 }
 
-/**
- * Score one day's ranking against what was eaten and rejected. A `rankOnly`
- * run's rows carry no reason by design, so its empty reasons aren't counted.
- */
+/** Score one day's ranking against what was eaten and rejected. */
 export function scoreDay(
   truth: BacktestDay,
   built: BuiltSnapshot,
   generation: Generation,
-  { rankOnly = false }: { rankOnly?: boolean } = {},
 ): DayRecord {
   const { snapshot, idByCode, nameById } = built;
   const candidateIds = new Set(idByCode.values());
@@ -240,7 +236,7 @@ export function scoreDay(
     hit10: scorable && within(10),
     pickTiming,
     tooSoonMisses,
-    emptyTop10: rankOnly ? 0 : top10.filter((row) => row.reason.trim() === "").length,
+    emptyTop10: top10.filter((row) => row.reason.trim() === "").length,
     catalogOrder,
     ranking,
     latencyMs: generation.latencyMs,
@@ -374,71 +370,43 @@ export function parseBacktestArgs(args: string[], defaultJsonPath: string): Back
   };
 }
 
-/** The Prepared note eval's sampling flags. */
-export type EvalFlags = {
-  output: "note" | "rank";
-  /** Unset: the server's or the API's default. */
-  temperature?: number;
-  thinkingOff: boolean;
-};
-
 /**
- * `--output=rank|note`, `--temperature=<n>` and `--thinking=off`, read from
- * argv for `scripts/prepared-note-eval.ts`. A temperature is for the local
- * model only: current Claude models refuse a sampling temperature, thinking
- * or not (and Opus 5.5 refuses thinking off too, which the API reports).
+ * Whether `--thinking=off` is set, read from argv for
+ * `scripts/prepared-note-eval.ts`; any other `--thinking` value is refused.
+ * Opus 5.5 refuses thinking off, which the API reports; a later local or
+ * Claude model may take it.
  */
-export function parseEvalFlags(args: string[], { claude }: { claude: boolean }): EvalFlags {
-  const value = (name: string) =>
-    args.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
-  const refuse = (message: string): never => {
-    console.error(message);
+export function parseThinkingOff(args: string[]): boolean {
+  const thinking = args.find((arg) => arg.startsWith("--thinking="))?.slice("--thinking=".length);
+  if (thinking !== undefined && thinking !== "off") {
+    console.error(`--thinking takes only off, got ${thinking}`);
     process.exit(1);
-  };
-  const output = value("output") ?? "note";
-  if (output !== "note" && output !== "rank") refuse(`--output must be note or rank, got ${output}`);
-  const thinking = value("thinking");
-  if (thinking !== undefined && thinking !== "off") refuse(`--thinking takes only off, got ${thinking}`);
-  const rawTemperature = value("temperature");
-  const temperature = rawTemperature === undefined ? undefined : Number(rawTemperature);
-  if (temperature !== undefined && (rawTemperature!.trim() === "" || !Number.isFinite(temperature))) {
-    refuse(`--temperature must be a number, got ${rawTemperature}`);
   }
-  if (claude && temperature !== undefined) {
-    refuse("--temperature is for the local model: current Claude models refuse a sampling temperature.");
-  }
-  return {
-    output: output as EvalFlags["output"],
-    ...(temperature !== undefined && { temperature }),
-    thinkingOff: thinking === "off",
-  };
+  return thinking === "off";
 }
 
 /**
  * A Prepared note backtest's default `--json` path:
- * `<prepared|rank>-v<version>-<model>-<thinking>[-t<temp>].json`, the model
- * without a leading `claude-`.
+ * `prepared-v<version>-<model>-<thinking>.json`, the model without a leading
+ * `claude-`.
  */
 export function defaultRunPath(run: {
-  output: "note" | "rank";
   version: string;
   model: string;
   /** The reasoning effort, or `off`. */
   thinking: string;
-  temperature?: number;
 }): string {
   const name = [
-    run.output === "rank" ? "rank" : "prepared",
+    "prepared",
     `v${run.version}`,
     run.model.replace(/^claude-/, ""),
     run.thinking.replace(/\s+/g, "-"),
-    ...(run.temperature === undefined ? [] : [`t${run.temperature}`]),
   ].join("-");
   return `scripts/backtest-runs/${name}.json`;
 }
 
 /** The `meta` fields that make two runs the same setup. */
-const SETUP_FIELDS = ["output", "model", "effort", "thinking", "temperature", "promptVersion"];
+const SETUP_FIELDS = ["model", "effort", "thinking", "promptVersion"];
 
 /**
  * How a saved run's setup differs from the one about to resume it — as
@@ -494,10 +462,7 @@ async function loadTruth(days: string[]): Promise<Map<string, BacktestDay>> {
  */
 export async function runBacktest(opts: {
   args: BacktestArgs;
-  /**
-   * Model, prompt version, mode — recorded in the JSON and the header. An
-   * `output` of `rank` marks a rank-only run, whose rows carry no reason.
-   */
+  /** Model, prompt version, mode — recorded in the JSON and the header. */
   meta: Record<string, string>;
   generate: (built: BuiltSnapshot) => Promise<Generation>;
   /** Save each day's reasoning trace beside the JSON. */
@@ -564,7 +529,6 @@ async function runOnce(opts: {
   jsonPath: string | undefined;
 }): Promise<void> {
   const { args, meta, generate, days, truth, jsonPath } = opts;
-  const rankOnly = meta.output === "rank";
   const header = {
     ...meta,
     window: opts.window,
@@ -616,9 +580,9 @@ async function runOnce(opts: {
     console.log(`→ ${day} (${weekdayName(day)}) …`);
     const built = await snapshotForDay({ asOf: day, query: "", backtest: true });
     const generation = await generate(built);
-    const record = scoreDay(truth.get(day)!, built, generation, { rankOnly });
+    const record = scoreDay(truth.get(day)!, built, generation);
     records.push(record);
-    printDay(record, { rankOnly });
+    printDay(record);
     if (opts.saveReasoning && jsonPath && generation.reasoning) {
       mkdirSync(reasoningDir, { recursive: true });
       writeFileSync(`${reasoningDir}/${day}.txt`, generation.reasoning);
@@ -651,7 +615,7 @@ function timingCell(record: DayRecord): string {
     .join(" ");
 }
 
-function printDay(record: DayRecord, { rankOnly }: { rankOnly: boolean }): void {
+function printDay(record: DayRecord): void {
   const secs =
     record.latencyMs !== undefined ? `${(record.latencyMs / 1000).toFixed(0)}s` : "—";
   const picks = record.picks
@@ -670,7 +634,7 @@ function printDay(record: DayRecord, { rankOnly }: { rankOnly: boolean }): void 
   }
   for (const row of record.ranking.slice(0, 10)) {
     console.log(`${String(row.rank).padStart(2)}. ${row.name}`);
-    if (!rankOnly) console.log(`    ${row.reason}`);
+    console.log(`    ${row.reason}`);
   }
   for (const miss of record.tooSoonMisses) {
     console.log(`TOO-SOON MISS: ${miss.name} #${miss.rank} — rejected "${miss.reason}"`);

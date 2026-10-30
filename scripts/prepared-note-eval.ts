@@ -27,23 +27,15 @@
  *   npx tsx scripts/prepared-note-eval.ts --backtest --days=2026-10-20,2026-10-23 --json=x.json
  *   npx tsx scripts/prepared-note-eval.ts --backtest --json --reasoning --resume
  *
- * The backtest takes these sampling flags (`parseEvalFlags`):
- *
- *   --output=rank           the rank-only prompt: codes in rank order, no
- *                           rationale or brief (default `note`)
- *   --thinking=off          thinking off, overriding LOCAL_AI_REASONING_EFFORT
- *   --temperature=<n>       the local model's sampling temperature (default:
- *                           the server's); no seed is ever sent
- *
+ * `--thinking=off` turns thinking off, overriding LOCAL_AI_REASONING_EFFORT.
  * The default `--json` file is
- * `scripts/backtest-runs/<prepared|rank>-v<version>-<model>-<thinking>[-t<temp>].json`.
+ * `scripts/backtest-runs/prepared-v<version>-<model>-<thinking>.json`.
  *
  * `--claude[=model]` sends the backtest's prompt to a Claude model instead
  * (Opus 5.5 by default) through the Anthropic API, with `ANTHROPIC_API_KEY`,
  * at `--effort=low|medium|high` (default `low`, as AI search runs). The
  * reasoning saved is the thinking summary, not a raw trace. `--thinking=off`
- * sends thinking disabled, which Opus 5.5 refuses; `--temperature` is refused
- * up front, as current Claude models take none.
+ * sends thinking disabled, which Opus 5.5 refuses.
  *
  *   npx tsx scripts/prepared-note-eval.ts --backtest --claude --days=… --json --reasoning
  *
@@ -65,24 +57,19 @@ import { isValidSqlDate, shiftSqlDate, today } from "../lib/local-day";
 import {
   buildPreparedSystemPrompt,
   buildPreparedUserMessage,
-  buildRankSystemPrompt,
-  buildRankUserMessage,
   createPreparedNoteClient,
   localModelConfig,
   parsePreparedReply,
-  parseRankReply,
   PREPARED_PROMPT_VERSION,
-  type PreparedNote,
   type PrepareResult,
   type RawPreparedReply,
 } from "../lib/prepared-note";
 import { type BuiltSnapshot, leanSnapshot, snapshotForDay } from "../lib/snapshot";
 import {
   defaultRunPath,
-  type EvalFlags,
   type Generation,
   parseBacktestArgs,
-  parseEvalFlags,
+  parseThinkingOff,
   runBacktest,
 } from "./backtest";
 
@@ -128,36 +115,19 @@ async function captureLogLine<T>(
 }
 
 /**
- * Read a whole reply for the backtest, leniently: a with-text note whose
- * brief the model skipped still scores its rows, and a rank-only ranking
- * is read with no share bound, as a with-text one is.
- */
-function readReply(text: string, built: BuiltSnapshot, output: EvalFlags["output"]): PreparedNote | null {
-  if (output === "note") return parsePreparedReply(text, built, { requireBrief: false });
-  const ranking = parseRankReply(text, built);
-  return ranking === null ? null : { brief: "", ranking };
-}
-
-/** A note's brief for the record — absent on a rank-only run, which has none. */
-function recordedBrief(note: PreparedNote | null, output: EvalFlags["output"]): string | undefined {
-  return output === "rank" ? undefined : note?.brief;
-}
-
-/**
- * A backtest generator that sends the Prepared note prompt — or, with
- * `output: "rank"`, the rank-only one — to a Claude model: the same system
- * prompt and user message the local model gets, adaptive thinking at
- * `effort` (or thinking disabled), streamed. Read as the local-model path
- * reads in the backtest.
+ * A backtest generator that sends the Prepared note prompt to a Claude model:
+ * the same system prompt and user message the local model gets, adaptive
+ * thinking at `effort` (or thinking disabled), streamed. Read as the
+ * local-model path reads in the backtest: a reply that ended on its own is
+ * parsed leniently, so a skipped brief still scores.
  */
 function claudeGenerator(
   model: string,
   effort: AiEffort,
-  { output, thinkingOff }: EvalFlags,
+  { thinkingOff }: { thinkingOff: boolean },
 ): (built: BuiltSnapshot) => Promise<Generation> {
   const anthropic = new Anthropic();
-  const system = output === "rank" ? buildRankSystemPrompt() : buildPreparedSystemPrompt();
-  const userMessage = output === "rank" ? buildRankUserMessage : buildPreparedUserMessage;
+  const system = buildPreparedSystemPrompt();
   return async (built) => {
     const startedAt = Date.now();
     const response = await anthropic.messages
@@ -165,7 +135,7 @@ function claudeGenerator(
         model,
         max_tokens: 32_000,
         system,
-        messages: [{ role: "user", content: userMessage(built) }],
+        messages: [{ role: "user", content: buildPreparedUserMessage(built) }],
         ...(thinkingOff
           ? { thinking: { type: "disabled" as const } }
           : {
@@ -180,14 +150,17 @@ function claudeGenerator(
     const reasoning = response.content
       .map((block) => (block.type === "thinking" ? block.thinking : ""))
       .join("\n");
-    const note = response.stop_reason === "end_turn" ? readReply(text, built, output) : null;
+    const note =
+      response.stop_reason === "end_turn"
+        ? parsePreparedReply(text, built, { requireBrief: false })
+        : null;
     if (note === null) {
       console.error(`  stop: ${response.stop_reason}; reply unread:\n${text.slice(0, 500)}`);
     }
     return {
       ok: note !== null,
       ranking: note?.ranking ?? [],
-      brief: recordedBrief(note, output),
+      brief: note?.brief,
       latencyMs: Date.now() - startedAt,
       outputTokens: response.usage.output_tokens,
       reasoning: reasoning || undefined,
@@ -217,11 +190,11 @@ async function main(): Promise<void> {
       console.error(`--effort must be low, medium or high, got ${effortArg}`);
       process.exit(1);
     }
-    const flags = parseEvalFlags(args, { claude: true });
-    const thinking = flags.thinkingOff ? "off" : effortArg;
+    const thinkingOff = parseThinkingOff(args);
+    const thinking = thinkingOff ? "off" : effortArg;
     const backtestArgs = parseBacktestArgs(
       args,
-      defaultRunPath({ output: flags.output, version: PREPARED_PROMPT_VERSION, model, thinking }),
+      defaultRunPath({ version: PREPARED_PROMPT_VERSION, model, thinking }),
     );
     if (args.includes("--reasoning") && !backtestArgs.jsonPath) {
       console.error("--reasoning saves traces beside the JSON — add --json.");
@@ -230,16 +203,14 @@ async function main(): Promise<void> {
     await runBacktest({
       args: backtestArgs,
       meta: {
-        ranker: flags.output === "rank" ? "rank only" : "prepared note",
-        output: flags.output,
+        ranker: "prepared note",
         model,
-        ...(!flags.thinkingOff && { effort: effortArg }),
+        ...(!thinkingOff && { effort: effortArg }),
         thinking,
-        temperature: "default",
         promptVersion: PREPARED_PROMPT_VERSION,
       },
       saveReasoning: args.includes("--reasoning"),
-      generate: claudeGenerator(model, effortArg, flags),
+      generate: claudeGenerator(model, effortArg, { thinkingOff }),
     });
     return;
   }
@@ -254,18 +225,12 @@ async function main(): Promise<void> {
   }
 
   if (args.includes("--backtest")) {
-    const flags = parseEvalFlags(args, { claude: false });
+    const thinkingOff = parseThinkingOff(args);
     const effort = config.reasoningEffort ?? "server default";
-    const thinking = flags.thinkingOff ? "off" : effort;
+    const thinking = thinkingOff ? "off" : effort;
     const backtestArgs = parseBacktestArgs(
       args,
-      defaultRunPath({
-        output: flags.output,
-        version: PREPARED_PROMPT_VERSION,
-        model,
-        thinking,
-        temperature: flags.temperature,
-      }),
+      defaultRunPath({ version: PREPARED_PROMPT_VERSION, model, thinking }),
     );
     if (args.includes("--reasoning") && !backtestArgs.jsonPath) {
       console.error("--reasoning saves traces beside the JSON — add --json.");
@@ -274,12 +239,10 @@ async function main(): Promise<void> {
     await runBacktest({
       args: backtestArgs,
       meta: {
-        ranker: flags.output === "rank" ? "rank only" : "prepared note",
-        output: flags.output,
+        ranker: "prepared note",
         model,
-        ...(!flags.thinkingOff && { effort }),
+        ...(!thinkingOff && { effort }),
         thinking,
-        temperature: flags.temperature === undefined ? "default" : String(flags.temperature),
         maxTokens: config.maxTokens ? String(config.maxTokens) : "default",
         promptVersion: PREPARED_PROMPT_VERSION,
       },
@@ -289,9 +252,7 @@ async function main(): Promise<void> {
         const { value: result, logLine } = await captureLogLine(() =>
           createPreparedNoteClient({
             ...config,
-            output: flags.output,
-            ...(flags.thinkingOff && { thinking: false as const }),
-            ...(flags.temperature !== undefined && { temperature: flags.temperature }),
+            ...(thinkingOff && { thinking: false as const }),
             onReply: (raw) => {
               reply = raw;
             },
@@ -301,13 +262,13 @@ async function main(): Promise<void> {
         // still scores here: the aggregate counts the skipped briefs.
         const lenient =
           !result.ok && reply?.content && reply.finishReason === "stop"
-            ? readReply(reply.content, built, flags.output)
+            ? parsePreparedReply(reply.content, built, { requireBrief: false })
             : null;
         const note = result.ok ? result.note : lenient;
         return {
           ok: note !== null,
           ranking: note?.ranking ?? [],
-          brief: recordedBrief(note, flags.output),
+          brief: note?.brief,
           latencyMs: Number(logLine?.latencyMs) || undefined,
           outputTokens: Number(logLine?.outputTokens) || undefined,
           reasoning: reply?.reasoning ?? undefined,

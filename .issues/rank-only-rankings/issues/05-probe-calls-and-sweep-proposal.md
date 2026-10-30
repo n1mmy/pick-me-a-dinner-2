@@ -1,12 +1,12 @@
 # 05 — The six probe calls, then a sweep proposal
 
-Status: ready-for-agent
+Status: wontfix
 Type: HITL
 
 ## Parent
 
 [Spec: Rank-only rankings and run-to-run spread](../PRD.md) ·
-[Plan](../../../plans/rank-only-rankings.md), step 5
+[Plan](../../../plans/old/rank-only-rankings.md), step 5
 
 ## What to build
 
@@ -56,3 +56,13 @@ what they show, and propose the first sweep.
 ## Blocked by
 
 03. Ticket 04 should land before the sweep, but not before the probes.
+
+## Comments
+
+- 2026-10-30: Closed without the sweep proposal: the probes and a sweep on
+  the local model ran, and showed rank-only no cheaper, steadier or better
+  than the with-text note, so the ranker is removed
+  ([`plans/old/remove-rank-only.md`](../../../plans/old/remove-rank-only.md)).
+  The Opus 5.5 thinking-off probes never ran: Opus 5.5 refuses
+  `thinking: disabled`. The runs are recorded in the run list in
+  `scripts/backtest-runs/README.md`.

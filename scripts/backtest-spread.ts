@@ -1,28 +1,26 @@
 /**
  * How far runs of one backtest setup differ. It reads saved run files from
  * `scripts/backtest.ts` offline, groups them into arms (runs of one setup:
- * output, model, thinking, temperature, prompt version) and, for each arm
- * with two or more runs, reports day by day and in aggregate:
+ * model, thinking, prompt version) and, for each arm with two or more runs,
+ * reports day by day and in aggregate:
  *
  * - per day, over every pair of runs: how often they agree on the #1, the
  *   mean top-3 and top-5 overlap, and the mean Kendall tau-b over the
  *   Options both ranked; the Pick's median and lowest-to-highest rank; and
- *   for each Option in the averaged top 10, its mean rank and range — which
- *   Options sit firmly and which drift;
- * - per arm: hit@3/5/10 and the capped mean rank, each as a mean with its
- *   range across the runs, and the per-day measures averaged.
+ *   for each of the ten Options with the lowest mean rank, its mean rank and
+ *   range — which Options sit firmly and which drift;
+ * - per arm: the per-day measures averaged, and hit@3/5/10 and the capped
+ *   mean rank, each as a mean with its range across the runs.
  *
- * Options are matched by name: run files carry no ids. A day counts when two
- * or more of the arm's runs have it ok.
+ * Options are matched by name: run files carry no ids. A day's measures
+ * count when two or more of the arm's runs have it ok. The hits count only
+ * the days every run has ok, so a run that stopped early doesn't drag the
+ * arm's hits down with days it never ranked.
  *
- * `--averaged` writes, for each arm with two or more runs, one averaged
- * ranking as a run file of its own (`<arm>-averaged-n<N>.json`), scored
- * against the Picks and readable by `scripts/backtest-compare.ts`.
- *
- *   npx tsx scripts/backtest-spread.ts <run.json>… [--averaged]
+ *   npx tsx scripts/backtest-spread.ts <run.json>…
  */
-import { readFileSync, writeFileSync } from "node:fs";
-import { type DayRecord, defaultRunPath, summarize } from "./backtest";
+import { readFileSync } from "node:fs";
+import { type DayRecord, summarize } from "./backtest";
 
 /**
  * Kendall's tau-b between two rankings (names, best first), over the names
@@ -58,28 +56,20 @@ export function sameFirst(a: string[], b: string[]): boolean {
 
 /** What makes runs repeats of one setup. */
 export type Arm = {
-  output: string;
   model: string;
   thinking: string;
-  temperature: string;
   promptVersion: string;
-  /** An averaged ranking's run count: it is an arm of its own. */
-  averagedFrom?: string;
 };
 
 /**
  * A run file's arm, from its `meta`. A file written before the eval recorded
- * `output`, `thinking` and `temperature` reads as a with-text run at the
- * default temperature, with its effort as its thinking.
+ * `thinking` reads its effort as its thinking.
  */
 function armOf(meta: Record<string, string>): Arm {
   return {
-    output: meta.output ?? "note",
     model: meta.model ?? meta.ranker ?? "?",
     thinking: meta.thinking ?? meta.effort ?? "?",
-    temperature: meta.temperature ?? "default",
     promptVersion: meta.promptVersion ?? "?",
-    ...(meta.averagedFrom !== undefined && { averagedFrom: meta.averagedFrom }),
   };
 }
 
@@ -108,49 +98,24 @@ function ranksOf(records: DayRecord[], name: string): number[] {
 }
 
 /**
- * One day's ranking averaged over runs: the Options by mean rank, an Option
- * a run left out counted at the day's candidate count. A tie goes to the
- * Option ranked above the other in more runs, then to name order.
+ * One day's Options across runs, by mean rank, an Option a run left out
+ * counted at the day's candidate count; a tie goes to name order.
  */
-export function averageDay(records: DayRecord[]): DayRecord {
+export function byMeanRank(records: DayRecord[]): string[] {
   const names = [...new Set(records.flatMap((record) => record.ranking.map((row) => row.name)))];
-  const ranks = new Map(names.map((name) => [name, ranksOf(records, name)]));
   // Sums, not means: every Option has one rank per run, and integer sums
   // compare exactly.
-  const total = (name: string) => ranks.get(name)!.reduce((a, b) => a + b, 0);
-  const runsAbove = (a: string, b: string) =>
-    ranks.get(a)!.filter((rank, run) => rank < ranks.get(b)![run]).length;
-  // Then name order, standing in for the Score: run files don't carry it.
-  names.sort(
-    (a, b) => total(a) - total(b) || runsAbove(b, a) - runsAbove(a, b) || a.localeCompare(b),
-  );
-  // The day's facts come from the source records; the rest is scored afresh.
-  const source = records[0];
-  const rankOf = new Map(names.map((name, i) => [name, i + 1]));
-  const picks = source.picks.map((pick) => ({ ...pick, rank: rankOf.get(pick.name) ?? null }));
-  const pickRanks = picks.flatMap((pick) => (pick.rank === null ? [] : [pick.rank]));
-  const bestRank = pickRanks.length > 0 ? Math.min(...pickRanks) : null;
-  const scorable = picks.some((pick) => pick.candidate);
-  const within = (n: number) => scorable && bestRank !== null && bestRank <= n;
-  return {
-    day: source.day,
-    weekday: source.weekday,
-    dayNote: source.dayNote,
-    ok: true,
-    candidates: source.candidates,
-    picks,
-    bestRank,
-    scorable,
-    hit3: within(3),
-    hit5: within(5),
-    hit10: within(10),
-    pickTiming: source.pickTiming,
-    // A too-soon miss needs the day's Rejections, which a run file lacks.
-    tooSoonMisses: [],
-    emptyTop10: 0,
-    catalogOrder: false,
-    ranking: names.map((name, i) => ({ rank: i + 1, name, reason: "" })),
-  };
+  const total = new Map(names.map((name) => [name, ranksOf(records, name).reduce((a, b) => a + b, 0)]));
+  return names.sort((a, b) => total.get(a)! - total.get(b)! || a.localeCompare(b));
+}
+
+/**
+ * The days every run has ok — the days an arm's hits are counted on, so each
+ * run is scored on the same days.
+ */
+export function sharedDays(runs: { results: DayRecord[] }[]): string[] {
+  const okDays = runs.map((run) => new Set(run.results.filter((r) => r.ok).map((r) => r.day)));
+  return [...okDays[0]].filter((day) => okDays.every((days) => days.has(day))).sort();
 }
 
 type RunFile = { path: string; meta: Record<string, string>; results: DayRecord[] };
@@ -179,7 +144,6 @@ function daySpread(records: DayRecord[]) {
     return tau === null ? [] : [tau];
   });
   const pickRanks = records.map((record) => record.bestRank ?? record.candidates + 1);
-  const averaged = averageDay(records);
   return {
     sameFirst: mean(pairs.map(([a, b]) => (sameFirst(a, b) ? 1 : 0))),
     top3: mean(pairs.map(([a, b]) => topKOverlap(a, b, 3))),
@@ -187,30 +151,14 @@ function daySpread(records: DayRecord[]) {
     tau: taus.length > 0 ? mean(taus) : null,
     pickMedian: median(pickRanks),
     pickRange: [Math.min(...pickRanks), Math.max(...pickRanks)] as const,
-    averaged,
-    top10: averaged.ranking.slice(0, 10).map((row) => ({
-      name: row.name,
-      ranks: ranksOf(records, row.name),
-    })),
+    top10: byMeanRank(records)
+      .slice(0, 10)
+      .map((name) => ({ name, ranks: ranksOf(records, name) })),
   };
 }
 
-/** The averaged run file's path for an arm of `n` runs. */
-function averagedPath(arm: Arm, n: number): string {
-  return defaultRunPath({
-    output: arm.output === "rank" ? "rank" : "note",
-    version: arm.promptVersion,
-    model: arm.model,
-    thinking: arm.thinking,
-    temperature: arm.temperature === "default" ? undefined : Number(arm.temperature),
-  }).replace(/\.json$/, `-averaged-n${n}.json`);
-}
-
-function reportArm(arm: Arm, runs: RunFile[], writeAveraged: boolean): void {
-  console.log(
-    `\n=== ${arm.output} · ${arm.model} · thinking ${arm.thinking} · temperature ${arm.temperature} · ` +
-      `prompt v${arm.promptVersion}${arm.averagedFrom ? ` · averaged from ${arm.averagedFrom}` : ""} ===`,
-  );
+function reportArm(arm: Arm, runs: RunFile[]): void {
+  console.log(`\n=== ${arm.model} · thinking ${arm.thinking} · prompt v${arm.promptVersion} ===`);
   for (const run of runs) console.log(`  ${run.path}`);
   if (runs.length < 2) {
     console.log("  one run: no spread to measure");
@@ -249,7 +197,8 @@ function reportArm(arm: Arm, runs: RunFile[], writeAveraged: boolean): void {
     return { day, ...measures };
   });
 
-  const summaries = runs.map((run) => summarize(run.results.filter((r) => days.includes(r.day))));
+  const hitDays = sharedDays(runs);
+  const summaries = runs.map((run) => summarize(run.results.filter((r) => hitDays.includes(r.day))));
   const across = (of: (summary: ReturnType<typeof summarize>) => number | null) => {
     const xs = summaries.flatMap((summary) => {
       const x = of(summary);
@@ -260,43 +209,26 @@ function reportArm(arm: Arm, runs: RunFile[], writeAveraged: boolean): void {
   const tauDays = perDay.flatMap((d) => (d.tau === null ? [] : [d.tau]));
   console.log(`\n--- arm: ${runs.length} runs, ${days.length} days ---`);
   console.log(
-    `hit@3 ${across((s) => s.hit3)}   hit@5 ${across((s) => s.hit5)}   ` +
-      `hit@10 ${across((s) => s.hit10)}   mean rank ${across((s) => s.meanRank)}   (mean, lowest–highest run)`,
-  );
-  console.log(
     `same #1 ${fixed(mean(perDay.map((d) => d.sameFirst)) * days.length, 1)}/${days.length} days   ` +
       `top-3 overlap ${fixed(mean(perDay.map((d) => d.top3)))}   ` +
       `top-5 overlap ${fixed(mean(perDay.map((d) => d.top5)))}   ` +
       `tau ${tauDays.length > 0 ? fixed(mean(tauDays)) : "—"}`,
   );
-
-  const averaged = perDay.map((d) => d.averaged);
-  const averagedSummary = summarize(averaged);
+  if (hitDays.length === 0) {
+    console.log("hits: no day is ok in every run");
+    return;
+  }
   console.log(
-    `averaged ranking: hit@3 ${averagedSummary.hit3}   hit@5 ${averagedSummary.hit5}   ` +
-      `hit@10 ${averagedSummary.hit10}   mean rank ${averagedSummary.meanRank ?? "—"}`,
+    `on the ${hitDays.length} days every run has: hit@3 ${across((s) => s.hit3)}   hit@5 ${across((s) => s.hit5)}   ` +
+      `hit@10 ${across((s) => s.hit10)}   mean rank ${across((s) => s.meanRank)}   (mean, lowest–highest run)`,
   );
-  if (!writeAveraged) return;
-  const path = averagedPath(arm, runs.length);
-  const meta: Record<string, string> = {
-    ranker: "averaged",
-    ...arm,
-    averagedFrom: String(runs.length),
-    sources: runs.map((run) => run.path).join(","),
-    days: days.join(","),
-  };
-  writeFileSync(
-    path,
-    JSON.stringify({ meta, inProgress: false, aggregate: averagedSummary, results: averaged }, null, 2) + "\n",
-  );
-  console.log(`recorded → ${path}`);
 }
 
 function main(): void {
   const args = process.argv.slice(2);
   const paths = args.filter((arg) => !arg.startsWith("--"));
   if (paths.length === 0) {
-    console.error("usage: npx tsx scripts/backtest-spread.ts <run.json>… [--averaged]");
+    console.error("usage: npx tsx scripts/backtest-spread.ts <run.json>…");
     process.exit(2);
   }
   const files: RunFile[] = paths.map((path) => {
@@ -305,7 +237,7 @@ function main(): void {
   });
   const byPath = new Map(files.map((file) => [file.path, file]));
   for (const { arm, paths: armPaths } of groupArms(files)) {
-    reportArm(arm, armPaths.map((path) => byPath.get(path)!), args.includes("--averaged"));
+    reportArm(arm, armPaths.map((path) => byPath.get(path)!));
   }
 }
 

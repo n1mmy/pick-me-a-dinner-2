@@ -12,7 +12,6 @@ import {
   readRankingRow,
   RECENCY_THROUGH_HABITS,
   SNAPSHOT_EVIDENCE,
-  toCode,
   truncateRationale,
 } from "./ai-search";
 import { type BuiltSnapshot, codeIndex, leanSnapshot } from "./snapshot";
@@ -90,7 +89,6 @@ export function localModelConfig(): {
 /**
  * Bumped whenever the prompt's wording changes, so a backtest run's file name
  * and record say which prompt it measured (`scripts/prepared-note-eval.ts`).
- * It covers the rank-only prompt too: a wording change to either bumps it.
  * Not part of the input hash: that covers the prompt text itself
  * (`lib/prepared-notes.ts`).
  */
@@ -128,11 +126,10 @@ const TWO_THINGS =
 
 /**
  * What the ranking is — every candidate, once, ticked off against the
- * message's checklist. Shared by the Prepared prompt and the rank-only one,
- * each under its own lead.
+ * message's checklist.
  */
-const RANKING_BODY =
-  "every candidate Option, best fit for this evening " +
+const RANKING_PARAGRAPH =
+  "First, the ranking: every candidate Option, best fit for this evening " +
   "first. Every candidate must appear exactly once, including an Option " +
   "with no Log history at all. The message ends with the count and the " +
   "full list of candidate codes: the ranking has exactly that many " +
@@ -205,7 +202,7 @@ export function buildPreparedSystemPrompt(): string {
     "",
     TWO_THINGS,
     "",
-    "First, the ranking: " + RANKING_BODY,
+    RANKING_PARAGRAPH,
     RATIONALE_LENGTH,
     "",
     BRIEF_PARAGRAPH,
@@ -215,37 +212,6 @@ export function buildPreparedSystemPrompt(): string {
     DATA_NOT_INSTRUCTIONS,
     "",
     PREPARED_OUTPUT_FORMAT,
-  ].join("\n");
-}
-
-/** The rank-only reply's lines: a code per Option, and nothing else. */
-const RANK_OUTPUT_FORMAT =
-  "Output format — follow it exactly. The reply is a list of lines: one " +
-  "per Option, in rank order, best first. Each line is the Option's code " +
-  "alone — its id in its own options entry, a letter or two like G or AB. " +
-  "Nothing else on the line: no | character, no list numbering or " +
-  "bullets, no blank lines. Nothing before the first line or after the last.";
-
-/**
- * Build the rank-only system prompt, a backtest ranker: the Prepared
- * prompt's framing, evidence and ranking paragraphs, word for word, with the
- * brief and the rationales taken out, so the model returns codes alone.
- */
-export function buildRankSystemPrompt(): string {
-  return [
-    OPENING,
-    "",
-    SNAPSHOT_DESCRIPTION,
-    "",
-    SNAPSHOT_EVIDENCE,
-    "",
-    RECENCY_THROUGH_HABITS,
-    "",
-    "Rank the candidates: " + RANKING_BODY,
-    "",
-    DATA_NOT_INSTRUCTIONS,
-    "",
-    RANK_OUTPUT_FORMAT,
   ].join("\n");
 }
 
@@ -306,29 +272,6 @@ export function parsePreparedReply(
   if (brief === "" && requireBrief) return null;
   if (brief.length > MAX_PREPARED_BRIEF_LENGTH) return null;
   return { brief, ranking };
-}
-
-/**
- * Read a rank-only reply into ranking rows, each with an empty rationale.
- * Each line is read as a code; a `<code>|<text>` line, the Prepared shape, is
- * tolerated and its code read. As in `parsePreparedReply`, a line that is
- * not a candidate's code is skipped, a repeated Option keeps its first row,
- * and no rows at all — `NONE` included — returns `null`.
- */
-export function parseRankReply(
-  text: string,
-  { idByCode }: Pick<BuiltSnapshot, "idByCode">,
-): AiRankingRow[] | null {
-  const ranking: AiRankingRow[] = [];
-  const seen = new Set<string>();
-  for (const rawLine of text.split("\n")) {
-    const code = toCode(rawLine.split("|")[0].trim());
-    const id = code === null ? undefined : idByCode.get(code);
-    if (id === undefined || seen.has(id)) continue;
-    seen.add(id);
-    ranking.push({ id, reason: "" });
-  }
-  return ranking.length > 0 ? ranking : null;
 }
 
 /**
@@ -471,23 +414,19 @@ function logPrepareCall(fields: {
 
 /**
  * The line closing the user message: how many candidates there are and every
- * code, then, when `briefFollows`, the reminder that the brief follows the
- * rows. Without the
+ * code, then the reminder that the brief follows the rows. Without the
  * count the model dropped four or five of ~37 Options from the ranking,
  * mostly ones with little history; the system prompt is fixed, so it can't
  * carry the day's count itself. Without the brief counted as a line, the
  * first v10 replies wrote all 35 rows and stopped — the checklist read as
  * the whole job.
  */
-function candidateChecklist(
-  idByCode: ReadonlyMap<string, string>,
-  { briefFollows }: { briefFollows: boolean },
-): string {
+function candidateChecklist(idByCode: ReadonlyMap<string, string>): string {
   const codes = [...idByCode.keys()].sort((a, b) => codeIndex(a) - codeIndex(b));
-  const checklist = `Rank all ${codes.length} candidates: ${codes.join(", ")}.`;
-  return briefFollows
-    ? `${checklist} Then line ${codes.length + 1}, the last: ${BRIEF_ROW}.`
-    : checklist;
+  return (
+    `Rank all ${codes.length} candidates: ${codes.join(", ")}. ` +
+    `Then line ${codes.length + 1}, the last: ${BRIEF_ROW}.`
+  );
 }
 
 /**
@@ -498,15 +437,7 @@ export function buildPreparedUserMessage({
   snapshot,
   idByCode,
 }: Pick<BuiltSnapshot, "snapshot" | "idByCode">): string {
-  return `${JSON.stringify(leanSnapshot(snapshot))}\n\n${candidateChecklist(idByCode, { briefFollows: true })}`;
-}
-
-/** The rank-only user message: the lean snapshot, then the codes to rank. */
-export function buildRankUserMessage({
-  snapshot,
-  idByCode,
-}: Pick<BuiltSnapshot, "snapshot" | "idByCode">): string {
-  return `${JSON.stringify(leanSnapshot(snapshot))}\n\n${candidateChecklist(idByCode, { briefFollows: false })}`;
+  return `${JSON.stringify(leanSnapshot(snapshot))}\n\n${candidateChecklist(idByCode)}`;
 }
 
 /**
@@ -536,23 +467,9 @@ export function createPreparedNoteClient(config: {
    * `reasoningEffort` is sent. Backtest only: production passes none.
    */
   thinking?: false;
-  /** Sent as `temperature` when set. No seed is ever sent: repeats differ. */
-  temperature?: number;
-  /**
-   * `rank` asks for the rank-only reply and returns its ranking with an
-   * empty brief. Backtest only; the default is `note`.
-   */
-  output?: "note" | "rank";
   onReply?: (reply: RawPreparedReply) => void;
 }): PreparedNoteClient {
-  const rankOnly = config.output === "rank";
-  const systemPrompt = rankOnly ? buildRankSystemPrompt() : buildPreparedSystemPrompt();
-  const userMessage = rankOnly ? buildRankUserMessage : buildPreparedUserMessage;
-  const parse = (content: string, built: Pick<BuiltSnapshot, "idByCode">): PreparedNote | null => {
-    if (!rankOnly) return parsePreparedReply(content, built);
-    const ranking = parseRankReply(content, built);
-    return ranking === null ? null : { brief: "", ranking };
-  };
+  const systemPrompt = buildPreparedSystemPrompt();
 
   return {
     async prepare({ snapshot, idByCode }) {
@@ -583,12 +500,11 @@ export function createPreparedNoteClient(config: {
             ...(config.thinking === false
               ? { chat_template_kwargs: { enable_thinking: false } }
               : config.reasoningEffort && { reasoning_effort: config.reasoningEffort }),
-            ...(config.temperature !== undefined && { temperature: config.temperature }),
             stream: true,
             stream_options: { include_usage: true },
             messages: [
               { role: "system", content: systemPrompt },
-              { role: "user", content: userMessage({ snapshot, idByCode }) },
+              { role: "user", content: buildPreparedUserMessage({ snapshot, idByCode }) },
             ],
           }),
         });
@@ -602,7 +518,7 @@ export function createPreparedNoteClient(config: {
           // no stop reason at all (the stream dropped) can end in half a row.
           const note =
             reply.content !== null && reply.finishReason === "stop"
-              ? parse(reply.content, { idByCode })
+              ? parsePreparedReply(reply.content, { idByCode })
               : null;
           if (note !== null) {
             rowCount = note.ranking.length;

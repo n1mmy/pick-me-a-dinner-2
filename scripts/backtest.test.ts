@@ -4,7 +4,7 @@ import {
   type BacktestDay,
   defaultRunPath,
   parseBacktestArgs,
-  parseEvalFlags,
+  parseThinkingOff,
   resumeConflict,
   sampleAcrossWeekdays,
   scoreDay,
@@ -52,31 +52,19 @@ describe("parseBacktestArgs", () => {
   });
 });
 
-describe("parseEvalFlags", () => {
-  it("reads the output, temperature and thinking, defaulting to a with-text run as the server samples", () => {
-    expect(parseEvalFlags([], { claude: false })).toEqual({ output: "note", thinkingOff: false });
-    expect(
-      parseEvalFlags(["--output=rank", "--temperature=0", "--thinking=off"], { claude: false }),
-    ).toEqual({ output: "rank", temperature: 0, thinkingOff: true });
-    expect(parseEvalFlags(["--temperature=0.7"], { claude: false }).temperature).toBe(0.7);
+describe("parseThinkingOff", () => {
+  it("reads --thinking=off, thinking on by default", () => {
+    expect(parseThinkingOff([])).toBe(false);
+    expect(parseThinkingOff(["--thinking=off"])).toBe(true);
   });
 
-  it("refuses an unknown output or thinking, a temperature that is not a number, and any temperature for Claude", () => {
+  it("refuses any other --thinking value", () => {
     const exit = vi.spyOn(process, "exit").mockImplementation((() => {
       throw new Error("exit");
     }) as never);
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() => parseEvalFlags(["--output=brief"], { claude: false })).toThrow("exit");
-    expect(() => parseEvalFlags(["--thinking=none"], { claude: false })).toThrow("exit");
-    expect(() => parseEvalFlags(["--temperature=warm"], { claude: false })).toThrow("exit");
-    expect(() => parseEvalFlags(["--temperature="], { claude: false })).toThrow("exit");
-    // Current Claude models refuse a sampling temperature, thinking or not.
-    expect(() => parseEvalFlags(["--temperature=0"], { claude: true })).toThrow("exit");
-    expect(() => parseEvalFlags(["--temperature=0", "--thinking=off"], { claude: true })).toThrow("exit");
-    expect(error).toHaveBeenLastCalledWith(expect.stringContaining("--temperature"));
-    expect(parseEvalFlags(["--thinking=off"], { claude: true })).toMatchObject({ thinkingOff: true });
-    // The local model takes a temperature while it thinks.
-    expect(parseEvalFlags(["--temperature=0.6"], { claude: false }).temperature).toBe(0.6);
+    expect(() => parseThinkingOff(["--thinking=none"])).toThrow("exit");
+    expect(error).toHaveBeenLastCalledWith(expect.stringContaining("--thinking"));
     exit.mockRestore();
     error.mockRestore();
   });
@@ -94,31 +82,24 @@ describe("resumeConflict", () => {
       "promptVersion 19 → 20",
     );
     expect(
-      resumeConflict(
-        { ...saved, output: "rank", thinking: "off", temperature: "0" },
-        { ...saved, output: "rank", thinking: "off", temperature: "0.7" },
-      ),
-    ).toBe("temperature 0 → 0.7");
+      resumeConflict({ ...saved, thinking: "low" }, { ...saved, thinking: "off" }),
+    ).toBe("thinking low → off");
   });
 
   it("reads a field an old file never recorded as no conflict", () => {
     expect(
-      resumeConflict(saved, { ...saved, output: "note", thinking: "low", temperature: "default" }),
+      resumeConflict(saved, { ...saved, thinking: "low", maxTokens: "default" }),
     ).toBeNull();
   });
 });
 
 describe("defaultRunPath", () => {
-  it("names a run by output, prompt version, model, thinking and any temperature", () => {
-    const run = { version: "20" };
-    expect(defaultRunPath({ ...run, output: "rank", model: "qwen3.8", thinking: "low" })).toBe(
-      "scripts/backtest-runs/rank-v20-qwen3.8-low.json",
-    );
-    expect(
-      defaultRunPath({ ...run, output: "rank", model: "claude-opus-5-5", thinking: "off", temperature: 0 }),
-    ).toBe("scripts/backtest-runs/rank-v20-opus-5-5-off-t0.json");
-    expect(defaultRunPath({ ...run, output: "note", model: "qwen3.8", thinking: "low" })).toBe(
+  it("names a run by prompt version, model and thinking", () => {
+    expect(defaultRunPath({ version: "20", model: "qwen3.8", thinking: "low" })).toBe(
       "scripts/backtest-runs/prepared-v20-qwen3.8-low.json",
+    );
+    expect(defaultRunPath({ version: "20", model: "claude-opus-5-5", thinking: "off" })).toBe(
+      "scripts/backtest-runs/prepared-v20-opus-5-5-off.json",
     );
   });
 });
@@ -188,16 +169,6 @@ describe("scoreDay", () => {
   it("ranks the Pick and scores the hits", () => {
     expect(record.picks).toEqual([{ name: "Ninja Sushi", rank: 4, candidate: true }]);
     expect(record).toMatchObject({ bestRank: 4, scorable: true, hit3: false, hit5: true, hit10: true });
-  });
-
-  it("counts empty top-10 reasons, except on a rank-only run, whose rows have none by design", () => {
-    const codesOnly = { ok: true, ranking: ["s", "a", "q", "n", "t"].map((id) => ({ id, reason: "" })) };
-    expect(scoreDay(truth, built, codesOnly).emptyTop10).toBe(5);
-    expect(scoreDay(truth, built, codesOnly, { rankOnly: true })).toMatchObject({
-      emptyTop10: 0,
-      bestRank: 4,
-      hit5: true,
-    });
   });
 
   it("flags a too-soon Rejection ranked in the top 5", () => {
