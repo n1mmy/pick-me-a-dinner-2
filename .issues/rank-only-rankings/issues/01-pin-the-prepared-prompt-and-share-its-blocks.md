@@ -1,6 +1,6 @@
 # 01 — Pin the Prepared prompt, then split it into shared blocks
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -43,13 +43,13 @@ that a second prompt can reuse.
 
 ## Acceptance criteria
 
-- [ ] The pin is committed before the split, and the snapshot files hold
+- [x] The pin is committed before the split, and the snapshot files hold
       the HEAD text.
-- [ ] After the split the snapshots are unchanged, or each difference is
+- [x] After the split the snapshots are unchanged, or each difference is
       named in the commit message with the version bumped.
-- [ ] The ranking body and the checklist are reachable as blocks a second
+- [x] The ranking body and the checklist are reachable as blocks a second
       prompt can use.
-- [ ] `npx tsc --noEmit`, `npx next lint` and `npx vitest run` pass.
+- [x] `npx tsc --noEmit`, `npx next lint` and `npx vitest run` pass.
 
 ## Blocked by
 
