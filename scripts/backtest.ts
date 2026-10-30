@@ -488,7 +488,8 @@ export async function runBacktest(opts: {
     return;
   }
   for (let i = 1; i <= args.repeat; i++) {
-    const jsonPath = args.jsonPath?.replace(/\.json$/, `-r${i}.json`);
+    // A path without `.json` still gets its own file per repeat.
+    const jsonPath = args.jsonPath && `${args.jsonPath.replace(/\.json$/, "")}-r${i}.json`;
     if (args.resume && jsonPath && existsSync(jsonPath)) {
       const previous = JSON.parse(readFileSync(jsonPath, "utf8")) as {
         meta?: Record<string, string>;

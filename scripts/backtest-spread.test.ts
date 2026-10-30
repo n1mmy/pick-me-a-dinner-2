@@ -54,10 +54,20 @@ describe("groupArms", () => {
   it("groups runs by model, thinking and prompt version, an old file's effort as its thinking", () => {
     const arms = groupArms([old, sameSetupNew, off, otherVersion]);
     expect(arms).toEqual([
-      { arm: { model: "qwen3.8", thinking: "low", promptVersion: "20" }, paths: [old.path, sameSetupNew.path] },
-      { arm: { model: "qwen3.8", thinking: "off", promptVersion: "20" }, paths: [off.path] },
-      { arm: { model: "qwen3.8", thinking: "low", promptVersion: "19" }, paths: [otherVersion.path] },
+      { arm: { model: "qwen3.8", thinking: "low", promptVersion: "20", days: "?" }, paths: [old.path, sameSetupNew.path] },
+      { arm: { model: "qwen3.8", thinking: "off", promptVersion: "20", days: "?" }, paths: [off.path] },
+      { arm: { model: "qwen3.8", thinking: "low", promptVersion: "19", days: "?" }, paths: [otherVersion.path] },
     ]);
+  });
+
+  it("keeps a probe on other days out of the full runs' arm", () => {
+    const full = { ...sameSetupNew.meta, days: "2026-10-01,2026-10-02" };
+    const arms = groupArms([
+      { path: "r1.json", meta: full },
+      { path: "r2.json", meta: full },
+      { path: "day22-r1.json", meta: { ...full, days: "2026-10-22" } },
+    ]);
+    expect(arms.map((a) => a.paths)).toEqual([["r1.json", "r2.json"], ["day22-r1.json"]]);
   });
 });
 

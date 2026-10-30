@@ -29,9 +29,17 @@ import { createPreparedNoteClient, localModelConfig } from "../lib/prepared-note
 import { inputHash } from "../lib/prepared-notes";
 import { snapshotForDay } from "../lib/snapshot";
 
+/** A `--name=N` flag's value, refused unless a positive integer. */
 function numberArg(args: string[], name: string): number | undefined {
   const arg = args.find((a) => a.startsWith(`--${name}=`));
-  return arg ? Number(arg.slice(name.length + 3)) : undefined;
+  if (!arg) return undefined;
+  const raw = arg.slice(name.length + 3);
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) {
+    console.error(`--${name} must be a positive integer, got ${raw}`);
+    process.exit(1);
+  }
+  return n;
 }
 
 function log(event: string, fields: Record<string, unknown>): void {

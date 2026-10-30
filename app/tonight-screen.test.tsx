@@ -2199,10 +2199,12 @@ describe("TonightScreen — Prepared note", () => {
 
     expect(rankShown("Banana Bread")).toBe("1");
     expect(rankShown("Cherry Pie")).toBe("");
+    // The rationale line is the row's raised surface: Banana's carries the
+    // note's reason, Cherry has none at all.
     const cherry = screen.getByText("Cherry Pie").closest("li") as HTMLElement;
-    expect(within(cherry).queryByText("The note left this one out")).toBeNull();
+    expect(cherry.querySelector("p.bg-raised")).toBeNull();
     const banana = screen.getByText("Banana Bread").closest("li") as HTMLElement;
-    expect(within(banana).getByText(NOTE.ranking[0].reason)).toBeTruthy();
+    expect(banana.querySelector("p.bg-raised")?.textContent).toBe(NOTE.ranking[0].reason);
   });
 
   it("keeps the filter chips over the Prepared ranking; a filtered row keeps the note's rank", () => {

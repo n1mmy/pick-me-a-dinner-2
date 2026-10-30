@@ -45,8 +45,9 @@ async function main(): Promise<void> {
     generate: async (built) => {
       const note = await getPreparedNote(built.snapshot.today.slice(0, 10));
       if (note === null) return { ok: false, ranking: [] };
-      // Only today's candidates hold a place, as on Tonight: a note written
-      // before No Shared Dinner left the candidates may still rank it.
+      // Only today's candidates hold a place: a note written before No
+      // Shared Dinner left the candidates may still rank it. Unlike Tonight,
+      // which leaves a gap where a dropped row stood, the rows below move up.
       const candidates = new Set(built.idByCode.values());
       return {
         ok: true,

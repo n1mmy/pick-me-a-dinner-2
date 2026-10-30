@@ -1,7 +1,7 @@
 /**
  * How far runs of one backtest setup differ. It reads saved run files from
  * `scripts/backtest.ts` offline, groups them into arms (runs of one setup:
- * model, thinking, prompt version) and, for each arm with two or more runs,
+ * model, thinking, prompt version, day list) and, for each arm with two or more runs,
  * reports day by day and in aggregate:
  *
  * - per day, over every pair of runs: how often they agree on the #1, the
@@ -59,6 +59,8 @@ export type Arm = {
   model: string;
   thinking: string;
   promptVersion: string;
+  /** The day list, comma-joined: a probe on other days is another arm. */
+  days: string;
 };
 
 /**
@@ -70,6 +72,7 @@ function armOf(meta: Record<string, string>): Arm {
     model: meta.model ?? meta.ranker ?? "?",
     thinking: meta.thinking ?? meta.effort ?? "?",
     promptVersion: meta.promptVersion ?? "?",
+    days: meta.days ?? "?",
   };
 }
 
@@ -158,7 +161,10 @@ function daySpread(records: DayRecord[]) {
 }
 
 function reportArm(arm: Arm, runs: RunFile[]): void {
-  console.log(`\n=== ${arm.model} · thinking ${arm.thinking} · prompt v${arm.promptVersion} ===`);
+  const dayCount = arm.days === "?" ? "?" : arm.days.split(",").length;
+  console.log(
+    `\n=== ${arm.model} · thinking ${arm.thinking} · prompt v${arm.promptVersion} · ${dayCount} days ===`,
+  );
   for (const run of runs) console.log(`  ${run.path}`);
   if (runs.length < 2) {
     console.log("  one run: no spread to measure");
