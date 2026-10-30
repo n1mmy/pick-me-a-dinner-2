@@ -2323,6 +2323,36 @@ describe("TonightScreen — Prepared note", () => {
     expect(screen.getByRole("button", { name: "Read more" }).parentElement?.className).toMatch(/desktop:hidden/);
   });
 
+  it("sets the brief under the picked dinners on a decided date, above the picker", () => {
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", picks: ["o1"], options: [...OPTIONS, CHERRY] })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    const brief = screen.getByRole("region", { name: "Prepared note" });
+    const dinner = screen.getByRole("region", { name: "Tonight's dinner" });
+    const picker = screen.getByRole("region", { name: "Add another option" });
+    expect(dinner.compareDocumentPosition(brief) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(brief.compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("sets the brief right under the heading on an undecided date, above the list", () => {
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    const brief = screen.getByRole("region", { name: "Prepared note" });
+    const list = screen.getAllByRole("list").at(-1) as HTMLElement;
+    expect(brief.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("marks an out-of-date note on its label, and only then", () => {
     const { rerender } = render(
       <TonightScreen

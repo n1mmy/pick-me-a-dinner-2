@@ -290,10 +290,13 @@ component (`DayNoteLine`) on both screens.
 
 ### Prepared brief
 
-The Selected day's Prepared note brief is its own section directly after
-Tonight's heading block (H1, stepper, Day note line), before the main
-content, in every mode. Like the Day note it is context for the whole
-evening, so it is never inside a row or the decided block. With no note, or
+The Selected day's Prepared note brief is its own section. On an undecided
+date it sits directly after Tonight's heading block (H1, stepper, Day note
+line), before the main content; on a decided date it sits directly under
+the decided block, above the picker's divider — once the night is settled
+the picked dinners are what the Household came to see, so they lead. Like
+the Day note it is context for the whole evening, so it is never inside a
+row or the decided block. With no note, or
 the feature off, nothing renders — not even an empty frame.
 
 - **Styled as the AI rationale line**, not a new treatment: `chip` size,
@@ -319,9 +322,9 @@ the feature off, nothing renders — not even an empty frame.
   "Show less". Expanded state resets on a Selected-day change. At ≥720px the
   brief shows in full with no toggle — there the list starts on screen
   anyway, and on a phone it would not.
-- **Decided dates** show the frozen brief exactly as an undecided date shows
-  its brief: same label, same clamp and "Read more" on phones, in full from
-  720px. The note is still worth reading once the night is settled, and a
+- **Decided dates** show the frozen brief, below the decided block, exactly
+  as an undecided date shows its brief: same label, same clamp and "Read
+  more" on phones, in full from 720px. The note is still worth reading once the night is settled, and a
   line scoring the note against what was eaten told the Household nothing
   they wanted.
 

@@ -6,8 +6,8 @@ import type { PreparedNoteView } from "./tonight-screen";
 
 /**
  * The Selected day's **Prepared note** brief (ADR-0011; DESIGN.md, "Prepared
- * brief"): its own section under Tonight's heading block, in every mode,
- * decided or not. The brief wears the AI rationale line's treatment, the one
+ * brief"): its own section under Tonight's heading block, or under the
+ * picked dinners once the date is decided. The brief wears the AI rationale line's treatment, the one
  * look the app gives model prose; the label naming when it was written sits
  * at the brief's lower right, in italics, so it costs no line of its own.
  *

@@ -356,6 +356,12 @@ export function TonightScreen({
     />
   );
 
+  // The Prepared note brief opens the screen under the heading block; once
+  // the night is decided it steps below the picked dinners, which are then
+  // what the Household came to see (DESIGN.md, "Prepared brief").
+  const brief = preparedNote !== null && (
+    <PreparedBrief key={day.date} note={preparedNote} />
+  );
   return (
     <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
       {/* The H1 and the stepper share a full-width row with the stepper
@@ -384,9 +390,7 @@ export function TonightScreen({
           placement="header"
         />
       </div>
-      {preparedNote !== null && (
-        <PreparedBrief key={day.date} note={preparedNote} />
-      )}
+      {!decided && brief}
       <p className="sr-only" role="status" aria-live="polite">
         {modeStatus}
       </p>
@@ -422,6 +426,7 @@ export function TonightScreen({
             heading={day.heading}
             eatenOn={day.date}
           />
+          {brief}
           {pickerRows.length === 0 ? (
             <p className="border-t border-divider pt-5.5 text-body text-muted">
               {allFiltered
