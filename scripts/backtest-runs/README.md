@@ -34,6 +34,14 @@ names), and the tag-nearer counter needs the per-row timing facts run files
 carry from issue 15 on (older files print n/a); the compare prints their
 rows for the eye.
 
+The mean rank caps each day's rank at 15 (`RANK_CAP` in
+`scripts/backtest.ts`): a Pick ranked past #15, or left unranked, counts as
+#15. The tail's order does not matter, so one unlikely Pick ranked deep (West
+Coast Cafe on `2026-10-16`, #30 to #32 for Strata and the Score) cannot
+outweigh a run's top rows. Hits and the median are uncapped. The means in the
+run list below were recorded before the cap and stand as written;
+`backtest-compare.ts` recomputes the capped mean for any saved run.
+
 Runs so far, all on the same 20 days (`2026-10-02` … `2026-10-26`, dev DB):
 
 - `ai-search-opus-5-5-pithy` and `-run2` — prompt v9, Opus 5.5, pithy. Two

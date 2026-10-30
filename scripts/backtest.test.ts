@@ -120,6 +120,16 @@ describe("scoreDay", () => {
     });
   });
 
+  it("caps the mean rank at 15 for a deep or unranked Pick, and leaves the median raw", () => {
+    const deep = { ...record, day: "2026-10-03", bestRank: 32 };
+    const unranked = { ...record, day: "2026-10-04", bestRank: null, candidates: 39 };
+    // (4 + 15 + 15) / 3; uncapped it would read (4 + 32 + 40) / 3.
+    expect(summarize([record, deep, unranked])).toMatchObject({
+      meanRank: 11.3,
+      medianRank: 32,
+    });
+  });
+
   it("counts never-eaten top-5 slots on scored days only", () => {
     const archived = scoreDay(
       { ...truth, picks: [{ optionId: "gone", name: "Gone" }] },

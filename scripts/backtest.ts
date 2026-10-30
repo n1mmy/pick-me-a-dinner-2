@@ -5,7 +5,8 @@
  * deciding (`snapshotForDay`'s backtest mode), and score the ranking against
  * what was actually eaten that day.
  *
- * Per day and in aggregate: the rank of the Pick, hit@3/5/10, the Pick's
+ * Per day and in aggregate: the rank of the Pick (its mean capped at
+ * `RANK_CAP`), hit@3/5/10, the Pick's
  * daysSinceLast and recent gaps, any Option Rejected that day as too soon
  * that sat in the top 5, top-5 slots spent on Options never eaten in the
  * window, empty top-10 reasons, and a ranking written in Option-code
@@ -244,9 +245,34 @@ export function scoreDay(
   return record;
 }
 
+/**
+ * How deep a miss counts in the mean rank: a Pick ranked past it, or left
+ * unranked, counts as this rank. The order of the tail does not matter (the
+ * backtest PRD), so a Pick at #32 is the same miss as one at #16, and one
+ * unlikely Pick ranked deep cannot outweigh a run's top rows.
+ */
+export const RANK_CAP = 15;
+
+/**
+ * The mean rank of the Pick over a run's scorable days, each day's best rank
+ * capped at `RANK_CAP` — `null` with no scorable day. Shared with
+ * `scripts/backtest-compare.ts`, which recomputes it for saved runs.
+ */
+export function meanRank(
+  records: Pick<DayRecord, "scorable" | "bestRank" | "candidates">[],
+): number | null {
+  const ranks = records
+    .filter((record) => record.scorable)
+    .map((record) => Math.min(record.bestRank ?? record.candidates + 1, RANK_CAP));
+  return ranks.length > 0
+    ? Number((ranks.reduce((a, b) => a + b, 0) / ranks.length).toFixed(1))
+    : null;
+}
+
 /** The aggregate over a run's scorable days. */
 export function summarize(records: DayRecord[]) {
   const scored = records.filter((record) => record.scorable);
+  // Uncapped: the median is already blind to how deep a miss sits.
   const ranks = scored
     .map((record) => record.bestRank ?? record.candidates + 1)
     .sort((a, b) => a - b);
@@ -271,10 +297,7 @@ export function summarize(records: DayRecord[]) {
     days: records.length,
     scored: scored.length,
     unscorable: records.filter((record) => !record.scorable).map((r) => r.day),
-    meanRank:
-      ranks.length > 0
-        ? Number((ranks.reduce((a, b) => a + b, 0) / ranks.length).toFixed(1))
-        : null,
+    meanRank: meanRank(records),
     medianRank: ranks.length > 0 ? ranks[Math.floor((ranks.length - 1) / 2)] : null,
     hit3: count((r) => r.hit3),
     hit5: count((r) => r.hit5),
@@ -532,7 +555,7 @@ function printAggregate(summary: ReturnType<typeof summarize>): void {
   if (summary.unscorable.length > 0) {
     console.log(`unscorable (no candidate Pick, or the run failed): ${summary.unscorable.join(", ")}`);
   }
-  console.log(`rank of the Pick: mean ${summary.meanRank ?? "—"}   median ${summary.medianRank ?? "—"}`);
+  console.log(`rank of the Pick: mean ${summary.meanRank ?? "—"} (capped at ${RANK_CAP})   median ${summary.medianRank ?? "—"}`);
   console.log(`hit@3 ${pct(summary.hit3)}   hit@5 ${pct(summary.hit5)}   hit@10 ${pct(summary.hit10)}`);
   console.log(`days with a too-soon Rejection in the top 5: ${summary.daysWithTooSoonMiss}`);
   console.log(

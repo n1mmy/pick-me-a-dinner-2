@@ -11,11 +11,14 @@
  * gap list, a Log date) and a Tag nearer than the Option the line counts as
  * the faults; per-day rank of the Pick and top-N overlap, hit flips, top-5
  * occupancy per Option, top-5 slots spent on Options never eaten in the
- * window, and empty top-10 reasons.
+ * window, and empty top-10 reasons. The mean rank is recomputed from each
+ * file's days with the current cap (`RANK_CAP`), so a run saved before the
+ * cap reads on the same rule as a new one.
  *
  *   npx tsx scripts/backtest-compare.ts <a.json> <b.json>
  */
 import { readFileSync } from "node:fs";
+import { meanRank, RANK_CAP } from "./backtest";
 
 type Row = {
   rank: number;
@@ -30,6 +33,7 @@ type Day = {
   weekday: string;
   picks: Array<string | { optionName?: string; name?: string }>;
   bestRank: number | null;
+  scorable: boolean;
   ranking: Row[];
   hit3: boolean;
   hit5: boolean;
@@ -105,7 +109,12 @@ for (const b of days) {
 
 console.log("\n=== aggregate ===");
 const aggKeys = ["hit3", "hit5", "hit10", "meanRank", "medianRank", "daysWithTooSoonMiss"];
-for (const k of aggKeys) console.log(`${k.padEnd(22)} ${String(A.aggregate[k]).padStart(6)} ${String(B.aggregate[k]).padStart(6)}`);
+A.aggregate.meanRank = meanRank(A.results);
+B.aggregate.meanRank = meanRank(B.results);
+for (const k of aggKeys) {
+  const label = k === "meanRank" ? `meanRank (cap ${RANK_CAP})` : k;
+  console.log(`${label.padEnd(22)} ${String(A.aggregate[k]).padStart(6)} ${String(B.aggregate[k]).padStart(6)}`);
+}
 console.log(`${"latency s (mean)".padEnd(22)} ${fmt(mean(A.results.map((d) => d.latencyMs)) / 1000).padStart(6)} ${fmt(mean(B.results.map((d) => d.latencyMs)) / 1000).padStart(6)}`);
 console.log(`${"output tokens (mean)".padEnd(22)} ${fmt(mean(A.results.map((d) => d.outputTokens ?? 0)), 0).padStart(6)} ${fmt(mean(B.results.map((d) => d.outputTokens ?? 0)), 0).padStart(6)}`);
 
