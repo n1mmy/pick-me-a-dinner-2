@@ -8,6 +8,9 @@ _Amended by ADR-0013: the "integer ids" below are now letter Option codes._
 _Amended 2026-10-29: the local model is kept for where it runs, not for what
 it costs — see "Pre-generate with Claude" under Considered options._
 
+_Amended 2026-10-31: Tonight's three lists are views switched between freely,
+not layers peeled off one at a time; folded in below._
+
 ADR-0004 added **AI search** as a triggered, additive layer. The deterministic
 ranking was what loaded, and every AI result was a deliberate, uncached,
 one-off call to the metered Anthropic API. That framing came from cost and
@@ -24,7 +27,7 @@ six days, the local model writes a brief about the evening and a ranking of
 every candidate Option with fuller rationales. The notes are written in the
 background, stored, and shown when Tonight opens. **The Prepared ranking is now
 what loads on Tonight when a note exists.** The deterministic ranking is still
-the floor, one Clear away, and Claude AI search is untouched.
+the floor, one tap away, and Claude AI search is untouched.
 
 ## Considered options
 
@@ -66,8 +69,9 @@ the floor, one Clear away, and Claude AI search is untouched.
   through an atomic per-date claim, a `claimed_until` lease on the note's row
   that is longer than the call timeout. There is no CronJob, no queue, and no
   leader election: two replicas and one GPU don't need more.
-- On Tonight the display stacks in layers: a Claude result over the Prepared
-  ranking over the deterministic list. Clear removes the top layer.
+- On Tonight the list shows one of three views, switched freely: the Score
+  ranking, the Prepared ranking, and a Claude result. Switching discards
+  nothing; only clearing a search does.
 - Failure keeps the last good note. A note that has not frozen and was built
   from older inputs is labelled out of date. A date with no note shows nothing.
 
