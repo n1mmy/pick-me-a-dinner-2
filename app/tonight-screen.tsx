@@ -19,6 +19,7 @@ import type { TonightRow } from "../lib/ranking";
 import {
   chipStateLabel,
   cycleChipState,
+  filterTonightRows,
   pickerView,
   resolveRanking,
   showAddRow,
@@ -781,55 +782,63 @@ function Picker({
   const [rejectNotice, setRejectNotice] = useState("");
 
   // The Picker's view model: the filtered rows in rank order, each Option's
-  // true rank from the unfiltered `rows` (so a filtered row keeps its true
+  // true rank from the unfiltered list (so a filtered row keeps its true
   // rank instead of being renumbered), the typeahead candidates — every
   // active Option, each tagged with its suppression so SearchBox can confirm
   // a Closed/Rejected pick and disable a Picked one (issue 02) — the chip
-  // row's Tags, and the hint line.
+  // row's Tags, and the hint line. The candidates and Tags always come from
+  // every row, whichever view is on show, so neither shrinks to a result.
   //
-  // Under a Prepared ranking (and no Claude result) the same view runs over
-  // the rows in the note's order — the Options it names first, then every
-  // candidate it didn't, so none goes missing. An Option since Picked,
-  // Rejected, or Closed is absent from `rows`, so the note can never offer
-  // it. A named row's number is its place in the stored ranking, so a
-  // Rejection doesn't renumber the rest and a filtered row keeps the note's
-  // rank; a row the note left out has no number and no rationale (DESIGN.md,
-  // "List views").
-  const prepared = useMemo(() => {
-    if (preparedRanking === null || listView !== "prepared") return null;
-    const ranked = resolveRanking(preparedRanking, rows, { appendUnnamed: true });
-    return {
-      rows: ranked.map(({ row }) => row),
-      reasons: new Map(
-        ranked.flatMap(({ row, reason, rank }) =>
-          rank === undefined ? [] : [[row.option.id, reason] as const],
+  // An AI view filters the rows in its ranking's order instead (DESIGN.md,
+  // "List views"). An Option since Picked, Rejected, or Closed is absent
+  // from `rows`, so neither ranking can offer it.
+  // - The Prepared ranking names its Options first, then every candidate it
+  //   didn't, so none goes missing. A named row's number is its place in the
+  //   stored ranking, so a Rejection doesn't renumber the rest; a row the
+  //   note left out has no number and no rationale.
+  // - A Claude result holds only the Options it names, numbered by their
+  //   place in it as it now resolves; a Pick drops the Picked Option and the
+  //   rest close up.
+  const ranked = useMemo(() => {
+    if (listView === "prepared" && preparedRanking !== null) {
+      const resolved = resolveRanking(preparedRanking, rows, { appendUnnamed: true });
+      return {
+        rows: resolved.map(({ row }) => row),
+        reasons: new Map(
+          resolved.flatMap(({ row, reason, rank }) =>
+            rank === undefined ? [] : [[row.option.id, reason] as const],
+          ),
         ),
-      ),
-      ranks: new Map(
-        ranked.flatMap(({ row, rank }) =>
-          rank === undefined ? [] : [[row.option.id, rank] as const],
+        ranks: new Map(
+          resolved.flatMap(({ row, rank }) =>
+            rank === undefined ? [] : [[row.option.id, rank] as const],
+          ),
         ),
-      ),
-    };
-  }, [preparedRanking, listView, rows]);
-  const { visible, rankOf, choices, tags, hint } = useMemo(
-    () =>
-      pickerView(prepared?.rows ?? rows, kind, tagFilters, suppressed, prepared?.ranks),
-    [prepared, rows, kind, tagFilters, suppressed],
+      };
+    }
+    if (listView === "search" && aiResults !== null) {
+      const resolved = resolveRanking(aiResults, rows, { appendUnnamed: false });
+      return {
+        rows: resolved.map(({ row }) => row),
+        reasons: new Map(resolved.map(({ row, reason }) => [row.option.id, reason])),
+        ranks: new Map(resolved.map(({ row }, index) => [row.option.id, index + 1])),
+      };
+    }
+    return null;
+  }, [listView, preparedRanking, aiResults, rows]);
+  const scoreView = useMemo(
+    () => pickerView(rows, kind, tagFilters, suppressed),
+    [rows, kind, tagFilters, suppressed],
   );
-
-  // The AI result resolved against the rows already on screen: every validated
-  // id is in the active Catalog, so it has a row to render with name and Tags.
-  // A Pick (in picker mode → decided mode) drops the Picked Option from
-  // `rows`, so its entry naturally falls out of `aiRows` while the rest of the
-  // AI-ranked list stays put. Null unless the AI search view is on show.
-  const aiRows = useMemo(
+  const { choices, tags, hint } = scoreView;
+  const visible = useMemo(
     () =>
-      aiResults === null || listView !== "search"
-        ? null
-        : resolveRanking(aiResults, rows, { appendUnnamed: false }),
-    [aiResults, listView, rows],
+      ranked === null
+        ? scoreView.visible
+        : filterTonightRows(ranked.rows, kind, tagFilters),
+    [ranked, scoreView, kind, tagFilters],
   );
+  const rankOf = ranked?.ranks ?? scoreView.rankOf;
 
   // The switcher offers only the views that exist (DESIGN.md, "List views").
   const views: ListView[] = [
@@ -875,10 +884,10 @@ function Picker({
             onSelectAdd={setAddQuery}
           />
         )}
-        {/* The filter zone — kind chips and Tag chips — is hidden while an
-            AI result is shown, or the quick-add form is open, so the query
-            (or the form) alone owns the space below the search box. */}
-        {aiRows === null && addQuery === null && (
+        {/* The filter zone — kind chips and Tag chips — filters whichever
+            view is on show. It hides while the quick-add form is open, so
+            the form alone owns the space below the search box. */}
+        {addQuery === null && (
           <>
             {/* One filter line: the kind chips and every Tag chip are flat
                 siblings in a single flex-wrap row, so a wrapped second (or
@@ -948,60 +957,42 @@ function Picker({
             onChange={onListViewChange}
           />
         )}
-        {aiRows !== null ? (
-          aiRows.length === 0 ? (
-            // An empty AI result is a real answer — the model legitimately
-            // found nothing fitting the query — not a broken screen. The
-            // message mirrors the deterministic "No Options match" state; the
-            // inline control discards the search.
-            <div className="flex flex-col items-start gap-2">
-              <p className="text-body text-muted">No Options fit that search.</p>
-              <button
-                type="button"
-                onClick={onClearSearch}
-                className={`min-h-11 rounded-control px-3 text-body
-                  font-emphasis text-action transition-colors duration-short
-                  ${focusRing}`}
-              >
-                Clear search
-              </button>
-            </div>
-          ) : (
-            // gap-[2px] (off-scale, like the 3px kind bar — a rule weight, not
-            // a layout step) separates rows with a sliver of `bg` instead of a
-            // divider: every row already carries a kind-tinted background, so a
-            // divider between two tinted rows read as a redundant, heavy seam.
-            <ol className="flex flex-col gap-[2px]">
-              {aiRows.map(({ row, reason }, index) => (
-                <TonightRowItem
-                  key={row.option.id}
-                  row={row}
-                  rank={index + 1}
-                  aiReason={reason}
-                  selectedDay={day.writeDate}
-                  onRejected={(name) =>
-                    setRejectNotice(`Rejected ${name}, removed from the list.`)
-                  }
-                />
-              ))}
-            </ol>
-          )
+        {listView === "search" && ranked?.rows.length === 0 ? (
+          // An empty AI result is a real answer — the model legitimately
+          // found nothing fitting the query — not a broken screen. The
+          // message mirrors the "No Options match" state below; the inline
+          // control discards the search.
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-body text-muted">No Options fit that search.</p>
+            <button
+              type="button"
+              onClick={onClearSearch}
+              className={`min-h-11 rounded-control px-3 text-body
+                font-emphasis text-action transition-colors duration-short
+                ${focusRing}`}
+            >
+              Clear search
+            </button>
+          </div>
         ) : visible.length === 0 ? (
           <p className="text-body text-muted">
             No Options match the current filter.
           </p>
         ) : (
-          // See the AI-rows list above for why `gap-[2px]` replaces a divider here.
+          // gap-[2px] (off-scale, like the 3px kind bar — a rule weight, not
+          // a layout step) separates rows with a sliver of `bg` instead of a
+          // divider: every row already carries a kind-tinted background, so a
+          // divider between two tinted rows read as a redundant, heavy seam.
           <ol className="flex flex-col gap-[2px]">
             {visible.map((row) => (
               <TonightRowItem
                 key={row.option.id}
                 row={row}
                 rank={rankOf.get(row.option.id)}
-                // A Prepared row keeps its Last note above the rationale:
-                // this is the default view, so dropping it would hide
-                // every prior night's note on load (DESIGN.md, "Last note line").
-                aiReason={prepared?.reasons.get(row.option.id)}
+                aiReason={ranked?.reasons.get(row.option.id)}
+                // Every view keeps the Last note, above any rationale, so a
+                // row holds its height as the Household switches views
+                // (DESIGN.md, "Last note line").
                 lastNote={lastNotes.get(row.option.id)}
                 selectedDay={day.writeDate}
                 onRejected={(name) =>

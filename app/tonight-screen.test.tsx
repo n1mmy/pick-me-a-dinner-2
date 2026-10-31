@@ -381,7 +381,7 @@ describe("TonightScreen — AI search", () => {
     });
   });
 
-  it("hides the filter zone while an AI result is shown and restores it on clear", async () => {
+  it("keeps the filter zone while an AI result is shown", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,
       results: [{ id: "o2", reason: "Light and quick" }],
@@ -391,37 +391,11 @@ describe("TonightScreen — AI search", () => {
         view={tonight({ options: TAGGED_OPTIONS })}
         searchEnabled
       />);
-
-    // The kind segment and Tag filter chips are part of the deterministic view.
-    expect(
-      screen.queryByRole("group", { name: "Filter by kind" }),
-    ).toBeTruthy();
-    expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeTruthy();
-
     await submitSearchAndSettle();
     await screen.findByText("Light and quick");
 
-    // While the AI result is shown the query is the single ranking authority:
-    // both the kind segment and the Tag filter chips are gone. The kind segment
-    // is hidden by a parent-state update driven by a `useEffect`, so it can
-    // settle a render after the result itself — `waitFor` rides that out.
-    await waitFor(() => {
-      expect(
-        screen.queryByRole("group", { name: "Filter by kind" }),
-      ).toBeNull();
-    });
-    expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
-
-    // Clearing restores both the deterministic list and its filter controls.
-    await waitFor(() => {
-      expect(screen.getByText("Apple Crumble")).toBeTruthy();
-    });
-    expect(
-      screen.queryByRole("group", { name: "Filter by kind" }),
-    ).toBeTruthy();
-    expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Filter by kind" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Filter by tag" })).toBeTruthy();
   });
 
   it("never disables the search box in flight, and keeps the deterministic list visible", async () => {
@@ -1553,10 +1527,13 @@ describe("TonightScreen — Last note", () => {
     expect(note.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("omits the Last note on an AI result row, showing only the AI rationale", async () => {
+  it("keeps the Last note on an AI result row, above the AI rationale", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,
-      results: [{ id: "o1", reason: "Light and quick" }],
+      results: [
+        { id: "o1", reason: "Light and quick" },
+        { id: "o2", reason: "Sweet enough" },
+      ],
     });
 
     render(
@@ -1567,10 +1544,17 @@ describe("TonightScreen — Last note", () => {
     );
     await submitSearchAndSettle();
 
-    // An AI row already carries the model's own rationale line; stacking the
-    // Last note above it read as too busy (DESIGN.md, "Last note line").
-    expect(screen.getByText("Light and quick")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^Last note,/ })).toBeNull();
+    // As on every other view, so a row holds its height when the Household
+    // switches between views (DESIGN.md, "Last note line").
+    const appleRow = screen.getByText("Apple Crumble").closest("li") as HTMLElement;
+    const note = within(appleRow).getByRole("button", {
+      name: "Last note, 18d ago: got the katsu curry",
+    });
+    const reason = within(appleRow).getByText("Light and quick");
+    expect(
+      note.compareDocumentPosition(reason) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^Last note,/ })).toHaveLength(1);
   });
 
   it("shows the note in full on a decided row, labelled and inert", () => {
@@ -2147,7 +2131,39 @@ describe("TonightScreen — Prepared note", () => {
     });
   });
 
-  it("hides the filter chips over AI search, and keeps their state for the way back", async () => {
+  it("filters a landed AI result with the chips already on, each row keeping its number", async () => {
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [
+        { id: "o2", reason: "Bread first" },
+        { id: "o3", reason: "Pie night" },
+        { id: "o1", reason: "Crumble to finish" },
+      ],
+    });
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "dessert, not filtered" }));
+
+    await submitSearchAndSettle();
+    await screen.findByText("Bread first");
+
+    expect(segments().selected).toBe("AI search");
+    expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble"]);
+    expect(rankShown("Apple Crumble")).toBe("3");
+    // The chips are every active Option's Tags, not just the result's.
+    expect(screen.getByRole("button", { name: "pie, not filtered" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "dessert, included" }));
+    fireEvent.click(screen.getByRole("button", { name: "dessert, excluded" }));
+    expect(listedNames()).toEqual(["Banana Bread", "Cherry Pie", "Apple Crumble"]);
+  });
+
+  it("says no Options match when the chips filter out a whole AI result", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,
       results: [{ id: "o3", reason: "Pie night" }],
@@ -2160,16 +2176,11 @@ describe("TonightScreen — Prepared note", () => {
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "dessert, not filtered" }));
-    expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble"]);
 
     await submitSearchAndSettle();
-    await screen.findByText("Pie night");
-    expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeNull();
 
-    fireEvent.click(segment("Prepared"));
-
-    expect(screen.getByRole("button", { name: "dessert, included" })).toBeTruthy();
-    expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble"]);
+    expect(await screen.findByText("No Options match the current filter.")).toBeTruthy();
+    expect(screen.queryByText("No Options fit that search.")).toBeNull();
   });
 
   it("switches nothing when a search fails", async () => {

@@ -234,9 +234,8 @@ list; an AI view lets rationales run to full length (see List views).
   step the rail takes ~200px and the column is briefly narrower than its
   mobile cap — going denser at that same point squeezes the row twice.
 - **AI rows** — a Claude AI search result or a Prepared ranking — carry the
-  model's rationale line (`chip` size, `muted`, on a `raised` surface). A
-  Claude row shows it in place of the Last note; a Prepared row keeps its
-  Last note line too (see Last note line).
+  model's rationale line (`chip` size, `muted`, on a `raised` surface),
+  under the Last note line when the row has one (see Last note line).
 
 ### Last note line
 
@@ -257,11 +256,11 @@ the chip row: age then text (`18d · got the katsu curry`).
 - **Italic**, age and text alike, wherever Tonight shows it: reported speech
   from another night, marked as an aside without another size or color step.
   The Prepared brief's label is the only other place a mono numeral slants.
-- **Claude AI search rows omit it** — the rationale line is already the
-  row's aside, and the search is a deliberate, one-off look.
-- **Prepared ranking rows keep it**, in its usual place under the chip row,
-  with the rationale below. The Prepared ranking is what Tonight loads with,
-  so dropping the line there would hide every prior night's note by default.
+- **Every list view keeps it** — Score, Prepared, and AI search alike — in
+  its usual place under the chip row, with any rationale below. A row then
+  holds its height as the Household switches views, so the list doesn't
+  jump, and what happened last time stays in reach whichever view is
+  ranking.
 
 ### Day note line
 
@@ -382,12 +381,14 @@ identical row for row; what tells them apart is the switcher above the list.
   the strong picks, tapering to a line. This is the one licensed break in
   the uniform ledger: an AI view is for reading why, not scanning, and a
   clamp would hide the reason the view exists.
-- **Filter chips** stay visible over the Prepared ranking and filter it — it
-  is the default view on load, so hiding them would remove filtering from
-  Tonight. A filtered row keeps the note's rank, as a filtered
-  deterministic row keeps its own, so a numeral always means the same
-  place in the same ranking. Over a Claude result they hide, so the query
-  alone owns that space.
+- **Filter chips** stay visible over every view and filter whichever is on
+  show, with one state shared across them: a query says what kind of
+  evening it is, and the chips still narrow its answer ("only Home meals").
+  The chips are every active Option's Tags, never just a result's, so they
+  hold still as views switch. A filtered row keeps its view's number, so a
+  numeral always means the same place in the same ranking; a result the
+  chips empty says "No Options match the current filter.", not the empty
+  search's "No Options fit that search."
 - **A Prepared numeral is the note's own place.** A Prepared row is numbered
   by its place in the stored ranking, not its place on screen: an Option
   Picked, Rejected, or Closed since the note was written leaves a gap
@@ -395,8 +396,10 @@ identical row for row; what tells them apart is the switcher above the list.
   decided-day line that quotes the note's rank. A candidate the note never
   named is appended **unnumbered** — the rank gutter empty — and with no
   rationale, so a row the model forgot never reads as one it ranked last.
-  The empty gutter says enough; a stock line on every such row was noise. Claude AI search rows are numbered by their
-  place on screen; nothing is filtered out of them after they arrive.
+  The empty gutter says enough; a stock line on every such row was noise.
+  Claude AI search rows are numbered by their place in the result as it
+  resolves now: a Pick drops its Option and the rest close up, while a
+  filtered row keeps its number.
 - **Screen-reader status.** The polite status region names the view each
   time it changes — a switch, a landed or cleared search, a Selected-day
   change: "Showing the prepared ranking.", "Showing AI search results.",
