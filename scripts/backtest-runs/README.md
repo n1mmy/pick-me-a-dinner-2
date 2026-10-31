@@ -255,3 +255,130 @@ shape without the hit. From v14 Options carry letter codes, so a rank written
 as a code resolves to nothing and the reply is refused instead (ADR-0013,
 `.issues/ai-ranking-backtest/issues/05`). The `catalogOrder` flag stays as
 the sentinel.
+
+TypeSafe's Jev 1.14 (`scripts/typesafe-eval.ts`), a System One model that
+answers typed questions with probabilities and writes no prose, so it is
+scored on its ranking alone: no rationale, no brief, and every text count
+reads n/a. One request a day, `jev-1.14.0` pinned, answers every arm. The
+TypeSafe API bills input tokens only ($0.042 per million); every run below
+together cost about $0.38. Each day's exact request and response is in the
+run's `-reasoning/<day>.txt`, so any answer can be resent.
+
+- `jev-1.14.0-noul-r1` … `-r5` and `jev-1.14.0-choice-r1` … `-r5` — TypeSafe's
+  Jev (`scripts/typesafe-eval.ts`), ranking only: one request a day over the
+  snapshot as JSON without its codes, ~30k input tokens, 0.3s, ~$0.0013.
+  Its two arms answer in the same request: a Noul per candidate ("Will the
+  Household eat X for dinner on the evening of `today`?") and one Choice
+  over every candidate in an order shuffled by the date. Read with
+  `backtest-spread.ts`: Noul 7.2 / 9.8 / 14.6, capped mean rank 6.9, #1
+  agreement 16.8 of 20, tau 0.90, never-eaten top-5 slots 2–5 of 100;
+  Choice 8.8 / 11.6 / 14.6 (runs 8–10, 10–13, 14–15), 6.2, #1 agreement
+  13.0, tau 0.89, never-eaten slots 25–27. Against Qwen v21's five
+  (7.8 / 10.0 / 16.0, 6.2, tau 0.57) the Choice is level, and steadier.
+  The deterministic Score on the same days (`score-baseline`) is 4/8/12,
+  8.3. Jev answers to two decimals, so ties are common: the Pick's rank sat
+  in a tie on 9 to 13 days a run, broken in the Catalog's alphabetical
+  order; breaking every tie against the Pick moves r1 and r2 of the Choice
+  to 9/11/14 and 8/10/15. The Noul probabilities sum to 3.6–4.3 a day: an
+  order, not a calibrated chance of one dinner.
+- `jev-1.14.0-history-noul` and `-choice` — the same, once, on the 90
+  decided days with a stored Qwen 3.8 Prepared note (`2026-07-12` …
+  `2026-10-30`; `backtest-stored.ts` gives the list), against those notes
+  (`stored-notes`) and the Score (`score-history`), all 89 scorable: Score
+  17/32/49, 8.7; stored notes 32/41/57, 7.7; Noul 24/34/57, 7.9; Choice
+  27/38/58, 7.7. Day by day the Choice beats the stored note's Pick rank on
+  35, loses on 35, ties on 19; the Noul 32 / 39 / 18. Level with Qwen at
+  hit@3 on the 20 days, the Choice is 5 behind the notes on the 90. The Noul
+  puts no Option never eaten in the 90 days in any top 5 (0 of 445 slots),
+  against the notes' 38, the Choice's 41 and the Score's 91, but has the
+  most too-soon days: 5, against the notes' 1. Up to 32.8k input
+  tokens a request on the latest days, near the 32k a question may read.
+- `jev-1.14.0-s2-history-noul` and `-choice` — the same 90 days with
+  `--state=2` (`jevStateByOption`): no dates, every event "N days ago",
+  each Option's notes, Rejections and Tag recency under its name, the count
+  set against its recent gaps in code (`soonerThanEveryRecentGap`,
+  `longerThanEveryRecentGap`), and the last week's dinners in place of the
+  Log. Half the tokens (≤15.9k a request) and worse everywhere: Noul
+  22/34/58, 8.3; Choice 23/34/57, 8.0, against state 1's 24/34/57, 7.9 and
+  27/38/58, 7.7. On the 20 days the means (Noul 7.5, Choice 7.4) fall
+  outside state 1's five-run ranges (6.8–7.0, 6.0–6.4). Too-soon days did
+  not fall (Noul 5, Choice 6), and never-eaten top-5 slots rose for the
+  Noul (0 to 5) while they fell for the Choice (41 to 20). Day by day
+  against state 1: Noul better on 21, worse on 37; Choice 32 and 39.
+- `jev-1.14.0-history-rerank-<arm>` — the state 1 history answers ranked
+  again offline (`scripts/typesafe-rerank.ts`, no call), each with no fitted
+  weight, a tie broken by the Score: Noul 24/35/59, 7.8 and Choice
+  28/41/60, 7.3 with the tie-break alone; the mean of the Noul's and the
+  Choice's ranks 28/40/61, 7.3; the Choice's and the Score's 32/43/67, 6.7;
+  all three 37/54/70, 6.0, against the stored notes' 32/41/57, 7.7. All
+  three lead the notes in July–September (24/37/50 against 20/27/40) and in
+  October (13/17/20 against 12/14/17), and beat the notes' Pick rank on 42
+  days, lose on 23, tie on 24. The control, the notes' ranks averaged with
+  the Score's the same way, is 25/37/63, 7.3: the gain is not the Score's
+  alone. Too-soon days stay at 5, against the notes' 1; never-eaten top-5
+  slots 0 of 445.
+- `jev-1.14.0-q2-history-noul`, `-choice` and `-choice-avg` — questions v2
+  on the same 90 days: the Choice asked in three orders in one request
+  (`choice` in v1's order, `choice_2` and `choice_3` shuffled afresh), and
+  `choice-avg` ranked by the mean of the three. 90 requests, 2.36M input
+  tokens (≤33.5k a request), $0.099. Noul 23/33/55, 8.3; Choice 25/39/55,
+  8.0; Choice averaged 26/41/56, 7.7 — the single arms a little under v1's
+  with no change to them, so the averaging's gain sits inside a run's
+  noise. The orders agree at tau 0.90, as two runs do (0.89), and on the
+  top answer on 42 of 90 days; the Option listed first draws 0.018 on
+  average against 0.028 over every place, so no first-place lean shows
+  here. Averaging cuts tied values from 26 to 19 a day. Ranked again
+  (`-q2-history-rerank-<arm>`): all three, Noul + Choice + Score, 35/54/69,
+  6.2, against the first run's 37/54/70, 6.0; with the averaged Choice in
+  its place 36/52/70, 6.1. Too-soon days 5. v2 is not kept: the eval is
+  back at v1 and the re-rank has no averaged arm, so the run is read here;
+  each day's v2 request is in its `-reasoning/` to resend (`choice_2` and
+  `choice_3` were shuffled by `<today>/2` and `<today>/3`).
+
+What the Jev runs say:
+
+- **It ranks, and clearly better than the Score.** Both arms beat the
+  deterministic Score on both day sets, at every hit level and on mean rank.
+- **Over 90 days the Choice is level with Qwen's stored notes, except at the
+  top.** Mean rank 7.7 each, hit@10 58 against 57, and the Pick ranked
+  higher on as many days as lower (35 / 35); hit@3 is 27 against 32, and on
+  October's 27 days 8 against 12. The 20 days alone flattered it: there it
+  sat level with Qwen v21 at hit@3, a property of that set.
+- **It is steadier than Qwen, not fixed.** Two identical runs differ, but
+  five agree on the order at tau 0.89–0.90 against Qwen v21's 0.57.
+- **The two arms trade errors.** The Choice gets more Picks into the top
+  rows; the Noul is the most conservative, with no never-eaten Option in a
+  90-day top 5 at all. Both let a too-soon Option into the top 5 more often
+  than the notes do (4 and 5 days against 1): timing is where Jev is weak,
+  as its docs warn about dates and arithmetic.
+- **Doing the timing in code did not fix that, and cost ranking.** State 2
+  (precomputed "N days ago", gap comparisons, the Log cut to the last week)
+  was worse on every view and left the too-soon days where they were.
+  Dropping the full Log is the likely cause; it is untested.
+- **The probabilities give an order, not a confidence.** They come to two
+  decimals, so the Pick sits in a tie on about half the days (broken
+  alphabetically, worth up to a hit or two at each level); the Noul's sum
+  to about 4 a day; the Choice's top answer is 0.09–0.23, so no day reads
+  as a sure thing.
+- **It is fast and cheap but near its context limit.** 0.3s and about
+  $0.0013 a day, against minutes on the local model. State 1 reached 32.8k
+  tokens a request on the newest days, against the 32k a single question
+  may read; the Log grows every dinner, so a lasting use needs a trim or
+  the slower long-context mode.
+- **Combined with the Score, it ranks best of anything so far.** The mean
+  of the Noul's, the Choice's and the Score's ranks, with no weight to fit,
+  is 37/54/70 and 6.0 on the 90 days, and leads in both halves of them,
+  against the best one alone (the Choice, 28/41/60) and the notes'
+  32/41/57. A second run gave 35/54/69 and 6.2, so it holds. The three
+  disagree in different places; the too-soon days do not go away.
+- **Asking the Choice in more orders buys nothing worth keeping.** Jev
+  showed no lean toward the first option here, the orders agree as closely
+  as two runs, and inside the three-way mean the averaged Choice changes
+  nothing (36/52/70 against 35/54/69). The Score's tie-break already does
+  what the averaging's fewer ties would.
+- **It cannot be the Prepared note.** With no prose, the most it could take
+  over is an order: the Score's place, or the order under an LLM's prose.
+
+Not tried: state 2 with the full Log kept; judgments broken down (due,
+ruled out by a Rejection, pointed at by the Day note) and combined in code,
+which needs weights; Jev reordering an LLM's shortlist.
