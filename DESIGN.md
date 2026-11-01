@@ -330,8 +330,7 @@ written before the feature was turned off still shows.
   "Show less". Its words sit ~5px under the surface, ~20px above the search
   box: the 44px target bleeds up over the brief's foot (prose, not a
   control) and down into the section gap, so the toggle costs one text
-  line. Its last ~6px sit under the sticky filter bar's padding, leaving
-  ~38px — a mis-tap only expands text. Expanded state resets on
+  line — a mis-tap only expands text. Expanded state resets on
   a Selected-day change. At ≥720px the
   brief shows in full with no toggle — there the list starts on screen
   anyway, and on a phone it would not.
@@ -408,17 +407,14 @@ identical row for row; what tells them apart is the switcher above the list.
 
 ### Tonight filter zone
 
-Tonight's sticky filter zone holds every filter on one `flex-wrap` line:
+Tonight's filter zone holds every filter on one `flex-wrap` line:
 Home and Restaurant chips first, then one chip per Tag. Both groups'
 `role="group"` wrappers are `display: contents`, so every chip is a flat
 sibling and any wrapped line reclaims the full row width.
 
-- **Spacing.** The zone (search box and chips) is a sticky bar with 12px
-  padding, there so nothing touches the viewport edge or the rows sliding
-  under it while stuck. In flow, negative margins take that padding back
-  out of the gaps: the standard 22px section gap above the search box, and
-  16px between the chips and the list below, which they filter as one
-  block.
+- **Spacing.** The zone (search box and chips) scrolls with the page: the
+  standard 22px section gap above the search box, and 16px between the
+  chips and the list below, which they filter as one block.
 
 - **Kind chips** are plain on/off toggles; none selected means all kinds.
   Tapping the active one clears it, tapping the other switches. Unselected:
@@ -433,7 +429,18 @@ sibling and any wrapped line reclaims the full row width.
 - The filter hint line shows only while a Tag filter is on; otherwise it is
   `sr-only` (still a live region, so kind changes are announced).
 - The Tonight header is just the H1 and the day stepper — ‹, date input, ›
-  joined flush inside one shared 1px `line` border.
+  joined flush inside one shared 1px `line` border. It is the one sticky
+  bar on Tonight: scrolled down a long list, the Household still sees which
+  day they are choosing for and can step it, which matters more than the
+  filters, set once near the top. It carries 8px padding on a `bg` fill so
+  the H1 and stepper never touch the viewport edge or the rows sliding
+  under it while stuck. The top padding is also the page's — Tonight's
+  `main` has none — so the header sits 8px from the top in flow exactly as
+  when stuck, and never shifts as the page starts to scroll; the loading
+  skeleton puts its H1 at the same spot. The bottom 8px stays in flow,
+  putting the Day note line 8px under the stepper, because pulling it up
+  under the header's fill clipped a wrapped note. The Day note line scrolls
+  away.
 
 ### Decided block
 

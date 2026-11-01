@@ -42,8 +42,7 @@ export function PreparedBrief({ note }: { note: PreparedNoteView }) {
           bleeds 12px into the column padding (so its text lines up with the
           brief's), 12px up over the brief's foot — prose, not a control — so
           the toggle sits close under the text it opens, and 16px down into
-          the section gap. Its last ~6px there sit under the sticky filter
-          bar's padding, which leaves the target ~38px. */}
+          the section gap. */}
       <div className="-mb-4 -mt-3 flex items-center justify-between gap-3 desktop:hidden">
         <button
           type="button"

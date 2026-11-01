@@ -376,25 +376,32 @@ export function TonightScreen({
     <PreparedBrief key={day.date} note={preparedNote} />
   );
   return (
-    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
+    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 desktop:pb-12">
       {/* The H1 and the stepper share a full-width row with the stepper
           pinned right at every width, so it holds still as the day name
           changes length instead of sliding with it — and a long name
           shortens the H1 rather than pushing the forward arrow off-screen.
-          (Until the kind segment moved into the filter zone, this row also
-          held it, which needed `justify-start` on desktop to keep the three
-          together instead of spread edge-to-edge; with only two items left,
-          the stepper stays right at every width.) */}
-      {/* The Day note line rides in the heading block, gap-free, as a
-          subtitle under the H1 — not as its own section paying the 22px
-          section gap (DESIGN.md, "Day note line"). */}
-      <div className="flex flex-col">
-        <div className="flex w-full items-center justify-between gap-2">
-          <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
-            <DayNameReset heading={day.heading} />
-          </h1>
-          <DayStepper selectedDay={day.date} todaySql={day.today} />
-        </div>
+          It is the sticky header: scrolled down a long list, the Selected
+          day and the controls to change it stay on screen (DESIGN.md,
+          "Tonight filter zone", on the header). It sits directly in `main`, not in a heading
+          block, because sticky only holds within its parent. The 8px
+          padding is for when it's stuck, so the H1 and stepper don't touch
+          the viewport edge or the rows sliding under them. It is also the
+          page's top padding — `main` carries none — so the header sits at
+          the same spot in flow as stuck, and doesn't shift as the page
+          starts to scroll. The bottom padding stays in flow, since pulling
+          the Day note up under the header's fill would clip a wrapped
+          note. */}
+      <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-2 bg-bg px-4 py-2">
+        <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
+          <DayNameReset heading={day.heading} />
+        </h1>
+        <DayStepper selectedDay={day.date} todaySql={day.today} />
+      </div>
+      {/* The Day note line is the H1's subtitle, gap-free — not its own
+          section paying the 22px section gap, which `-mt-5.5` takes back
+          (DESIGN.md, "Day note line"). It scrolls away with the page. */}
+      <div className="-mt-5.5 flex flex-col">
         <DayNoteLine
           notedOn={day.date}
           note={dayNote}
@@ -689,11 +696,11 @@ function ClosedDisclosure({
 }
 
 /**
- * The ranked picker: a sticky filter zone — optional AI search box, the
+ * The ranked picker: a filter zone — optional AI search box, the
  * Home/Restaurant kind chips, the tri-state Tag filter chips — above the flat
  * ranked `<ol>`. It is the whole screen in picker mode and the collapsible
  * body in decided mode; its behavior is identical either way. The kind chips
- * lead the Tag-chip line in the sticky filter zone, so every filter is in one
+ * lead the Tag-chip line in the filter zone, so every filter is in one
  * place; their state is owned by `TonightScreen` (see the `kind` comment
  * there) and threaded in as `kind` / `onKindChange`.
  *
@@ -856,13 +863,11 @@ function Picker({
 
   return (
     <>
-      {/* The sticky bar's 12px padding is for when it's stuck, so the box
-          and chips don't touch the viewport edge or the rows sliding under
-          them. In flow it would add to the gaps around the bar, so its
-          margins take it back: `-mt-3` leaves the 22px section gap above, and
-          `-mb-[18px]` leaves 16px between the filters and the list they
-          filter (DESIGN.md, "Tonight filter zone"). */}
-      <div className="sticky top-0 z-10 -mx-4 -mb-[18px] -mt-3 flex flex-col gap-2 bg-bg px-4 py-3">
+      {/* The filters scroll with the page — the day header is what sticks.
+          `-mb-1.5` leaves 16px between the filters and the list they filter,
+          one block, against the 22px section gap above (DESIGN.md, "Tonight
+          filter zone"). */}
+      <div className="-mb-1.5 flex flex-col gap-2">
         {/* The search box appears only when AI search is configured; with
             no key Tonight is exactly v1 and the box is absent entirely. */}
         {searchEnabled && (
