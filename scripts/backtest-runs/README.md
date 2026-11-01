@@ -411,6 +411,43 @@ run's `-reasoning/<day>.txt`, so any answer can be resent.
   unhad rises. Too-soon days 5 on both arms, no better than state 6's
   second run. All three 39/47/67, 6.3, worse than either state 6 run on 19
   days to 33 and 18 to 32.
+- `jev-1.14.0-s6-j1-history-noul` and `-choice` — state 6 under the header
+  with `--judgments`: five more Nouls per candidate in the same request
+  (`JUDGMENTS`: too soon, ruled out by a Rejection or the Day note, pointed
+  at by the Day note, due, regular), 223 questions a day, for
+  `typesafe-rerank.ts` to combine in code. ≤58.8k input tokens a request
+  (mean 48.1k), 4.33M in all, $0.182; calls still 0.4s. The two scored arms
+  are a third state 6 run, a little under the other two and inside their
+  spread: Noul 27/42/58, 7.7; Choice 26/35/58, 7.9; all three 35/48/68,
+  6.2 (against the first two runs' 40/52/70 and 39/52/69; 20 days better
+  than the first, 24 worse, 45 tied). Ranked again
+  (`-s6-j1-history-rerank-<arm>`):
+  - each judgment alone, the Score breaking ties: `pointedAt` 31/35/55, 7.8
+    — the best hit@3 of any single list, beating the notes' Pick rank on 45
+    days to 38 — though its values never pass 0.06 (an order, not a yes);
+    `regular` 25/34/67, 7.3, the best hit@10, two-peaked (median 0.11, top
+    decile 0.95), no never-eaten Option in a top 5; `due` 10/22/47, 9.8,
+    worse than the Score, with 261 never-eaten top-5 slots — a never-eaten
+    Option reads as due; `tooSoon` and `ruledOut` 3/5/13 and 4/7/21, as
+    gates not orders.
+  - the truth table (`gates+score`, `+choice`, `+all`: ruled out or too soon
+    above 0.7 to the bottom, pointed at above 0.7 to the top, the base order
+    inside): 22/32/41, 9.7 on the three-way base, too-soon days 0 and
+    everything else wrecked. The too-soon gate fires on some candidate every
+    day and on the Pick itself on 38 of 89 days: by Jev's reading the
+    Household eats "too soon" nearly half the time. `pointedAt` never
+    reaches 0.7, so the lift never fires. At 0.9 (`gates90+all`) no gate
+    fires at all and the arm is the three-way mean again, as is `lift+all`.
+  - the three-way mean widened by the judgments' ranks: `all+due+regular`
+    40/52/70, 6.1, level with the state 6 runs (27 days better than the
+    first, 29 worse; 29 / 36 against the second) with too-soon days 3
+    against their 6 and 7, and the best October half yet (15/18/21);
+    `all+judgments` 33/49/69, 6.3, too-soon days 1 — the notes' level —
+    and the best day-by-day record against the notes of any arm (49 better,
+    31 worse, 9 tied), at a cost at hit@3; `all+judgments-due` 34/46/65,
+    6.7.
+  Thirteen arms were read on the same 90 days, so the best of them is
+  partly chosen by the days; a second run of this request is the check.
 
 What the Jev runs say:
 
@@ -471,6 +508,20 @@ What the Jev runs say:
   Both arms lost to both state 6 runs day by day. The timing fix is not
   more state; it is the Score's place in the mean, or a timing judgment
   of its own combined in code.
+- **More questions per Option work as soft lists, not as gates.** Five
+  atomic Nouls per candidate ride in the same request for a quarter cent a
+  day. Folded into the mean of ranks they hold the headline (40/52/70, 6.1
+  with `due` and `regular`; level with state 6 day by day) and take the
+  too-soon days from 6 or 7 to 3, or to 1 with all five — the first shape to
+  move that count. As a truth table they fail: Jev calls the Pick itself
+  too soon on 38 of 89 days, so an exclusion at 0.7 throws the answer away,
+  and at 0.9 nothing fires. The judgments' values are orders, not yeses —
+  `pointedAt` never passes 0.06 yet ranks best at the top — so thresholds
+  are the wrong way to read them here; ranks are the right one.
+- **Where the signal is.** The Day note's push (`pointedAt`) and the base
+  rate (`regular`) each carry what the other lists lack; `due` adds nothing
+  the Score does not and promotes never-eaten Options; `tooSoon` and
+  `ruledOut` earn their place only as a brake inside a mean.
 - **The probabilities give an order, not a confidence.** They come to two
   decimals, so the Pick sits in a tie on about half the days (broken
   alphabetically, worth up to a hit or two at each level); the Noul's sum
@@ -500,11 +551,13 @@ What the Jev runs say:
 - **It cannot be the Prepared note.** With no prose, the most it could take
   over is an order: the Score's place, or the order under an LLM's prose.
 
-Not tried: state 4 with the Rejections filed under each Tag as well, to
+Not tried: a second `--judgments` run, to put `all+due+regular` and
+`all+judgments` inside or outside a run's noise after thirteen arms were
+read on one set of days; the judgments with the Option's facts written into
+each question instead of looked up (as `typesafe-judge.ts` does for the
+note rows); state 4 with the Rejections filed under each Tag as well, to
 see whether those were the copies state 3 lost by; a second run of state 4;
-a too-soon Noul of its own ("Has the Household had this, or its cuisine,
-more recently than they would choose to again?") combined in code with
-state 6's ranking; judgments broken down (due, ruled out by a Rejection, pointed at by the Day
+judgments broken down (due, ruled out by a Rejection, pointed at by the Day
 note) and combined in code, which needs weights; Jev reordering an LLM's
 shortlist.
 

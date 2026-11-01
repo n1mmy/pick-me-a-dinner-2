@@ -22,6 +22,11 @@
  * (`jevStateWithOptionAndTagHistory`) adds each Tag's dinners and, under
  * each candidate, the days since each of its Tags was had.
  *
+ * `--judgments` adds five more Nouls per candidate (`JUDGMENTS`: too soon,
+ * ruled out, pointed at by the Day note, due, regular), saved with the rest
+ * for `scripts/typesafe-rerank.ts` to combine in code; the two arms scored
+ * here are unchanged by them.
+ *
  *   npx tsx scripts/typesafe-eval.ts --dry-run --day=2026-10-22   # no call
  *   npx tsx scripts/typesafe-eval.ts --backtest --days=2026-10-22 --json
  *   npx tsx scripts/typesafe-eval.ts --backtest --days=<meta.days> --json
@@ -54,6 +59,51 @@ const NOUL_CRITERIA = {
 };
 const CHOICE_INSTRUCTIONS =
   "Which of these will the Household eat for dinner on the evening of `today`?";
+
+/**
+ * The judgments (`--judgments`): five more Nouls per candidate, each one
+ * thing a person could say of an Option at a glance, for code to combine
+ * (`scripts/typesafe-rerank.ts`). They ride in the same request as the Noul
+ * and the Choice, so the state is read once. Bump on any change.
+ */
+const JUDGMENTS_VERSION = "1";
+const JUDGMENTS: Record<string, (name: string) => { instructions: string; criteria: { true: string; false: string } }> = {
+  tooSoon: (name) => ({
+    instructions: `Is the evening of \`today\` too soon for the Household to have ${name} again?`,
+    criteria: {
+      true: `They had ${name}, or another dinner of its cuisine, more recently than they usually leave it, so they would pass on it tonight`,
+      false: `Enough time has passed by their usual rhythm for ${name} to be a natural choice tonight, or they have never had it`,
+    },
+  }),
+  ruledOut: (name) => ({
+    instructions: `Does a reason on record rule out ${name} for the evening of \`today\`?`,
+    criteria: {
+      true: `A Rejection of ${name} or the Day note for \`today\` gives a reason that still holds this evening: it is closed, not on hand, someone it is for is away, or the like`,
+      false: `No recorded reason stands against ${name} this evening`,
+    },
+  }),
+  pointedAt: (name) => ({
+    instructions: `Does the Day note for \`today\` (\`todayDayNote\`) point toward ${name}?`,
+    criteria: {
+      true: `What the note asks for — a quick dinner, a craving, who is home, an outing nearby — fits ${name} well`,
+      false: `The note says nothing that bears on ${name}, asks for something else, or there is no note`,
+    },
+  }),
+  due: (name) => ({
+    instructions: `Is ${name} about due by the Household's rhythm on the evening of \`today\`?`,
+    criteria: {
+      true: `It has been as long as, or longer than, they usually leave between dinners of ${name}`,
+      false: `They had ${name} more recently than their usual stretch, or they never have it`,
+    },
+  }),
+  regular: (name) => ({
+    instructions: `Is ${name} one of the dinners the Household comes back to?`,
+    criteria: {
+      true: `They have had ${name} again and again over the Log, as a regular part of their rotation`,
+      false: `They have had ${name} rarely or never`,
+    },
+  }),
+};
 
 /**
  * The snapshot as Jev reads it: the same facts the LLM rankers see, with the
@@ -400,7 +450,7 @@ function seededShuffle<T>(items: T[], seed: string): T[] {
 }
 
 /** The day's request body: a Noul per candidate, keyed by its code, and the Choice. */
-export function jevRequest(built: BuiltSnapshot, state: StateVersion) {
+export function jevRequest(built: BuiltSnapshot, state: StateVersion, judgments = false) {
   const { snapshot } = built;
   const names = snapshot.options.map((option) => option.name);
   const questions: Record<string, unknown> = {};
@@ -410,6 +460,11 @@ export function jevRequest(built: BuiltSnapshot, state: StateVersion) {
       instructions: noulInstructions(option.name),
       criteria: NOUL_CRITERIA,
     };
+    if (judgments) {
+      for (const [judgment, ask] of Object.entries(JUDGMENTS)) {
+        questions[`${judgment}_${option.id}`] = { type: "noul", ...ask(option.name) };
+      }
+    }
   }
   questions.choice = {
     type: "choice",
@@ -438,8 +493,9 @@ async function askJev(
   built: BuiltSnapshot,
   state: StateVersion,
   longContext: boolean,
+  judgments: boolean,
 ): Promise<JevCall> {
-  const request = jevRequest(built, state);
+  const request = jevRequest(built, state, judgments);
   const started = Date.now();
   try {
     const res = await fetch(ENDPOINT, {
@@ -483,9 +539,9 @@ function rankArm(arm: Arm, built: BuiltSnapshot, response: JevResponse): Generat
     .map(({ id, p }) => ({ id, reason: `${arm} ${p.toFixed(3)}` }));
 }
 
-function dryRun(day: string, state: StateVersion): Promise<void> {
+function dryRun(day: string, state: StateVersion, judgments: boolean): Promise<void> {
   return snapshotForDay({ asOf: day, query: "", backtest: true }).then((built) => {
-    const request = jevRequest(built, state);
+    const request = jevRequest(built, state, judgments);
     const chars = JSON.stringify(request).length;
     const stateChars = JSON.stringify(request.state).length;
     console.log(`day: ${built.snapshot.today}   model: ${MODEL}   state: ${state}`);
@@ -493,6 +549,9 @@ function dryRun(day: string, state: StateVersion): Promise<void> {
     console.log(`request: ${chars} chars (~${Math.round(chars / 4)} tokens); state alone ${stateChars} chars (~${Math.round(stateChars / 4)} tokens)`);
     const [first] = built.snapshot.options;
     console.log(`\nfirst noul: ${JSON.stringify(request.questions[`noul_${first.id}`])}`);
+    for (const judgment of judgments ? Object.keys(JUDGMENTS) : []) {
+      console.log(`first ${judgment}: ${JSON.stringify(request.questions[`${judgment}_${first.id}`])}`);
+    }
     console.log(`choice: ${JSON.stringify(request.questions.choice)}`);
     if (process.argv.includes("--print-state")) {
       console.log(`\nstate:\n${JSON.stringify(request.state, null, 2)}`);
@@ -504,6 +563,7 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const state = (args.find((a) => a.startsWith("--state="))?.slice(8) ?? "1") as StateVersion;
   const longContext = args.includes("--long-context");
+  const judgments = args.includes("--judgments");
   if (!(state in STATES)) {
     console.error(`--state must be ${Object.keys(STATES).join(" or ")}, got ${state}`);
     process.exit(1);
@@ -515,7 +575,7 @@ async function main(): Promise<void> {
       console.error("--dry-run needs --day=YYYY-MM-DD");
       process.exit(1);
     }
-    await dryRun(day, state);
+    await dryRun(day, state, judgments);
     return;
   }
   if (!args.includes("--backtest")) {
@@ -539,7 +599,7 @@ async function main(): Promise<void> {
     const calls = new Map<string, Promise<JevCall>>();
     const callFor = (built: BuiltSnapshot) => {
       if (!calls.has(built.snapshot.today)) {
-        calls.set(built.snapshot.today, askJev(apiKey, built, state, longContext));
+        calls.set(built.snapshot.today, askJev(apiKey, built, state, longContext, judgments));
       }
       return calls.get(built.snapshot.today)!;
     };
@@ -551,7 +611,9 @@ async function main(): Promise<void> {
           ranker: `TypeSafe ${arm}`,
           model: MODEL,
           // State 1 runs predate the flag and carry no suffix.
-          promptVersion: `${arm}-v${QUESTIONS_VERSION}${state === "1" ? "" : `-s${state}`}${longContext ? "-long" : ""}`,
+          promptVersion:
+            `${arm}-v${QUESTIONS_VERSION}${state === "1" ? "" : `-s${state}`}` +
+            `${longContext ? "-long" : ""}${judgments ? `-j${JUDGMENTS_VERSION}` : ""}`,
           ...(parsed.repeat > 1 ? { repeat: `${i}/${parsed.repeat}` } : {}),
         },
         saveReasoning: true,
