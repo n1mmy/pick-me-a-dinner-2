@@ -507,3 +507,116 @@ more recently than they would choose to again?") combined in code with
 state 6's ranking; judgments broken down (due, ruled out by a Rejection, pointed at by the Day
 note) and combined in code, which needs weights; Jev reordering an LLM's
 shortlist.
+
+## Jev as a reader of the stored notes
+
+`scripts/typesafe-judge.ts` has Jev judge instead of rank: for each row of a
+night's stored Prepared note, is the AI rationale reasonable for that Option
+on that evening? One request a night (two past the request limit), every
+row among the day's candidates, with the line and what each judgment needs
+of the Option's facts inside its own question. Eight questions a row
+(`JUDGE_VERSION` 4): does the line give a length of time, and does it match
+the Option's or a Tag's days since last; does it give a usual stretch, and
+does it match the recent gaps; does it state something the facts contradict;
+does it carry the snapshot's own terms; its stance (for tonight, against,
+neither — a Choice); and, on a night with a Day note, does it go against it.
+Code turns the answers into flags at 0.7 / 0.3 (`flagRow`): wrong timing,
+wrong stretch, contradicts the facts, snapshot's words, against the Day
+note, a top-5 row arguing against its Option, a row past #10 arguing for it;
+an answer between the thresholds is counted as unsettled, never a flag. Two
+code checks ride along as a yardstick — the compare script's leak regexes,
+and the count written in the line against the facts — and the report ends
+with the agreement tables and every row where the judge and the code
+disagree. Each night's exact request and response is in
+`jev-1.14.0-judge-reasoning/<day>.txt`. All four runs below are on the same
+90 noted days (3,212 rows) and together cost $0.51.
+
+- `jev-1.14.0-judge-q1` — questions v1, `2026-10-22` alone. The words
+  question asked "Is `line` written the way one person in the Household
+  would say it to another?" and read nearly every line as no (0.06–0.26 on
+  a night with no leak): the lines are notes about the household, not talk
+  between them. Rewritten to ask the observable thing, whether the line
+  carries the record's own terms.
+- `jev-1.14.0-judge-q2` — v2 on the 90 days, 3.39M input tokens, $0.14.
+  Flagged 500 rows (15.6%): wrong timing 156, contradicts 144, snapshot's
+  words 112, Day note 11, top row against 23, tail row for 85. Of the 156
+  wrong timings about 140 were never-eaten rows ("Never tried, no
+  history"), which the timing question counted as a time it then could not
+  match — a question fault, fixed in v3. The count check's parser also
+  missed numbers written as "one hundred and ninety-one" (241 false
+  mismatches), fixed in code.
+- `jev-1.14.0-judge-q3` — v3: the never-eaten case, the word "tag" named as
+  a leak, each Tag's last dinner in the facts (so "Korean was four days ago
+  via Kukje" can be checked), and the contradiction asked as the
+  citation-check cookbook's three-way Choice (borne out / contradicted / not
+  covered). 3.79M tokens, $0.16. Wrong timing fell to 15 and the words
+  flags rose to 379, but the Choice flagged 280 rows against v2's 144, and a
+  sample of the 185 new ones had about one real contradiction in four: the
+  Choice put its probability on "contradicted" for anything slightly off,
+  and its "no history when it has" clause fired on every never-eaten row
+  with an old Rejection.
+- `jev-1.14.0-judge` — v4, the run to read: the contradiction back as a
+  Noul with "something the facts do not speak to" named in its false
+  criterion, and the usual stretch asked on its own against the recent
+  gaps. 4.90M tokens (49k–63k a night, 0.3–0.5s), $0.21. Flagged 673 rows
+  (21.0%), 200 of the 900 top-10 rows, 57 rows with two flags: wrong
+  timing 14, wrong stretch 113, contradicts 101 (77 of them flagged by v2
+  too), snapshot's words 391, Day note 9, top row against 24, tail row for
+  78. By month (rows / flagged): July 319 / 63, August 964 / 208,
+  September 963 / 182, October 966 / 220 — flat across prompt versions.
+  Words against the regexes: both 360, Jev only 31, regexes only 215.
+  Timing against the count check, on the 2,838 rows with a count: both
+  wrong 9, Jev only 3, code only 26, both fine 2,800.
+
+What the judge runs say, read row by row against the facts sent:
+
+- **The count check is sound.** On 2,800 of 2,838 rows Jev and the parser
+  agree the line's count matches a fact, and the 9 they both call wrong are
+  wrong: "Eighty-seven-day gap" written where the count belongs, "Ninety-five
+  days" for 195, a Mazra line counting "eighteen days" past a dinner the
+  note knew was served by the PTA. The 26 the code alone calls wrong are
+  lines counting from a Rejection ("rejected yesterday") or another Option
+  ("twelve days since pasta" on West Coast Cafe), which Jev reads rightly.
+- **The words check reaches what the regexes cannot, and misses dates.**
+  Jev's own 31 are tags as written — "with sonia: rice", "peruvian",
+  "a change from med, thai, and mexican" — and a line of three counts in a
+  row. The regexes' 215 are mostly "the swim tag" / "no tags" phrasing,
+  where Jev sits at 0.4–0.7 and is counted unsettled, and calendar dates
+  ("the Oct 10 rejection", "the June 30 date night", "the 10/4 rejection"),
+  which it reads at about 0.55 though the criterion names them.
+- **The stretch check is not reliable.** About one wrong-stretch flag in
+  three is real (K-Grill's "single gap of twenty-eight" with no gaps; Mollie
+  Stone's "thirteen-to-nineteen" with a 49 left out). The rest are
+  "a reasonable gap" or "rare" read as a stated stretch, and right ranges
+  read as wrong — "its normal two-week gap" against 10, 17, 14, 15; "their
+  shortest gap of fourteen" against 36, 14, 28, 21. Comparing a range to a
+  list of numbers is the weak spot the model's docs name; a parser for the
+  line's range, as for its count, would do it in code.
+- **The contradiction check is about half right, and worth it at that.**
+  Real hits: "thirty-nine days sits comfortably between its usual gaps of
+  thirteen and nineteen"; a "one hundred and fifty-five" Peruvian gap that
+  exists nowhere; "Helen's fried rice was six days ago via Societea" when
+  it was thirteen, at Thai Nakorn; "no standing notes or tags" on an Option
+  with three Tags and a note; Societea "both landed yesterday" at three
+  days. The misses are a date a day off ("the rejection from four days ago"
+  at five), a Rejection the line calls one-off that Jev calls standing, or
+  a judgment phrased as fact. Both the Noul forms beat the three-way Choice.
+- **The stance against the rank is a readout nothing else gives.** The 24
+  top-5 rows whose line argues against its Option are real: "#3 … making two
+  in a row feel repetitive", "#4 … it feels more like a tomorrow pick",
+  "#5 … Not ruled out, just not the cleanest fit tonight". The 78 tail
+  rows arguing for theirs ("#13 … Korean is generally due") are the mirror.
+- **The Day note check works at the top of its range only.** 9 flags on the
+  253 rows that had a note: "Helen gets her fried rice" on a "No helen and
+  konal" night at 0.90 and a fried-chicken place "for helen" at 0.89 are
+  right; the 0.70–0.78 flags are rows that agree with the note or do not
+  touch it.
+- **It is fast and cheap, and at the request limit.** 0.3–0.5s and about
+  $0.002 a night, against minutes for the note itself; the longest night
+  reached 62.9k of the 64k tokens a request may carry, so the script now
+  splits a night past about 49k into two requests.
+
+Not tried: the brief; a parser for the line's stretch to check it in code
+as the count is; whether a Rejection the line sets aside was standing or
+one-off; the judge's flags as a gate on what Tonight shows, or as a tie-break
+between two notes for one night.
