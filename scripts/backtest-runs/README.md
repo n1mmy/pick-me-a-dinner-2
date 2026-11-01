@@ -448,6 +448,117 @@ run's `-reasoning/<day>.txt`, so any answer can be resent.
     6.7.
   Thirteen arms were read on the same 90 days, so the best of them is
   partly chosen by the days; a second run of this request is the check.
+- `jev-1.14.0-s6-j1-history-rerank-<arm>`, more arms on the same saved
+  answers (`-rerank2.log`, `-rerank3.log`): the Score split into its two
+  factors, the weekday count, pointedAt on Day-note days only, and the
+  stored note's rows from the judge run (`--judge=`). The lists live in
+  `scripts/typesafe-lists.ts` now, shared with the fit, the calibration and
+  the second pass below.
+  - the Score's factors apart: `affinity-scoretie` 29/34/62, 7.6;
+    `readiness-scoretie` 6/10/11, 13.4 with 211 never-eaten top-5 slots —
+    readiness alone lifts every Option not had in `CAP` days.
+    `noul+choice+affinity+readiness` 36/45/64, 6.7 and
+    `noul+choice+score+readiness` 35/44/65, 7.0, both under the three-way
+    mean's 35/48/68, 6.2; `all+due+regular+readiness` 33/51/61, 6.7 under
+    40/52/70. The product does what the two lists apart cannot: affinity
+    gates readiness, and a brake list without the gate promotes the
+    never-eaten.
+  - `weekday-scoretie` — the count of the Option's dinners on this weekday
+    before today, nothing else — 35/43/62, 7.2: ahead of either Jev arm
+    alone (27/42/58 and 26/35/58) and of the notes at hit@3. In the mean:
+    `all+weekday` 41/55/68, 6.1; `all+due+regular+weekday` 39/50/70, 6.1;
+    `all+regular+weekday` 41/52/66, 6.1; `all+judgments+weekday` 33/49/69,
+    6.0. On these 90 days all of them sit inside the noise of
+    `all+due+regular`; the 209-day run below separates them.
+  - `all+due+regular+pointedAt@note` 40/51/70, 6.1, too-soon days 2 — the
+    same as without it: only 7 of the 90 days have a Day note.
+  - the judge run's rows: `note-scoretie` 32/41/57, 7.7 — the stored notes'
+    own figures, so the rows are matched right; `stance-scoretie` (for
+    tonight less against) 26/33/45, 9.1; `note+stance` 32/39/52, 8.1;
+    `all+stance` 31/44/60, 7.1; `all+due+regular+stance` 34/50/67, 6.5.
+    What the line argues adds nothing to the rank the note already gave.
+- `jev-1.14.0-s6-j1-history-fit.log`, `-fit-4.log`, `-fit-6.log` —
+  `scripts/typesafe-fit.ts`: a conditional logit over each night's
+  candidates, every list's place as a feature, fitted on three months and
+  scored on the fourth, the four held-out months read as one run. Eleven
+  features 36/53/68, 6.2; four (noul, choice, score, weekday) 41/48/64, 6.2;
+  six (noul, choice, affinity, readiness, weekday, due) 36/50/68, 6.2 —
+  level with the unweighted means (35/48/68 to 41/55/68). The weights move
+  between folds (readiness −0.64 to −0.99, due −0.34 to −0.71, regular
+  −0.09 to +0.42): 89 nights do not pin eleven correlated lists down.
+- `scripts/typesafe-calibration.ts` on `s6-j1-history` (no file): the days
+  in quarters by the Choice's top probability give hit@3 of 7, 9, 5 and 5
+  of 23, lowest quarter first, Spearman's rho with the Pick's rank +0.12;
+  by its margin over second 10, 7, 5, 4, rho +0.16; by the top Noul rho
+  0.00. Against the three-way mean's rank: 0.04, −0.05, −0.09. 12 days have
+  a tied top. More confidence, no better rank: there is no day Tonight
+  could mark as a sure thing.
+- `jev-1.14.0-s6-j2-history-noul`, `-choice` and `-rerank-<arm>` —
+  `--judgments=2` (`JUDGMENTS_V2`): ruledOut carries the Option's own
+  Rejections with their reasons as days ago, and the Day note, inside the
+  question, and pointedAt the Option's kind, Tags and notes with the Day
+  note, as `typesafe-judge.ts` writes a row's facts in; the other three
+  judgments unchanged. 90 requests, 4.86M input tokens (≤59k), $0.20.
+  Against v1: `noul+choice+score` 39/50/69, 6.2 (a fourth state 6 run,
+  against 35/48/68); `ruledOut-scoretie` 6/11/25, 12.0 against 4/7/21;
+  `pointedAt-scoretie` 29/43/60, 7.4 against 31/35/55, 7.8;
+  `all+due+regular` 39/52/71, 6.1 against 40/52/70; `all+judgments`
+  31/44/67, 6.7 against 33/49/69, 6.3; `gates+all` 21/30/43 against
+  22/32/41. The values barely moved: ruledOut passes 0.7 on 23 of 3,216
+  rows (6 under v1), top 0.87; pointedAt tops out at 0.63. Writing the
+  facts in did not make the judgments yeses.
+- `jev-1.14.0-s6-j1-history-stage2-<arm>` — `scripts/typesafe-stage2.ts`:
+  the re-ranking cookbook's second pass. The three-way mean picks each
+  day's top ten, and one more request over state 6 asks a Choice among the
+  ten and a two-way Choice for each of the 28 pairs among the top eight;
+  Bradley–Terry (`scripts/pairwise-order.ts`) turns the pairs into an
+  order. 90 requests (one retried after a `fetch failed`), 2.87M tokens,
+  $0.12. The ten-way Choice's top is 0.18 at the median and 0.43 at most,
+  tied on 10 days; 71 of 2,520 pairs tie and 410 reach 0.7. Scored with the
+  rows past the top in the first pass's order: `stage2-choice` 28/43/68,
+  7.0 and `stage2-pairwise` 28/44/68, 6.7 — the second look alone reorders
+  the top worse than the first pass left it; `stage2-choice+base` 39/53/68,
+  6.2 and `stage2-pairwise+base` 35/49/68, 6.2, against the first pass's
+  35/48/68, 6.2. Level with the judgments, at one more call a day.
+- `jev-1.14.0-s6-j1-all-noul`, `-choice` and `-rerank-<arm>` — the s6-j1
+  request on every decided day in the Log (`days-decided-all.txt`): 209
+  days from `2026-01-22`, 206 scorable, 7.84M tokens (≤58.9k), $0.33; the
+  Catalog as it is now, so an Option archived since is off every day. The
+  90 noted days inside it are a second run of s6-j1 and reproduce it:
+  `all+due+regular` 40/49/70, 6.1 against 40/52/70, 6.1; `noul+choice+score`
+  38/50/68 against 35/48/68; `all+judgments` 30/43/67, 6.7 against
+  33/49/69, 6.3; the Noul 24/41/59 against 27/42/58, the Choice 26/36/59
+  against 26/35/58. Over the 206 (`-rerank.log`, `typesafe-summary.ts`):
+  - alone: Score 28/51/91, 10.1; Noul 54/81/121, 8.5; Choice 57/85/123,
+    8.3; `weekday` 71/97/125, 8.0; `regular` 50/85/145, 7.6; `pointedAt`
+    42/61/104, 9.5 (8 days have a Day note).
+  - combined: `noul+choice+score` 69/98/138, 7.4; `all+judgments`
+    63/90/143, 7.4, too-soon days 2; `all+weekday` 80/110/142, 7.0;
+    `all+due+regular` 73/107/150, 6.9; `all+regular+weekday` 85/109/141,
+    6.9; `all+due+regular+weekday` 85/111/147, 6.7, too-soon days 7.
+  - by month, `all+due+regular+weekday` against `all+due+regular` at hit@3:
+    March 6/4 of 21, April 12/7 of 27, May 10/14 of 31, June 15/12 of 29,
+    July 4/5 of 14, August 8/8 of 27, September 15/13 of 27, October 15/15
+    of 28; January and February (5 days, a Log a few weeks old) score
+    nothing for any arm. March's means are 8 to 14 for every arm: the Log
+    was two months old.
+  - `-fit.log`, `-fit-4.log`: the conditional logit with each of the nine
+    months held out, 85/110/146, 6.7 on eleven features and 78/106/139, 7.2
+    on four — level with `all+due+regular+weekday` again, and no better.
+    The all-days weights (a negative weight on a place means higher in that
+    list helps): noul −0.48, due −0.42, affinity −0.41, weekday −0.37,
+    tooSoon −0.35, score −0.19, ruledOut −0.15, choice −0.10, pointedAt
+    +0.15, regular +0.17, readiness +0.28 — readiness's sign flipped from
+    the 90-day fit.
+- `jev-prospective-noul-reasoning/2026-11-01.txt` —
+  `scripts/typesafe-prospective.ts`, the s6-j1 request asked about a day
+  before it is decided: 57k input tokens, 0.6s, one call. Its top five by
+  `noul+choice+score`: Atlas Pizza Parlor, Ninja Sushi, Quiche, Leftovers,
+  Thai Nakorn; by `all+due+regular`: Ninja Sushi, Atlas, Quiche, Thai
+  Nakorn, Hungryroot. The days it has asked are in `jev-prospective-days.txt`
+  for `typesafe-rerank.ts --days-file=` once they are decided. `today()`
+  follows `APP_TZ`, so late in the UTC evening pass `--day=` for the day
+  ahead.
 
 What the Jev runs say:
 
@@ -550,16 +661,75 @@ What the Jev runs say:
   what the averaging's fewer ties would.
 - **It cannot be the Prepared note.** With no prose, the most it could take
   over is an order: the Score's place, or the order under an LLM's prose.
+- **The weekday count is the strongest list nobody was reading.** How often
+  the Option was had on this weekday before today, a count in code, ranks
+  ahead of either Jev arm alone on both day sets (71/97/125, 8.0 on the
+  206 against the Noul's 54/81/121 and the Choice's 57/85/123) and is the
+  one addition that moves the mean outside the noise once the days are
+  enough: `all+due+regular+weekday` 85/111/147, 6.7 against
+  `all+due+regular`'s 73/107/150, 6.9, twelve hits at hit@3 over 206 days,
+  ahead or level in seven of the eight full months. The notes' prompt
+  dropped weekday counts from the snapshot (issue 10) because the LLM read
+  them inconsistently; in code they are a plain list, and a list is all the
+  mean needs. The cost is too-soon days (7 against 6) and the Choice's
+  never-eaten tendency does not return (2 slots).
+- **The Score's factors do not split.** Affinity alone is a fair list
+  (29/34/62) and readiness alone a terrible one (6/10/11, 211 never-eaten
+  top-5 slots): readiness caps at `CAP` for anything long unhad or never
+  had, and only the product lets affinity gate it. Every arm with
+  readiness as its own list lost to the same arm with the Score. The brake
+  the mean needs is not readiness; `regular` and the weekday count do that
+  work, since both read zero for the never-eaten.
+- **Fitted weights do no better than the plain mean of ranks.** A
+  conditional logit over the lists, fitted with a month held out, lands
+  level with the hand-picked means on both day sets (36/53/68 on the 89,
+  85/110/146 on the 206) and its weights move between folds and flip sign
+  between day sets (readiness −0.81 on the 89, +0.28 on the 206). The
+  lists are correlated and the Picks few; the unweighted mean is the
+  robust combiner, and the question is which lists go in, not how much of
+  each.
+- **Jev's confidence says nothing about the day.** The Choice's top
+  probability, its margin over second and the top Noul are uncorrelated
+  with the Pick's rank (rho 0.00 to +0.16, the wrong way if anything), so
+  there is no day Tonight could mark as a sure thing and no day to hand
+  to a slower model. Every day reads the same to Jev.
+- **Writing the facts into the question did not fix the judgments.** With
+  the Option's own Rejections and reasons, and the Day note, inside the
+  ruled-out and pointed-at questions, their values barely moved (ruledOut
+  over 0.7 on 23 rows of 3,216, pointedAt never over 0.63) and the arms
+  stayed inside the noise. The gates still wreck the ranking. The
+  judgments are orders whatever the question carries; the state was not
+  the problem.
+- **A second pass over the top ten is a wash.** A Choice among the first
+  pass's ten, or Bradley–Terry over 28 pairs among its eight, reorders the
+  top worse than the first pass left it (28/43/68 and 28/44/68 against
+  35/48/68); averaged with the first pass it reaches 39/53/68, level with
+  the judgments, for one more call a day. Fewer options did not make the
+  answers decisive: the ten-way top is 0.18 at the median and 410 of
+  2,520 pairs reach 0.7. The re-ranking cookbook's shape buys nothing
+  here that the judgments do not buy in the same request.
+- **The 90 noted days were a fair sample, and 206 days are enough to
+  separate arms.** Every arm's order held on the wider set and the second
+  run of s6-j1 reproduced the first (40/49/70 against 40/52/70). On the 206
+  the gap between the top arms is twelve hits where on the 90 it was two,
+  so the wider set is the one to read from now on; the notes comparison
+  stays on the 90, since there are no notes before July. The early months
+  are weak for every arm and the Score worst of all (0/1/4 in March): a
+  two-month Log is not enough history for any of them.
+- **The judge's stance adds nothing to the rank.** The note's own order
+  reads out of the judge run exactly (32/41/57, 7.7) and its for-tonight
+  less against-tonight, alone or in any mean, ranks worse than the lists
+  it joins. The line's argument is already in the row's place.
 
-Not tried: a second `--judgments` run, to put `all+due+regular` and
-`all+judgments` inside or outside a run's noise after thirteen arms were
-read on one set of days; the judgments with the Option's facts written into
-each question instead of looked up (as `typesafe-judge.ts` does for the
-note rows); state 4 with the Rejections filed under each Tag as well, to
-see whether those were the copies state 3 lost by; a second run of state 4;
-judgments broken down (due, ruled out by a Rejection, pointed at by the Day
-note) and combined in code, which needs weights; Jev reordering an LLM's
-shortlist.
+Not tried: a decayed weekday count, or the weekday by Tag (pizza on
+Fridays through whichever pizza); a weekday judgment asked of Jev ("Is X a
+usual Friday dinner?") now the count in code has shown there is a signal;
+the prospective run continued daily and read after a month, the only check
+free of the days the arms were chosen on; the second pass over the
+`all+due+regular+weekday` order instead of the three-way mean; the early
+months with the Catalog as it stood then (archived Options back on); the
+Rejections filed under each Tag added to state 4, to see whether those were
+the copies state 3 lost by.
 
 ## Jev as a reader of the stored notes
 

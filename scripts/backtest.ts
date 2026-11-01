@@ -17,6 +17,7 @@
  *
  *   --backtest              run the backtest instead of a single day
  *   --days=D1,D2,…          a fixed day list, so runs compare like with like
+ *   --days-file=<path>      the same list read from a file
  *   --count=N               days sampled across weekdays (default 20)
  *   --window=N              how far back to sample, in days (default 60)
  *   --exclude=D1,D2,…       days left out of the sample — a second set of
@@ -359,8 +360,20 @@ export function parseBacktestArgs(args: string[], defaultJsonPath: string): Back
     return n;
   };
   const jsonArg = args.find((arg) => arg === "--json" || arg.startsWith("--json="));
+  // `--days-file=<path>`: the same list read from a file (whitespace or commas).
+  const daysFile = value("days-file");
+  const daysFromFile = daysFile
+    ? readFileSync(daysFile, "utf8")
+        .split(/[\s,]+/)
+        .filter((day) => day !== "")
+    : undefined;
+  const invalidFromFile = daysFromFile?.filter((day) => !isValidSqlDate(day)) ?? [];
+  if (invalidFromFile.length > 0) {
+    console.error(`--days-file must hold YYYY-MM-DD days, got ${invalidFromFile.join(", ")}`);
+    process.exit(1);
+  }
   return {
-    days: dayList("days"),
+    days: dayList("days") ?? daysFromFile,
     exclude: dayList("exclude") ?? [],
     count: positive("count", DEFAULT_COUNT),
     windowDays: positive("window", DEFAULT_WINDOW_DAYS),

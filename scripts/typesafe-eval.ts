@@ -25,7 +25,9 @@
  * `--judgments` adds five more Nouls per candidate (`JUDGMENTS`: too soon,
  * ruled out, pointed at by the Day note, due, regular), saved with the rest
  * for `scripts/typesafe-rerank.ts` to combine in code; the two arms scored
- * here are unchanged by them.
+ * here are unchanged by them. `--judgments=2` (`JUDGMENTS_V2`) writes the
+ * Option's Rejections and the Day note into the ruled-out and pointed-at
+ * questions instead of leaving them to be looked up in the state.
  *
  *   npx tsx scripts/typesafe-eval.ts --dry-run --day=2026-10-22   # no call
  *   npx tsx scripts/typesafe-eval.ts --backtest --days=2026-10-22 --json
@@ -44,8 +46,8 @@ import { epochDayFromSqlDate, isValidSqlDate, weekdayName } from "../lib/local-d
 import { type BuiltSnapshot, snapshotForDay } from "../lib/snapshot";
 import { type Generation, parseBacktestArgs, runBacktest } from "./backtest";
 
-const ENDPOINT = "https://api.typesafe.ai/v1/systemone";
-const MODEL = "jev-1.14.0";
+export const ENDPOINT = "https://api.typesafe.ai/v1/systemone";
+export const MODEL = "jev-1.14.0";
 const ARMS = ["noul", "choice"] as const;
 type Arm = (typeof ARMS)[number];
 
@@ -66,7 +68,6 @@ const CHOICE_INSTRUCTIONS =
  * (`scripts/typesafe-rerank.ts`). They ride in the same request as the Noul
  * and the Choice, so the state is read once. Bump on any change.
  */
-const JUDGMENTS_VERSION = "1";
 const JUDGMENTS: Record<string, (name: string) => { instructions: string; criteria: { true: string; false: string } }> = {
   tooSoon: (name) => ({
     instructions: `Is the evening of \`today\` too soon for the Household to have ${name} again?`,
@@ -104,6 +105,84 @@ const JUDGMENTS: Record<string, (name: string) => { instructions: string; criter
     },
   }),
 };
+
+/**
+ * What a judgment reads of the Option when it is written into the question
+ * (`--judgments=2`) instead of looked up in the state: its Rejections with
+ * their reasons, newest first, as days ago, and the Day note.
+ */
+export type JudgmentFacts = {
+  name: string;
+  kind: "home" | "restaurant";
+  tags: string[];
+  notes?: string;
+  closedDays?: string[];
+  rejections: { daysAgo: number; reason: string | null }[];
+  todayDayNote: string | null;
+};
+
+type Judgment = { instructions: string | Record<string, unknown>; criteria: { true: string; false: string } };
+
+/**
+ * Judgments v2: `ruledOut` and `pointedAt` carry the facts they judge inside
+ * the question — the Option's own Rejections and reasons, and the Day note —
+ * the way `typesafe-judge.ts` writes a row's facts into each question; the
+ * other three are v1's. One question, one subject, nothing to look up.
+ */
+const JUDGMENTS_V2: Record<string, (facts: JudgmentFacts) => Judgment> = {
+  tooSoon: (f) => JUDGMENTS.tooSoon(f.name),
+  ruledOut: (f) => ({
+    instructions: {
+      question: `Does a reason on record rule out ${f.name} for the evening of \`today\`?`,
+      option: {
+        name: f.name,
+        kind: f.kind,
+        ...(f.closedDays ? { closedDays: f.closedDays } : {}),
+        rejections: f.rejections,
+      },
+      todayDayNote: f.todayDayNote,
+    },
+    criteria: {
+      true: `One of the rejections of ${f.name}, or the Day note, gives a reason that still holds this evening: it is closed, not on hand, someone it is for is away, or the like`,
+      false: `No recorded reason stands against ${f.name} this evening: its rejections were about their own nights, and the Day note does not touch it`,
+    },
+  }),
+  pointedAt: (f) => ({
+    instructions: {
+      question: `Does the Day note for \`today\` point toward ${f.name}?`,
+      option: { name: f.name, kind: f.kind, tags: f.tags, ...(f.notes ? { notes: f.notes } : {}) },
+      todayDayNote: f.todayDayNote,
+    },
+    criteria: {
+      true: `What the note asks for — a quick dinner, a craving, who is home, an outing nearby — fits ${f.name} well`,
+      false: `The note says nothing that bears on ${f.name}, asks for something else, or there is no note`,
+    },
+  }),
+  due: (f) => JUDGMENTS.due(f.name),
+  regular: (f) => JUDGMENTS.regular(f.name),
+};
+
+/** The judgments by version: `--judgments` is v1, `--judgments=2` v2. */
+export type JudgmentsVersion = "1" | "2";
+
+/** The facts v2 writes into a candidate's questions. */
+export function judgmentFacts(built: BuiltSnapshot, code: string): JudgmentFacts {
+  const { snapshot } = built;
+  const option = snapshot.options.find((o) => o.id === code)!;
+  const todayEpoch = epochDayFromSqlDate(snapshot.today.slice(0, 10));
+  const daysAgo = (date: string) => todayEpoch - epochDayFromSqlDate(date.slice(0, 10));
+  return {
+    name: option.name,
+    kind: option.kind,
+    tags: option.tags,
+    ...(option.notes ? { notes: option.notes } : {}),
+    ...(option.closedDays ? { closedDays: option.closedDays } : {}),
+    rejections: snapshot.rejections.notTodayRejections
+      .filter((rejection) => rejection.optionId === code && daysAgo(rejection.date) >= 1)
+      .map((rejection) => ({ daysAgo: daysAgo(rejection.date), reason: rejection.reason })),
+    todayDayNote: snapshot.todayDayNote,
+  };
+}
 
 /**
  * The snapshot as Jev reads it: the same facts the LLM rankers see, with the
@@ -429,11 +508,11 @@ const STATES = {
 } as const;
 
 /** The header that lifts both context limits to 262k, at the documented cost in speed and accuracy. */
-const LONG_CONTEXT_HEADER = { "TypeSafe-Danger-Zone-Long-Context": "true" };
-type StateVersion = keyof typeof STATES;
+export const LONG_CONTEXT_HEADER = { "TypeSafe-Danger-Zone-Long-Context": "true" };
+export type StateVersion = keyof typeof STATES;
 
 /** A Fisher–Yates shuffle seeded by `seed`, so a day's order is the same on every run. */
-function seededShuffle<T>(items: T[], seed: string): T[] {
+export function seededShuffle<T>(items: T[], seed: string): T[] {
   let state = [...seed].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619), 2166136261);
   const random = () => {
     state = (state + 0x6d2b79f5) | 0;
@@ -450,7 +529,7 @@ function seededShuffle<T>(items: T[], seed: string): T[] {
 }
 
 /** The day's request body: a Noul per candidate, keyed by its code, and the Choice. */
-export function jevRequest(built: BuiltSnapshot, state: StateVersion, judgments = false) {
+export function jevRequest(built: BuiltSnapshot, state: StateVersion, judgments: JudgmentsVersion | false = false) {
   const { snapshot } = built;
   const names = snapshot.options.map((option) => option.name);
   const questions: Record<string, unknown> = {};
@@ -460,9 +539,14 @@ export function jevRequest(built: BuiltSnapshot, state: StateVersion, judgments 
       instructions: noulInstructions(option.name),
       criteria: NOUL_CRITERIA,
     };
-    if (judgments) {
+    if (judgments === "1") {
       for (const [judgment, ask] of Object.entries(JUDGMENTS)) {
         questions[`${judgment}_${option.id}`] = { type: "noul", ...ask(option.name) };
+      }
+    } else if (judgments === "2") {
+      const facts = judgmentFacts(built, option.id);
+      for (const [judgment, ask] of Object.entries(JUDGMENTS_V2)) {
+        questions[`${judgment}_${option.id}`] = { type: "noul", ...ask(facts) };
       }
     }
   }
@@ -474,28 +558,42 @@ export function jevRequest(built: BuiltSnapshot, state: StateVersion, judgments 
   return { model: MODEL, state: STATES[state](built), questions };
 }
 
-type JevAnswer =
+export type JevAnswer =
   | { type: "noul"; noul: number }
   | { type: "choice"; choice: string; confidence: number; probabilities: Record<string, number> };
 
-type JevResponse = {
+export type JevResponse = {
   model: string;
   answers: Record<string, JevAnswer>;
   usage: { input_tokens: number; output_tokens: number };
 };
 
-type JevCall =
+export type JevCall =
   | { ok: true; request: unknown; response: JevResponse; latencyMs: number }
   | { ok: false; request: unknown; error: string };
 
-async function askJev(
+export async function askJev(
   apiKey: string,
   built: BuiltSnapshot,
   state: StateVersion,
   longContext: boolean,
-  judgments: boolean,
+  judgments: JudgmentsVersion | false,
 ): Promise<JevCall> {
-  const request = jevRequest(built, state, judgments);
+  return sendJev(apiKey, built, jevRequest(built, state, judgments), longContext);
+}
+
+/**
+ * Any request over the day's candidates sent to Jev: the answer to every
+ * question in it, or a failure — a missing answer is a failed call, never a
+ * probability of 0. `scripts/typesafe-stage2.ts` sends its own questions
+ * through it.
+ */
+export async function sendJev(
+  apiKey: string,
+  built: BuiltSnapshot,
+  request: { model: string; state: unknown; questions: Record<string, unknown> },
+  longContext: boolean,
+): Promise<JevCall> {
   const started = Date.now();
   try {
     const res = await fetch(ENDPOINT, {
@@ -511,14 +609,21 @@ async function askJev(
     const body = await res.text();
     if (!res.ok) return { ok: false, request, error: `HTTP ${res.status}: ${body}` };
     const response = JSON.parse(body) as JevResponse;
-    // A missing answer is a failed call, never a probability of 0.
-    const choice = response.answers?.choice;
-    const missing = [
-      ...Object.keys(request.questions).filter((name) => !response.answers?.[name]),
-      ...built.snapshot.options
-        .filter((option) => choice?.type !== "choice" || choice.probabilities[option.name] === undefined)
-        .map((option) => `choice[${option.name}]`),
-    ];
+    // A missing answer is a failed call, never a probability of 0. A Choice
+    // must answer for every name it was asked about.
+    const missing = Object.keys(request.questions).filter((name) => !response.answers?.[name]);
+    for (const [name, question] of Object.entries(request.questions)) {
+      const asked = question as { type: string; criteria?: Record<string, unknown> };
+      const answer = response.answers?.[name];
+      if (asked.type !== "choice" || !answer) continue;
+      if (answer.type !== "choice") {
+        missing.push(name);
+        continue;
+      }
+      for (const option of Object.keys(asked.criteria ?? {})) {
+        if (answer.probabilities[option] === undefined) missing.push(`${name}[${option}]`);
+      }
+    }
     if (missing.length > 0) return { ok: false, request, error: `no answer to ${missing.join(", ")}` };
     return { ok: true, request, response, latencyMs: Date.now() - started };
   } catch (error) {
@@ -539,7 +644,7 @@ function rankArm(arm: Arm, built: BuiltSnapshot, response: JevResponse): Generat
     .map(({ id, p }) => ({ id, reason: `${arm} ${p.toFixed(3)}` }));
 }
 
-function dryRun(day: string, state: StateVersion, judgments: boolean): Promise<void> {
+function dryRun(day: string, state: StateVersion, judgments: JudgmentsVersion | false): Promise<void> {
   return snapshotForDay({ asOf: day, query: "", backtest: true }).then((built) => {
     const request = jevRequest(built, state, judgments);
     const chars = JSON.stringify(request).length;
@@ -552,6 +657,10 @@ function dryRun(day: string, state: StateVersion, judgments: boolean): Promise<v
     for (const judgment of judgments ? Object.keys(JUDGMENTS) : []) {
       console.log(`first ${judgment}: ${JSON.stringify(request.questions[`${judgment}_${first.id}`])}`);
     }
+    if (judgments === "2") {
+      const rejected = built.snapshot.options.find((o) => judgmentFacts(built, o.id).rejections.length > 0);
+      if (rejected) console.log(`a rejected one's ruledOut: ${JSON.stringify(request.questions[`ruledOut_${rejected.id}`])}`);
+    }
     console.log(`choice: ${JSON.stringify(request.questions.choice)}`);
     if (process.argv.includes("--print-state")) {
       console.log(`\nstate:\n${JSON.stringify(request.state, null, 2)}`);
@@ -563,7 +672,16 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const state = (args.find((a) => a.startsWith("--state="))?.slice(8) ?? "1") as StateVersion;
   const longContext = args.includes("--long-context");
-  const judgments = args.includes("--judgments");
+  const judgmentsArg = args.find((a) => a === "--judgments" || a.startsWith("--judgments="));
+  const judgments: JudgmentsVersion | false = !judgmentsArg
+    ? false
+    : judgmentsArg === "--judgments"
+      ? "1"
+      : (judgmentsArg.slice(12) as JudgmentsVersion);
+  if (judgments !== false && judgments !== "1" && judgments !== "2") {
+    console.error(`--judgments takes no value or 2, got ${judgmentsArg}`);
+    process.exit(1);
+  }
   if (!(state in STATES)) {
     console.error(`--state must be ${Object.keys(STATES).join(" or ")}, got ${state}`);
     process.exit(1);
@@ -613,7 +731,7 @@ async function main(): Promise<void> {
           // State 1 runs predate the flag and carry no suffix.
           promptVersion:
             `${arm}-v${QUESTIONS_VERSION}${state === "1" ? "" : `-s${state}`}` +
-            `${longContext ? "-long" : ""}${judgments ? `-j${JUDGMENTS_VERSION}` : ""}`,
+            `${longContext ? "-long" : ""}${judgments ? `-j${judgments}` : ""}`,
           ...(parsed.repeat > 1 ? { repeat: `${i}/${parsed.repeat}` } : {}),
         },
         saveReasoning: true,
@@ -640,10 +758,13 @@ async function main(): Promise<void> {
   }
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error("TypeSafe eval failed.");
-    console.error(error);
-    process.exit(1);
-  });
+// Run as a script; imported by `typesafe-stage2.ts` and `typesafe-prospective.ts` for its request and call.
+if (process.argv[1]?.endsWith("typesafe-eval.ts")) {
+  main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error("TypeSafe eval failed.");
+      console.error(error);
+      process.exit(1);
+    });
+}
