@@ -334,6 +334,83 @@ run's `-reasoning/<day>.txt`, so any answer can be resent.
   back at v1 and the re-rank has no averaged arm, so the run is read here;
   each day's v2 request is in its `-reasoning/` to resend (`choice_2` and
   `choice_3` were shuffled by `<today>/2` and `<today>/3`).
+- `jev-1.14.0-s3-history-noul` and `-choice` — the same 90 days with
+  `--state=3` (`jevStateLean`): state 1's facts and arrangement, dates and
+  the whole Log kept, with the copies taken out as `leanSnapshot` takes them
+  out for the LLM rankers — a Log or Rejection row keeps its date, name and
+  note or reason, not the Option's kind and Tags, and the Tags lose their
+  Rejection lists, which were `notTodayRejections` filed again per Tag.
+  60k chars drop to 33k; ≤19.4k input tokens a request (mean 15.7k against
+  state 1's 25.5k), 1.41M in all, $0.059. Worse on both arms: Noul
+  21/34/53, 8.4 and Choice 19/30/56, 8.4, against state 1's 24/34/57, 7.9
+  and 27/38/58, 7.7; day by day against state 1 the Noul is better on 24,
+  worse on 42, the Choice 26 / 50. Too-soon days 7 (Noul) and 5; never-eaten
+  top-5 slots 0 and 8. Ranked again (`-s3-history-rerank-<arm>`): all three
+  36/48/65, 6.6, against state 1's 37/54/70, 6.0, better on 17 days and
+  worse on 44. Two state 1 runs differ by about 0.4 in mean rank and 2 or 3
+  hits at a level (`history` against `q2-history`), so the Choice's loss is
+  outside that and the Noul's at its edge.
+- `jev-1.14.0-s4-history-noul` and `-choice` — the same 90 days with
+  `--state=4` (`jevStateLeanByOption`): state 3 with each candidate's own
+  dinners (date and note) and Rejections (date and reason) under its name,
+  newest first, so a Noul reaches one Option's past in one hop, the whole
+  dated Log kept beside it for the view across Options; the flat Rejection
+  list goes (a Rejection of an Option that is no candidate today is dropped).
+  ≤25.1k input tokens a request (mean 19.8k), 1.79M in all, $0.075. The
+  Noul recovers and passes state 1: 22/39/59, 7.7, against 24/34/57, 7.9;
+  better on 44 days, worse on 34. The Choice recovers to level: 27/36/58,
+  8.0, against 27/38/58, 7.7; better on 39, worse on 34. Too-soon days 7 on
+  both arms, against state 1's 5 and 4; never-eaten top-5 slots 0 and 17.
+  Ranked again (`-s4-history-rerank-<arm>`): all three 38/47/68, 6.3,
+  against 37/54/70, 6.0; better on 31 days, worse on 36, tied on 22, and
+  level in both halves (26/33/47 against 24/37/50 in July–September,
+  12/14/21 against 13/17/20 in October). Inside a run's noise, at three
+  quarters of the tokens.
+- `jev-1.14.0-s5-history-noul` and `-choice` — the same 90 days with
+  `--state=5` (`jevStateLeanByOptionTaggedLog`): state 4 with the Option's
+  Tags back on each Log row, to test whether those were the copies state 3
+  lost by. ≤28.2k input tokens a request (mean 22.3k), 2.01M in all, $0.084.
+  Level with state 4, not above it: Noul 22/36/57, 7.9 (against state 4's
+  22/39/59, 7.7; better on 23 days, worse on 30), Choice 24/34/57, 8.1
+  (against 27/36/58, 8.0; 28 / 35). Against state 1 the Choice is 36 days
+  better and 35 worse, the Noul 38 / 38. Too-soon days 7 and 6; never-eaten
+  top-5 slots 0 and 16. Ranked again (`-s5-history-rerank-<arm>`): all
+  three 34/49/69, 6.4, against state 4's 38/47/68, 6.3 and state 1's
+  37/54/70, 6.0; 26 days better than state 4, 24 worse, 39 tied.
+- `jev-1.14.0-s6-history-noul` and `-choice` — the same 90 days with
+  `--state=6 --long-context` (`jevStateWithOptionHistory`): state 1 whole,
+  every copy kept, plus each candidate's dinners and Rejections under its
+  own name as in state 4; past the 32k a question may read, so sent with
+  the `TypeSafe-Danger-Zone-Long-Context` header. ≤42.8k input tokens a
+  request (mean 32.7k), 2.94M in all, $0.124; no call slower than 0.4s. The
+  best single arms so far: Noul 25/41/58, 7.6 (better than state 1 on 41
+  days, worse on 26; than state 4 30 / 27), Choice 27/37/62, 7.8 (41 / 35
+  against state 1; 42 / 33 against state 4). Too-soon days 7 on both;
+  never-eaten top-5 slots 0 and 17. Ranked again
+  (`-s6-history-rerank-<arm>`): all three 40/52/70, 6.0, level with state
+  1's 37/54/70, 6.0 (27 days better, 29 worse, 33 tied) and ahead of state
+  4's 38/47/68, 6.3 (34 / 25); against the stored notes 44 / 27 / 18. By
+  half: 26/35/49 in July–September, 14/17/21 in October.
+- `jev-1.14.0-s6-history-r2-noul` and `-choice` — state 6 again, the same
+  request each day, as the control for state 7. Noul 26/40/60, 7.6 and
+  Choice 30/37/60, 7.5, against the first run's 25/41/58, 7.6 and 27/37/62,
+  7.8; day by day the Noul is better on 26 and worse on 24, the Choice
+  35 / 27. All three 39/52/69, 6.1 against 40/52/70, 6.0 (21 / 21 / 47).
+  So state 6 holds, and two runs of one shape differ by 0 to 0.3 in mean
+  rank and up to 4 hits at a level. Too-soon days 5 and 6, against the
+  first run's 7 and 7: that count moves by 2 between identical runs.
+- `jev-1.14.0-s7-history-noul` and `-choice` — `--state=7 --long-context`
+  (`jevStateWithOptionAndTagHistory`): state 6 with each Tag's dinners
+  (date and Option) under the Tag and, under each candidate, the days since
+  each of its Tags was had — the timing facts one hop from the question.
+  ≤53.9k input tokens a request (mean 41.7k), 3.75M in all, $0.158; the
+  slowest call 1.0s. Worse than both state 6 runs: Noul 29/37/58, 7.8
+  (against them 31 / 38 and 28 / 38 by day), Choice 22/35/60, 7.9 (28 / 40
+  and 26 / 43). The Choice's never-eaten top-5 slots went from 17 to 56:
+  with a Tag's dinners laid out, an Option never eaten under a Tag long
+  unhad rises. Too-soon days 5 on both arms, no better than state 6's
+  second run. All three 39/47/67, 6.3, worse than either state 6 run on 19
+  days to 33 and 18 to 32.
 
 What the Jev runs say:
 
@@ -354,17 +431,61 @@ What the Jev runs say:
 - **Doing the timing in code did not fix that, and cost ranking.** State 2
   (precomputed "N days ago", gap comparisons, the Log cut to the last week)
   was worse on every view and left the too-soon days where they were.
-  Dropping the full Log is the likely cause; it is untested.
+- **Smaller is not better by itself: the repeated copies were doing work,
+  and not through the Tags.** State 3 took out only what `leanSnapshot`
+  takes out for the LLM rankers — the Option's kind and Tags on every Log
+  and Rejection row, and the Rejections filed again under each Tag — and
+  both arms lost, the Choice clearly (19/30/56 against 27/38/58, worse on
+  50 days to 26). The ready explanation, that the Tags beside each date let
+  "sushi three days ago" be read off the Log in one hop, did not hold:
+  state 5 put the Tags back on the rows and gained nothing over state 4.
+  What the copies did is open — the Rejections filed under each Tag with
+  their reasons, the kind on each row, or several small things together.
+  State 2's loss has the same copies in it, so it is not the Log cut alone.
+- **Each Option's history under its own name recovers the loss, and gives
+  the Noul a little more.** State 4 adds a candidate's dinners and
+  Rejections under its own entry, Log kept: the Noul passes state 1 on mean
+  rank and hit@5 and wins 44 days to 34, the Choice returns to level day by
+  day (39 / 34), and the three-way mean is level with state 1 (38/47/68,
+  6.3 against 37/54/70, 6.0; 31 days better, 36 worse) at three quarters of
+  the tokens. Too-soon days rose to 7 on both arms.
+- **The 32k limit is not a wall: long context showed no cost at 43k.** State
+  6 keeps all of state 1 and adds the per-Option history, sent with the
+  long-context header, and both arms are the best yet — the Noul 7.6 and
+  the Choice 7.8, each better than state 1 on 41 days — while the calls
+  stayed at 0.4s. The three-way mean is level with state 1 (40/52/70, 6.0)
+  and ahead of state 4. So the Log need not be trimmed for size, and there
+  is room to add what the notes have and Jev lacks. The two findings read
+  together: the per-Option history is worth its tokens, the copies state 3
+  took out were too, and the shape to carry forward is state 6, with the
+  header, or state 4 inside the default limits. A second state 6 run
+  reproduced it (Noul 7.6 again, Choice 7.5), so its gain over state 1 is
+  outside what two runs of one shape differ by.
+- **More timing state did not fix the timing, and cost the Choice.** State
+  7 laid each Tag's dinners out under the Tag and put each candidate's Tag
+  recency beside it, the facts a too-soon call needs in one hop, and
+  too-soon days stayed at 5, the same as state 6's second run; that count
+  moves by 2 between identical runs, so none of the shapes has moved it.
+  Meanwhile the Choice put never-eaten Options into 56 of 445 top-5 slots
+  against 17: a Tag long unhad lifts every Option under it, eaten or not.
+  Both arms lost to both state 6 runs day by day. The timing fix is not
+  more state; it is the Score's place in the mean, or a timing judgment
+  of its own combined in code.
 - **The probabilities give an order, not a confidence.** They come to two
   decimals, so the Pick sits in a tie on about half the days (broken
   alphabetically, worth up to a hit or two at each level); the Noul's sum
   to about 4 a day; the Choice's top answer is 0.09–0.23, so no day reads
   as a sure thing.
 - **It is fast and cheap but near its context limit.** 0.3s and about
-  $0.0013 a day, against minutes on the local model. State 1 reached 32.8k
-  tokens a request on the newest days, against the 32k a single question
-  may read; the Log grows every dinner, so a lasting use needs a trim or
-  the slower long-context mode.
+  $0.0013 a day, against minutes on the local model. The limit that binds
+  is 32k tokens for the state plus any one question (the 64k a whole
+  request may hold is far off: the 38 questions add about 6.5k). State 1's
+  requests reached 32.8k input tokens on the newest days; that is the whole
+  request, so the state plus the Choice stood near 29k, with a few weeks'
+  room at the 131 tokens a day the Log adds. State 4 is the trim that costs
+  nothing so far: 25.1k a request, about 22k a question, growing 84 a day.
+  Past the limit is the long-context header (262k, same price, slower and
+  less accurate by the docs).
 - **Combined with the Score, it ranks best of anything so far.** The mean
   of the Noul's, the Choice's and the Score's ranks, with no weight to fit,
   is 37/54/70 and 6.0 on the 90 days, and leads in both halves of them,
@@ -379,6 +500,10 @@ What the Jev runs say:
 - **It cannot be the Prepared note.** With no prose, the most it could take
   over is an order: the Score's place, or the order under an LLM's prose.
 
-Not tried: state 2 with the full Log kept; judgments broken down (due,
-ruled out by a Rejection, pointed at by the Day note) and combined in code,
-which needs weights; Jev reordering an LLM's shortlist.
+Not tried: state 4 with the Rejections filed under each Tag as well, to
+see whether those were the copies state 3 lost by; a second run of state 4;
+a too-soon Noul of its own ("Has the Household had this, or its cuisine,
+more recently than they would choose to again?") combined in code with
+state 6's ranking; judgments broken down (due, ruled out by a Rejection, pointed at by the Day
+note) and combined in code, which needs weights; Jev reordering an LLM's
+shortlist.

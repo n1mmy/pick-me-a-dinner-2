@@ -12,7 +12,15 @@
  *              the date, ranked by its probabilities.
  *
  * `--state=2` sends `jevStateByOption` instead: the same facts with no dates,
- * arranged under each Option's name.
+ * arranged under each Option's name. `--state=3` (`jevStateLean`) is state 1
+ * with no repeated copies; `--state=4` (`jevStateLeanByOption`) adds each
+ * candidate's own dinners and Rejections under its name, Log kept;
+ * `--state=5` (`jevStateLeanByOptionTaggedLog`) puts the Tags back on each
+ * Log row; `--state=6` (`jevStateWithOptionHistory`) is state 1 whole plus
+ * each candidate's history, and needs `--long-context`, which sends the
+ * header that lifts the 32k-a-question limit to 262k; `--state=7`
+ * (`jevStateWithOptionAndTagHistory`) adds each Tag's dinners and, under
+ * each candidate, the days since each of its Tags was had.
  *
  *   npx tsx scripts/typesafe-eval.ts --dry-run --day=2026-10-22   # no call
  *   npx tsx scripts/typesafe-eval.ts --backtest --days=2026-10-22 --json
@@ -195,7 +203,183 @@ export function jevStateByOption({ snapshot }: BuiltSnapshot) {
   };
 }
 
-const STATES = { "1": jevState, "2": jevStateByOption } as const;
+/**
+ * State 3: state 1's facts and arrangement with every repeated copy taken
+ * out, as `leanSnapshot` already does for the LLM rankers. A Log or Rejection
+ * row keeps its date, the Option's name, and its note or reason; the kind and
+ * Tags it repeated sit on the candidate already. The Tags' own Rejection lists
+ * go: they are `rejections.notTodayRejections` filed again per Tag. Dates and
+ * the whole Log stay, so a run against state 1 reads size alone.
+ */
+export function jevStateLean(built: BuiltSnapshot) {
+  const { snapshot } = built;
+  const row = ({ date, name, note, shortlist }: (typeof snapshot.log)[number]) => ({
+    date,
+    name,
+    ...(note ? { note } : {}),
+    ...(shortlist ? { shortlist } : {}),
+  });
+  const rejection = ({ date, name, reason }: (typeof snapshot.rejections.notTodayRejections)[number]) => ({
+    date,
+    name,
+    reason,
+  });
+  return {
+    today: snapshot.today,
+    options: snapshot.options.map(({ id, ...option }) => {
+      void id;
+      return option;
+    }),
+    tags: Object.fromEntries(
+      Object.entries(snapshot.tags).map(([tag, { rejections, ...timing }]) => {
+        void rejections;
+        return [tag, timing];
+      }),
+    ),
+    log: snapshot.log.map(row),
+    rejections: {
+      rejectedTonight: snapshot.rejections.rejectedTonight.map(rejection),
+      notTodayRejections: snapshot.rejections.notTodayRejections.map(rejection),
+    },
+    dayNotes: snapshot.dayNotes,
+    todayDayNote: snapshot.todayDayNote,
+  };
+}
+
+/**
+ * State 4: state 3 with each candidate's own history under its name as well —
+ * its dinners (date and note) and its Rejections (date and reason), newest
+ * first — so a Noul about one Option reaches its past in one hop instead of a
+ * scan of the Log (state 2's arrangement). Unlike state 2 the whole dated Log
+ * stays for the view across Options, and the Rejection list moves under the
+ * Options: a Rejection of an Option that is no candidate today is dropped.
+ */
+export function jevStateLeanByOption(built: BuiltSnapshot) {
+  const { snapshot } = built;
+  const lean = jevStateLean(built);
+  const { rejections, ...rest } = lean;
+  const todayDate = snapshot.today.slice(0, 10);
+  const options = snapshot.options.map((option) => {
+    const dinners = snapshot.log
+      .filter((entry) => entry.optionId === option.id && entry.date.slice(0, 10) < todayDate)
+      .map(({ date, note }) => ({ date, ...(note ? { note } : {}) }));
+    const rejected = snapshot.rejections.notTodayRejections
+      .filter((rejection) => rejection.optionId === option.id)
+      .map(({ date, reason }) => ({ date, reason }));
+    const { id, ...fields } = option;
+    void id;
+    return {
+      ...fields,
+      ...(dinners.length > 0 ? { dinners } : {}),
+      ...(rejected.length > 0 ? { rejections: rejected } : {}),
+    };
+  });
+  return {
+    ...rest,
+    options,
+    ...(rejections.rejectedTonight.length > 0 ? { rejectedTonight: rejections.rejectedTonight } : {}),
+  };
+}
+
+/**
+ * State 5: state 4 with the Option's Tags back on each Log row. State 3 lost
+ * ranking when the rows lost them: with the Tags beside the date, "sushi
+ * three days ago" is read off the Log in one hop, which the view across
+ * Options — the Choice — needs. The kind stays off the row, and the
+ * Rejections stay under the Options.
+ */
+export function jevStateLeanByOptionTaggedLog(built: BuiltSnapshot) {
+  const { snapshot } = built;
+  const byOption = jevStateLeanByOption(built);
+  return {
+    ...byOption,
+    log: snapshot.log.map(({ date, name, tags, note, shortlist }) => ({
+      date,
+      name,
+      tags,
+      ...(note ? { note } : {}),
+      ...(shortlist ? { shortlist } : {}),
+    })),
+  };
+}
+
+/**
+ * State 6: state 1 whole — every copy kept — with each candidate's dinners
+ * and Rejections under its own name as in state 4. Past the 32k a question
+ * may read on the newest days, so it is run with `--long-context`, to see
+ * whether the slower mode's documented accuracy cost shows at this size.
+ */
+export function jevStateWithOptionHistory(built: BuiltSnapshot) {
+  const { snapshot } = built;
+  const full = jevState(built);
+  const todayDate = snapshot.today.slice(0, 10);
+  return {
+    ...full,
+    options: snapshot.options.map((option) => {
+      const dinners = snapshot.log
+        .filter((entry) => entry.optionId === option.id && entry.date.slice(0, 10) < todayDate)
+        .map(({ date, note }) => ({ date, ...(note ? { note } : {}) }));
+      const rejected = snapshot.rejections.notTodayRejections
+        .filter((rejection) => rejection.optionId === option.id)
+        .map(({ date, reason }) => ({ date, reason }));
+      const { id, ...fields } = option;
+      void id;
+      return {
+        ...fields,
+        ...(dinners.length > 0 ? { dinners } : {}),
+        ...(rejected.length > 0 ? { rejections: rejected } : {}),
+      };
+    }),
+  };
+}
+
+/**
+ * State 7: state 6 with the Tags' history laid out the same way — under each
+ * Tag, the dinners that carried it (date and Option), newest first — and
+ * under each candidate the days since each of its Tags was had, copied from
+ * `tags`. Both put a timing fact one hop from the question that needs it;
+ * too-soon Options in the top 5 are where every shape so far is weak.
+ * Long context, like state 6.
+ */
+export function jevStateWithOptionAndTagHistory(built: BuiltSnapshot) {
+  const { snapshot } = built;
+  const withHistory = jevStateWithOptionHistory(built);
+  const todayDate = snapshot.today.slice(0, 10);
+  const past = snapshot.log.filter((entry) => entry.date.slice(0, 10) < todayDate);
+  return {
+    ...withHistory,
+    options: withHistory.options.map((option) => ({
+      ...option,
+      daysSinceEachTagWasHad: Object.fromEntries(
+        option.tags.map((tag) => [tag, snapshot.tags[tag]?.daysSinceLast ?? null]),
+      ),
+    })),
+    tags: Object.fromEntries(
+      Object.entries(withHistory.tags).map(([tag, facts]) => [
+        tag,
+        {
+          ...facts,
+          dinners: past
+            .filter((entry) => entry.tags.includes(tag))
+            .map(({ date, name }) => ({ date, option: name })),
+        },
+      ]),
+    ),
+  };
+}
+
+const STATES = {
+  "1": jevState,
+  "2": jevStateByOption,
+  "3": jevStateLean,
+  "4": jevStateLeanByOption,
+  "5": jevStateLeanByOptionTaggedLog,
+  "6": jevStateWithOptionHistory,
+  "7": jevStateWithOptionAndTagHistory,
+} as const;
+
+/** The header that lifts both context limits to 262k, at the documented cost in speed and accuracy. */
+const LONG_CONTEXT_HEADER = { "TypeSafe-Danger-Zone-Long-Context": "true" };
 type StateVersion = keyof typeof STATES;
 
 /** A Fisher–Yates shuffle seeded by `seed`, so a day's order is the same on every run. */
@@ -249,13 +433,22 @@ type JevCall =
   | { ok: true; request: unknown; response: JevResponse; latencyMs: number }
   | { ok: false; request: unknown; error: string };
 
-async function askJev(apiKey: string, built: BuiltSnapshot, state: StateVersion): Promise<JevCall> {
+async function askJev(
+  apiKey: string,
+  built: BuiltSnapshot,
+  state: StateVersion,
+  longContext: boolean,
+): Promise<JevCall> {
   const request = jevRequest(built, state);
   const started = Date.now();
   try {
     const res = await fetch(ENDPOINT, {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        ...(longContext ? LONG_CONTEXT_HEADER : {}),
+      },
       body: JSON.stringify(request),
       signal: AbortSignal.timeout(120_000),
     });
@@ -310,6 +503,7 @@ function dryRun(day: string, state: StateVersion): Promise<void> {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const state = (args.find((a) => a.startsWith("--state="))?.slice(8) ?? "1") as StateVersion;
+  const longContext = args.includes("--long-context");
   if (!(state in STATES)) {
     console.error(`--state must be ${Object.keys(STATES).join(" or ")}, got ${state}`);
     process.exit(1);
@@ -344,7 +538,9 @@ async function main(): Promise<void> {
     // A day the first arm resumed past is called afresh by the second.
     const calls = new Map<string, Promise<JevCall>>();
     const callFor = (built: BuiltSnapshot) => {
-      if (!calls.has(built.snapshot.today)) calls.set(built.snapshot.today, askJev(apiKey, built, state));
+      if (!calls.has(built.snapshot.today)) {
+        calls.set(built.snapshot.today, askJev(apiKey, built, state, longContext));
+      }
       return calls.get(built.snapshot.today)!;
     };
     for (const arm of ARMS) {
@@ -355,7 +551,7 @@ async function main(): Promise<void> {
           ranker: `TypeSafe ${arm}`,
           model: MODEL,
           // State 1 runs predate the flag and carry no suffix.
-          promptVersion: `${arm}-v${QUESTIONS_VERSION}${state === "1" ? "" : `-s${state}`}`,
+          promptVersion: `${arm}-v${QUESTIONS_VERSION}${state === "1" ? "" : `-s${state}`}${longContext ? "-long" : ""}`,
           ...(parsed.repeat > 1 ? { repeat: `${i}/${parsed.repeat}` } : {}),
         },
         saveReasoning: true,
