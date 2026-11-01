@@ -1,7 +1,7 @@
 /**
  * An order out of pairwise answers: Bradley–Terry strengths fitted by the
  * minorization–maximization iteration, where each pair's probability is read
- * as a fractional win for each side. Pure, for `scripts/typesafe-stage2.ts`
+ * as a fractional win for each side. Pure, for `scripts/backtest/typesafe-stage2.ts`
  * and its test.
  */
 

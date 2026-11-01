@@ -56,7 +56,7 @@ The grill of 2026-10-28 settled the direction (`/grill-with-docs`):
   contract (name column, brief last) and the vocabulary rule, without the
   Household-drawn examples. `PREPARED_PROMPT_VERSION` is "11", so every
   stored note regenerates.
-- `scripts/backtest-compare.ts`: the read section, first.
+- `scripts/backtest/backtest-compare.ts`: the read section, first.
 - `CONTEXT.md`: Interval loses its thresholds; Rejection says a too-soon
   reason speaks for the Tags. ADR-0005 and ADR-0006 carry amendment lines.
 
@@ -87,7 +87,7 @@ Which days and which model for later runs: decided per run.
 ## Comments
 
 - 2026-10-28: v11 Opus run, read against v10 run 2 through the read
-  section (`npx tsx scripts/backtest-compare.ts
+  section (`npx tsx scripts/backtest/backtest-compare.ts
   scripts/backtest-runs/ai-search-v10-opus-5-5-pithy-run2.json
   scripts/backtest-runs/ai-search-v11-opus-5-5-pithy.json`). Same 20 days,
   same dev DB, candidate counts match. Saved as

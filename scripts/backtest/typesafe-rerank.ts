@@ -1,8 +1,8 @@
 /**
- * Saved Jev answers (`scripts/typesafe-eval.ts`) ranked again, offline, and
- * scored through the AI ranking backtest (`scripts/backtest.ts`) — no call.
+ * Saved Jev answers (`scripts/backtest/typesafe-eval.ts`) ranked again, offline, and
+ * scored through the AI ranking backtest (`scripts/backtest/backtest.ts`) — no call.
  * Each arm reads the day's saved response from `<run>-noul-reasoning/` and
- * the deterministic Score's view of the day (`scripts/typesafe-lists.ts`),
+ * the deterministic Score's view of the day (`scripts/backtest/typesafe-lists.ts`),
  * and orders the candidates without a fitted weight:
  *
  *   - score — the deterministic Score alone, the baseline on the run's days;
@@ -40,17 +40,17 @@
  * the stored note's rows: stance-scoretie (for tonight less against),
  * note-scoretie (the note's own order), note+stance, all+stance.
  *
- *   npx tsx scripts/typesafe-rerank.ts --run=scripts/backtest-runs/jev-1.14.0-history --json
- *   npx tsx scripts/typesafe-rerank.ts --run=<run> --arms=noul+choice+score,all+weekday --json
+ *   npx tsx scripts/backtest/typesafe-rerank.ts --run=scripts/backtest-runs/jev-1.14.0-history --json
+ *   npx tsx scripts/backtest/typesafe-rerank.ts --run=<run> --arms=noul+choice+score,all+weekday --json
  *
  * The days are the run's own (`<run>-noul.json`) unless `--days=` names
  * them (a prospective run has no `-noul.json`); `--json` writes
  * `<run>-rerank-<arm>.json` per arm. Free: `DATABASE_URL` and `APP_TZ` from
  * `.env.local` then `.env`.
  */
-import "./load-env";
+import "../load-env";
 import { existsSync, readFileSync } from "node:fs";
-import { type BuiltSnapshot } from "../lib/snapshot";
+import { type BuiltSnapshot } from "../../lib/snapshot";
 import { parseBacktestArgs, runBacktest } from "./backtest";
 import {
   JUDGMENTS,

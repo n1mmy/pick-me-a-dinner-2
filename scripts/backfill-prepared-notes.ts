@@ -22,7 +22,7 @@
  * this run. The whole range is hundreds of generations on the shared local
  * model, hours in which the production sweep's notes wait: `CLAUDE.md`'s
  * billed-call rule applies, so agree the shape of a run before starting it. Env is as for
- * `scripts/prepared-note-eval.ts`: `DATABASE_URL`, `APP_TZ`, and the
+ * `scripts/backtest/prepared-note-eval.ts`: `DATABASE_URL`, `APP_TZ`, and the
  * `LOCAL_AI_*` variables, which `--env-file` flags ahead of `.env.local` win.
  */
 import "./load-env";

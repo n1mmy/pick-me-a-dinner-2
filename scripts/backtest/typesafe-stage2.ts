@@ -1,8 +1,8 @@
 /**
  * A second pass over the first pass's top rows — the re-ranking cookbook's
- * shape. For each day of a saved Jev run (`scripts/typesafe-eval.ts`), the
+ * shape. For each day of a saved Jev run (`scripts/backtest/typesafe-eval.ts`), the
  * three-way mean of the Noul's, the Choice's and the Score's ranks
- * (`scripts/typesafe-lists.ts`) picks the top ten, and one more request over
+ * (`scripts/backtest/typesafe-lists.ts`) picks the top ten, and one more request over
  * the same state 6 asks:
  *
  *   - choice10 — one Choice among the ten, in an order shuffled by the date;
@@ -17,21 +17,21 @@
  *   - stage2-choice+base   — the ten by the mean of their first-pass rank and
  *                            their Choice rank;
  *   - stage2-pairwise      — the eight by Bradley–Terry strength from the
- *                            pairs (`scripts/pairwise-order.ts`), 9 and 10 kept;
+ *                            pairs (`scripts/backtest/pairwise-order.ts`), 9 and 10 kept;
  *   - stage2-pairwise+base — the eight by the mean of first-pass rank and
  *                            Bradley–Terry rank.
  *
- *   npx tsx scripts/typesafe-stage2.ts --run=scripts/backtest-runs/jev-1.14.0-s6-j1-history --dry-run
- *   npx tsx scripts/typesafe-stage2.ts --run=<run> --json
+ *   npx tsx scripts/backtest/typesafe-stage2.ts --run=scripts/backtest-runs/jev-1.14.0-s6-j1-history --dry-run
+ *   npx tsx scripts/backtest/typesafe-stage2.ts --run=<run> --json
  *
  * Billed per input token, one request a day (the state is read once; ~35k
  * tokens): state the call count and get approval first (`CLAUDE.md`). The
  * days are the run's own; `--json` writes `<run>-stage2-<arm>.json` and the
  * request and response beside them (`<run>-stage2-reasoning/<day>.txt`).
  */
-import "./load-env";
+import "../load-env";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { type BuiltSnapshot } from "../lib/snapshot";
+import { type BuiltSnapshot } from "../../lib/snapshot";
 import { type Generation, parseBacktestArgs, runBacktest } from "./backtest";
 import { bradleyTerry } from "./pairwise-order";
 import { type JevCall, type JevResponse, MODEL, jevStateWithOptionHistory, seededShuffle, sendJev } from "./typesafe-eval";
@@ -135,7 +135,7 @@ async function main(): Promise<void> {
   };
 
   if (args.includes("--dry-run")) {
-    const { snapshotForDay } = await import("../lib/snapshot");
+    const { snapshotForDay } = await import("../../lib/snapshot");
     const day = days.split(",").at(-1)!;
     const built = await snapshotForDay({ asOf: day, query: "", backtest: true });
     const stage1 = await stage1Of(built);

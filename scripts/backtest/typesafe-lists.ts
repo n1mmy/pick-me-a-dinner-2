@@ -1,18 +1,18 @@
 /**
- * The lists a day's saved Jev answers (`scripts/typesafe-eval.ts`) and the
+ * The lists a day's saved Jev answers (`scripts/backtest/typesafe-eval.ts`) and the
  * deterministic Score give, each a value per candidate id with higher first,
  * and the rank arithmetic that combines them. Shared by
- * `scripts/typesafe-rerank.ts` (arms with no fitted weight),
- * `scripts/typesafe-fit.ts` (weights fitted with a month held out),
- * `scripts/typesafe-stage2.ts` (a second Choice over the first pass's top
- * rows) and `scripts/typesafe-calibration.ts`. No call: everything reads
+ * `scripts/backtest/typesafe-rerank.ts` (arms with no fitted weight),
+ * `scripts/backtest/typesafe-fit.ts` (weights fitted with a month held out),
+ * `scripts/backtest/typesafe-stage2.ts` (a second Choice over the first pass's top
+ * rows) and `scripts/backtest/typesafe-calibration.ts`. No call: everything reads
  * from `<run>-noul-reasoning/<day>.txt` and the live tables.
  */
 import { readFileSync } from "node:fs";
-import { getTonightData } from "../db/queries";
-import { weekdayName } from "../lib/local-day";
-import { type BuiltSnapshot } from "../lib/snapshot";
-import { tonightForDay } from "../lib/tonight-day";
+import { getTonightData } from "../../db/queries";
+import { weekdayName } from "../../lib/local-day";
+import { type BuiltSnapshot } from "../../lib/snapshot";
+import { tonightForDay } from "../../lib/tonight-day";
 
 /** One day's saved request and response, as the eval writes them. */
 export type Saved = {

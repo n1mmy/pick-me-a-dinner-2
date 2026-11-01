@@ -2,7 +2,7 @@
  * A conditional logit over the day's candidates: the chance that candidate i
  * is the night's Pick is softmax(w · x_i) over that night's candidates. Fitted
  * by gradient descent with an L2 penalty on standardized features; no
- * dependency. Pure, so `scripts/typesafe-fit.ts` can hold a month out and
+ * dependency. Pure, so `scripts/backtest/typesafe-fit.ts` can hold a month out and
  * the test can check it on a made-up case.
  */
 

@@ -27,7 +27,7 @@ Two commits; see the plan, step 3.
 
 1. Tail modes: `TailMode`, `resolveTailMode`, `AI_TAIL_MODE`, the `full` and
    `drop` instructions, `buildSystemPrompt`'s `mode` parameter, the
-   `tailMode` log field, `--mode` in `scripts/ai-search-eval.ts`, the
+   `tailMode` log field, `--mode` in `scripts/backtest/ai-search-eval.ts`, the
    `.env.example` paragraph, the tests.
 2. The tolerance: `readRankingRow` reads the first column only; the tests
    that read `3|G|…` as `G` assert the refusal instead.

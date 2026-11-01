@@ -288,13 +288,13 @@ measures first:
   `<number>|<name>|<rationale>`, then `=== BRIEF ===`, then the brief;
   `parsePreparedReply` resolves a disagreeing row by name and reports the
   count (`resolvedByName`), and still reads the v9 order and number-only
-  rows. 11–13: `scripts/backtest.ts` — brief names by any unique word of a
+  rows. 11–13: `scripts/backtest/backtest.ts` — brief names by any unique word of a
   name, Day-note words from three letters, every flag over the brief and
   top 10, and new fields: the Pick's since/Interval, empty top-10 reasons,
   catalog-order days, rows resolved by name, never-eaten top-5 slots,
   Pick-under-Interval days and how many were hit@5. 14:
-  `scripts/backtest-score.ts`, saved as `score-baseline.{json,log}`: 5/8/12
-  of 20, 63/100 never-eaten slots. `scripts/backtest-compare.ts` diffs two
+  `scripts/backtest/backtest-score.ts`, saved as `score-baseline.{json,log}`: 5/8/12
+  of 20, 63/100 never-eaten slots. `scripts/backtest/backtest-compare.ts` diffs two
   runs. Under the new Interval the Pick was short of it on 11 of 20 days,
   7 of those above two-thirds. 10 (the bucketed Strata variant) stays open
   as a free A/B after the v10 Strata run.

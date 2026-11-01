@@ -1,13 +1,13 @@
 /**
  * Does Jev's confidence predict a hit? For each day of a saved run
- * (`scripts/typesafe-eval.ts`) this reads the Choice's top probability, its
+ * (`scripts/backtest/typesafe-eval.ts`) this reads the Choice's top probability, its
  * margin over the second, and the top Noul, and sets them against the Pick's
  * rank in the run's `-choice.json` (or another run file on the same days,
  * such as a re-rank arm). Days are split into quarters by each measure, and
  * each quarter's hit@1/3/5 and mean rank are printed. Offline, no call.
  *
- *   npx tsx scripts/typesafe-calibration.ts --run=scripts/backtest-runs/jev-1.14.0-s6-j1-history
- *   npx tsx scripts/typesafe-calibration.ts --run=<run> --scored=<run>-rerank-noul+choice+score.json
+ *   npx tsx scripts/backtest/typesafe-calibration.ts --run=scripts/backtest-runs/jev-1.14.0-s6-j1-history
+ *   npx tsx scripts/backtest/typesafe-calibration.ts --run=<run> --scored=<run>-rerank-noul+choice+score.json
  */
 import { readFileSync } from "node:fs";
 import { type DayRecord, RANK_CAP } from "./backtest";

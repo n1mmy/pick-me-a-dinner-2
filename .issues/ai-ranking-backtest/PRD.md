@@ -140,7 +140,7 @@ school fundraiser night are no choice at all. Settled:
 - **The mean rank caps each day at #15.** The tail's order already does not
   matter (above), so a Pick at #32 is the same miss as one at #16. On the
   v19 runs the cap moves Opus Prepared from 5.5 to 5.2 and Strata low from
-  7.5 to 5.8. `RANK_CAP` in `scripts/backtest.ts`; `backtest-compare.ts`
+  7.5 to 5.8. `RANK_CAP` in `scripts/backtest/backtest.ts`; `backtest-compare.ts`
   recomputes it for saved runs.
 - **Hits and the median stay as they are.** A rarely chosen Pick is a miss
   for whichever ranker missed it; every ranker faces the same Picks, so it is

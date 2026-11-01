@@ -26,7 +26,7 @@ default `low`. Delete `BUDGET_API_MODELS`, `usesAdaptiveThinking`,
 `OUTPUT_HEADROOM_TOKENS`, the no-thinking `MAX_TOKENS`, the `off` and
 `budget` arms, the bare-integer branch and both throws, the non-streamed
 path. Follow in the tests, `.env.example`, and keep
-`scripts/prepared-note-eval.ts --claude` on the same request shape.
+`scripts/backtest/prepared-note-eval.ts --claude` on the same request shape.
 
 ## Acceptance
 

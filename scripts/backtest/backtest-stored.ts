@@ -1,6 +1,6 @@
 /**
  * The stored **Prepared notes** run through the AI ranking backtest
- * (`scripts/backtest.ts`): every decided past date with a note in
+ * (`scripts/backtest/backtest.ts`): every decided past date with a note in
  * `prepared_notes` is scored against what was eaten, with no model call. It
  * reads the notes the sweep and `scripts/backfill-prepared-notes.ts` wrote.
  *
@@ -8,18 +8,18 @@
  * backfill built it; a note the sweep wrote before the day was decided saw
  * the full Log of its time instead, so its Pick timing columns may differ.
  *
- *   npx tsx scripts/backtest-stored.ts --json
- *   npx tsx scripts/backtest-stored.ts --days=2026-10-02,2026-10-06
+ *   npx tsx scripts/backtest/backtest-stored.ts --json
+ *   npx tsx scripts/backtest/backtest-stored.ts --days=2026-10-02,2026-10-06
  *
  * Without `--days` it prints the day list it scored, for
- * `scripts/backtest-score.ts --days=…` to run the baseline on the same days.
+ * `scripts/backtest/backtest-score.ts --days=…` to run the baseline on the same days.
  */
-import "./load-env";
+import "../load-env";
 import { and, isNotNull, lt } from "drizzle-orm";
-import { db } from "../db";
-import { getDecidedDates, getPreparedNote } from "../db/queries";
-import { preparedNotes } from "../db/schema";
-import { today } from "../lib/local-day";
+import { db } from "../../db";
+import { getDecidedDates, getPreparedNote } from "../../db/queries";
+import { preparedNotes } from "../../db/schema";
+import { today } from "../../lib/local-day";
 import { parseBacktestArgs, runBacktest } from "./backtest";
 
 async function main(): Promise<void> {

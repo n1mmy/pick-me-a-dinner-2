@@ -7,15 +7,15 @@
  * this, and read the ranked result, its rationales, and the token usage.
  * No browser, no React, one model call.
  *
- *   npx tsx scripts/ai-search-eval.ts "something light"
- *   npx tsx scripts/ai-search-eval.ts                      # empty query
- *   npx tsx scripts/ai-search-eval.ts --day=2026-10-30     # a Selected day, not today
- *   npx tsx scripts/ai-search-eval.ts --snapshot "guests"  # also dump the
+ *   npx tsx scripts/backtest/ai-search-eval.ts "something light"
+ *   npx tsx scripts/backtest/ai-search-eval.ts                      # empty query
+ *   npx tsx scripts/backtest/ai-search-eval.ts --day=2026-10-30     # a Selected day, not today
+ *   npx tsx scripts/backtest/ai-search-eval.ts --snapshot "guests"  # also dump the
  *                                                            JSON sent to the model
- *   npx tsx scripts/ai-search-eval.ts --backtest --json    # score recent decided days
- *   npx tsx scripts/ai-search-eval.ts --backtest --days=2026-10-20,2026-10-23
+ *   npx tsx scripts/backtest/ai-search-eval.ts --backtest --json    # score recent decided days
+ *   npx tsx scripts/backtest/ai-search-eval.ts --backtest --days=2026-10-20,2026-10-23
  *
- * `--backtest` (`scripts/backtest.ts`, shared with the Prepared note eval)
+ * `--backtest` (`scripts/backtest/backtest.ts`, shared with the Prepared note eval)
  * runs an open search for each of about 20 recent decided days, built as the
  * Household saw it, and scores the ranking against what was eaten. One billed
  * call per day — state the count and get approval first (`CLAUDE.md`).
@@ -36,9 +36,9 @@ import {
   createAiSearchClient,
   resolveModel,
   splitUserTurn,
-} from "../lib/ai-search";
-import { isValidSqlDate, today } from "../lib/local-day";
-import { type BuiltSnapshot, snapshotForDay } from "../lib/snapshot";
+} from "../../lib/ai-search";
+import { isValidSqlDate, today } from "../../lib/local-day";
+import { type BuiltSnapshot, snapshotForDay } from "../../lib/snapshot";
 import { parseBacktestArgs, runBacktest } from "./backtest";
 
 /**

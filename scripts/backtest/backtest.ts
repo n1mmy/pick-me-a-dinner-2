@@ -1,6 +1,6 @@
 /**
- * The AI ranking backtest, shared by `scripts/prepared-note-eval.ts` (the
- * local model) and `scripts/ai-search-eval.ts` (Claude): run a ranker
+ * The AI ranking backtest, shared by `scripts/backtest/prepared-note-eval.ts` (the
+ * local model) and `scripts/backtest/ai-search-eval.ts` (Claude): run a ranker
  * against recent **decided** days, each built as the Household saw it before
  * deciding (`snapshotForDay`'s backtest mode), and score the ranking against
  * what was actually eaten that day.
@@ -13,7 +13,7 @@
  * order (rank positions where codes belong). A Prepared note's brief is
  * recorded for reading, not scored: a prompt change is judged by reading days.
  *
- * Two runs' `--json` files are compared by `scripts/backtest-compare.ts`.
+ * Two runs' `--json` files are compared by `scripts/backtest/backtest-compare.ts`.
  *
  *   --backtest              run the backtest instead of a single day
  *   --days=D1,D2,…          a fixed day list, so runs compare like with like
@@ -32,8 +32,8 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { getDayNotes, getDecidedDates, getLog, getLogRejections } from "../db/queries";
-import type { AiRankingRow } from "../lib/ai-search";
+import { getDayNotes, getDecidedDates, getLog, getLogRejections } from "../../db/queries";
+import type { AiRankingRow } from "../../lib/ai-search";
 import {
   isValidSqlDate,
   shiftSqlDate,
@@ -41,13 +41,13 @@ import {
   WEEKDAY_NAMES,
   weekdayFromSqlDate,
   weekdayName,
-} from "../lib/local-day";
+} from "../../lib/local-day";
 import {
   type BuiltSnapshot,
   codeIndex,
   snapshotForDay,
   type SnapshotModelOption,
-} from "../lib/snapshot";
+} from "../../lib/snapshot";
 
 const DEFAULT_COUNT = 20;
 const DEFAULT_WINDOW_DAYS = 60;
@@ -259,7 +259,7 @@ export const RANK_CAP = 15;
 /**
  * The mean rank of the Pick over a run's scorable days, each day's best rank
  * capped at `RANK_CAP` — `null` with no scorable day. Shared with
- * `scripts/backtest-compare.ts`, which recomputes it for saved runs.
+ * `scripts/backtest/backtest-compare.ts`, which recomputes it for saved runs.
  */
 export function meanRank(
   records: Pick<DayRecord, "scorable" | "bestRank" | "candidates">[],
@@ -385,7 +385,7 @@ export function parseBacktestArgs(args: string[], defaultJsonPath: string): Back
 
 /**
  * Whether `--thinking=off` is set, read from argv for
- * `scripts/prepared-note-eval.ts`; any other `--thinking` value is refused.
+ * `scripts/backtest/prepared-note-eval.ts`; any other `--thinking` value is refused.
  * Opus 5.5 refuses thinking off, which the API reports; a later local or
  * Claude model may take it.
  */

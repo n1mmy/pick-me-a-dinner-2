@@ -517,7 +517,7 @@ const TEXT_FORMAT_INSTRUCTION = [
 
 /**
  * Bumped whenever the ranking prompt's wording changes, so a backtest run's
- * record says which prompt it measured (`scripts/ai-search-eval.ts`).
+ * record says which prompt it measured (`scripts/backtest/ai-search-eval.ts`).
  */
 export const AI_SEARCH_PROMPT_VERSION = "22";
 
@@ -582,7 +582,7 @@ export function buildSystemPrompt(): string {
  * so `createAiSearchClient` sends it in a `cache_control` block; the query is
  * the one part that varies per search, so it trails uncached. The body is
  * `leanSnapshot`'s, history rows by code alone. Exported so
- * `scripts/ai-search-eval.ts --snapshot` prints exactly what
+ * `scripts/backtest/ai-search-eval.ts --snapshot` prints exactly what
  * `createAiSearchClient` sends, rather than hand-copying the split.
  */
 export function splitUserTurn(snapshot: ModelSnapshot): {

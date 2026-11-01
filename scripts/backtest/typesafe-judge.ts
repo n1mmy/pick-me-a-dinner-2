@@ -1,6 +1,6 @@
 /**
  * TypeSafe's Jev as a reader of a stored **Prepared note** — an experiment,
- * not wired into the app. `scripts/typesafe-eval.ts` has Jev rank; this has
+ * not wired into the app. `scripts/backtest/typesafe-eval.ts` has Jev rank; this has
  * it judge: for each row of a night's note, is the AI rationale reasonable
  * for that Option on that evening? Jev answers typed questions about the row
  * (its line beside the Option's facts), and code turns the answers into
@@ -31,9 +31,9 @@
  * written in the line against the Option's and its Tags' days since last,
  * against `timingMatches`. The report ends with both agreement tables.
  *
- *   npx tsx scripts/typesafe-judge.ts --dry-run --day=2026-10-22      # no call
- *   npx tsx scripts/typesafe-judge.ts --run --day=2026-10-22
- *   npx tsx scripts/typesafe-judge.ts --run --all --resume
+ *   npx tsx scripts/backtest/typesafe-judge.ts --dry-run --day=2026-10-22      # no call
+ *   npx tsx scripts/backtest/typesafe-judge.ts --run --day=2026-10-22
+ *   npx tsx scripts/backtest/typesafe-judge.ts --run --all --resume
  *
  * `--run` writes `scripts/backtest-runs/jev-1.14.0-judge.json` (`--json=path`
  * for another) and each day's exact request and response beside it
@@ -44,16 +44,16 @@
  * (`CLAUDE.md`). `TYPESAFE_API_KEY`, `DATABASE_URL` and `APP_TZ` come from
  * `.env.local` then `.env`.
  */
-import "./load-env";
+import "../load-env";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { and, isNotNull, lt } from "drizzle-orm";
-import { db } from "../db";
-import { getDecidedDates, getPreparedNote } from "../db/queries";
-import { preparedNotes } from "../db/schema";
-import type { AiRankingRow } from "../lib/ai-search";
-import { epochDayFromSqlDate, isValidSqlDate, today, weekdayName } from "../lib/local-day";
-import { type BuiltSnapshot, snapshotForDay } from "../lib/snapshot";
+import { db } from "../../db";
+import { getDecidedDates, getPreparedNote } from "../../db/queries";
+import { preparedNotes } from "../../db/schema";
+import type { AiRankingRow } from "../../lib/ai-search";
+import { epochDayFromSqlDate, isValidSqlDate, today, weekdayName } from "../../lib/local-day";
+import { type BuiltSnapshot, snapshotForDay } from "../../lib/snapshot";
 
 const ENDPOINT = "https://api.typesafe.ai/v1/systemone";
 const MODEL = "jev-1.14.0";
@@ -233,7 +233,7 @@ export function flagRow(rank: number, a: RowAnswers): { flags: Flag[]; unsettled
 
 // ---------------------------------------------------------------------------
 // Two code checks, as a yardstick for the judge (the compare script's
-// counters, `scripts/backtest-compare.ts`, in short).
+// counters, `scripts/backtest/backtest-compare.ts`, in short).
 // ---------------------------------------------------------------------------
 
 const GAP_LIST = /\b\d+\s*(?:,\s*\d+){2,}\b/;

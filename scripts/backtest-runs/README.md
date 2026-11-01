@@ -1,6 +1,6 @@
 # Backtest runs
 
-Saved output of the AI ranking backtest (`scripts/backtest.ts`, issue
+Saved output of the AI ranking backtest (`scripts/backtest/backtest.ts`, issue
 `.issues/ai-ranking-backtest/issues/01-backtest-harness.md`). Each run is:
 
 - `<ranker>.json` — the `--json` file: `meta` (model, prompt version, window,
@@ -17,7 +17,7 @@ The run files are git-ignored: they stay on the machine that made them, and
 the run list below records what each one showed.
 
 Compare two runs on the same days with
-`npx tsx scripts/backtest-compare.ts <a.json> <b.json>`: aggregates side by
+`npx tsx scripts/backtest/backtest-compare.ts <a.json> <b.json>`: aggregates side by
 side, the text counts (top-10 rows that give a timing count, and how many
 of those with a yardstick beside it; rows with a gap list, a Log date, a
 snapshot word, a code, a name written lower case; rows that count the
@@ -35,13 +35,13 @@ carry from issue 15 on (older files print n/a); the compare prints their
 rows for the eye.
 
 Measure how far repeats of one setup differ with
-`npx tsx scripts/backtest-spread.ts <run.json>…`: it groups the files by
+`npx tsx scripts/backtest/backtest-spread.ts <run.json>…`: it groups the files by
 model, thinking and prompt version, and reports per day and per arm the #1
 agreement, top-3 and top-5 overlap, Kendall tau, the Pick's rank range, and
 hits with their range across runs, counted on the days every run has.
 
 The mean rank caps each day's rank at 15 (`RANK_CAP` in
-`scripts/backtest.ts`): a Pick ranked past #15, or left unranked, counts as
+`scripts/backtest/backtest.ts`): a Pick ranked past #15, or left unranked, counts as
 #15. The tail's order does not matter, so one unlikely Pick ranked deep (West
 Coast Cafe on `2026-10-16`, #30 to #32 for Strata and the Score) cannot
 outweigh a run's top rows. Hits and the median are uncapped. The means in the
@@ -256,7 +256,7 @@ as a code resolves to nothing and the reply is refused instead (ADR-0013,
 `.issues/ai-ranking-backtest/issues/05`). The `catalogOrder` flag stays as
 the sentinel.
 
-TypeSafe's Jev 1.14 (`scripts/typesafe-eval.ts`), a System One model that
+TypeSafe's Jev 1.14 (`scripts/backtest/typesafe-eval.ts`), a System One model that
 answers typed questions with probabilities and writes no prose, so it is
 scored on its ranking alone: no rationale, no brief, and every text count
 reads n/a. One request a day, `jev-1.14.0` pinned, answers every arm. The
@@ -265,7 +265,7 @@ together cost about $0.38. Each day's exact request and response is in the
 run's `-reasoning/<day>.txt`, so any answer can be resent.
 
 - `jev-1.14.0-noul-r1` … `-r5` and `jev-1.14.0-choice-r1` … `-r5` — TypeSafe's
-  Jev (`scripts/typesafe-eval.ts`), ranking only: one request a day over the
+  Jev (`scripts/backtest/typesafe-eval.ts`), ranking only: one request a day over the
   snapshot as JSON without its codes, ~30k input tokens, 0.3s, ~$0.0013.
   Its two arms answer in the same request: a Noul per candidate ("Will the
   Household eat X for dinner on the evening of `today`?") and one Choice
@@ -306,7 +306,7 @@ run's `-reasoning/<day>.txt`, so any answer can be resent.
   Noul (0 to 5) while they fell for the Choice (41 to 20). Day by day
   against state 1: Noul better on 21, worse on 37; Choice 32 and 39.
 - `jev-1.14.0-history-rerank-<arm>` — the state 1 history answers ranked
-  again offline (`scripts/typesafe-rerank.ts`, no call), each with no fitted
+  again offline (`scripts/backtest/typesafe-rerank.ts`, no call), each with no fitted
   weight, a tie broken by the Score: Noul 24/35/59, 7.8 and Choice
   28/41/60, 7.3 with the tie-break alone; the mean of the Noul's and the
   Choice's ranks 28/40/61, 7.3; the Choice's and the Score's 32/43/67, 6.7;
@@ -452,7 +452,7 @@ run's `-reasoning/<day>.txt`, so any answer can be resent.
   answers (`-rerank2.log`, `-rerank3.log`): the Score split into its two
   factors, the weekday count, pointedAt on Day-note days only, and the
   stored note's rows from the judge run (`--judge=`). The lists live in
-  `scripts/typesafe-lists.ts` now, shared with the fit, the calibration and
+  `scripts/backtest/typesafe-lists.ts` now, shared with the fit, the calibration and
   the second pass below.
   - the Score's factors apart: `affinity-scoretie` 29/34/62, 7.6;
     `readiness-scoretie` 6/10/11, 13.4 with 211 never-eaten top-5 slots —
@@ -478,7 +478,7 @@ run's `-reasoning/<day>.txt`, so any answer can be resent.
     `all+stance` 31/44/60, 7.1; `all+due+regular+stance` 34/50/67, 6.5.
     What the line argues adds nothing to the rank the note already gave.
 - `jev-1.14.0-s6-j1-history-fit.log`, `-fit-4.log`, `-fit-6.log` —
-  `scripts/typesafe-fit.ts`: a conditional logit over each night's
+  `scripts/backtest/typesafe-fit.ts`: a conditional logit over each night's
   candidates, every list's place as a feature, fitted on three months and
   scored on the fourth, the four held-out months read as one run. Eleven
   features 36/53/68, 6.2; four (noul, choice, score, weekday) 41/48/64, 6.2;
@@ -486,7 +486,7 @@ run's `-reasoning/<day>.txt`, so any answer can be resent.
   level with the unweighted means (35/48/68 to 41/55/68). The weights move
   between folds (readiness −0.64 to −0.99, due −0.34 to −0.71, regular
   −0.09 to +0.42): 89 nights do not pin eleven correlated lists down.
-- `scripts/typesafe-calibration.ts` on `s6-j1-history` (no file): the days
+- `scripts/backtest/typesafe-calibration.ts` on `s6-j1-history` (no file): the days
   in quarters by the Choice's top probability give hit@3 of 7, 9, 5 and 5
   of 23, lowest quarter first, Spearman's rho with the Pick's rank +0.12;
   by its margin over second 10, 7, 5, 4, rho +0.16; by the top Noul rho
@@ -507,11 +507,11 @@ run's `-reasoning/<day>.txt`, so any answer can be resent.
   22/32/41. The values barely moved: ruledOut passes 0.7 on 23 of 3,216
   rows (6 under v1), top 0.87; pointedAt tops out at 0.63. Writing the
   facts in did not make the judgments yeses.
-- `jev-1.14.0-s6-j1-history-stage2-<arm>` — `scripts/typesafe-stage2.ts`:
+- `jev-1.14.0-s6-j1-history-stage2-<arm>` — `scripts/backtest/typesafe-stage2.ts`:
   the re-ranking cookbook's second pass. The three-way mean picks each
   day's top ten, and one more request over state 6 asks a Choice among the
   ten and a two-way Choice for each of the 28 pairs among the top eight;
-  Bradley–Terry (`scripts/pairwise-order.ts`) turns the pairs into an
+  Bradley–Terry (`scripts/backtest/pairwise-order.ts`) turns the pairs into an
   order. 90 requests (one retried after a `fetch failed`), 2.87M tokens,
   $0.12. The ten-way Choice's top is 0.18 at the median and 0.43 at most,
   tied on 10 days; 71 of 2,520 pairs tie and 410 reach 0.7. Scored with the
@@ -551,7 +551,7 @@ run's `-reasoning/<day>.txt`, so any answer can be resent.
     +0.15, regular +0.17, readiness +0.28 — readiness's sign flipped from
     the 90-day fit.
 - `jev-prospective-noul-reasoning/2026-11-01.txt` —
-  `scripts/typesafe-prospective.ts`, the s6-j1 request asked about a day
+  `scripts/backtest/typesafe-prospective.ts`, the s6-j1 request asked about a day
   before it is decided: 57k input tokens, 0.6s, one call. Its top five by
   `noul+choice+score`: Atlas Pizza Parlor, Ninja Sushi, Quiche, Leftovers,
   Thai Nakorn; by `all+due+regular`: Ninja Sushi, Atlas, Quiche, Thai
@@ -733,7 +733,7 @@ the copies state 3 lost by.
 
 ## Jev as a reader of the stored notes
 
-`scripts/typesafe-judge.ts` has Jev judge instead of rank: for each row of a
+`scripts/backtest/typesafe-judge.ts` has Jev judge instead of rank: for each row of a
 night's stored Prepared note, is the AI rationale reasonable for that Option
 on that evening? One request a night (two past the request limit), every
 row among the day's candidates, with the line and what each judgment needs

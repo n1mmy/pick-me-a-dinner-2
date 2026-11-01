@@ -25,22 +25,22 @@ context.
 See the plan, step 1, for the line anchors. In short:
 
 - `git rm -r scripts/model-comparison`; `git rm scripts/backtest-baseline.ts`.
-- `scripts/ai-search-eval.ts`: remove `--compare`, `--cells`, `--reps`,
+- `scripts/backtest/ai-search-eval.ts`: remove `--compare`, `--cells`, `--reps`,
   `--serial`, `COMPARE_CELLS`, the Fireworks cells and the compare JSON
   writer. Keep the plain run, `--day`, `--snapshot`, `--backtest`.
-- `scripts/backtest.ts`: remove the flag regexes and helpers, the `flags`,
+- `scripts/backtest/backtest.ts`: remove the flag regexes and helpers, the `flags`,
   `briefNamed` and `briefMentionsDayNote` record fields, and their aggregate
   counts and printing. `brief` stays on the record.
-- `scripts/backtest-compare.ts`: remove the flag markers and columns; old
+- `scripts/backtest/backtest-compare.ts`: remove the flag markers and columns; old
   JSON files must still load.
-- `scripts/backtest.test.ts` follows.
+- `scripts/backtest/backtest.test.ts` follows.
 - `lib/ai-search.ts:791`: `splitUserTurn`'s export is for
   `ai-search-eval --snapshot` now, not `show-prompt.mjs`.
 
 ## Acceptance
 
 - [x] The directory and the scratch script are gone.
-- [x] `npx tsx scripts/backtest-compare.ts scripts/backtest-runs/ai-search-v12-opus-5-5-pithy.json scripts/backtest-runs/ai-search-v13-opus-5-5-pithy.json`
+- [x] `npx tsx scripts/backtest/backtest-compare.ts scripts/backtest-runs/ai-search-v12-opus-5-5-pithy.json scripts/backtest-runs/ai-search-v13-opus-5-5-pithy.json`
       still runs on the recorded (pre-step) files.
 - [x] `pnpm typecheck`, `pnpm lint`, `pnpm test` pass.
 

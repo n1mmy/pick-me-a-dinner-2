@@ -1,6 +1,6 @@
 /**
  * The deterministic Tonight ranking (Score = Affinity × Readiness) run
- * through the AI ranking backtest (`scripts/backtest.ts`) as a free baseline
+ * through the AI ranking backtest (`scripts/backtest/backtest.ts`) as a free baseline
  * the model runs are read against. Free, instant, and no model: it answers
  * "what does the AI buy over the list Tonight loads without it?".
  *
@@ -9,12 +9,12 @@
  * ignored (they are ground truth, never a suppression). Rows carry no reason,
  * so the text flags and the empty-reason count mean nothing for this ranker.
  *
- *   npx tsx scripts/backtest-score.ts --json
- *   npx tsx scripts/backtest-score.ts --days=2026-10-02,2026-10-06 --json=x.json
+ *   npx tsx scripts/backtest/backtest-score.ts --json
+ *   npx tsx scripts/backtest/backtest-score.ts --days=2026-10-02,2026-10-06 --json=x.json
  */
-import "./load-env";
-import { getTonightData } from "../db/queries";
-import { tonightForDay } from "../lib/tonight-day";
+import "../load-env";
+import { getTonightData } from "../../db/queries";
+import { tonightForDay } from "../../lib/tonight-day";
 import { parseBacktestArgs, runBacktest } from "./backtest";
 
 async function main(): Promise<void> {

@@ -1,10 +1,10 @@
 /**
- * Saved backtest runs (`scripts/backtest.ts` `--json` files) summarized side
+ * Saved backtest runs (`scripts/backtest/backtest.ts` `--json` files) summarized side
  * by side and by month: hit@3/5/10, the capped mean rank, too-soon days and
  * never-eaten top-5 slots, each over the days every run has. Offline.
  *
- *   npx tsx scripts/typesafe-summary.ts <run.json>…
- *   npx tsx scripts/typesafe-summary.ts --dir=scripts/backtest-runs --match=s6-j1-all-rerank
+ *   npx tsx scripts/backtest/typesafe-summary.ts <run.json>…
+ *   npx tsx scripts/backtest/typesafe-summary.ts --dir=scripts/backtest-runs --match=s6-j1-all-rerank
  *
  * `--match=` takes the files under `--dir` whose name contains it; `--from=`
  * and `--to=` cut the days (YYYY-MM-DD, inclusive).

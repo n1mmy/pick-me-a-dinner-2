@@ -1,5 +1,5 @@
 /**
- * TypeSafe's Jev as a ranker in the AI ranking backtest (`scripts/backtest.ts`)
+ * TypeSafe's Jev as a ranker in the AI ranking backtest (`scripts/backtest/backtest.ts`)
  * — an experiment, not wired into the app. Jev answers typed questions and
  * writes no prose, so this ranks only: there is no rationale and no brief.
  *
@@ -24,14 +24,14 @@
  *
  * `--judgments` adds five more Nouls per candidate (`JUDGMENTS`: too soon,
  * ruled out, pointed at by the Day note, due, regular), saved with the rest
- * for `scripts/typesafe-rerank.ts` to combine in code; the two arms scored
+ * for `scripts/backtest/typesafe-rerank.ts` to combine in code; the two arms scored
  * here are unchanged by them. `--judgments=2` (`JUDGMENTS_V2`) writes the
  * Option's Rejections and the Day note into the ruled-out and pointed-at
  * questions instead of leaving them to be looked up in the state.
  *
- *   npx tsx scripts/typesafe-eval.ts --dry-run --day=2026-10-22   # no call
- *   npx tsx scripts/typesafe-eval.ts --backtest --days=2026-10-22 --json
- *   npx tsx scripts/typesafe-eval.ts --backtest --days=<meta.days> --json
+ *   npx tsx scripts/backtest/typesafe-eval.ts --dry-run --day=2026-10-22   # no call
+ *   npx tsx scripts/backtest/typesafe-eval.ts --backtest --days=2026-10-22 --json
+ *   npx tsx scripts/backtest/typesafe-eval.ts --backtest --days=<meta.days> --json
  *
  * `--json[=path]` writes `<path>-noul.json` and `<path>-choice.json`, with
  * each day's exact request and response beside them (`-reasoning/<day>.txt`)
@@ -41,9 +41,9 @@
  * call count and get approval first (`CLAUDE.md`). `TYPESAFE_API_KEY`,
  * `DATABASE_URL` and `APP_TZ` come from `.env.local` then `.env`.
  */
-import "./load-env";
-import { epochDayFromSqlDate, isValidSqlDate, weekdayName } from "../lib/local-day";
-import { type BuiltSnapshot, snapshotForDay } from "../lib/snapshot";
+import "../load-env";
+import { epochDayFromSqlDate, isValidSqlDate, weekdayName } from "../../lib/local-day";
+import { type BuiltSnapshot, snapshotForDay } from "../../lib/snapshot";
 import { type Generation, parseBacktestArgs, runBacktest } from "./backtest";
 
 export const ENDPOINT = "https://api.typesafe.ai/v1/systemone";
@@ -65,7 +65,7 @@ const CHOICE_INSTRUCTIONS =
 /**
  * The judgments (`--judgments`): five more Nouls per candidate, each one
  * thing a person could say of an Option at a glance, for code to combine
- * (`scripts/typesafe-rerank.ts`). They ride in the same request as the Noul
+ * (`scripts/backtest/typesafe-rerank.ts`). They ride in the same request as the Noul
  * and the Choice, so the state is read once. Bump on any change.
  */
 const JUDGMENTS: Record<string, (name: string) => { instructions: string; criteria: { true: string; false: string } }> = {
@@ -585,7 +585,7 @@ export async function askJev(
 /**
  * Any request over the day's candidates sent to Jev: the answer to every
  * question in it, or a failure — a missing answer is a failed call, never a
- * probability of 0. `scripts/typesafe-stage2.ts` sends its own questions
+ * probability of 0. `scripts/backtest/typesafe-stage2.ts` sends its own questions
  * through it.
  */
 export async function sendJev(

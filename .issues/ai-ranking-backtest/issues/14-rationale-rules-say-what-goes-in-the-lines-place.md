@@ -69,7 +69,7 @@ special note…").
   case" becomes "Describe the evening only as specifically as the evidence
   allows".
 - **The counts live in the repo.** The two v17 reads counted in scripts
-  under `/tmp` that disagreed in detail. `scripts/backtest-compare.ts` now
+  under `/tmp` that disagreed in detail. `scripts/backtest/backtest-compare.ts` now
   prints the text counts above for both runs, the same for the briefs, mean
   row length, and usable-note coverage per run; the code and lowercase-name
   counters print their rows for the eye.

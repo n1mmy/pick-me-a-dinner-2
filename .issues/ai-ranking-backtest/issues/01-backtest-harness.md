@@ -55,7 +55,7 @@ Per day and in aggregate, for a run of N days:
   reading, not a verdict).
 
 Flags to read, in the style of the existing `RHYTHM_CLAIM_SUSPECTS`
-(`scripts/prepared-note-eval.ts:48`), extended and shared by both scripts:
+(`scripts/backtest/prepared-note-eval.ts:48`), extended and shared by both scripts:
 
 - elapsed-time phrasing, widened to relative forms the current regex misses:
   "last week", "last night", "just had", "this past <weekday>",
@@ -68,11 +68,11 @@ Flags to read, in the style of the existing `RHYTHM_CLAIM_SUSPECTS`
 
 ### Running it
 
-- Strata: `scripts/prepared-note-eval.ts` gains the backtest flags; keep
+- Strata: `scripts/backtest/prepared-note-eval.ts` gains the backtest flags; keep
   `--reasoning` so traces are saved per day. Free, serial, ~9 min a note:
   ~3 hours for 20 days. Nothing is deployed, so there is no production sweep
   to compete with.
-- Claude: `scripts/ai-search-eval.ts` gains the same flags over the same
+- Claude: `scripts/backtest/ai-search-eval.ts` gains the same flags over the same
   snapshot mode. **Billed**: one call per day, ~20k cache-write tokens each in
   `pithy` mode. State the call count and wait for approval before running.
 - Output: a per-day table plus the aggregate, and `--json` so two runs

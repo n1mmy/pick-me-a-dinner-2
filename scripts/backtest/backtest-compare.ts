@@ -1,5 +1,5 @@
 /**
- * Diff two backtest JSON files from scripts/backtest.ts (any ranker) over the
+ * Diff two backtest JSON files from scripts/backtest/backtest.ts (any ranker) over the
  * same day list. The read comes first: each day's top 10 and brief from both
  * runs, one under the other, with the Pick and any too-soon Rejection marked
  * on its row — a prompt change is judged by reading days, and the numbers are
@@ -15,7 +15,7 @@
  * file's days with the current cap (`RANK_CAP`), so a run saved before the
  * cap reads on the same rule as a new one.
  *
- *   npx tsx scripts/backtest-compare.ts <a.json> <b.json>
+ *   npx tsx scripts/backtest/backtest-compare.ts <a.json> <b.json>
  */
 import { readFileSync } from "node:fs";
 import { meanRank, RANK_CAP } from "./backtest";
@@ -49,7 +49,7 @@ type Run = { meta: Record<string, string>; aggregate: Record<string, unknown>; r
 
 const [aPath, bPath] = process.argv.slice(2);
 if (!aPath || !bPath) {
-  console.error("usage: npx tsx scripts/backtest-compare.ts <a.json> <b.json>");
+  console.error("usage: npx tsx scripts/backtest/backtest-compare.ts <a.json> <b.json>");
   process.exit(2);
 }
 const A = JSON.parse(readFileSync(aPath, "utf8")) as Run;

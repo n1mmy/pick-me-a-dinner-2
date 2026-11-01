@@ -1,15 +1,15 @@
 /**
  * Jev asked about today before the Household decides: one state 6 request
- * with the judgments (`scripts/typesafe-eval.ts`, long context), saved in the
+ * with the judgments (`scripts/backtest/typesafe-eval.ts`, long context), saved in the
  * eval's format under `scripts/backtest-runs/jev-prospective-noul-reasoning/
  * <day>.txt` with the day added to `jev-prospective-days.txt`. Run once a day
  * before dinner, by hand or from a scheduler; a day already saved is not asked
- * again. Once the days are decided, `scripts/typesafe-rerank.ts` scores every
+ * again. Once the days are decided, `scripts/backtest/typesafe-rerank.ts` scores every
  * arm on them with no further call:
  *
- *   npx tsx scripts/typesafe-prospective.ts                # today, one billed call (~$0.002)
- *   npx tsx scripts/typesafe-prospective.ts --dry-run      # the request's size, no call
- *   npx tsx scripts/typesafe-rerank.ts --run=scripts/backtest-runs/jev-prospective \
+ *   npx tsx scripts/backtest/typesafe-prospective.ts                # today, one billed call (~$0.002)
+ *   npx tsx scripts/backtest/typesafe-prospective.ts --dry-run      # the request's size, no call
+ *   npx tsx scripts/backtest/typesafe-rerank.ts --run=scripts/backtest-runs/jev-prospective \
  *     --days-file=scripts/backtest-runs/jev-prospective-days.txt --json
  *
  * The snapshot is built in backtest mode, as it is for a past day, so a Pick
@@ -17,10 +17,10 @@
  * and the `all+due+regular` arm's top five are printed for the eye.
  * `TYPESAFE_API_KEY`, `DATABASE_URL` and `APP_TZ` from `.env.local` then `.env`.
  */
-import "./load-env";
+import "../load-env";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { isValidSqlDate, today } from "../lib/local-day";
-import { snapshotForDay } from "../lib/snapshot";
+import { isValidSqlDate, today } from "../../lib/local-day";
+import { snapshotForDay } from "../../lib/snapshot";
 import { askJev, jevRequest } from "./typesafe-eval";
 import { listsFor, meanOfRanks, order, type Saved, scoreView } from "./typesafe-lists";
 

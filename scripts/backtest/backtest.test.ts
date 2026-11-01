@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildSnapshot, type SnapshotOption } from "../lib/snapshot";
+import { buildSnapshot, type SnapshotOption } from "../../lib/snapshot";
 import {
   type BacktestDay,
   defaultRunPath,

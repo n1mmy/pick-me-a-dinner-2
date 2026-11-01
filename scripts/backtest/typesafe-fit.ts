@@ -1,28 +1,28 @@
 /**
- * Weights for the lists a saved Jev run gives (`scripts/typesafe-lists.ts`),
+ * Weights for the lists a saved Jev run gives (`scripts/backtest/typesafe-lists.ts`),
  * fitted with a month held out — the answer to "does the hand-picked mean
  * survive a weight that was not chosen on these days?". Offline, no call.
  *
  * Each candidate on each night is a row: its place in every list, scaled to
  * 0–1 (first place 0), as the features; the Pick as the label. A conditional
- * logit (`scripts/conditional-logit.ts`) is fitted on every month but one,
+ * logit (`scripts/backtest/conditional-logit.ts`) is fitted on every month but one,
  * the held-out month is ranked by the fitted score, and the held-out
  * months together are read as one run — against the unweighted means on the
  * same days. Then the fit on every day, for its weights.
  *
- *   npx tsx scripts/typesafe-fit.ts --run=scripts/backtest-runs/jev-1.14.0-s6-j1-history
- *   npx tsx scripts/typesafe-fit.ts --run=<run> --features=noul,choice,score,weekday --l2=0.05
+ *   npx tsx scripts/backtest/typesafe-fit.ts --run=scripts/backtest-runs/jev-1.14.0-s6-j1-history
+ *   npx tsx scripts/backtest/typesafe-fit.ts --run=<run> --features=noul,choice,score,weekday --l2=0.05
  *
  * `--features=` picks the lists (default: every list the run has);
  * `--days=` or `--days-file=` names the days (default: the run's own);
  * `--json=<path>` writes the held-out ranking as a backtest run file for
- * `scripts/typesafe-summary.ts`. Free: `DATABASE_URL` and `APP_TZ` from
+ * `scripts/backtest/typesafe-summary.ts`. Free: `DATABASE_URL` and `APP_TZ` from
  * `.env.local` then `.env`.
  */
-import "./load-env";
+import "../load-env";
 import { readFileSync } from "node:fs";
-import { getLog } from "../db/queries";
-import { type BuiltSnapshot, snapshotForDay } from "../lib/snapshot";
+import { getLog } from "../../db/queries";
+import { type BuiltSnapshot, snapshotForDay } from "../../lib/snapshot";
 import { RANK_CAP, parseBacktestArgs, runBacktest } from "./backtest";
 import { type Fit, fitConditionalLogit, type Night, scoreNight } from "./conditional-logit";
 import { JUDGMENTS, type Lists, listsFor, meanOfRanks, order, ranksOf, readSaved, scoreView } from "./typesafe-lists";

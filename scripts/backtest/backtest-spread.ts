@@ -1,6 +1,6 @@
 /**
  * How far runs of one backtest setup differ. It reads saved run files from
- * `scripts/backtest.ts` offline, groups them into arms (runs of one setup:
+ * `scripts/backtest/backtest.ts` offline, groups them into arms (runs of one setup:
  * model, thinking, prompt version, day list) and, for each arm with two or more runs,
  * reports day by day and in aggregate:
  *
@@ -17,7 +17,7 @@
  * the days every run has ok, so a run that stopped early doesn't drag the
  * arm's hits down with days it never ranked.
  *
- *   npx tsx scripts/backtest-spread.ts <run.json>…
+ *   npx tsx scripts/backtest/backtest-spread.ts <run.json>…
  */
 import { readFileSync } from "node:fs";
 import { type DayRecord, summarize } from "./backtest";
@@ -234,7 +234,7 @@ function main(): void {
   const args = process.argv.slice(2);
   const paths = args.filter((arg) => !arg.startsWith("--"));
   if (paths.length === 0) {
-    console.error("usage: npx tsx scripts/backtest-spread.ts <run.json>…");
+    console.error("usage: npx tsx scripts/backtest/backtest-spread.ts <run.json>…");
     process.exit(2);
   }
   const files: RunFile[] = paths.map((path) => {

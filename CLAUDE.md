@@ -73,8 +73,8 @@ the user types `/<name>` you don't recognize, ask which skill they mean.
 
 Anything that spends money against an external service, or occupies a
 shared one, is user-triggered: state the shape (one call vs a sweep, rough
-size and duration) and wait for approval. `scripts/ai-search-eval.ts` and
-`scripts/prepared-note-eval.ts --claude` send the full dinner snapshot to a
+size and duration) and wait for approval. `scripts/backtest/ai-search-eval.ts` and
+`scripts/backtest/prepared-note-eval.ts --claude` send the full dinner snapshot to a
 metered Claude model, so they fall under the rule; a 64-token placeholder
 probe that never touches the real snapshot does not. The local model behind
 `LOCAL_AI_*`, whichever server hosts it, is not metered but is a shared

@@ -13,7 +13,7 @@ A free eval script, and a prompt that reads well on the real snapshot. HITL
 because it needs Strata, the dev database, and a judgment of whether the brief
 reads well — a Ralph worker has none of the three.
 
-- **`scripts/prepared-note-eval.ts`**, modelled on `scripts/ai-search-eval.ts`:
+- **`scripts/backtest/prepared-note-eval.ts`**, modelled on `scripts/backtest/ai-search-eval.ts`:
   for a `--day`, against the dev DB, print the built prompt, Strata's raw reply,
   and the parsed brief and ranking.
 - **Tune** `buildPreparedSystemPrompt()` and `max_tokens` until the brief reads
@@ -26,7 +26,7 @@ reads well — a Ralph worker has none of the three.
 
 Calling Strata is **free** — the billed-call rule doesn't apply. Its endpoint
 and key are in `~/.omp/agent/models.yml` (provider `strata`); put them in
-`.env.local`, never in a commit. `scripts/ai-search-eval.ts` is still billed
+`.env.local`, never in a commit. `scripts/backtest/ai-search-eval.ts` is still billed
 and still needs approval.
 
 ## Acceptance criteria

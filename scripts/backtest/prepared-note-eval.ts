@@ -10,22 +10,22 @@
  * count, how many candidates were ranked, why generation stopped — so they
  * don't have to be counted by eye. Nothing is written to `prepared_notes`.
  *
- *   npx tsx scripts/prepared-note-eval.ts               # today
- *   npx tsx scripts/prepared-note-eval.ts --day=+3      # three days ahead
- *   npx tsx scripts/prepared-note-eval.ts --day=2026-10-25
- *   npx tsx scripts/prepared-note-eval.ts --snapshot    # also dump the JSON sent
- *   npx tsx scripts/prepared-note-eval.ts --no-prompt   # skip the system prompt
- *   npx tsx scripts/prepared-note-eval.ts --reasoning   # also print the model's reasoning
+ *   npx tsx scripts/backtest/prepared-note-eval.ts               # today
+ *   npx tsx scripts/backtest/prepared-note-eval.ts --day=+3      # three days ahead
+ *   npx tsx scripts/backtest/prepared-note-eval.ts --day=2026-10-25
+ *   npx tsx scripts/backtest/prepared-note-eval.ts --snapshot    # also dump the JSON sent
+ *   npx tsx scripts/backtest/prepared-note-eval.ts --no-prompt   # skip the system prompt
+ *   npx tsx scripts/backtest/prepared-note-eval.ts --reasoning   # also print the model's reasoning
  *
- * Backtest (`scripts/backtest.ts`): score notes for recent decided days, each
+ * Backtest (`scripts/backtest/backtest.ts`): score notes for recent decided days, each
  * built as the Household saw it, against what was eaten. A with-text note
  * takes 4–6 minutes a day on the local model, so the default 20 days is
  * about two hours; `--resume` picks a stopped run up, and `--repeat=N` runs
  * the days N times into `-r1` … `-rN` files.
  *
- *   npx tsx scripts/prepared-note-eval.ts --backtest --json --reasoning
- *   npx tsx scripts/prepared-note-eval.ts --backtest --days=2026-10-20,2026-10-23 --json=x.json
- *   npx tsx scripts/prepared-note-eval.ts --backtest --json --reasoning --resume
+ *   npx tsx scripts/backtest/prepared-note-eval.ts --backtest --json --reasoning
+ *   npx tsx scripts/backtest/prepared-note-eval.ts --backtest --days=2026-10-20,2026-10-23 --json=x.json
+ *   npx tsx scripts/backtest/prepared-note-eval.ts --backtest --json --reasoning --resume
  *
  * `--thinking=off` turns thinking off, overriding LOCAL_AI_REASONING_EFFORT.
  * The default `--json` file is
@@ -37,7 +37,7 @@
  * reasoning saved is the thinking summary, not a raw trace. `--thinking=off`
  * sends thinking disabled, which Opus 5.5 refuses.
  *
- *   npx tsx scripts/prepared-note-eval.ts --backtest --claude --days=… --json --reasoning
+ *   npx tsx scripts/backtest/prepared-note-eval.ts --backtest --claude --days=… --json --reasoning
  *
  * Both are under the billed-call rule in `CLAUDE.md`: Claude is billed, and
  * the local model is a shared resource. A single call is a probe; a sweep
@@ -50,10 +50,10 @@
  * `LOCAL_AI_API_KEY`, and `LOCAL_AI_MODEL` for the local model — the key
  * only ever in `.env.local`, never committed. The snapshot is read-only.
  */
-import "./load-env";
+import "../load-env";
 import Anthropic from "@anthropic-ai/sdk";
-import type { AiEffort } from "../lib/ai-search";
-import { isValidSqlDate, shiftSqlDate, today } from "../lib/local-day";
+import type { AiEffort } from "../../lib/ai-search";
+import { isValidSqlDate, shiftSqlDate, today } from "../../lib/local-day";
 import {
   buildPreparedSystemPrompt,
   buildPreparedUserMessage,
@@ -63,8 +63,8 @@ import {
   PREPARED_PROMPT_VERSION,
   type PrepareResult,
   type RawPreparedReply,
-} from "../lib/prepared-note";
-import { type BuiltSnapshot, leanSnapshot, snapshotForDay } from "../lib/snapshot";
+} from "../../lib/prepared-note";
+import { type BuiltSnapshot, leanSnapshot, snapshotForDay } from "../../lib/snapshot";
 import {
   defaultRunPath,
   type Generation,

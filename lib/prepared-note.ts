@@ -89,7 +89,7 @@ export function localModelConfig(): {
 
 /**
  * Bumped whenever the prompt's wording changes, so a backtest run's file name
- * and record say which prompt it measured (`scripts/prepared-note-eval.ts`).
+ * and record say which prompt it measured (`scripts/backtest/prepared-note-eval.ts`).
  * Not part of the input hash: that covers the prompt text itself
  * (`lib/prepared-notes.ts`).
  */
@@ -455,7 +455,7 @@ export type RawPreparedReply = {
 /**
  * Build a `PreparedNoteClient` for an OpenAI-compatible server at `baseUrl`.
  * `onReply`, when given, receives every reply whose stream could be read,
- * usable or not (`scripts/prepared-note-eval.ts`).
+ * usable or not (`scripts/backtest/prepared-note-eval.ts`).
  */
 export function createPreparedNoteClient(config: {
   baseUrl: string;

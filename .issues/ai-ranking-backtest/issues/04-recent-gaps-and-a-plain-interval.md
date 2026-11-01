@@ -42,7 +42,7 @@ Two things follow, both general — no Option is named anywhere:
   facts and what each is evidence of. `lib/prepared-note.ts` adds the field
   name to the words that never reach the Household. Both prompt versions
   are "12".
-- `scripts/backtest.ts`: a Pick's timing line shows its recent gaps
+- `scripts/backtest/backtest.ts`: a Pick's timing line shows its recent gaps
   ("21/10 (gaps 21,14,10)").
 - `CONTEXT.md` Interval entry; ADR-0012 second amendment.
 

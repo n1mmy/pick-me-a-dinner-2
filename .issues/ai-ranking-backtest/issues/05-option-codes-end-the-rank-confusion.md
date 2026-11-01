@@ -50,7 +50,7 @@ Decision: ADR-0013. Term: **Option code** in `CONTEXT.md`. Plan:
   reader plus the `brief|` line.
 - Both prompts at version 14 say "code", give its source positively ("its id
   in its own options entry"), and the checklist reads `A, B, …, AK`.
-- `scripts/backtest.ts`: `catalogOrder` orders by `codeIndex` and stays as
+- `scripts/backtest/backtest.ts`: `catalogOrder` orders by `codeIndex` and stays as
   the sentinel; `resolvedByName` is dropped from the record.
 
 ## Acceptance
