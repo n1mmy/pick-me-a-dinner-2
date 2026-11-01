@@ -96,7 +96,7 @@ function partition(tagFilters: TagFilters): {
  * segment AND carries every "include" Tag AND carries none of the "exclude"
  * Tags. The kind segment and all tag filters AND together.
  */
-function filterTonightRows(
+export function filterTonightRows(
   rows: TonightRow[],
   kind: KindFilter,
   tagFilters: TagFilters,

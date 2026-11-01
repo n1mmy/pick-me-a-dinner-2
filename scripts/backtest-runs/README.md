@@ -218,6 +218,28 @@ DeepSeek's or GLM's thinking. Hits are hit@3/5/10 out of 20.
 - `ai-search-v12-glm-5p3-low-pithy` — GLM 5.3, thinking-only (Fireworks
   rejects `disabled`): 9/10/16, 19s a day. Left the Pick out of its ranking
   on `2026-10-09`.
+- `prepared-v22-<model>-low` — Prepared note prompt v22 on four Fireworks
+  models through the `LOCAL_AI_*` path (`LOCAL_AI_BASE_URL` the
+  OpenAI-compatible `https://api.fireworks.ai/inference/v1`,
+  `LOCAL_AI_REASONING_EFFORT=low`, `LOCAL_AI_MAX_TOKENS=40000`), on the
+  same 20 days. `glm-5p3-flash` 7/7/11, mean / median rank 7.8 / 7, 17s
+  and ~2.2k tokens a day; `deepseek-v4p1-flash-1017` 12/13/15, 5.3 / 2,
+  68s and ~15.5k; `qwen3p8-2p4t-a95b` 11/13/17, 5.0 / 3, 43s and ~7.4k;
+  `qwen3p8-max` 10/12/18, 5.3 / 3, 43s and ~6.5k. Against v21 Qwen 3.8
+  dense low (7.8 / 10.0 / 16.0 over five repeats) the three larger models
+  sit at or above its range at hit@3, inside it at hit@10. Fireworks cuts
+  the Qwen 3.8 thinking short ("I have to give the solution based on the
+  reasoning directly now") on 16 of 20 days in each run; three days (Max `2026-10-09`
+  and `2026-10-11`, 2.4T `2026-10-18`) came back unavailable and scored on
+  the `--resume` retry.
+- `prepared-v22-qwen3.8-low` — the same prompt on local Qwen 3.8 dense at
+  low (`.env.backtest.qwen`), one run: 8/9/14, mean / median rank 7.0 / 6,
+  58/100 never-eaten top-5 slots, ~270s and ~9.6k tokens a day. Against
+  its v21 repeats (7–9 / 9–12 / 15–17, mean rank 5.5–6.6, 42–51
+  never-eaten slots) it is inside the range at hit@3 and hit@5, below it at
+  hit@10, mean rank and never-eaten slots. v22's fix (a condition read at
+  its newest word) is a case these 20 days do not exercise, so the run
+  checks nothing broke; the Fireworks gains above are the models.
 - `.part1.log` / `.part2.log` — a run made in two halves, the second with
   `--resume`.
 

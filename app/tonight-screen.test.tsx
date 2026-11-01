@@ -381,7 +381,7 @@ describe("TonightScreen — AI search", () => {
     });
   });
 
-  it("hides the filter zone while an AI result is shown and restores it on clear", async () => {
+  it("keeps the filter zone while an AI result is shown", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,
       results: [{ id: "o2", reason: "Light and quick" }],
@@ -391,37 +391,11 @@ describe("TonightScreen — AI search", () => {
         view={tonight({ options: TAGGED_OPTIONS })}
         searchEnabled
       />);
-
-    // The kind segment and Tag filter chips are part of the deterministic view.
-    expect(
-      screen.queryByRole("group", { name: "Filter by kind" }),
-    ).toBeTruthy();
-    expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeTruthy();
-
     await submitSearchAndSettle();
     await screen.findByText("Light and quick");
 
-    // While the AI result is shown the query is the single ranking authority:
-    // both the kind segment and the Tag filter chips are gone. The kind segment
-    // is hidden by a parent-state update driven by a `useEffect`, so it can
-    // settle a render after the result itself — `waitFor` rides that out.
-    await waitFor(() => {
-      expect(
-        screen.queryByRole("group", { name: "Filter by kind" }),
-      ).toBeNull();
-    });
-    expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
-
-    // Clearing restores both the deterministic list and its filter controls.
-    await waitFor(() => {
-      expect(screen.getByText("Apple Crumble")).toBeTruthy();
-    });
-    expect(
-      screen.queryByRole("group", { name: "Filter by kind" }),
-    ).toBeTruthy();
-    expect(screen.queryByRole("group", { name: "Filter by tag" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Filter by kind" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Filter by tag" })).toBeTruthy();
   });
 
   it("never disables the search box in flight, and keeps the deterministic list visible", async () => {
@@ -1553,10 +1527,13 @@ describe("TonightScreen — Last note", () => {
     expect(note.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("omits the Last note on an AI result row, showing only the AI rationale", async () => {
+  it("keeps the Last note on an AI result row, above the AI rationale", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,
-      results: [{ id: "o1", reason: "Light and quick" }],
+      results: [
+        { id: "o1", reason: "Light and quick" },
+        { id: "o2", reason: "Sweet enough" },
+      ],
     });
 
     render(
@@ -1567,10 +1544,17 @@ describe("TonightScreen — Last note", () => {
     );
     await submitSearchAndSettle();
 
-    // An AI row already carries the model's own rationale line; stacking the
-    // Last note above it read as too busy (DESIGN.md, "Last note line").
-    expect(screen.getByText("Light and quick")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^Last note,/ })).toBeNull();
+    // As on every other view, so a row holds its height when the Household
+    // switches between views (DESIGN.md, "Last note line").
+    const appleRow = screen.getByText("Apple Crumble").closest("li") as HTMLElement;
+    const note = within(appleRow).getByRole("button", {
+      name: "Last note, 18d ago: got the katsu curry",
+    });
+    const reason = within(appleRow).getByText("Light and quick");
+    expect(
+      note.compareDocumentPosition(reason) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^Last note,/ })).toHaveLength(1);
   });
 
   it("shows the note in full on a decided row, labelled and inert", () => {
@@ -1976,7 +1960,7 @@ describe("TonightScreen — Prepared note", () => {
       .map((item) => item.querySelector(".font-display")?.textContent ?? "");
   }
 
-  it("shows the Prepared ranking on load, with its rationales and layer line", () => {
+  it("shows the Prepared ranking on load, with its rationales, selected in the switcher", () => {
     render(
       <TonightScreen
         view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
@@ -1987,8 +1971,7 @@ describe("TonightScreen — Prepared note", () => {
 
     expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble", "Cherry Pie"]);
     expect(screen.getByText("Quick, and nobody has had it this week.")).toBeTruthy();
-    expect(screen.getByText("Prepared ranking")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Show ranked list" })).toBeTruthy();
+    expect(segments().selected).toBe("Prepared");
   });
 
   it("keeps each row's Last note on the Prepared ranking, above its rationale", () => {
@@ -2020,7 +2003,28 @@ describe("TonightScreen — Prepared note", () => {
     expect(screen.getAllByRole("button", { name: /^Last note,/ })).toHaveLength(1);
   });
 
-  it("steps back to the deterministic list on Show ranked list", () => {
+  /** The List view switcher's segment named `name`. */
+  function segment(name: string): HTMLElement {
+    return within(screen.getByRole("group", { name: "List view" })).getByRole(
+      "button",
+      { name },
+    );
+  }
+
+  /** The List view switcher's segment names, and which one is selected. */
+  function segments(): { names: string[]; selected: string | undefined } {
+    const buttons = within(
+      screen.getByRole("group", { name: "List view" }),
+    ).getAllByRole("button");
+    return {
+      names: buttons.map((button) => button.textContent ?? ""),
+      selected: buttons.find(
+        (button) => button.getAttribute("aria-pressed") === "true",
+      )?.textContent ?? undefined,
+    };
+  }
+
+  it("switches to the Score ranking and back to the Prepared ranking", () => {
     render(
       <TonightScreen
         view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
@@ -2028,15 +2032,26 @@ describe("TonightScreen — Prepared note", () => {
         preparedNote={NOTE}
       />,
     );
+    expect(segments()).toEqual({ names: ["Score", "Prepared"], selected: "Prepared" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Show ranked list" }));
+    fireEvent.click(segment("Score"));
 
+    expect(segments().selected).toBe("Score");
     expect(listedNames()).toEqual(["Apple Crumble", "Banana Bread", "Cherry Pie"]);
     expect(screen.queryByText("Quick, and nobody has had it this week.")).toBeNull();
-    expect(screen.queryByText("Prepared ranking")).toBeNull();
+
+    fireEvent.click(segment("Prepared"));
+
+    expect(segments().selected).toBe("Prepared");
+    expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble", "Cherry Pie"]);
+    expect(screen.getByText("Quick, and nobody has had it this week.")).toBeTruthy();
   });
 
-  it("moves focus to the list's first row on Show ranked list, not to the page", () => {
+  it("adds a landed search to the switcher, and keeps it there while the Household looks elsewhere", async () => {
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o3", reason: "Pie night" }],
+    });
     render(
       <TonightScreen
         view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
@@ -2044,15 +2059,26 @@ describe("TonightScreen — Prepared note", () => {
         preparedNote={NOTE}
       />,
     );
-    const show = screen.getByRole("button", { name: "Show ranked list" });
-    show.focus();
 
-    fireEvent.click(show);
+    await submitSearchAndSettle();
+    await screen.findByText("Pie night");
+    expect(segments()).toEqual({
+      names: ["Score", "Prepared", "AI search"],
+      selected: "AI search",
+    });
 
-    expect(document.activeElement).toBe(screen.getByRole("link", { name: "Apple Crumble" }));
+    fireEvent.click(segment("Score"));
+    expect(listedNames()).toEqual(["Apple Crumble", "Banana Bread", "Cherry Pie"]);
+    fireEvent.click(segment("Prepared"));
+    expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble", "Cherry Pie"]);
+
+    fireEvent.click(segment("AI search"));
+    expect(listedNames()).toEqual(["Cherry Pie"]);
+    expect(screen.getByText("Pie night")).toBeTruthy();
+    expect(mockedAiSearch).toHaveBeenCalledTimes(1);
   });
 
-  it("moves focus to the list's first row when the layer line clears a Claude result", async () => {
+  it("offers Score and AI search on a day with no Prepared note", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,
       results: [{ id: "o3", reason: "Pie night" }],
@@ -2064,21 +2090,145 @@ describe("TonightScreen — Prepared note", () => {
         preparedNote={null}
       />,
     );
+
     await submitSearchAndSettle();
     await screen.findByText("Pie night");
-    const clear = screen.getByRole("button", { name: "Clear" });
-    clear.focus();
 
-    fireEvent.click(clear);
+    expect(segments()).toEqual({ names: ["Score", "AI search"], selected: "AI search" });
+  });
 
+  it("leaves the list on the Household's view while a search runs, even one switched to meanwhile", async () => {
+    let resolveSearch: (result: AiSearchResult) => void = () => {};
+    mockedAiSearch.mockReturnValue(
+      new Promise<AiSearchResult>((resolve) => {
+        resolveSearch = resolve;
+      }),
+    );
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByRole("button", { name: /^Cancel search/ });
+    expect(segments()).toEqual({ names: ["Score", "Prepared"], selected: "Prepared" });
+    fireEvent.click(segment("Score"));
+    expect(listedNames()).toEqual(["Apple Crumble", "Banana Bread", "Cherry Pie"]);
+
+    await act(async () => {
+      resolveSearch({ ok: true, results: [{ id: "o3", reason: "Pie night" }] });
+    });
+    await waitForSearchSettled();
+    expect(segments().selected).toBe("AI search");
+
+    // The view the search replaced is the one switched to in flight.
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
     await waitFor(() => {
-      expect(document.activeElement).toBe(
-        screen.getByRole("link", { name: "Apple Crumble" }),
-      );
+      expect(segments().selected).toBe("Score");
     });
   });
 
-  it("lays a Claude result over the Prepared ranking, and Clear peels one layer at a time", async () => {
+  it("filters a landed AI result with the chips already on, each row keeping its number", async () => {
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [
+        { id: "o2", reason: "Bread first" },
+        { id: "o3", reason: "Pie night" },
+        { id: "o1", reason: "Crumble to finish" },
+      ],
+    });
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "dessert, not filtered" }));
+
+    await submitSearchAndSettle();
+    await screen.findByText("Bread first");
+
+    expect(segments().selected).toBe("AI search");
+    expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble"]);
+    expect(rankShown("Apple Crumble")).toBe("3");
+    // The chips are every active Option's Tags, not just the result's.
+    expect(screen.getByRole("button", { name: "pie, not filtered" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "dessert, included" }));
+    fireEvent.click(screen.getByRole("button", { name: "dessert, excluded" }));
+    expect(listedNames()).toEqual(["Banana Bread", "Cherry Pie", "Apple Crumble"]);
+  });
+
+  it("says no Options match when the chips filter out a whole AI result", async () => {
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o3", reason: "Pie night" }],
+    });
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "dessert, not filtered" }));
+
+    await submitSearchAndSettle();
+
+    expect(await screen.findByText("No Options match the current filter.")).toBeTruthy();
+    expect(screen.queryByText("No Options fit that search.")).toBeNull();
+  });
+
+  it("switches nothing when a search fails", async () => {
+    mockedAiSearch.mockResolvedValue({ ok: false });
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+    fireEvent.click(segment("Score"));
+
+    await submitSearchAndSettle();
+    await screen.findByText("Search unavailable — try again");
+
+    expect(segments()).toEqual({ names: ["Score", "Prepared"], selected: "Score" });
+  });
+
+  it("shows no switcher when the Score ranking is the only view", () => {
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={null}
+      />,
+    );
+
+    expect(screen.queryByRole("group", { name: "List view" })).toBeNull();
+    expect(listedNames()).toEqual(["Apple Crumble", "Banana Bread", "Cherry Pie"]);
+  });
+
+  it("keeps focus on the segment just chosen, so the Household can switch straight back", () => {
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+    segment("Score").focus();
+
+    fireEvent.click(segment("Score"));
+
+    expect(document.activeElement).toBe(segment("Score"));
+  });
+
+  it("numbers a Claude result's rows by their place on screen", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,
       results: [{ id: "o3", reason: "Pie night" }],
@@ -2092,47 +2242,119 @@ describe("TonightScreen — Prepared note", () => {
     );
 
     await submitSearchAndSettle();
-    expect(await screen.findByText("Pie night")).toBeTruthy();
-    expect(screen.getByText("AI search")).toBeTruthy();
+    await screen.findByText("Pie night");
+
     expect(listedNames()).toEqual(["Cherry Pie"]);
-    // Claude's rows number as they always have: their place on screen.
     expect(
       screen.getByText("Cherry Pie").closest("li")?.querySelector(".w-6")?.textContent,
     ).toBe("1");
-
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-    await waitFor(() => {
-      expect(listedNames()).toEqual(["Banana Bread", "Apple Crumble", "Cherry Pie"]);
-    });
-    expect(screen.getByText("Prepared ranking")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Show ranked list" }));
-    expect(listedNames()).toEqual(["Apple Crumble", "Banana Bread", "Cherry Pie"]);
   });
 
-  it("shows the new day's Prepared ranking after a Selected-day change, even if the last was dismissed", () => {
-    const { rerender } = render(
+  it.each([
+    ["the Prepared ranking", "Prepared", ["Banana Bread", "Apple Crumble", "Cherry Pie"]],
+    ["the Score ranking", "Score", ["Apple Crumble", "Banana Bread", "Cherry Pie"]],
+  ])("returns to %s when a search started from it is cleared", async (_view, from, names) => {
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o3", reason: "Pie night" }],
+    });
+    render(
       <TonightScreen
         view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
         searchEnabled
         preparedNote={NOTE}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Show ranked list" }));
+    fireEvent.click(segment(from));
+    await submitSearchAndSettle();
+    await screen.findByText("Pie night");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+
+    await waitFor(() => {
+      expect(segments()).toEqual({ names: ["Score", "Prepared"], selected: from });
+    });
+    expect(listedNames()).toEqual(names);
+  });
+
+  it("returns to the view the search started from when an empty result is cleared", async () => {
+    mockedAiSearch.mockResolvedValue({ ok: true, results: [] });
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+    fireEvent.click(segment("Score"));
+    await submitSearchAndSettle();
+    const emptyState = (await screen.findByText("No Options fit that search."))
+      .parentElement as HTMLElement;
+
+    fireEvent.click(within(emptyState).getByRole("button", { name: "Clear search" }));
+
+    await waitFor(() => {
+      expect(segments().selected).toBe("Score");
+    });
+  });
+
+  it("stays on the view on show when a kept search is cleared from elsewhere", async () => {
+    mockedAiSearch.mockResolvedValue({
+      ok: true,
+      results: [{ id: "o3", reason: "Pie night" }],
+    });
+    render(
+      <TonightScreen
+        view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
+        searchEnabled
+        preparedNote={NOTE}
+      />,
+    );
+    await submitSearchAndSettle();
+    await screen.findByText("Pie night");
+    fireEvent.click(segment("Score"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+
+    await waitFor(() => {
+      expect(segments()).toEqual({ names: ["Score", "Prepared"], selected: "Score" });
+    });
+  });
+
+  it("carries the chosen view across a Selected-day change", () => {
+    const FRIDAY_NOTE = { ...NOTE, ranking: [{ id: "o3", reason: "Pie on a Friday." }] };
+    const onDay = (day: string) => tonight({ day, today: "2026-10-22", options: THREE });
+    const { rerender } = render(
+      <TonightScreen view={onDay("2026-10-22")} searchEnabled preparedNote={NOTE} />,
+    );
+    fireEvent.click(segment("Score"));
 
     rerender(
-      <TonightScreen
-          view={tonight({ day: "2026-10-23", today: "2026-10-22", options: THREE })}
-          searchEnabled
-          preparedNote={{
-          ...NOTE,
-          ranking: [{ id: "o3", reason: "Pie on a Friday." }],
-        }}
-        />,
+      <TonightScreen view={onDay("2026-10-23")} searchEnabled preparedNote={FRIDAY_NOTE} />,
     );
 
+    expect(segments().selected).toBe("Score");
+    expect(listedNames()).toEqual(["Apple Crumble", "Banana Bread", "Cherry Pie"]);
+
+    fireEvent.click(segment("Prepared"));
     expect(listedNames()).toEqual(["Cherry Pie", "Apple Crumble", "Banana Bread"]);
     expect(screen.getByText("Pie on a Friday.")).toBeTruthy();
+  });
+
+  it("falls back to the day's default when a day change takes the chosen view away, and returns to it after", () => {
+    const onDay = (day: string) => tonight({ day, today: "2026-10-22", options: THREE });
+    const { rerender } = render(
+      <TonightScreen view={onDay("2026-10-22")} searchEnabled preparedNote={NOTE} />,
+    );
+    expect(segments().selected).toBe("Prepared");
+
+    // A day with no note has only the Score ranking.
+    rerender(<TonightScreen view={onDay("2026-10-23")} searchEnabled preparedNote={null} />);
+    expect(screen.queryByRole("group", { name: "List view" })).toBeNull();
+    expect(listedNames()).toEqual(["Apple Crumble", "Banana Bread", "Cherry Pie"]);
+
+    rerender(<TonightScreen view={onDay("2026-10-22")} searchEnabled preparedNote={NOTE} />);
+    expect(segments().selected).toBe("Prepared");
   });
 
   it("drops a ranked Option no longer on offer and appends the candidates the note didn't name", () => {
@@ -2409,7 +2631,7 @@ describe("TonightScreen — Prepared note", () => {
       .find((text) => /^Showing (the|AI)/.test(text));
   }
 
-  it("announces the Prepared ranking when clearing a Claude result brings it back", async () => {
+  it("announces every view switch, and the view a cleared search returns to", async () => {
     mockedAiSearch.mockResolvedValue({
       ok: true,
       results: [{ id: "o3", reason: "Pie night" }],
@@ -2423,17 +2645,23 @@ describe("TonightScreen — Prepared note", () => {
     );
     await submitSearchAndSettle();
     await screen.findByText("Pie night");
+    expect(listStatus()).toBe("Showing AI search results.");
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    fireEvent.click(segment("Score"));
+    expect(listStatus()).toBe("Showing the ranked dinner list.");
+    fireEvent.click(segment("Prepared"));
+    expect(listStatus()).toBe("Showing the prepared ranking.");
+    fireEvent.click(segment("AI search"));
+    expect(listStatus()).toBe("Showing AI search results.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
 
     await waitFor(() => {
       expect(listStatus()).toBe("Showing the prepared ranking.");
     });
-    fireEvent.click(screen.getByRole("button", { name: "Show ranked list" }));
-    expect(listStatus()).toBe("Showing the ranked dinner list.");
   });
 
-  it("announces the layer swap even when Claude AI search is off", () => {
+  it("announces a view switch even when Claude AI search is off", () => {
     render(
       <TonightScreen
         view={tonight({ day: "2026-10-22", today: "2026-10-22", options: THREE })}
@@ -2442,7 +2670,7 @@ describe("TonightScreen — Prepared note", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Show ranked list" }));
+    fireEvent.click(segment("Score"));
 
     expect(listStatus()).toBe("Showing the ranked dinner list.");
   });

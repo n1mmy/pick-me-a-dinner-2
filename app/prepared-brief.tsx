@@ -40,8 +40,10 @@ export function PreparedBrief({ note }: { note: PreparedNoteView }) {
       </p>
       {/* Borderless, chip-size — the Day note's add style. The 44px target
           bleeds 12px into the column padding (so its text lines up with the
-          brief's) and 12px down into the section gap. */}
-      <div className="-mb-3 flex items-center justify-between gap-3 desktop:hidden">
+          brief's), 12px up over the brief's foot — prose, not a control — so
+          the toggle sits close under the text it opens, and 16px down into
+          the section gap. */}
+      <div className="-mb-4 -mt-3 flex items-center justify-between gap-3 desktop:hidden">
         <button
           type="button"
           aria-expanded={expanded}

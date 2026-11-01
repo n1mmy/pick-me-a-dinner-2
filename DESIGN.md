@@ -217,7 +217,7 @@ circular.
 
 A flat, uniform ledger — every row the same height, no lead-item prominence,
 no collapsed long tail. This uniformity is locked for the deterministic
-list; an AI view lets rationales run to full length (see AI layers).
+list; an AI view lets rationales run to full length (see List views).
 
 - 3px kind bar flush left over the row's `kind-*-tint` background (a step
   below the decided block's wash, so the block still reads as the settled
@@ -234,9 +234,8 @@ list; an AI view lets rationales run to full length (see AI layers).
   step the rail takes ~200px and the column is briefly narrower than its
   mobile cap — going denser at that same point squeezes the row twice.
 - **AI rows** — a Claude AI search result or a Prepared ranking — carry the
-  model's rationale line (`chip` size, `muted`, on a `raised` surface). A
-  Claude row shows it in place of the Last note; a Prepared row keeps its
-  Last note line too (see Last note line).
+  model's rationale line (`chip` size, `muted`, on a `raised` surface),
+  under the Last note line when the row has one (see Last note line).
 
 ### Last note line
 
@@ -257,11 +256,11 @@ the chip row: age then text (`18d · got the katsu curry`).
 - **Italic**, age and text alike, wherever Tonight shows it: reported speech
   from another night, marked as an aside without another size or color step.
   The Prepared brief's label is the only other place a mono numeral slants.
-- **Claude AI search rows omit it** — the rationale line is already the
-  row's aside, and the search is a deliberate, one-off look.
-- **Prepared ranking rows keep it**, in its usual place under the chip row,
-  with the rationale below. The Prepared ranking is what Tonight loads with,
-  so dropping the line there would hide every prior night's note by default.
+- **Every list view keeps it** — Score, Prepared, and AI search alike — in
+  its usual place under the chip row, with any rationale below. A row then
+  holds its height as the Household switches views, so the list doesn't
+  jump, and what happened last time stays in reach whichever view is
+  ranking.
 
 ### Day note line
 
@@ -328,7 +327,11 @@ written before the feature was turned off still shows.
 - **Phones (<720px) clamp to two lines** (`line-clamp-2` — the brief is a
   `<p>`, not a `<button>`, so the clamp holds) with a borderless `chip`-size
   "Read more" button on its own line under the surface, which toggles to
-  "Show less". Expanded state resets on a Selected-day change. At ≥720px the
+  "Show less". Its words sit ~5px under the surface, ~20px above the search
+  box: the 44px target bleeds up over the brief's foot (prose, not a
+  control) and down into the section gap, so the toggle costs one text
+  line — a mis-tap only expands text. Expanded state resets on
+  a Selected-day change. At ≥720px the
   brief shows in full with no toggle — there the list starts on screen
   anyway, and on a phone it would not.
 - **Decided dates** show the frozen brief, below the decided block, exactly
@@ -337,32 +340,54 @@ written before the feature was turned off still shows.
   line scoring the note against what was eaten told the Household nothing
   they wanted.
 
-### AI layers
+### List views
 
-Tonight's list shows one of three layers: a Claude AI search result on top
-of the Prepared ranking, on top of the deterministic list. Both AI layers
+Tonight's list shows one of three views: the Score ranking, the Prepared
+ranking, or a Claude AI search result. They are peers, switched between
+freely, and switching discards nothing: a Claude result costs 50–90s to
+get again, and reading one view against another is the point of having
+three. Both AI views
 render through the same AI-row path (see Tonight row anatomy) and look
-identical row for row; what tells them apart is one line above the list.
+identical row for row; what tells them apart is the switcher above the list.
 
-- **Layer line.** Directly above the list whenever an AI layer is showing,
-  `meta` `muted`: `Prepared ranking · Show ranked list` or `AI search ·
-  Clear`, the action a borderless text button whose 44px hit area bleeds
-  into the surrounding gap, never onto a row (the negative-margin trick). It
-  names what the
-  Household is reading and is always the way to peel one layer off — the
-  search box's ✕ clears a Claude result too, but the box is absent when
-  Claude AI search isn't configured, and the Prepared ranking must still be
-  clearable then. The deterministic list has no layer line.
-- **Rationales run full length** in an AI layer — two or three sentences on
+- **Switcher.** A segmented control directly above the list, `meta` size:
+  **Score · Prepared · AI search**, in that order, group-named "List view".
+  The track is `raised`; each segment has a 2px transparent border, so the
+  selected one — `surface` fill, `ink`, `font-emphasis`, underlined — reads
+  as inset, and selecting never changes a width. It draws at 26px so the
+  list starts high, close to the filter chips: each segment's 44px
+  hit area bleeds 9px into the 16px gap above and the 12px gap below, never onto
+  a row. Unselected segments are `muted`, `ink` on hover. No `action`
+  fill: it sits right over the first row's PICK, and a second charcoal
+  block would compete with the screen's one primary action. No `accent`:
+  violet belongs to the AI search button alone.
+- **Only views that exist are offered.** Score always; Prepared when the
+  Selected day has a note; AI search while a Claude result is kept. With
+  only Score on offer there is no switcher.
+- **Which view shows.** Tonight opens on Prepared when the day has a note,
+  else Score — never AI search. A landed search selects AI search; one in
+  flight leaves the list where the Household has it, usable for the 50–90s
+  wait. A failed or cancelled search switches nothing. The chosen view
+  carries across a Selected-day change; a day without it shows its
+  default, and the choice returns on a day that has it.
+- **Clearing.** The search box's ✕ (and an empty result's "Clear search")
+  discards the result and its query and drops AI search from the
+  switcher. If AI search was on show, the list returns to the view it
+  replaced. Clearing is the search box's job alone: the switcher only
+  switches, so the Prepared ranking needs no clear control even when
+  Claude AI search isn't configured.
+- **Rationales run full length** in an AI view — two or three sentences on
   the strong picks, tapering to a line. This is the one licensed break in
   the uniform ledger: an AI view is for reading why, not scanning, and a
-  clamp would hide the reason the layer exists.
-- **Filter chips** stay visible over the Prepared ranking and filter it — it
-  is the default view on load, so hiding them would remove filtering from
-  Tonight. A filtered row keeps the note's rank, as a filtered
-  deterministic row keeps its own, so a numeral always means the same
-  place in the same ranking. Over a Claude result they hide, so the query
-  alone owns that space.
+  clamp would hide the reason the view exists.
+- **Filter chips** stay visible over every view and filter whichever is on
+  show, with one state shared across them: a query says what kind of
+  evening it is, and the chips still narrow its answer ("only Home meals").
+  The chips are every active Option's Tags, never just a result's, so they
+  hold still as views switch. A filtered row keeps its view's number, so a
+  numeral always means the same place in the same ranking; a result the
+  chips empty says "No Options match the current filter.", not the empty
+  search's "No Options fit that search."
 - **A Prepared numeral is the note's own place.** A Prepared row is numbered
   by its place in the stored ranking, not its place on screen: an Option
   Picked, Rejected, or Closed since the note was written leaves a gap
@@ -370,20 +395,26 @@ identical row for row; what tells them apart is one line above the list.
   decided-day line that quotes the note's rank. A candidate the note never
   named is appended **unnumbered** — the rank gutter empty — and with no
   rationale, so a row the model forgot never reads as one it ranked last.
-  The empty gutter says enough; a stock line on every such row was noise. Claude AI search rows are numbered by their
-  place on screen; nothing is filtered out of them after they arrive.
-- **Screen-reader status.** The polite status region says "Showing the
-  prepared ranking." when that layer comes into view (Claude result cleared,
-  Selected day changed), alongside the existing "Showing AI search
-  results." and "Showing the ranked dinner list." A fresh load stays silent,
-  as before.
+  The empty gutter says enough; a stock line on every such row was noise.
+  Claude AI search rows are numbered by their place in the result as it
+  resolves now: a Pick drops its Option and the rest close up, while a
+  filtered row keeps its number.
+- **Screen-reader status.** The polite status region names the view each
+  time it changes — a switch, a landed or cleared search, a Selected-day
+  change: "Showing the prepared ranking.", "Showing AI search results.",
+  "Showing the ranked dinner list." A fresh load stays silent. Focus stays
+  on the segment just chosen, since the switcher never unmounts.
 
 ### Tonight filter zone
 
-Tonight's sticky filter zone holds every filter on one `flex-wrap` line:
+Tonight's filter zone holds every filter on one `flex-wrap` line:
 Home and Restaurant chips first, then one chip per Tag. Both groups'
 `role="group"` wrappers are `display: contents`, so every chip is a flat
 sibling and any wrapped line reclaims the full row width.
+
+- **Spacing.** The zone (search box and chips) scrolls with the page: the
+  standard 22px section gap above the search box, and 16px between the
+  chips and the list below, which they filter as one block.
 
 - **Kind chips** are plain on/off toggles; none selected means all kinds.
   Tapping the active one clears it, tapping the other switches. Unselected:
@@ -398,7 +429,18 @@ sibling and any wrapped line reclaims the full row width.
 - The filter hint line shows only while a Tag filter is on; otherwise it is
   `sr-only` (still a live region, so kind changes are announced).
 - The Tonight header is just the H1 and the day stepper — ‹, date input, ›
-  joined flush inside one shared 1px `line` border.
+  joined flush inside one shared 1px `line` border. It is the one sticky
+  bar on Tonight: scrolled down a long list, the Household still sees which
+  day they are choosing for and can step it, which matters more than the
+  filters, set once near the top. It carries 8px padding on a `bg` fill so
+  the H1 and stepper never touch the viewport edge or the rows sliding
+  under it while stuck. The top padding is also the page's — Tonight's
+  `main` has none — so the header sits 8px from the top in flow exactly as
+  when stuck, and never shifts as the page starts to scroll; the loading
+  skeleton puts its H1 at the same spot. The bottom 8px stays in flow,
+  putting the Day note line 8px under the stepper, because pulling it up
+  under the header's fill clipped a wrapped note. The Day note line scrolls
+  away.
 
 ### Decided block
 

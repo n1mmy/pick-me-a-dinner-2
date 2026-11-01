@@ -179,9 +179,17 @@ _Avoid_: target date, picking day, future day (today is a Selected day);
 **Tonight**:
 The home screen, and its H1 label when the Selected day is today. It ranks
 active Options by Score for the **Selected day**, and once a Pick is made
-shows that day's Dinner — deciding, and showing what was decided. Its list is
-layered: an AI search result over the **Prepared ranking** over the Score
-ranking; Clear removes the top layer.
+shows that day's Dinner — deciding, and showing what was decided. Its list
+shows one of three views, and the Household switches between them freely
+without losing any: the **Score ranking**, the **Prepared ranking**, and an
+**AI search** result. It opens on the Prepared ranking when the Selected day
+has a Prepared note, and on the Score ranking otherwise; never on AI search.
+
+**Score ranking**:
+Tonight's view of active Options in **Score** order — the one that needs no
+model, and that every other view falls back to. Carries no **AI rationale**.
+_Avoid_: deterministic list, ranked list (all three views are ranked), default
+list (the Prepared ranking is the default when a note exists).
 
 **Closed disclosure**:
 The collapsed list at the foot of Tonight, below the Rejected disclosure,
@@ -267,7 +275,8 @@ empty — and the model returns a ranked set of Options to fit it, reading the
 eating history for habits the Score cannot see (day-of-week rhythms, what
 follows what) and every **Day note** as dated history, with the Selected
 day's own as current context. Always a deliberate action, never what Tonight
-loads with; the result sits on top of the list until cleared. The model
+loads with; the result is kept as one of Tonight's views until it is cleared
+or a new search replaces it. The model
 decides how many Options to return, so a narrowing query yields a subset.
 _Avoid_: AI ranking (it is search — there is a query, even when empty); AI
 search for a **Prepared note** (written ahead, not searched).
@@ -285,7 +294,7 @@ The model-written line on each AI search result row and Prepared ranking row
 saying why the Option sits where it does this evening ("Light and fast — a
 soup, and the katsu was the good call last time"). A search row's is
 query-aware and short; a Prepared ranking row's has up to three sentences for
-a strong pick, tapering for the tail. The deterministic list has none.
+a strong pick, tapering for the tail. The Score ranking has none.
 
 A rationale's timing is a **rhythm claim**: how long it has been, set
 against the **Usual stretch** ("15 days, inside the two weeks they usually

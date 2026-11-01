@@ -19,6 +19,7 @@ import type { TonightRow } from "../lib/ranking";
 import {
   chipStateLabel,
   cycleChipState,
+  filterTonightRows,
   pickerView,
   resolveRanking,
   showAddRow,
@@ -174,9 +175,9 @@ export function TonightScreen({
   const [kind, setKind] = useState<KindFilter>("all");
 
   // AI search state lifted out of the Picker — see the component comment for
-  // why. `aiResults === null` is the default deterministic view; a non-null
-  // value (including an empty array — a real "no fit" answer) swaps the list
-  // for the AI result.
+  // why. `aiResults` is the kept Claude result, null when there is none; a
+  // non-null value (including an empty array — a real "no fit" answer) is
+  // the AI search view, on show while that view is selected.
   const [query, setQuery] = useState("");
   const [aiResults, setAiResults] = useState<AiRankingRow[] | null>(null);
   const [aiError, setAiError] = useState(false);
@@ -217,19 +218,27 @@ export function TonightScreen({
   // search is cleared.
   const searchGenerationRef = useRef(0);
 
-  // The three AI layers (DESIGN.md, "AI layers"): a Claude result on top of
-  // the Prepared ranking, on top of the deterministic list. Dismissing the
-  // Prepared ranking holds only for the day it was dismissed on: a Selected-day
-  // change shows that day's note (reset in render, React's "adjust state on a
-  // prop change" pattern, so the dismissed state never paints for the new day).
-  const [preparedDismissed, setPreparedDismissed] = useState(false);
-  const [dismissedDay, setDismissedDay] = useState(day.date);
-  if (dismissedDay !== day.date) {
-    setDismissedDay(day.date);
-    setPreparedDismissed(false);
-  }
-  const preparedRanking =
-    preparedNote !== null && !preparedDismissed ? preparedNote.ranking : null;
+  // The list views (DESIGN.md, "List views"): the Score ranking, the Prepared
+  // ranking, and a Claude result, switched between freely. `chosenView` is the
+  // Household's choice, or null for the day's default. A choice carries across
+  // a Selected-day change; on a day without the chosen view the day's default
+  // shows instead, and the choice comes back on a day that has it. A landed
+  // search selects AI search and remembers the choice it replaced
+  // (`beforeSearch`), which clearing that search restores. One state object,
+  // updated functionally, because the search lands 50–90s after the render
+  // that submitted it, and the Household may have switched views meanwhile.
+  const [viewChoice, setViewChoice] = useState<{
+    chosen: ListView | null;
+    beforeSearch: ListView | null;
+  }>({ chosen: null, beforeSearch: null });
+  const chosenView = viewChoice.chosen;
+  const preparedRanking = preparedNote?.ranking ?? null;
+  const listView: ListView =
+    chosenView === "search" && aiResults !== null
+      ? "search"
+      : preparedRanking !== null && chosenView !== "score"
+        ? "prepared"
+        : "score";
 
   // An ordinary async function, deliberately not an async transition — see the
   // `startSearchTransition` comment above. The fetch itself is not a state
@@ -251,6 +260,11 @@ export function TonightScreen({
       }
       setAiError(false);
       setAiResults(result.results);
+      setViewChoice((prev) =>
+        prev.chosen === "search"
+          ? prev
+          : { chosen: "search", beforeSearch: prev.chosen },
+      );
       setSearchDoneSeconds(Math.floor((Date.now() - startedAt) / 1000));
     });
   }
@@ -272,6 +286,10 @@ export function TonightScreen({
     setAiResults(null);
     setAiError(false);
     setQuery("");
+    setViewChoice((prev) => ({
+      chosen: prev.chosen === "search" ? prev.beforeSearch : prev.chosen,
+      beforeSearch: null,
+    }));
   }
 
   // A Pick grows `tonightsDinner`; when it does, animate the page up to the
@@ -315,11 +333,11 @@ export function TonightScreen({
       ? ""
       : searchStartedAt !== null
         ? "Searching for dinner…"
-        : aiResults !== null
+        : listView === "search" && aiResults !== null
           ? aiResults.length === 0
             ? "AI search found no Options."
             : "Showing AI search results."
-          : preparedRanking !== null
+          : listView === "prepared"
             ? "Showing the prepared ranking."
             : "Showing the ranked dinner list.";
 
@@ -342,7 +360,10 @@ export function TonightScreen({
       onCancelSearch={cancelSearch}
       onClearSearch={clearSearch}
       preparedRanking={preparedRanking}
-      onDismissPrepared={() => setPreparedDismissed(true)}
+      listView={listView}
+      onListViewChange={(next) =>
+        setViewChoice((prev) => ({ ...prev, chosen: next }))
+      }
       day={day}
       quickAddSources={quickAddSources}
     />
@@ -355,25 +376,32 @@ export function TonightScreen({
     <PreparedBrief key={day.date} note={preparedNote} />
   );
   return (
-    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 pt-5.5 desktop:pb-12">
+    <main className="column flex min-h-screen flex-col gap-5.5 pb-24 desktop:pb-12">
       {/* The H1 and the stepper share a full-width row with the stepper
           pinned right at every width, so it holds still as the day name
           changes length instead of sliding with it — and a long name
           shortens the H1 rather than pushing the forward arrow off-screen.
-          (Until the kind segment moved into the filter zone, this row also
-          held it, which needed `justify-start` on desktop to keep the three
-          together instead of spread edge-to-edge; with only two items left,
-          the stepper stays right at every width.) */}
-      {/* The Day note line rides in the heading block, gap-free, as a
-          subtitle under the H1 — not as its own section paying the 22px
-          section gap (DESIGN.md, "Day note line"). */}
-      <div className="flex flex-col">
-        <div className="flex w-full items-center justify-between gap-2">
-          <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
-            <DayNameReset heading={day.heading} />
-          </h1>
-          <DayStepper selectedDay={day.date} todaySql={day.today} />
-        </div>
+          It is the sticky header: scrolled down a long list, the Selected
+          day and the controls to change it stay on screen (DESIGN.md,
+          "Tonight filter zone", on the header). It sits directly in `main`, not in a heading
+          block, because sticky only holds within its parent. The 8px
+          padding is for when it's stuck, so the H1 and stepper don't touch
+          the viewport edge or the rows sliding under them. It is also the
+          page's top padding — `main` carries none — so the header sits at
+          the same spot in flow as stuck, and doesn't shift as the page
+          starts to scroll. The bottom padding stays in flow, since pulling
+          the Day note up under the header's fill would clip a wrapped
+          note. */}
+      <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-2 bg-bg px-4 py-2">
+        <h1 className="min-w-0 font-display text-h1 font-h1 text-ink">
+          <DayNameReset heading={day.heading} />
+        </h1>
+        <DayStepper selectedDay={day.date} todaySql={day.today} />
+      </div>
+      {/* The Day note line is the H1's subtitle, gap-free — not its own
+          section paying the 22px section gap, which `-mt-5.5` takes back
+          (DESIGN.md, "Day note line"). It scrolls away with the page. */}
+      <div className="-mt-5.5 flex flex-col">
         <DayNoteLine
           notedOn={day.date}
           note={dayNote}
@@ -668,11 +696,11 @@ function ClosedDisclosure({
 }
 
 /**
- * The ranked picker: a sticky filter zone — optional AI search box, the
+ * The ranked picker: a filter zone — optional AI search box, the
  * Home/Restaurant kind chips, the tri-state Tag filter chips — above the flat
  * ranked `<ol>`. It is the whole screen in picker mode and the collapsible
  * body in decided mode; its behavior is identical either way. The kind chips
- * lead the Tag-chip line in the sticky filter zone, so every filter is in one
+ * lead the Tag-chip line in the filter zone, so every filter is in one
  * place; their state is owned by `TonightScreen` (see the `kind` comment
  * there) and threaded in as `kind` / `onKindChange`.
  *
@@ -706,7 +734,8 @@ function Picker({
   onCancelSearch,
   onClearSearch,
   preparedRanking,
-  onDismissPrepared,
+  listView,
+  onListViewChange,
   day,
   quickAddSources,
 }: {
@@ -729,10 +758,11 @@ function Picker({
   onSubmitSearch: () => void;
   onCancelSearch: () => void;
   onClearSearch: () => void;
-  /** The Prepared ranking on show under any Claude result; null when none is. */
+  /** The Selected day's Prepared ranking; null when the day has no note. */
   preparedRanking: AiRankingRow[] | null;
-  /** Peels the Prepared ranking off, back to the deterministic list. */
-  onDismissPrepared: () => void;
+  /** The list view on show under any Claude result. */
+  listView: ListView;
+  onListViewChange: (next: ListView) => void;
   /** The Selected day — its copy, and the date Pick/Reject writes carry. */
   day: SelectedDayView;
   quickAddSources: QuickAddSources;
@@ -753,83 +783,76 @@ function Picker({
     (state) => state !== "off",
   );
 
-  // The layer line's button unmounts with the layer it peels off, which would
-  // drop focus to <body>. Once the list under it renders, focus moves to its
-  // first row, or to the filter zone when no row matches (DESIGN.md, "Focus").
-  const listRef = useRef<HTMLOListElement>(null);
-  const filterZoneRef = useRef<HTMLDivElement>(null);
-  const focusAfterPeel = useRef(false);
-  useEffect(() => {
-    if (!focusAfterPeel.current) return;
-    const target =
-      listRef.current?.querySelector<HTMLElement>("a, button") ??
-      filterZoneRef.current?.querySelector<HTMLElement>("button");
-    if (!target) return;
-    focusAfterPeel.current = false;
-    target.focus();
-  });
-  function peel(action: () => void): () => void {
-    return () => {
-      focusAfterPeel.current = true;
-      action();
-    };
-  }
-
   // A submitted Rejection removes its row from the list on revalidation; this
   // live region — stable across that re-render, unlike the row itself —
   // announces the removal to assistive tech (PRD: Rejections, story 33).
   const [rejectNotice, setRejectNotice] = useState("");
 
   // The Picker's view model: the filtered rows in rank order, each Option's
-  // true rank from the unfiltered `rows` (so a filtered row keeps its true
+  // true rank from the unfiltered list (so a filtered row keeps its true
   // rank instead of being renumbered), the typeahead candidates — every
   // active Option, each tagged with its suppression so SearchBox can confirm
   // a Closed/Rejected pick and disable a Picked one (issue 02) — the chip
-  // row's Tags, and the hint line.
+  // row's Tags, and the hint line. The candidates and Tags always come from
+  // every row, whichever view is on show, so neither shrinks to a result.
   //
-  // Under a Prepared ranking (and no Claude result) the same view runs over
-  // the rows in the note's order — the Options it names first, then every
-  // candidate it didn't, so none goes missing. An Option since Picked,
-  // Rejected, or Closed is absent from `rows`, so the note can never offer
-  // it. A named row's number is its place in the stored ranking, so a
-  // Rejection doesn't renumber the rest and a filtered row keeps the note's
-  // rank; a row the note left out has no number and no rationale (DESIGN.md,
-  // "AI layers").
-  const prepared = useMemo(() => {
-    if (preparedRanking === null) return null;
-    const ranked = resolveRanking(preparedRanking, rows, { appendUnnamed: true });
-    return {
-      rows: ranked.map(({ row }) => row),
-      reasons: new Map(
-        ranked.flatMap(({ row, reason, rank }) =>
-          rank === undefined ? [] : [[row.option.id, reason] as const],
+  // An AI view filters the rows in its ranking's order instead (DESIGN.md,
+  // "List views"). An Option since Picked, Rejected, or Closed is absent
+  // from `rows`, so neither ranking can offer it.
+  // - The Prepared ranking names its Options first, then every candidate it
+  //   didn't, so none goes missing. A named row's number is its place in the
+  //   stored ranking, so a Rejection doesn't renumber the rest; a row the
+  //   note left out has no number and no rationale.
+  // - A Claude result holds only the Options it names, numbered by their
+  //   place in it as it now resolves; a Pick drops the Picked Option and the
+  //   rest close up.
+  const ranked = useMemo(() => {
+    if (listView === "prepared" && preparedRanking !== null) {
+      const resolved = resolveRanking(preparedRanking, rows, { appendUnnamed: true });
+      return {
+        rows: resolved.map(({ row }) => row),
+        reasons: new Map(
+          resolved.flatMap(({ row, reason, rank }) =>
+            rank === undefined ? [] : [[row.option.id, reason] as const],
+          ),
         ),
-      ),
-      ranks: new Map(
-        ranked.flatMap(({ row, rank }) =>
-          rank === undefined ? [] : [[row.option.id, rank] as const],
+        ranks: new Map(
+          resolved.flatMap(({ row, rank }) =>
+            rank === undefined ? [] : [[row.option.id, rank] as const],
+          ),
         ),
-      ),
-    };
-  }, [preparedRanking, rows]);
-  const { visible, rankOf, choices, tags, hint } = useMemo(
-    () =>
-      pickerView(prepared?.rows ?? rows, kind, tagFilters, suppressed, prepared?.ranks),
-    [prepared, rows, kind, tagFilters, suppressed],
+      };
+    }
+    if (listView === "search" && aiResults !== null) {
+      const resolved = resolveRanking(aiResults, rows, { appendUnnamed: false });
+      return {
+        rows: resolved.map(({ row }) => row),
+        reasons: new Map(resolved.map(({ row, reason }) => [row.option.id, reason])),
+        ranks: new Map(resolved.map(({ row }, index) => [row.option.id, index + 1])),
+      };
+    }
+    return null;
+  }, [listView, preparedRanking, aiResults, rows]);
+  const scoreView = useMemo(
+    () => pickerView(rows, kind, tagFilters, suppressed),
+    [rows, kind, tagFilters, suppressed],
   );
+  const { choices, tags, hint } = scoreView;
+  const visible = useMemo(
+    () =>
+      ranked === null
+        ? scoreView.visible
+        : filterTonightRows(ranked.rows, kind, tagFilters),
+    [ranked, scoreView, kind, tagFilters],
+  );
+  const rankOf = ranked?.ranks ?? scoreView.rankOf;
 
-  // The AI result resolved against the rows already on screen: every validated
-  // id is in the active Catalog, so it has a row to render with name and Tags.
-  // A Pick (in picker mode → decided mode) drops the Picked Option from
-  // `rows`, so its entry naturally falls out of `aiRows` while the rest of the
-  // AI-ranked list stays put.
-  const aiRows = useMemo(
-    () =>
-      aiResults === null
-        ? null
-        : resolveRanking(aiResults, rows, { appendUnnamed: false }),
-    [aiResults, rows],
-  );
+  // The switcher offers only the views that exist (DESIGN.md, "List views").
+  const views: ListView[] = [
+    "score",
+    ...(preparedRanking !== null ? (["prepared"] as const) : []),
+    ...(aiResults !== null ? (["search"] as const) : []),
+  ];
 
   function cycleTag(tag: string) {
     setTagFilters((prev) => ({
@@ -840,7 +863,11 @@ function Picker({
 
   return (
     <>
-      <div className="sticky top-0 z-10 -mx-4 flex flex-col gap-2 bg-bg px-4 py-3">
+      {/* The filters scroll with the page — the day header is what sticks.
+          `-mb-1.5` leaves 16px between the filters and the list they filter,
+          one block, against the 22px section gap above (DESIGN.md, "Tonight
+          filter zone"). */}
+      <div className="-mb-1.5 flex flex-col gap-2">
         {/* The search box appears only when AI search is configured; with
             no key Tonight is exactly v1 and the box is absent entirely. */}
         {searchEnabled && (
@@ -862,10 +889,10 @@ function Picker({
             onSelectAdd={setAddQuery}
           />
         )}
-        {/* The filter zone — kind chips and Tag chips — is hidden while an
-            AI result is shown, or the quick-add form is open, so the query
-            (or the form) alone owns the space below the search box. */}
-        {aiRows === null && addQuery === null && (
+        {/* The filter zone — kind chips and Tag chips — filters whichever
+            view is on show. It hides while the quick-add form is open, so
+            the form alone owns the space below the search box. */}
+        {addQuery === null && (
           <>
             {/* One filter line: the kind chips and every Tag chip are flat
                 siblings in a single flex-wrap row, so a wrapped second (or
@@ -874,10 +901,7 @@ function Picker({
                 carry the a11y grouping (`role="group"`) but `contents`
                 removes them from layout, so their chip children wrap exactly
                 as if they were direct children of the row. */}
-            <div
-              ref={filterZoneRef}
-              className="flex flex-wrap items-start gap-x-2 gap-y-1"
-            >
+            <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
               <KindChips kind={kind} onChange={onKindChange} />
               {tags.length > 0 && (
                 <div role="group" aria-label="Filter by tag" className="contents">
@@ -929,12 +953,20 @@ function Picker({
       <p className="sr-only" role="status" aria-live="polite">
         {rejectNotice}
       </p>
-      {aiRows !== null ? (
-        aiRows.length === 0 ? (
+      {/* One column for the switcher and whichever view it has selected. */}
+      <div className="flex flex-col gap-3">
+        {views.length > 1 && (
+          <ListViewSwitcher
+            views={views}
+            selected={listView}
+            onChange={onListViewChange}
+          />
+        )}
+        {listView === "search" && ranked?.rows.length === 0 ? (
           // An empty AI result is a real answer — the model legitimately
           // found nothing fitting the query — not a broken screen. The
-          // message mirrors the deterministic "No Options match" state; the
-          // inline control returns the screen to the deterministic list.
+          // message mirrors the "No Options match" state below; the inline
+          // control discards the search.
           <div className="flex flex-col items-start gap-2">
             <p className="text-body text-muted">No Options fit that search.</p>
             <button
@@ -947,108 +979,96 @@ function Picker({
               Clear search
             </button>
           </div>
+        ) : visible.length === 0 ? (
+          <p className="text-body text-muted">
+            No Options match the current filter.
+          </p>
         ) : (
           // gap-[2px] (off-scale, like the 3px kind bar — a rule weight, not
           // a layout step) separates rows with a sliver of `bg` instead of a
           // divider: every row already carries a kind-tinted background, so a
           // divider between two tinted rows read as a redundant, heavy seam.
-          //
-          // The layer line and its list share one `gap-3` column in both
-          // branches: the line's 44px target bleeds 12px past it each way, so
-          // the bleed fills that gap exactly. Above the line the Picker sits
-          // in a 22px gap in both modes, so the bleed never reaches the chips.
-          <div className="flex flex-col gap-3">
-            <LayerLine
-              label="AI search"
-              action="Clear"
-              onAction={peel(onClearSearch)}
-            />
-            <ol className="flex flex-col gap-[2px]">
-              {aiRows.map(({ row, reason }, index) => (
-                <TonightRowItem
-                  key={row.option.id}
-                  row={row}
-                  rank={index + 1}
-                  aiReason={reason}
-                  selectedDay={day.writeDate}
-                  onRejected={(name) =>
-                    setRejectNotice(`Rejected ${name}, removed from the list.`)
-                  }
-                />
-              ))}
-            </ol>
-          </div>
-        )
-      ) : (
-        <div className="flex flex-col gap-3">
-          {prepared !== null && (
-            <LayerLine
-              label="Prepared ranking"
-              action="Show ranked list"
-              onAction={peel(onDismissPrepared)}
-            />
-          )}
-          {visible.length === 0 ? (
-            <p className="text-body text-muted">
-              No Options match the current filter.
-            </p>
-          ) : (
-            // See the AI-rows list above for why `gap-[2px]` replaces a divider here.
-            <ol ref={listRef} className="flex flex-col gap-[2px]">
-              {visible.map((row) => (
-                <TonightRowItem
-                  key={row.option.id}
-                  row={row}
-                  rank={rankOf.get(row.option.id)}
-                  // A Prepared row keeps its Last note above the rationale:
-                  // this is the default view, so dropping it would hide
-                  // every prior night's note on load (DESIGN.md, "Last note line").
-                  aiReason={prepared?.reasons.get(row.option.id)}
-                  lastNote={lastNotes.get(row.option.id)}
-                  selectedDay={day.writeDate}
-                  onRejected={(name) =>
-                    setRejectNotice(`Rejected ${name}, removed from the list.`)
-                  }
-                />
-              ))}
-            </ol>
-          )}
-        </div>
-      )}
+          <ol className="flex flex-col gap-[2px]">
+            {visible.map((row) => (
+              <TonightRowItem
+                key={row.option.id}
+                row={row}
+                rank={rankOf.get(row.option.id)}
+                aiReason={ranked?.reasons.get(row.option.id)}
+                // Every view keeps the Last note, above any rationale, so a
+                // row holds its height as the Household switches views
+                // (DESIGN.md, "Last note line").
+                lastNote={lastNotes.get(row.option.id)}
+                selectedDay={day.writeDate}
+                onRejected={(name) =>
+                  setRejectNotice(`Rejected ${name}, removed from the list.`)
+                }
+              />
+            ))}
+          </ol>
+        )}
+      </div>
     </>
   );
 }
 
+/** Tonight's list views (CONTEXT.md, "Tonight"). */
+type ListView = "score" | "prepared" | "search";
+
+const LIST_VIEW_LABEL: Record<ListView, string> = {
+  score: "Score",
+  prepared: "Prepared",
+  search: "AI search",
+};
+
 /**
- * The line above an AI layer naming what the Household is reading, with the
- * one control that peels that layer off (DESIGN.md, "AI layers"). The 44px
- * hit area overlaps the gap around the line rather than setting its height,
- * and its `px-2` padding is taken back by `-mx-2`, as the brief's toggle does,
- * so the word stays on the line's left edge.
+ * The segmented control above the list naming the view on show, one tap to
+ * any other (DESIGN.md, "List views"). Each segment keeps a 2px transparent
+ * border over the `raised` track, so the selected `surface` segment reads as
+ * inset and selecting one never changes a width; the underline carries the
+ * selected state without color. The segments draw at 26px; each one's 44px
+ * hit area is a `before:` box bleeding 9px up into the section gap and 9px
+ * down into the list column's 12px gap, so it never lands on a row. Its
+ * -11px inset counts from inside the 2px border, hence not -9px.
  */
-function LayerLine({
-  label,
-  action,
-  onAction,
+function ListViewSwitcher({
+  views,
+  selected,
+  onChange,
 }: {
-  label: string;
-  action: string;
-  onAction: () => void;
+  views: ListView[];
+  selected: ListView;
+  onChange: (next: ListView) => void;
 }) {
   return (
-    <p className="flex items-center gap-2 text-meta text-muted">
-      <span>{label}</span>
-      <span aria-hidden="true">·</span>
-      <button
-        type="button"
-        onClick={onAction}
-        className={`-mx-2 -my-3 min-h-11 rounded-control px-2 text-meta
-          font-emphasis text-action transition-colors duration-micro
-          hover:bg-raised ${focusRing}`}
-      >
-        {action}
-      </button>
-    </p>
+    <div
+      role="group"
+      aria-label="List view"
+      className="inline-flex self-start rounded-control bg-raised"
+    >
+      {views.map((view) => {
+        const isSelected = view === selected;
+        return (
+          <button
+            key={view}
+            type="button"
+            aria-pressed={isSelected}
+            onClick={() => onChange(view)}
+            className={`relative rounded-control border-2 border-transparent
+              px-3 py-[2px] text-meta transition-colors duration-micro
+              before:absolute before:inset-x-0 before:-inset-y-[11px]
+              ${focusRing}
+              ${
+                isSelected
+                  ? "bg-surface font-emphasis text-ink underline underline-offset-2"
+                  : "text-muted hover:text-ink"
+              }`}
+          >
+            {LIST_VIEW_LABEL[view]}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
