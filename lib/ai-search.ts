@@ -378,12 +378,14 @@ export const SNAPSHOT_EVIDENCE = [
     "condition that holds until a Log entry or a later note says otherwise, " +
     "a rule they set for themselves, a lasting dislike, or a one-off; the " +
     "words, the date, and what they have done since say which, and that " +
-    "judgement is yours. A Rejection with no reason is a light \"passed on " +
-    "this\". Each Tag's entry lists the Rejections of every Option carrying " +
-    "it, newest first: a repeat turned down for one Option is recent for the " +
-    "others of its kind. \"Rejected tonight\" Options are not candidates and " +
-    "must not be returned; their reasons still bear on what remains. \"Other " +
-    "rejections\" are still candidates.",
+    "judgement is yours. A condition stands at its newest word: read one " +
+    "Option's reasons and Log rows together in date order, and the latest " +
+    "says whether it still holds. A Rejection with no reason is a light " +
+    "\"passed on this\". Each Tag's entry lists the Rejections of every " +
+    "Option carrying it, newest first: a repeat turned down for one Option " +
+    "is recent for the others of its kind. \"Rejected tonight\" Options are " +
+    "not candidates and must not be returned; their reasons still bear on " +
+    "what remains. \"Other rejections\" are still candidates.",
   "- A Day note (dayNotes, newest first, past and upcoming; todayDayNote " +
     "for the evening in question) is a fact about an evening, not about any " +
     "Option. Never read it as feedback on a dish or a restaurant. " +
@@ -517,7 +519,7 @@ const TEXT_FORMAT_INSTRUCTION = [
  * Bumped whenever the ranking prompt's wording changes, so a backtest run's
  * record says which prompt it measured (`scripts/ai-search-eval.ts`).
  */
-export const AI_SEARCH_PROMPT_VERSION = "21";
+export const AI_SEARCH_PROMPT_VERSION = "22";
 
 /** Build the AI search system prompt. */
 export function buildSystemPrompt(): string {

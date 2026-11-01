@@ -93,7 +93,7 @@ export function localModelConfig(): {
  * Not part of the input hash: that covers the prompt text itself
  * (`lib/prepared-notes.ts`).
  */
-export const PREPARED_PROMPT_VERSION = "21";
+export const PREPARED_PROMPT_VERSION = "22";
 
 /** Who the model helps and for when. */
 const OPENING =
