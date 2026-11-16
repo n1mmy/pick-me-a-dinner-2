@@ -16,7 +16,8 @@
  *     this weekday;
  *   - noul+choice+affinity+readiness — the Score split into its factors as
  *     two lists; noul+choice+score+readiness — readiness added as a brake;
- *     all+weekday — the three-way mean with the weekday count.
+ *     all+weekday — the three-way mean with the weekday count;
+ *     score+weekday — the Score and the weekday count, no Jev at all.
  *
  * A run made with `--judgments` (five more Nouls per candidate: tooSoon,
  * ruledOut, pointedAt, due, regular) adds arms that combine them in code:
@@ -97,6 +98,7 @@ const ARMS: Record<string, Arm> = {
   "noul+choice+affinity+readiness": (l) => meanOfRanks(l.noul, l.choice, l.affinity, l.readiness),
   "noul+choice+score+readiness": (l) => meanOfRanks(l.noul, l.choice, l.score, l.readiness),
   "all+weekday": (l) => meanOfRanks(l.noul, l.choice, l.score, l.weekday),
+  "score+weekday": (l) => meanOfRanks(l.score, l.weekday),
 };
 const JUDGMENT_ARMS: Record<string, Arm> = {
   ...Object.fromEntries(
