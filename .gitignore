@@ -1,5 +1,6 @@
 handoff.md
 .gstack/
+.claude/settings.local.json
 
 # ralph loop runtime state (regenerated every loop)
 .ralph/loop_state.json
